@@ -75,6 +75,10 @@ drop policy if exists "users manage own saved addons" on user_saved_addons;
 create policy "users manage own saved addons" on user_saved_addons for all using (user_id = auth.uid()) with check (user_id = auth.uid());
 -- Saved add-ons store public catalog slugs, not local installation state.
 
+-- Browser authenticated users may manage only their own saved add-on rows.
+-- RLS above still enforces user_id = auth.uid(); these grants only allow PostgREST to attempt the operation.
+grant select, insert, delete on table public.user_saved_addons to authenticated;
+
 drop policy if exists "review rows visible to related creators" on addon_reviews;
 drop policy if exists "admins manage reviews" on addon_reviews;
 

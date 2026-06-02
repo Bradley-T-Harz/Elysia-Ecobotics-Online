@@ -5,6 +5,8 @@ create table if not exists profiles (
   username text unique not null,
   display_name text,
   bio text,
+  interests text,
+  profile_sync_updated_at timestamptz,
   website_url text,
   github_url text,
   avatar_url text,

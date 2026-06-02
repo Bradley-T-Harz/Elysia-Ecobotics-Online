@@ -17,6 +17,7 @@ function addon(input: {
 }): AddonManifest {
   const dependency = input.dependency;
   const actionKind = input.action_kind ?? "manual_instruction";
+  const actionLabel = actionKind === "manual_instruction" ? "Manual instructions" : "Prepare install plan";
   return {
     schema_version: "0.1",
     id: input.id,
@@ -35,14 +36,14 @@ function addon(input: {
     actions: [
       {
         action_key: "prepare_install",
-        action_label: "Prepare install plan",
+        action_label: actionLabel,
         action_kind: actionKind,
         allowed: true,
         risk_level: input.risk ?? (input.network_access ? "moderate" : "low"),
         requires_local_operator_password: true,
         network_access: input.network_access,
         notes: [
-          "Marketplace only prepares this action.",
+          actionKind === "manual_instruction" ? "Developer has not declared a local install action." : "Marketplace only prepares this action.",
           "Local Elysia must validate and approve before any local change.",
           "No install occurs from the website."
         ]

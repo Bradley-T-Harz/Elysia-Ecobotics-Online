@@ -222,14 +222,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "high",
           "requires_local_operator_password": true,
           "network_access": false,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]
@@ -349,14 +349,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "high",
           "requires_local_operator_password": true,
           "network_access": true,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]
@@ -409,14 +409,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "low",
           "requires_local_operator_password": true,
           "network_access": false,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]
@@ -469,14 +469,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "low",
           "requires_local_operator_password": true,
           "network_access": false,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]
@@ -528,14 +528,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "low",
           "requires_local_operator_password": true,
           "network_access": false,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]
@@ -588,14 +588,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "low",
           "requires_local_operator_password": true,
           "network_access": false,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]
@@ -647,14 +647,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "high",
           "requires_local_operator_password": true,
           "network_access": true,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]
@@ -767,14 +767,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "high",
           "requires_local_operator_password": true,
           "network_access": false,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]
@@ -886,14 +886,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "high",
           "requires_local_operator_password": true,
           "network_access": false,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]
@@ -945,14 +945,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "high",
           "requires_local_operator_password": true,
           "network_access": true,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]
@@ -1004,14 +1004,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "moderate",
           "requires_local_operator_password": true,
           "network_access": false,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]
@@ -1064,14 +1064,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "high",
           "requires_local_operator_password": true,
           "network_access": true,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]
@@ -1183,14 +1183,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "high",
           "requires_local_operator_password": true,
           "network_access": false,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]
@@ -1242,14 +1242,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "low",
           "requires_local_operator_password": true,
           "network_access": false,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]
@@ -1361,14 +1361,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "low",
           "requires_local_operator_password": true,
           "network_access": false,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]
@@ -1420,14 +1420,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "moderate",
           "requires_local_operator_password": true,
           "network_access": false,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]
@@ -1480,14 +1480,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "high",
           "requires_local_operator_password": true,
           "network_access": false,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]
@@ -1540,14 +1540,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "high",
           "requires_local_operator_password": true,
           "network_access": false,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]
@@ -1600,14 +1600,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "high",
           "requires_local_operator_password": true,
           "network_access": false,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]
@@ -1659,14 +1659,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "critical",
           "requires_local_operator_password": true,
           "network_access": false,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]
@@ -1718,14 +1718,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "moderate",
           "requires_local_operator_password": true,
           "network_access": false,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]
@@ -1778,14 +1778,14 @@
       "actions": [
         {
           "action_key": "prepare_install",
-          "action_label": "Prepare install plan",
+          "action_label": "Manual instructions",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "high",
           "requires_local_operator_password": true,
           "network_access": false,
           "notes": [
-            "Marketplace only prepares this action.",
+            "Developer has not declared a local install action.",
             "Local Elysia must validate and approve before any local change.",
             "No install occurs from the website."
           ]

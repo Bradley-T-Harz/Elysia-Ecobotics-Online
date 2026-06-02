@@ -109,6 +109,7 @@ export type MarketplaceProfile = {
   username: string;
   display_name: string;
   bio: string;
+  interests?: string;
   website_url?: string;
   github_url?: string;
   organization?: string;
@@ -121,6 +122,7 @@ export type MarketplaceProfileDraft = {
   username: string;
   display_name: string;
   bio: string;
+  interests?: string;
   website_url?: string;
   github_url?: string;
   organization?: string;

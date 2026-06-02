@@ -14,6 +14,7 @@ function draftFromProfile(profile: MarketplaceProfile | null): MarketplaceProfil
     username: profile?.username ?? "",
     display_name: profile?.display_name ?? "",
     bio: profile?.bio ?? "",
+    interests: profile?.interests ?? "",
     website_url: profile?.website_url ?? "",
     github_url: profile?.github_url ?? "",
     organization: profile?.organization ?? "",
@@ -57,6 +58,7 @@ export default function ProfilePanel({ profile, supabaseConfigured, onMessage, o
         <label><span>Username</span><input value={draft.username} onChange={(event) => update("username", event.target.value)} placeholder="market-builder" /></label>
         <label><span>Display name</span><input value={draft.display_name} onChange={(event) => update("display_name", event.target.value)} placeholder="Marketplace Builder" /></label>
         <label className="wide-field"><span>Bio</span><textarea value={draft.bio} onChange={(event) => update("bio", event.target.value)} placeholder="Short public Marketplace bio" rows={4} /></label>
+        <label className="wide-field"><span>Interests</span><textarea value={draft.interests ?? ""} onChange={(event) => update("interests", event.target.value)} placeholder="Public Marketplace interests, such as privacy, GIS, research, or developer tools" rows={3} /></label>
         <label><span>Website</span><input value={draft.website_url ?? ""} onChange={(event) => update("website_url", event.target.value)} placeholder="https://example.com" /></label>
         <label><span>GitHub</span><input value={draft.github_url ?? ""} onChange={(event) => update("github_url", event.target.value)} placeholder="https://github.com/name" /></label>
         <label className="checkbox-line"><input type="checkbox" checked={draft.is_developer} onChange={(event) => update("is_developer", event.target.checked)} /> Request developer profile flag</label>
@@ -66,6 +68,7 @@ export default function ProfilePanel({ profile, supabaseConfigured, onMessage, o
       </div>
       <dl className="mini-facts">
         <div><dt>Username</dt><dd>{profile?.username ?? "Not created"}</dd></div>
+        <div><dt>Interests</dt><dd>{profile?.interests || "Not set"}</dd></div>
         <div><dt>Developer</dt><dd>{profile?.is_developer ? "Yes" : "Pending / No"}</dd></div>
         <div><dt>Admin</dt><dd>{profile?.is_admin ? "Yes" : "No"}</dd></div>
         <div><dt>Saved add-ons</dt><dd>{profile?.saved_addon_ids.length ?? 0}</dd></div>
