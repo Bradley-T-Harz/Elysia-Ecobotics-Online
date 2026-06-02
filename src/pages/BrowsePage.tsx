@@ -1,0 +1,48 @@
+import { useMemo, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import AddonFilters from "../components/AddonFilters";
+import MarketplaceBrowser from "../components/MarketplaceBrowser";
+import { filterAddons } from "../lib/addonCatalog";
+import type { CatalogFilters } from "../types";
+import { useMarketplaceContext } from "./useMarketplaceContext";
+
+const defaultFilters: CatalogFilters = {
+  search: "",
+  category: "all",
+  trustTier: "all",
+  locality: "all"
+};
+
+export default function BrowsePage() {
+  const navigate = useNavigate();
+  const { sortedAddons, categories, trustTiers, saveAddon } = useMarketplaceContext();
+  const [filters, setFilters] = useState<CatalogFilters>(defaultFilters);
+  const filteredAddons = useMemo(() => filterAddons(sortedAddons, filters), [filters, sortedAddons]);
+
+  return (
+    <section className="section-card page-card catalog-page">
+      <div className="page-header">
+        <p className="eyebrow">Marketplace Catalog</p>
+        <h1>Browse Elysia add-ons</h1>
+        <p>
+          Search official, reviewed, community, and planned add-ons. Each listing shows marketplace truth only:
+          trust tier, manifest status, dependency declarations, and future local action previews.
+        </p>
+        <div className="page-header__actions">
+          <Link className="button-link" to="/trust">How trust tiers work</Link>
+          <Link className="button-link" to="/manifest-api">Manifest schema</Link>
+        </div>
+      </div>
+
+      <AddonFilters filters={filters} categories={categories} trustTiers={trustTiers} onChange={setFilters} />
+      <MarketplaceBrowser
+        addons={filteredAddons}
+        totalCount={sortedAddons.length}
+        selectedAddonId={null}
+        onSelectAddon={(addonId) => navigate(`/addons/${addonId}`)}
+        onPrepareInstall={(addonId) => navigate(`/action-preview?addon=${encodeURIComponent(addonId)}`)}
+        onSaveAddon={saveAddon}
+      />
+    </section>
+  );
+}

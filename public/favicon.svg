@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Elysia Marketplace">
+  <defs>
+    <linearGradient id="g" x1="8" x2="56" y1="8" y2="56">
+      <stop stop-color="#7ed7d1"/>
+      <stop offset="0.55" stop-color="#d8b66f"/>
+      <stop offset="1" stop-color="#b882ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="#0b0e12"/>
+  <path d="M16 38c10-1 17-8 20-22 8 8 11 18 7 30-6 3-18 3-27-8z" fill="url(#g)"/>
+  <circle cx="43" cy="19" r="5" fill="#7ed7d1"/>
+  <path d="M20 44h28" stroke="#c7d2da" stroke-width="4" stroke-linecap="round"/>
+</svg>
