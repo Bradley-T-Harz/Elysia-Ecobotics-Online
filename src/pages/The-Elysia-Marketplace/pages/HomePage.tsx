@@ -1,4 +1,4 @@
-import { BookOpen, ExternalLink, GitPullRequest, Search, ShieldCheck, Store, UploadCloud } from "lucide-react";
+import { BookOpen, GitPullRequest, Search, ShieldCheck, Store, UploadCloud } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useMarketplaceContext } from "./useMarketplaceContext";
 
@@ -10,21 +10,19 @@ const steps = [
   { title: "Local Elysia later", detail: "Only local Elysia can execute approved actions through the password-gated Add-ons room." }
 ];
 
-export default function HomePage() {
+export default function MarketplaceHomePage() {
   const { catalogStatusMessage, seedFallbackActive, sortedAddons, supabaseConfigured } = useMarketplaceContext();
   return (
     <div className="home-page">
       <header className="hero page-hero">
         <div className="hero-copy">
           <p className="eyebrow">Elysia Marketplace</p>
-          <h1>Discover add-ons. Keep local power local.</h1>
+          <h1>The Elysia Marketplace</h1>
           <p>
-            Elysia Marketplace is the public catalog, profile, developer submission,
-            manifest, and trust-review surface for Elysia-compatible add-ons.
+            The Elysia Marketplace distributes digital add-ons, extensions, themes, tools, and manifests for Elysia while keeping local install authority inside local Elysia.
           </p>
           <p className="boundary-note">
-            Marketplace actions prepare plans only. Local Elysia later performs any install,
-            uninstall, enable, disable, or execution step inside its password-gated Add-ons room.
+            Marketplace actions prepare plans only. It stores public add-on metadata and account-linked saved items; it does not access private Elysia memory, files, logs, credentials, identity vaults, or machine data.
           </p>
           <div className="hero-actions">
             <Link className="button-link button-link--primary" to="/browse"><Store size={18} /> Browse Add-ons</Link>

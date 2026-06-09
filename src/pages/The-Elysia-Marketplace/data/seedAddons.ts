@@ -71,7 +71,7 @@ function addon(input: {
         : "No outward sharing is declared by the manifest."
     },
     tags: input.tags,
-    homepage_url: "https://elysia-marketplace.example/addons/" + input.id,
+    homepage_url: "https://elysia-ecobotics-online.example/marketplace/addons/" + input.id,
     source_url: "https://example.com/" + input.id,
     license: "Review required",
     status: input.status ?? "available"

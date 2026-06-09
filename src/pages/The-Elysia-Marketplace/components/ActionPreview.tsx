@@ -32,7 +32,7 @@ export default function ActionPreview({ addon, onSaveAddon }: ActionPreviewProps
     <section className="action-preview action-preview--full">
       <p className="eyebrow">Action Preview Only</p>
       <h1>{addon.name}</h1>
-      <p className="boundary-note">No install, uninstall, enable, disable, or local mutation occurs on this website. These are marketplace plans for later local Elysia review.</p>
+      <p className="boundary-note">No install, uninstall, enable, disable, or local mutation occurs on this website. These are marketplace plans for later local Elysia review. Add-ons install later into an Elysia_Add-ons folder beside the Elysia folder, not inside Elysia core.</p>
       <div className="action-preview-grid">
         {addon.actions.map((action) => (
           <article className="action-card" key={action.action_key}>
@@ -55,7 +55,7 @@ export default function ActionPreview({ addon, onSaveAddon }: ActionPreviewProps
         <button type="button" onClick={() => onSaveAddon(addon.id)}>Save plan</button>
         <Link className="button-link" to={`/addons/${addon.id}`}>View Manifest</Link>
         <Link className="button-link" to="/browse">Browse Add-ons</Link>
-        <button type="button" disabled>Open in Elysia, planned</button>
+        <a className="button-link" href={`elysia://addons/install?manifest_url=${encodeURIComponent(`/catalog-preview.json#${addon.id}`)}`}>Open in Elysia</a><a className="button-link" href="/catalog-preview.json" download>Download .elysia-addon</a><button type="button" disabled>Copy install command, planned</button>
       </div>
     </section>
   );

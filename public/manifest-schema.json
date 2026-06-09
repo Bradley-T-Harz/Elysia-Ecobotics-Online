@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://elysia-marketplace.example/schemas/addon-manifest.schema.json",
+  "$id": "https://elysia-ecobotics-online.example/schemas/addon-manifest.schema.json",
   "title": "Elysia Add-on Manifest",
   "type": "object",
   "additionalProperties": false,

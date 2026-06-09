@@ -1,84 +1,55 @@
-# Elysia Marketplace
+# Elysia Ecobotics Online
 
-Elysia Marketplace is a standalone public/cloud-facing add-on catalog, profile, developer submission, and trust review website for Elysia-compatible extensions.
+Elysia Ecobotics Online is the public website and account ecosystem for Elysia Ecobotics. It contains the Elysia Marketplace as one section, plus pages for downloads, products, the Lab, Developer Forge, Living Library, Commune, Commons Circle, story, about, and mission.
 
-This website does **not** install software on local machines. Local Elysia remains the final authority for installation, uninstallation, enablement, disablement, execution, local password checks, and local machine inventory.
+The site is public/cloud-facing. The private local Elysia core remains local, private, governed, and user-controlled. The website must not silently access local Elysia memory, private files, private logs, local credentials, request traces, identity vaults, `.env` files, or private machine data.
 
-## Current MVP
+## Stack
 
-- Vite + React + TypeScript routed marketplace app.
-- Supabase-ready authentication, profile, saved add-ons, submissions, and admin review boundaries.
-- Demo-mode fallback when Supabase env vars are missing.
-- Static seed catalog and public manifest schema.
-- Add-on search/filter/details/action-preview flows.
-- Developer submission form with frontend manifest validation.
-- Trust/security policy surfaces.
+- Vite
+- React
+- TypeScript
+- React Router
+- Supabase Auth/Postgres through the browser-safe anon key
+- Cloudflare Pages SPA routing through `public/_redirects`
 
-## Safety Boundary
+## Environment
 
-The marketplace may store marketplace accounts, public profiles, saved add-ons, submissions, review state, and public manifests in Supabase when configured.
-
-The marketplace must not receive local Elysia passwords, local files, local memory, dependency inventory, vault data, request traces, operator-room state, or private machine metadata by default.
-
-Buttons use honest wording such as `Save to My Add-ons`, `Prepare Install`, and `View Manifest`. They do not claim local installation.
-
-## Routes
-
-- `/` marketplace overview
-- `/browse` catalog search and filters
-- `/addons/:id` shareable add-on details
-- `/action-preview?addon=<id>` manifest action preview
-- `/account` marketplace auth/profile
-- `/submit` developer submission portal
-- `/trust` trust and security policy
-- `/manifest-api` manifest schema and public catalog docs
-- `/admin` admin review placeholder
-
-## Local Development
+Create `.env.local` for local Supabase testing:
 
 ```bash
-npm install
-npm run dev
+VITE_SUPABASE_URL=
+VITE_SUPABASE_ANON_KEY=
+```
+
+Never put a Supabase service-role key in frontend code.
+
+## Development
+
+```bash
+npm ci
 npm run typecheck
 npm run build
+npm run test:routes
+npm run dev
 ```
-
-The dev server binds to `127.0.0.1` by default.
-
-## Supabase Setup
-
-1. Create a Supabase project.
-2. Run `supabase/schema.sql`.
-3. Run `supabase/policies.sql`.
-4. Optionally run `supabase/seed.sql`.
-5. Copy `.env.example` to `.env.local` and fill:
-
-```env
-VITE_SUPABASE_URL=your-project-url
-VITE_SUPABASE_ANON_KEY=your-public-anon-key
-```
-
-Never place a Supabase service role key in frontend env files.
 
 ## Cloudflare Pages
 
-Suggested build settings:
-
-- Framework: Vite
-- Build command: `npm run build`
-- Output directory: `dist`
-- Env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
-
-## Future Local Elysia Integration
-
-Local Elysia may later fetch the public catalog, validate manifests, and perform approved local actions through a password-gated Add-ons room. The website itself will remain a catalog/profile/submission surface, not a remote-control surface for someone’s computer.
-
-## Catalog Preview Maintenance
-
-`public/catalog-preview.json` is generated from `src/data/seedAddons.ts` with:
+Build command:
 
 ```bash
-node scripts/generateCatalogPreview.mjs
+npm run build
 ```
 
-Run this after changing seed add-ons.
+Output directory:
+
+```bash
+dist
+```
+
+Preserve `public/_redirects` so direct route refreshes work.
+
+## Marketplace Boundary
+
+The Elysia Marketplace prepares public add-on plans, manifests, permission reviews, saved add-ons, submissions, and trust labels. It does not install software locally. Future local installation must be performed by local Elysia after explicit user approval, outside Elysia core in an `Elysia_Add-ons` folder.

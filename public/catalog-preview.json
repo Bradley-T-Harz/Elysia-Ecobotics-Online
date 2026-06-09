@@ -67,7 +67,7 @@
         "parser",
         "local"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/advanced-pdf-parser",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/advanced-pdf-parser",
       "source_url": "https://example.com/advanced-pdf-parser",
       "license": "Review required",
       "status": "available"
@@ -134,7 +134,7 @@
         "files",
         "parser"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/docx-parser",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/docx-parser",
       "source_url": "https://example.com/docx-parser",
       "license": "Review required",
       "status": "available"
@@ -201,7 +201,7 @@
         "csv",
         "data"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/spreadsheet-reader",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/spreadsheet-reader",
       "source_url": "https://example.com/spreadsheet-reader",
       "license": "Review required",
       "status": "available"
@@ -261,7 +261,7 @@
         "planned",
         "files"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/ocr-parser-planned",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/ocr-parser-planned",
       "source_url": "https://example.com/ocr-parser-planned",
       "license": "Review required",
       "status": "security_hold"
@@ -328,7 +328,7 @@
         "searxng",
         "public-web"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/searxng-research",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/searxng-research",
       "source_url": "https://example.com/searxng-research",
       "license": "Review required",
       "status": "available"
@@ -388,7 +388,7 @@
         "evidence",
         "boundary"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/fetch-worker",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/fetch-worker",
       "source_url": "https://example.com/fetch-worker",
       "license": "Review required",
       "status": "available"
@@ -448,7 +448,7 @@
         "truth",
         "research"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/evidence-verifier",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/evidence-verifier",
       "source_url": "https://example.com/evidence-verifier",
       "license": "Review required",
       "status": "available"
@@ -507,7 +507,7 @@
         "evidence",
         "contradictions"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/contradiction-scan",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/contradiction-scan",
       "source_url": "https://example.com/contradiction-scan",
       "license": "Review required",
       "status": "available"
@@ -567,7 +567,7 @@
         "models",
         "local"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/ollama-local-models",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/ollama-local-models",
       "source_url": "https://example.com/ollama-local-models",
       "license": "Review required",
       "status": "available"
@@ -626,7 +626,7 @@
         "routing",
         "roles"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/model-role-router",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/model-role-router",
       "source_url": "https://example.com/model-role-router",
       "license": "Review required",
       "status": "available"
@@ -686,7 +686,7 @@
         "comparison",
         "privacy"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/external-model-comparison",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/external-model-comparison",
       "source_url": "https://example.com/external-model-comparison",
       "license": "Review required",
       "status": "security_hold"
@@ -746,7 +746,7 @@
         "rstudio",
         "science"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/rstudio-integration",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/rstudio-integration",
       "source_url": "https://example.com/rstudio-integration",
       "license": "Review required",
       "status": "available"
@@ -805,7 +805,7 @@
         "jupyter",
         "notebook"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/jupyter-bridge",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/jupyter-bridge",
       "source_url": "https://example.com/jupyter-bridge",
       "license": "Review required",
       "status": "pending_review"
@@ -865,7 +865,7 @@
         "qgis",
         "maps"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/qgis-integration",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/qgis-integration",
       "source_url": "https://example.com/qgis-integration",
       "license": "Review required",
       "status": "available"
@@ -924,7 +924,7 @@
         "gdal",
         "geospatial"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/gdal-geo-stack",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/gdal-geo-stack",
       "source_url": "https://example.com/gdal-geo-stack",
       "license": "Review required",
       "status": "security_hold"
@@ -983,7 +983,7 @@
         "postgis",
         "database"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/postgis",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/postgis",
       "source_url": "https://example.com/postgis",
       "license": "Review required",
       "status": "available"
@@ -1043,7 +1043,7 @@
         "security",
         "inventory"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/syft-sbom-scanner",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/syft-sbom-scanner",
       "source_url": "https://example.com/syft-sbom-scanner",
       "license": "Review required",
       "status": "available"
@@ -1102,7 +1102,7 @@
         "security",
         "vulnerabilities"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/grype-vulnerability-scanner",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/grype-vulnerability-scanner",
       "source_url": "https://example.com/grype-vulnerability-scanner",
       "license": "Review required",
       "status": "available"
@@ -1162,7 +1162,7 @@
         "docker",
         "research"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/searxng-local-service",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/searxng-local-service",
       "source_url": "https://example.com/searxng-local-service",
       "license": "Review required",
       "status": "available"
@@ -1221,7 +1221,7 @@
         "docker",
         "services"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/docker-compose-service-manager",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/docker-compose-service-manager",
       "source_url": "https://example.com/docker-compose-service-manager",
       "license": "Review required",
       "status": "security_hold"
@@ -1280,7 +1280,7 @@
         "artifacts",
         "local"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/local-artifact-registry",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/local-artifact-registry",
       "source_url": "https://example.com/local-artifact-registry",
       "license": "Review required",
       "status": "available"
@@ -1340,7 +1340,7 @@
         "editor",
         "vscode"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/vscode-integration",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/vscode-integration",
       "source_url": "https://example.com/vscode-integration",
       "license": "Review required",
       "status": "available"
@@ -1399,7 +1399,7 @@
         "codex",
         "workflow"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/codex-workflow-helper",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/codex-workflow-helper",
       "source_url": "https://example.com/codex-workflow-helper",
       "license": "Review required",
       "status": "available"
@@ -1459,7 +1459,7 @@
         "aider",
         "dry-run"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/aider-worker",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/aider-worker",
       "source_url": "https://example.com/aider-worker",
       "license": "Review required",
       "status": "available"
@@ -1519,7 +1519,7 @@
         "approval",
         "local"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/patch-worker",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/patch-worker",
       "source_url": "https://example.com/patch-worker",
       "license": "Review required",
       "status": "available"
@@ -1579,7 +1579,7 @@
         "commands",
         "approval"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/command-worker",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/command-worker",
       "source_url": "https://example.com/command-worker",
       "license": "Review required",
       "status": "available"
@@ -1638,7 +1638,7 @@
         "drone",
         "photogrammetry"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/opendronemap",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/opendronemap",
       "source_url": "https://example.com/opendronemap",
       "license": "Review required",
       "status": "available"
@@ -1697,7 +1697,7 @@
         "ros",
         "robotics"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/ros-bridge",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/ros-bridge",
       "source_url": "https://example.com/ros-bridge",
       "license": "Review required",
       "status": "security_hold"
@@ -1757,7 +1757,7 @@
         "ecology",
         "field"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/audiomoth-field-tools",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/audiomoth-field-tools",
       "source_url": "https://example.com/audiomoth-field-tools",
       "license": "Review required",
       "status": "available"
@@ -1817,7 +1817,7 @@
         "field",
         "ecology"
       ],
-      "homepage_url": "https://elysia-marketplace.example/addons/trail-camera-data-tools",
+      "homepage_url": "https://elysia-ecobotics-online.example/marketplace/addons/trail-camera-data-tools",
       "source_url": "https://example.com/trail-camera-data-tools",
       "license": "Review required",
       "status": "available"

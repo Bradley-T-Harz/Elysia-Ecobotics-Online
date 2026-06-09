@@ -1,163 +1,80 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { BrowserRouter, NavLink, Outlet, Route, Routes } from "react-router-dom";
-import { loadAdminReviewQueue, loadCurrentProfile, loadPublishedAddons, saveAddonForUser } from "./lib/marketplaceApi";
-import { getAddonById, getCategories, getTrustTiers, sortAddons } from "./lib/addonCatalog";
-import { hasSupabaseConfig } from "./lib/supabase";
-import type { AddonManifest, AddonSubmission, CatalogSourceState, MarketplaceProfile } from "./types";
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
+import SiteLayout from "./layouts/SiteLayout";
+import { AuthProvider } from "./shared/auth/AuthProvider";
+import MarketplaceProvider from "./pages/The-Elysia-Marketplace/MarketplaceProvider";
+import OnlineMainPage from "./pages/Elysia-Ecobotics-Online-MainPage";
+import ArchivePage from "./pages/The-Elysia-Archive";
+import MarketplaceHomePage from "./pages/The-Elysia-Marketplace/pages/HomePage";
+import BrowsePage from "./pages/The-Elysia-Marketplace/pages/BrowsePage";
+import AddonDetailsPage from "./pages/The-Elysia-Marketplace/pages/AddonDetailsPage";
+import ActionPreviewPage from "./pages/The-Elysia-Marketplace/pages/ActionPreviewPage";
+import AccountPage from "./pages/The-Elysia-Marketplace/pages/AccountPage";
+import SubmitPage from "./pages/The-Elysia-Marketplace/pages/SubmitPage";
+import TrustPage from "./pages/The-Elysia-Marketplace/pages/TrustPage";
+import ManifestApiPage from "./pages/The-Elysia-Marketplace/pages/ManifestApiPage";
+import AdminPage from "./pages/The-Elysia-Marketplace/pages/AdminPage";
+import ProductsPage from "./pages/Elysia-Ecobotics-Products";
+import LabPage from "./pages/The-Elysia-Ecobotics-Lab";
+import DeveloperForgePage from "./pages/The-Developer-Forge";
+import LivingLibraryPage from "./pages/The-Living-Library";
+import CommunePage from "./pages/The-Elysia-Commune";
+import WorkWithPage from "./pages/Work-With-Elysia-Ecobotics";
+import CommonsCirclePage from "./pages/The-Commons-Circle";
+import StoryPage from "./pages/The-Story-of-Elysia";
+import AboutPage from "./pages/About-Elysia-Ecobotics";
+import MissionPage from "./pages/The-Elysia-Mission";
 
-import HomePage from "./pages/HomePage";
-import BrowsePage from "./pages/BrowsePage";
-import AddonDetailsPage from "./pages/AddonDetailsPage";
-import ActionPreviewPage from "./pages/ActionPreviewPage";
-import AccountPage from "./pages/AccountPage";
-import SubmitPage from "./pages/SubmitPage";
-import TrustPage from "./pages/TrustPage";
-import ManifestApiPage from "./pages/ManifestApiPage";
-import AdminPage from "./pages/AdminPage";
+function LegacyAddonAlias() {
+  const { id } = useParams();
+  return <Navigate to={`/marketplace/addons/${id ?? ""}`} replace />;
+}
 
-export type MarketplaceContext = {
-  addons: AddonManifest[];
-  sortedAddons: AddonManifest[];
-  categories: string[];
-  trustTiers: string[];
-  profile: MarketplaceProfile | null;
-  reviewQueue: AddonSubmission[];
-  demoMode: boolean;
-  supabaseConfigured: boolean;
-  seedFallbackActive: boolean;
-  catalogSourceState: CatalogSourceState | null;
-  catalogStatusMessage: string;
-  messages: string[];
-  pushMessage: (message: string) => void;
-  refreshProfile: () => Promise<void>;
-  refreshReviewQueue: () => Promise<void>;
-  refreshCatalog: () => Promise<void>;
-  saveAddon: (addonId: string) => Promise<void>;
-  getAddon: (addonId: string | undefined) => AddonManifest | null;
-};
-
-function MarketplaceLayout() {
-  const [addons, setAddons] = useState<AddonManifest[]>([]);
-  const [profile, setProfile] = useState<MarketplaceProfile | null>(null);
-  const [reviewQueue, setReviewQueue] = useState<AddonSubmission[]>([]);
-  const [messages, setMessages] = useState<string[]>([]);
-  const [demoMode, setDemoMode] = useState(false);
-  const [seedFallbackActive, setSeedFallbackActive] = useState(false);
-  const [catalogSourceState, setCatalogSourceState] = useState<CatalogSourceState | null>(null);
-  const [catalogStatusMessage, setCatalogStatusMessage] = useState("Loading marketplace catalog...");
-
-  const pushMessage = useCallback((message: string) => {
-    if (!message.trim()) return;
-    setMessages((current) => [message, ...current.filter((existing) => existing !== message)].slice(0, 4));
-  }, []);
-
-  const refreshCatalog = useCallback(async () => {
-    const catalog = await loadPublishedAddons();
-    setAddons(catalog.data);
-    setDemoMode((current) => current || catalog.demoMode);
-    setSeedFallbackActive(Boolean(catalog.seedFallbackActive));
-    setCatalogSourceState(catalog.sourceState ?? null);
-    setCatalogStatusMessage(catalog.statusMessage ?? (catalog.demoMode ? "Seed catalog fallback active." : "Supabase catalog loaded."));
-    catalog.warnings.forEach(pushMessage);
-  }, [pushMessage]);
-
-  const refreshProfile = useCallback(async () => {
-    const currentProfile = await loadCurrentProfile();
-    setProfile(currentProfile.data);
-    setDemoMode((current) => current || currentProfile.demoMode);
-    currentProfile.warnings.forEach(pushMessage);
-  }, [pushMessage]);
-
-  const refreshReviewQueue = useCallback(async () => {
-    const queue = await loadAdminReviewQueue();
-    setReviewQueue(queue.data);
-    setDemoMode((current) => current || queue.demoMode);
-    queue.warnings.forEach(pushMessage);
-  }, [pushMessage]);
-
-  useEffect(() => {
-    async function load() {
-      await refreshCatalog();
-      await refreshProfile();
-      await refreshReviewQueue();
-    }
-    void load();
-  }, [refreshCatalog, refreshProfile, refreshReviewQueue]);
-
-  const sortedAddons = useMemo(() => sortAddons(addons), [addons]);
-  const categories = useMemo(() => getCategories(sortedAddons), [sortedAddons]);
-  const trustTiers = useMemo(() => getTrustTiers(sortedAddons), [sortedAddons]);
-
-  const saveAddon = useCallback(async (addonId: string) => {
-    const result = await saveAddonForUser(addonId);
-    const addon = getAddonById(sortedAddons, addonId);
-    pushMessage(result.warnings.join(" ") || result.statusMessage || `${addon?.name ?? addonId} saved to marketplace profile plan.`);
-    await refreshProfile();
-  }, [pushMessage, refreshProfile, sortedAddons]);
-
-  const context: MarketplaceContext = {
-    addons,
-    sortedAddons,
-    categories,
-    trustTiers,
-    profile,
-    reviewQueue,
-    demoMode,
-    supabaseConfigured: hasSupabaseConfig,
-    seedFallbackActive,
-    catalogSourceState,
-    catalogStatusMessage,
-    messages,
-    pushMessage,
-    refreshProfile,
-    refreshReviewQueue,
-    refreshCatalog,
-    saveAddon,
-    getAddon: (addonId) => addonId ? getAddonById(sortedAddons, addonId) ?? null : null
-  };
-
-  return (
-    <div className="app-shell">
-      <nav className="top-nav" aria-label="Marketplace pages">
-        <NavLink to="/" end>Home</NavLink>
-        <NavLink to="/browse">Browse</NavLink>
-        <NavLink to="/action-preview">Action preview</NavLink>
-        <NavLink to="/account">Account</NavLink>
-        <NavLink to="/submit">Submit</NavLink>
-        <NavLink to="/trust">Trust</NavLink>
-        <NavLink to="/manifest-api">Manifest API</NavLink>
-        <NavLink to="/admin">Admin</NavLink>
-      </nav>
-
-      {messages.length > 0 && (
-        <section className="message-stack" aria-live="polite">
-          {messages.map((message, index) => <div key={`${message}-${index}`} className="message">{message}</div>)}
-        </section>
-      )}
-
-      <main>
-        <Outlet context={context} />
-      </main>
-    </div>
-  );
+function LegacySearchAlias({ target }: { target: string }) {
+  const location = useLocation();
+  return <Navigate to={`${target}${location.search}`} replace />;
 }
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<MarketplaceLayout />}>
-          <Route index element={<HomePage />} />
-          <Route path="browse" element={<BrowsePage />} />
-          <Route path="addons/:id" element={<AddonDetailsPage />} />
-          <Route path="action-preview" element={<ActionPreviewPage />} />
-          <Route path="account" element={<AccountPage />} />
-          <Route path="submit" element={<SubmitPage />} />
-          <Route path="trust" element={<TrustPage />} />
-          <Route path="manifest-api" element={<ManifestApiPage />} />
-          <Route path="admin" element={<AdminPage />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route element={<SiteLayout />}>
+            <Route index element={<OnlineMainPage />} />
+            <Route path="archive" element={<ArchivePage />} />
+            <Route path="marketplace" element={<MarketplaceProvider />}>
+              <Route index element={<MarketplaceHomePage />} />
+              <Route path="browse" element={<BrowsePage />} />
+              <Route path="addons/:id" element={<AddonDetailsPage />} />
+              <Route path="action-preview" element={<ActionPreviewPage />} />
+              <Route path="account" element={<AccountPage />} />
+              <Route path="submit" element={<SubmitPage />} />
+              <Route path="trust" element={<TrustPage />} />
+              <Route path="manifest-api" element={<ManifestApiPage />} />
+              <Route path="admin" element={<AdminPage />} />
+            </Route>
+            <Route path="products" element={<ProductsPage />} />
+            <Route path="lab" element={<LabPage />} />
+            <Route path="developer-forge" element={<DeveloperForgePage />} />
+            <Route path="living-library" element={<LivingLibraryPage />} />
+            <Route path="commune" element={<CommunePage />} />
+            <Route path="work-with-elysia-ecobotics" element={<WorkWithPage />} />
+            <Route path="commons-circle" element={<CommonsCirclePage />} />
+            <Route path="story" element={<StoryPage />} />
+            <Route path="about" element={<AboutPage />} />
+            <Route path="mission" element={<MissionPage />} />
+            <Route path="browse" element={<Navigate to="/marketplace/browse" replace />} />
+            <Route path="addons/:id" element={<LegacyAddonAlias />} />
+            <Route path="action-preview" element={<LegacySearchAlias target="/marketplace/action-preview" />} />
+            <Route path="account" element={<Navigate to="/marketplace/account" replace />} />
+            <Route path="submit" element={<Navigate to="/marketplace/submit" replace />} />
+            <Route path="trust" element={<Navigate to="/marketplace/trust" replace />} />
+            <Route path="manifest-api" element={<Navigate to="/marketplace/manifest-api" replace />} />
+            <Route path="admin" element={<Navigate to="/marketplace/admin" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
