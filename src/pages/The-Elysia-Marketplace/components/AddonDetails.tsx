@@ -46,7 +46,7 @@ export default function AddonDetails({ addon, onPrepareInstall }: AddonDetailsPr
         <summary>View Manifest JSON</summary>
         <pre>{JSON.stringify(addon, null, 2)}</pre>
       </details>
-      <div className="button-row"><button type="button" className="button-primary" onClick={() => onPrepareInstall(addon.id)}>Review permissions</button><a className="button-link" href={`elysia://addons/install?manifest_url=${encodeURIComponent(`/catalog-preview.json#${addon.id}`)}`}>Open in Elysia</a><a className="button-link" href="/catalog-preview.json" download>Download .elysia-addon</a></div>
+      <div className="button-row"><button type="button" className="button-primary" onClick={() => onPrepareInstall(addon.id)}>Review permissions</button><button type="button" disabled>Open in Elysia, planned</button><button type="button" disabled>.elysia-addon package, planned</button><a className="button-link" href="/catalog-preview.json" target="_blank" rel="noreferrer">View catalog preview JSON</a></div>
     </section>
   );
 }

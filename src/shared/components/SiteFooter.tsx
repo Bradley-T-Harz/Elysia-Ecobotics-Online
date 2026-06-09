@@ -10,7 +10,7 @@ export default function SiteFooter() {
       <nav aria-label="Footer links">
         <Link to="/about">About</Link>
         <Link to="/mission">Mission</Link>
-        <Link to="/trust">Marketplace Trust</Link>
+        <Link to="/marketplace/trust">Marketplace Trust</Link>
         <Link to="/commons-circle">Commons Circle</Link>
       </nav>
       <p>Elysia Ecobotics™ is an EcoSyneva Commons LLC initiative.</p>

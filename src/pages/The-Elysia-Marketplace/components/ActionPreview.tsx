@@ -23,7 +23,7 @@ export default function ActionPreview({ addon, onSaveAddon }: ActionPreviewProps
       <section className="action-preview muted-panel">
         <h2>Choose an add-on first</h2>
         <p>Action previews are generated from a selected add-on manifest.</p>
-        <Link className="button-link button-link--primary" to="/browse">Browse Add-ons</Link>
+        <Link className="button-link button-link--primary" to="/marketplace/browse">Browse Add-ons</Link>
       </section>
     );
   }
@@ -53,9 +53,9 @@ export default function ActionPreview({ addon, onSaveAddon }: ActionPreviewProps
       </div>
       <div className="button-row">
         <button type="button" onClick={() => onSaveAddon(addon.id)}>Save plan</button>
-        <Link className="button-link" to={`/addons/${addon.id}`}>View Manifest</Link>
-        <Link className="button-link" to="/browse">Browse Add-ons</Link>
-        <a className="button-link" href={`elysia://addons/install?manifest_url=${encodeURIComponent(`/catalog-preview.json#${addon.id}`)}`}>Open in Elysia</a><a className="button-link" href="/catalog-preview.json" download>Download .elysia-addon</a><button type="button" disabled>Copy install command, planned</button>
+        <Link className="button-link" to={`/marketplace/addons/${addon.id}`}>View Manifest</Link>
+        <Link className="button-link" to="/marketplace/browse">Browse Add-ons</Link>
+        <button type="button" disabled>Open in Elysia, planned</button><button type="button" disabled>.elysia-addon package, planned</button><a className="button-link" href="/catalog-preview.json" target="_blank" rel="noreferrer">View catalog preview JSON</a><button type="button" disabled>Copy install command, planned</button>
       </div>
     </section>
   );

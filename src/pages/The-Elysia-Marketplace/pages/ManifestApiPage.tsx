@@ -15,9 +15,9 @@ export default function ManifestApiPage() {
       <div className="details-grid details-grid--wide">
         <div><h3>Schema</h3><p><a href="/manifest-schema.json" target="_blank" rel="noreferrer">/manifest-schema.json</a></p><p>Machine-readable contract for add-on submissions and catalog validation.</p></div>
         <div><h3>Catalog preview</h3><p><a href="/catalog-preview.json" target="_blank" rel="noreferrer">/catalog-preview.json</a></p><p>Static seed preview for early marketplace and local Elysia testing.</p></div>
-        <div><h3>Cloudflare route fallback</h3><p><code>public/_redirects</code> keeps client routes like <code>/browse</code> and <code>/addons/:id</code> refresh-safe.</p></div>
+        <div><h3>Cloudflare route fallback</h3><p><code>public/_redirects</code> keeps client routes like <code>/marketplace/browse</code> and legacy aliases refresh-safe.</p></div>
         <div><h3>Planned public endpoints</h3><p><code>/api/public/addons</code> and <code>/api/public/addons/:id</code> after hosting/API choice.</p></div>
-        <div><h3>Future local consumption</h3><p>Local Elysia fetches approved catalog data, validates schema, compares local status, and requests operator approval before any local action.</p></div>
+        <div><h3>Future local consumption</h3><p>Local Elysia may later fetch approved catalog data, validate schema, compare local status, and request operator approval before any local action. That local installer/executor is planned, not active on this website.</p></div>
         <div><h3>Privacy boundary</h3><p>No local inventory upload by default. Pairing and sync are future explicit flows.</p></div>
       </div>
       {example && (

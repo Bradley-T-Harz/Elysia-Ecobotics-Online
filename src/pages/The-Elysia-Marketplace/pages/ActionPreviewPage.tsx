@@ -17,7 +17,7 @@ export default function ActionPreviewPage() {
           Action previews are tied to a specific manifest. Browse the catalog and choose
           Prepare Install to inspect install, uninstall, enable, disable, and review plans.
         </p>
-        <Link className="button-link button-link--primary" to="/browse">Browse Add-ons</Link>
+        <Link className="button-link button-link--primary" to="/marketplace/browse">Browse Add-ons</Link>
       </section>
     );
   }

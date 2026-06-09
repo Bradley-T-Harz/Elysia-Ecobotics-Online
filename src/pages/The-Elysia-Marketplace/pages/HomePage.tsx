@@ -25,10 +25,10 @@ export default function MarketplaceHomePage() {
             Marketplace actions prepare plans only. It stores public add-on metadata and account-linked saved items; it does not access private Elysia memory, files, logs, credentials, identity vaults, or machine data.
           </p>
           <div className="hero-actions">
-            <Link className="button-link button-link--primary" to="/browse"><Store size={18} /> Browse Add-ons</Link>
-            <Link className="button-link" to="/submit"><GitPullRequest size={18} /> Submit Add-on</Link>
-            <Link className="button-link" to="/trust"><ShieldCheck size={18} /> View Trust Policy</Link>
-            <Link className="button-link" to="/manifest-api"><BookOpen size={18} /> View Manifest API</Link>
+            <Link className="button-link button-link--primary" to="/marketplace/browse"><Store size={18} /> Browse Add-ons</Link>
+            <Link className="button-link" to="/marketplace/submit"><GitPullRequest size={18} /> Submit Add-on</Link>
+            <Link className="button-link" to="/marketplace/trust"><ShieldCheck size={18} /> View Trust Policy</Link>
+            <Link className="button-link" to="/marketplace/manifest-api"><BookOpen size={18} /> View Manifest API</Link>
           </div>
         </div>
         <aside className="hero-card production-card">
@@ -73,7 +73,7 @@ export default function MarketplaceHomePage() {
             action kinds, network boundaries, rollback notes, and trust tiers before anything is offered as safe.
           </p>
         </div>
-        <Link className="button-link button-link--primary" to="/manifest-api">Read the Manifest API</Link>
+        <Link className="button-link button-link--primary" to="/marketplace/manifest-api">Read the Manifest API</Link>
       </section>
     </div>
   );

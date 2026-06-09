@@ -2,7 +2,8 @@ const requiredRoutes = [
   "/", "/archive", "/marketplace", "/marketplace/browse", "/marketplace/addons/:id",
   "/marketplace/action-preview", "/marketplace/account", "/marketplace/submit", "/marketplace/trust",
   "/marketplace/manifest-api", "/marketplace/admin", "/products", "/lab", "/developer-forge",
-  "/living-library", "/commune", "/work-with-elysia-ecobotics", "/commons-circle", "/story",
+  "/living-library", "/commune", "/work-with-elysia-ecobotics", "/commons-circle",
+  "/commons-circle/onboarding", "/story",
   "/about", "/mission", "/browse", "/addons/:id", "/action-preview", "/account", "/submit",
   "/trust", "/manifest-api", "/admin"
 ];
@@ -20,6 +21,40 @@ if (missing.length) {
 const redirects = await import("node:fs/promises").then((fs) => fs.readFile(new URL("../public/_redirects", import.meta.url), "utf8"));
 if (!redirects.includes("/* /index.html 200")) {
   console.error("Missing Cloudflare Pages SPA redirect.");
+  process.exit(1);
+}
+
+const fs = await import("node:fs/promises");
+async function readSourceFiles(dir) {
+  const entries = await fs.readdir(dir, { withFileTypes: true });
+  const files = await Promise.all(entries.map(async (entry) => {
+    const child = new URL(`${entry.name}${entry.isDirectory() ? "/" : ""}`, dir);
+    if (entry.isDirectory()) return readSourceFiles(child);
+    if (/\.(tsx|ts|jsx|js)$/.test(entry.name)) return [child];
+    return [];
+  }));
+  return files.flat();
+}
+const canonicalScanRoots = [
+  new URL("../src/pages/The-Elysia-Marketplace/", import.meta.url),
+  new URL("../src/shared/", import.meta.url),
+  new URL("../src/layouts/", import.meta.url)
+];
+const staleMarketplaceLinkPatterns = [
+  'to="/browse"', 'to="/addons/', 'to="/action-preview"', 'to="/account"',
+  'to="/submit"', 'to="/trust"', 'to="/manifest-api"', 'to="/admin"'
+];
+const staleHits = [];
+for (const root of canonicalScanRoots) {
+  for (const sourceFile of await readSourceFiles(root)) {
+    const text = await fs.readFile(sourceFile, "utf8");
+    for (const pattern of staleMarketplaceLinkPatterns) {
+      if (text.includes(pattern)) staleHits.push(`${sourceFile.pathname}: ${pattern}`);
+    }
+  }
+}
+if (staleHits.length) {
+  console.error(`Noncanonical Marketplace links found:\n${staleHits.join("\n")}`);
   process.exit(1);
 }
 console.log(`Route contract ok (${requiredRoutes.length} routes/aliases).`);

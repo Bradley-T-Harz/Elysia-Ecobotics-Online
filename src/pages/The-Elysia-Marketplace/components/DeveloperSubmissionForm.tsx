@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { manifestToSubmissionPayload, normalizeAddonId, validateAddonManifest } from "../lib/addonManifest";
 import { submitAddonDraft } from "../lib/marketplaceApi";
+import { hasSupabaseConfig } from "../lib/supabase";
 import type { AddonCategory } from "../types";
 
 type DeveloperSubmissionFormProps = {
@@ -30,6 +31,8 @@ export default function DeveloperSubmissionForm({ onMessage }: DeveloperSubmissi
   const [publisherName, setPublisherName] = useState("Developer");
   const [category, setCategory] = useState<AddonCategory>("Developer Tools");
   const [manifestText, setManifestText] = useState(JSON.stringify(starterManifest, null, 2));
+  const [submitStatus, setSubmitStatus] = useState("Validate locally first. Remote review submission requires Supabase configuration and a signed-in Marketplace account.");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const validation = useMemo(() => {
     try { return validateAddonManifest(JSON.parse(manifestText)); }
@@ -38,11 +41,22 @@ export default function DeveloperSubmissionForm({ onMessage }: DeveloperSubmissi
 
   async function submitDraft() {
     if (!validation.ok || !validation.manifest) {
-      onMessage("Manifest must validate before submission.");
+      const message = "Manifest must validate before submission.";
+      setSubmitStatus(message);
+      onMessage(message);
       return;
     }
-    const result = await submitAddonDraft(manifestToSubmissionPayload(validation.manifest));
-    onMessage(result.warnings.join(" ") || (result.data.submitted ? "Submitted for review." : "Draft validated."));
+
+    setIsSubmitting(true);
+    setSubmitStatus(hasSupabaseConfig ? "Submitting to Supabase Marketplace review..." : "Supabase is not configured, so this will validate locally only.");
+    try {
+      const result = await submitAddonDraft(manifestToSubmissionPayload(validation.manifest));
+      const message = result.warnings.join(" ") || result.statusMessage || (result.data.submitted ? "Submitted for review." : "Draft validated locally only.");
+      setSubmitStatus(message);
+      onMessage(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   }
 
   return (
@@ -50,6 +64,7 @@ export default function DeveloperSubmissionForm({ onMessage }: DeveloperSubmissi
       <p className="eyebrow">Developer Submission</p>
       <h2>Submit an add-on for review</h2>
       <p>Community submissions are never auto-approved. Review must inspect permissions, dependencies, network behavior, and rollback story.</p>
+      <p className="boundary-note">{hasSupabaseConfig ? "Supabase is configured. A signed-in Marketplace account is required before Submit for review can create a remote review item." : "Supabase is not configured here. Manifest validation works locally, but Submit for review will not save a remote review item."}</p>
       <div className="form-grid">
         <label><span>Add-on name</span><input value={addonName} onChange={(event) => setAddonName(event.target.value)} /></label>
         <label><span>Slug / ID</span><input value={normalizeAddonId(addonName)} readOnly /></label>
@@ -58,7 +73,8 @@ export default function DeveloperSubmissionForm({ onMessage }: DeveloperSubmissi
       </div>
       <label><span>Manifest JSON</span><textarea value={manifestText} onChange={(event) => setManifestText(event.target.value)} rows={14} /></label>
       <div className={validation.ok ? "validation validation--ok" : "validation validation--bad"}>{validation.ok ? "Manifest validates locally." : validation.errors.join(" | ")}</div>
-      <div className="button-row"><button type="button" onClick={() => onMessage(validation.ok ? "Manifest validates locally." : validation.errors.join(" | "))}>Validate manifest</button><button type="button" className="button-primary" onClick={submitDraft}>Submit for review</button></div>
+      <p className="validation">{submitStatus}</p>
+      <div className="button-row"><button type="button" onClick={() => { const message = validation.ok ? "Manifest validates locally." : validation.errors.join(" | "); setSubmitStatus(message); onMessage(message); }}>Validate manifest</button><button type="button" className="button-primary" onClick={submitDraft} disabled={isSubmitting}>{isSubmitting ? "Submitting..." : "Submit for review"}</button></div>
     </section>
   );
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Outlet } from "react-router-dom";
-import { loadAdminReviewQueue, loadCurrentProfile, loadPublishedAddons, saveAddonForUser } from "./lib/marketplaceApi";
+import { loadAdminReviewQueue, loadCurrentProfile, loadPublishedAddons, removeSavedAddon, saveAddonForUser } from "./lib/marketplaceApi";
 import { getAddonById, getCategories, getTrustTiers, sortAddons } from "./lib/addonCatalog";
 import { hasSupabaseConfig } from "./lib/supabase";
 import type { AddonManifest, AddonSubmission, CatalogSourceState, MarketplaceProfile } from "./types";
@@ -23,6 +23,7 @@ export type MarketplaceContext = {
   refreshReviewQueue: () => Promise<void>;
   refreshCatalog: () => Promise<void>;
   saveAddon: (addonId: string) => Promise<void>;
+  removeAddon: (addonId: string) => Promise<void>;
   getAddon: (addonId: string | undefined) => AddonManifest | null;
 };
 
@@ -82,13 +83,20 @@ export default function MarketplaceProvider() {
     const result = await saveAddonForUser(addonId);
     const addon = getAddonById(sortedAddons, addonId);
     pushMessage(result.warnings.join(" ") || result.statusMessage || `${addon?.name ?? addonId} saved to marketplace profile plan.`);
-    await refreshProfile();
+    if (result.data.saved) await refreshProfile();
+  }, [pushMessage, refreshProfile, sortedAddons]);
+
+  const removeAddon = useCallback(async (addonId: string) => {
+    const result = await removeSavedAddon(addonId);
+    const addon = getAddonById(sortedAddons, addonId);
+    pushMessage(result.warnings.join(" ") || result.statusMessage || `${addon?.name ?? addonId} removed from saved add-ons.`);
+    if (result.data.removed) await refreshProfile();
   }, [pushMessage, refreshProfile, sortedAddons]);
 
   const context: MarketplaceContext = {
     addons, sortedAddons, categories, trustTiers, profile, reviewQueue, demoMode,
     supabaseConfigured: hasSupabaseConfig, seedFallbackActive, catalogSourceState, catalogStatusMessage,
-    messages, pushMessage, refreshProfile, refreshReviewQueue, refreshCatalog, saveAddon,
+    messages, pushMessage, refreshProfile, refreshReviewQueue, refreshCatalog, saveAddon, removeAddon,
     getAddon: (addonId) => addonId ? getAddonById(sortedAddons, addonId) ?? null : null
   };
 

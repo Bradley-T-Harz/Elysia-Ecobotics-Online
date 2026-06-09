@@ -15,7 +15,7 @@ const defaultFilters: CatalogFilters = {
 
 export default function BrowsePage() {
   const navigate = useNavigate();
-  const { sortedAddons, categories, trustTiers, saveAddon } = useMarketplaceContext();
+  const { sortedAddons, categories, trustTiers, profile, saveAddon, removeAddon } = useMarketplaceContext();
   const [filters, setFilters] = useState<CatalogFilters>(defaultFilters);
   const filteredAddons = useMemo(() => filterAddons(sortedAddons, filters), [filters, sortedAddons]);
 
@@ -29,8 +29,8 @@ export default function BrowsePage() {
           trust tier, manifest status, dependency declarations, and future local action previews.
         </p>
         <div className="page-header__actions">
-          <Link className="button-link" to="/trust">How trust tiers work</Link>
-          <Link className="button-link" to="/manifest-api">Manifest schema</Link>
+          <Link className="button-link" to="/marketplace/trust">How trust tiers work</Link>
+          <Link className="button-link" to="/marketplace/manifest-api">Manifest schema</Link>
         </div>
       </div>
 
@@ -39,9 +39,11 @@ export default function BrowsePage() {
         addons={filteredAddons}
         totalCount={sortedAddons.length}
         selectedAddonId={null}
-        onSelectAddon={(addonId) => navigate(`/addons/${addonId}`)}
-        onPrepareInstall={(addonId) => navigate(`/action-preview?addon=${encodeURIComponent(addonId)}`)}
+        savedAddonIds={profile?.saved_addon_ids ?? []}
+        onSelectAddon={(addonId) => navigate(`/marketplace/addons/${addonId}`)}
+        onPrepareInstall={(addonId) => navigate(`/marketplace/action-preview?addon=${encodeURIComponent(addonId)}`)}
         onSaveAddon={saveAddon}
+        onRemoveAddon={removeAddon}
       />
     </section>
   );

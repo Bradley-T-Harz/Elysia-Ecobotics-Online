@@ -7,12 +7,11 @@ export default function AdminPage() {
     <div className="admin-page page-card">
       <section className="section-card page-header-card">
         <p className="eyebrow">Admin Review</p>
-        <h1>Review controls are placeholders until Supabase roles are configured.</h1>
+        <h1>Admin review is role-gated and write actions are planned.</h1>
         <p>
-          This page previews the admin review room: approve, reject, request changes, assign trust tiers, mark security holds, and publish approved versions.
-          Real authority requires Supabase profiles, RLS policies, and an admin role bootstrap.
+          This page can show the review queue only for Marketplace admin profiles. Approve, reject, request changes, trust-tier assignment, security holds, and publishing remain disabled here until the privileged review workflow is implemented without browser service-role secrets.
         </p>
-        {demoMode && <p className="demo-banner">Demo mode: controls explain review decisions but do not write privileged review state.</p>}
+        {demoMode && <p className="demo-banner">Demo mode: review state is preview-only and cannot write privileged approval decisions.</p>}
       </section>
       <AdminReviewPanel profile={profile} queue={reviewQueue} onMessage={pushMessage} />
     </div>

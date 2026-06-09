@@ -17,7 +17,7 @@ export default function AddonDetailsPage() {
           The add-on may not exist in the current seed catalog, may still be in review,
           or may require Supabase catalog data that is not configured yet.
         </p>
-        <Link className="button-link button-link--primary" to="/browse">Back to Browse Add-ons</Link>
+        <Link className="button-link button-link--primary" to="/marketplace/browse">Back to Browse Add-ons</Link>
       </section>
     );
   }
@@ -26,7 +26,7 @@ export default function AddonDetailsPage() {
     <div className="page-card details-page">
       <AddonDetails
         addon={addon}
-        onPrepareInstall={(addonId) => navigate(`/action-preview?addon=${encodeURIComponent(addonId)}`)}
+        onPrepareInstall={(addonId) => navigate(`/marketplace/action-preview?addon=${encodeURIComponent(addonId)}`)}
       />
     </div>
   );

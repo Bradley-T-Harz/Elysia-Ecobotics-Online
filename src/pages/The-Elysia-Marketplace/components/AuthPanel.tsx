@@ -2,12 +2,22 @@ import { useEffect, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../lib/supabase";
 
+type AuthPanelCopy = {
+  eyebrow?: string;
+  title?: string;
+  description?: string;
+  signedOutText?: string;
+  confirmationPath?: string;
+  confirmationCopy?: string;
+};
+
 type AuthPanelProps = {
   onMessage: (message: string) => void;
   onAuthChanged: () => Promise<void>;
+  copy?: AuthPanelCopy;
 };
 
-export default function AuthPanel({ onMessage, onAuthChanged }: AuthPanelProps) {
+export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelProps) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
@@ -58,7 +68,7 @@ export default function AuthPanel({ onMessage, onAuthChanged }: AuthPanelProps) 
   async function signUp() {
     if (!supabase) { emit("Demo mode: signup form is visible, but no remote account is created."); return; }
     setBusy(true);
-    const emailRedirectTo = `${window.location.origin}/account`;
+    const emailRedirectTo = `${window.location.origin}${copy?.confirmationPath ?? "/account"}`;
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -101,13 +111,13 @@ export default function AuthPanel({ onMessage, onAuthChanged }: AuthPanelProps) 
 
   return (
     <section className="account-card" id="account">
-      <p className="eyebrow">Marketplace Account</p>
-      <h2>Auth</h2>
+      <p className="eyebrow">{copy?.eyebrow ?? "Marketplace Account"}</p>
+      <h2>{copy?.title ?? "Auth"}</h2>
       {!hasSupabaseConfig && <p className="demo-banner">{supabaseNotConfiguredMessage}</p>}
-      <p>This creates a Marketplace account, not a local Elysia account. Do not enter your local Elysia password here.</p>
+      <p>{copy?.description ?? "This creates a Marketplace account, not a local Elysia account. Do not enter your local Elysia password here."}</p>
       <div className="status-strip">
         <strong>{session ? "Signed in" : "Signed out"}</strong>
-        <span>{session?.user.email ?? (hasSupabaseConfig ? "No active Marketplace session." : "Remote auth disabled until env vars are configured.")}</span>
+        <span>{session?.user.email ?? (hasSupabaseConfig ? (copy?.signedOutText ?? "No active Marketplace session.") : "Remote auth disabled until env vars are configured.")}</span>
       </div>
       {localStatus && <p className="inline-status">{localStatus}</p>}
       <label><span>Email</span><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="builder@example.com" autoComplete="email" /></label>
@@ -117,7 +127,7 @@ export default function AuthPanel({ onMessage, onAuthChanged }: AuthPanelProps) 
         <button type="button" disabled={busy} onClick={signIn}>{busy ? "Working..." : "Sign in"}</button>
         <button type="button" disabled={busy || !session} onClick={signOut}>{busy ? "Working..." : "Sign out"}</button>
       </div>
-      <p className="boundary-note">If Supabase email confirmation is enabled, open the confirmation link to return to /account; the session should appear after Supabase completes the redirect.</p>
+      <p className="boundary-note">{copy?.confirmationCopy ?? "If Supabase email confirmation is enabled, open the confirmation link to return to /account; the session should appear after Supabase completes the redirect."}</p>
     </section>
   );
 }

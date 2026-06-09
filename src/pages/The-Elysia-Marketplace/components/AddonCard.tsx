@@ -5,12 +5,14 @@ import TrustBadge from "./TrustBadge";
 type AddonCardProps = {
   addon: AddonManifest;
   selected: boolean;
+  saved: boolean;
   onSelect: (addonId: string) => void;
   onSaveAddon: (addonId: string) => void;
+  onRemoveAddon: (addonId: string) => void;
   onPrepareInstall: (addonId: string) => void;
 };
 
-export default function AddonCard({ addon, selected, onSelect, onSaveAddon, onPrepareInstall }: AddonCardProps) {
+export default function AddonCard({ addon, selected, saved, onSelect, onSaveAddon, onRemoveAddon, onPrepareInstall }: AddonCardProps) {
   return (
     <article className={`addon-card ${selected ? "addon-card--selected" : ""}`}>
       <div className="addon-card__topline">
@@ -30,7 +32,7 @@ export default function AddonCard({ addon, selected, onSelect, onSaveAddon, onPr
       </div>
       <div className="button-row">
         <button type="button" onClick={() => onSelect(addon.id)}>View Details</button>
-        <button type="button" onClick={() => onSaveAddon(addon.id)}>Save to My Add-ons</button>
+        <button type="button" onClick={() => saved ? onRemoveAddon(addon.id) : onSaveAddon(addon.id)}>{saved ? "Remove from My Add-ons" : "Save to My Add-ons"}</button>
         <button type="button" className="button-primary" onClick={() => onPrepareInstall(addon.id)}>Prepare Install</button>
       </div>
     </article>
