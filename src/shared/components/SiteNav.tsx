@@ -13,7 +13,8 @@ export const navItems = [
   { label: "Commons Circle", to: "/commons-circle" },
   { label: "Story", to: "/story" },
   { label: "About", to: "/about" },
-  { label: "Mission", to: "/mission" }
+  { label: "Mission", to: "/mission" },
+  { label: "Legal", to: "/legal" }
 ];
 
 export default function SiteNav() {

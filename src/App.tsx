@@ -24,6 +24,7 @@ import CommonsCircleOnboardingPage from "./pages/The-Commons-Circle/CommonsCircl
 import StoryPage from "./pages/The-Story-of-Elysia";
 import AboutPage from "./pages/About-Elysia-Ecobotics";
 import MissionPage from "./pages/The-Elysia-Mission";
+import LegalPage, { LegalPolicyPage } from "./pages/Legal";
 
 function LegacyAddonAlias() {
   const { id } = useParams();
@@ -65,6 +66,8 @@ export default function App() {
             <Route path="story" element={<StoryPage />} />
             <Route path="about" element={<AboutPage />} />
             <Route path="mission" element={<MissionPage />} />
+            <Route path="legal" element={<LegalPage />} />
+            <Route path="legal/:slug" element={<LegalPolicyPage />} />
             <Route path="browse" element={<Navigate to="/marketplace/browse" replace />} />
             <Route path="addons/:id" element={<LegacyAddonAlias />} />
             <Route path="action-preview" element={<LegacySearchAlias target="/marketplace/action-preview" />} />

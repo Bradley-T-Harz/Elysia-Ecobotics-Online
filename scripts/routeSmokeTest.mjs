@@ -4,7 +4,13 @@ const requiredRoutes = [
   "/marketplace/manifest-api", "/marketplace/admin", "/products", "/lab", "/developer-forge",
   "/living-library", "/commune", "/work-with-elysia-ecobotics", "/commons-circle",
   "/commons-circle/onboarding", "/story",
-  "/about", "/mission", "/browse", "/addons/:id", "/action-preview", "/account", "/submit",
+  "/about", "/mission", "/legal", "/legal/privacy-policy", "/legal/terms-of-use",
+  "/legal/community-guidelines", "/legal/marketplace-developer-agreement",
+  "/legal/add-on-submission-policy", "/legal/security-review-policy",
+  "/legal/vulnerability-disclosure-policy", "/legal/dmca-copyright-policy",
+  "/legal/acceptable-use-policy", "/legal/code-of-conduct",
+  "/legal/volunteer-contributor-disclaimer", "/legal/donation-recognition-terms",
+  "/legal/trademark-notice", "/browse", "/addons/:id", "/action-preview", "/account", "/submit",
   "/trust", "/manifest-api", "/admin"
 ];
 const app = await import("node:fs/promises").then((fs) => fs.readFile(new URL("../src/App.tsx", import.meta.url), "utf8"));
@@ -12,7 +18,8 @@ const missing = requiredRoutes.filter((route) => {
   if (route === "/") return !app.includes("<Route index");
   const path = route.replace(/^\//, "");
   const nestedPath = path.replace(/^marketplace\//, "");
-  return !(app.includes(`path=\"${path}\"`) || app.includes(`path=\"${nestedPath}\"`) || app.includes(`to=\"${route}\"`) || app.includes(`target=\"${route}\"`));
+  const legalPolicyRoute = path.startsWith("legal/") && app.includes(`path=\"legal/:slug\"`);
+  return !(legalPolicyRoute || app.includes(`path=\"${path}\"`) || app.includes(`path=\"${nestedPath}\"`) || app.includes(`to=\"${route}\"`) || app.includes(`target=\"${route}\"`));
 });
 if (missing.length) {
   console.error(`Missing route wiring: ${missing.join(", ")}`);
