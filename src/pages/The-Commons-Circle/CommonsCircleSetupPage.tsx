@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
-import { loadCurrentProfile, upsertMarketplaceProfile } from "../The-Elysia-Marketplace/lib/marketplaceApi";
+import { loadCurrentProfile } from "../The-Elysia-Marketplace/lib/marketplaceApi";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
 import type { MarketplaceProfile, MarketplaceProfileDraft } from "../The-Elysia-Marketplace/types";
 import PageHero from "../../shared/components/PageHero";
@@ -407,17 +407,48 @@ export default function CommonsCircleSetupPage() {
         go("profile");
         return;
       }
-      const result = await upsertMarketplaceProfile(profileDraft);
-      result.warnings.forEach(pushMessage);
-      if (!result.data) return;
+      const { data: existingProfile, error: existingError } = await supabase
+        .from("profiles")
+        .select("id,is_admin,is_developer")
+        .eq("id", auth.user.id)
+        .maybeSingle();
+      if (existingError) throw new Error(`Could not check existing Commons Profile: ${existingError.message}`);
 
       const now = new Date().toISOString();
-      const { error: completionError } = await supabase.from("profiles").update({
+      const baseProfileFields = {
+        username: profileDraft.username.trim(),
+        display_name: profileDraft.display_name.trim(),
+        bio: profileDraft.bio.trim(),
+        interests: profileDraft.interests?.trim() || null,
+        website_url: profileDraft.website_url?.trim() || null,
+        github_url: profileDraft.github_url?.trim() || null,
+        organization: profileDraft.organization?.trim() || null,
         commons_onboarding_completed_at: now,
         stewardship_onboarding_skipped_at: stewardshipDraft.skipped ? now : null,
         work_with_onboarding_skipped_at: workWithDraft.skipped ? now : null
-      }).eq("id", auth.user.id);
-      if (completionError) pushMessage(`Profile was saved, but setup completion metadata could not be updated: ${completionError.message}`);
+      };
+
+      if (!baseProfileFields.username) throw new Error("Username is required.");
+
+      if (existingProfile) {
+        const existingFlags = existingProfile as { is_admin?: boolean | null; is_developer?: boolean | null };
+        const { error: updateError } = await supabase
+          .from("profiles")
+          .update({
+            ...baseProfileFields,
+            is_developer: Boolean(existingFlags.is_developer || profileDraft.is_developer)
+          })
+          .eq("id", auth.user.id);
+        if (updateError) throw new Error(`Could not update existing Commons Profile: ${updateError.message}`);
+      } else {
+        const { error: insertError } = await supabase.from("profiles").insert({
+          id: auth.user.id,
+          ...baseProfileFields,
+          is_developer: Boolean(profileDraft.is_developer),
+          is_admin: false
+        });
+        if (insertError) throw new Error(`Could not create Commons Profile: ${insertError.message}`);
+      }
 
       persistStewardshipLocal();
       const workWithMessage = await persistWorkWithRequest(auth.user.id);
