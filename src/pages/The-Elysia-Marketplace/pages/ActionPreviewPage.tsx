@@ -4,7 +4,7 @@ import { useMarketplaceContext } from "./useMarketplaceContext";
 
 export default function ActionPreviewPage() {
   const [params] = useSearchParams();
-  const { getAddon, saveAddon } = useMarketplaceContext();
+  const { getAddon, saveAddon, prepareLocalInstall } = useMarketplaceContext();
   const selectedId = params.get("addon") ?? undefined;
   const addon = getAddon(selectedId);
 
@@ -24,7 +24,7 @@ export default function ActionPreviewPage() {
 
   return (
     <div className="page-card">
-      <ActionPreview addon={addon} onSaveAddon={saveAddon} />
+      <ActionPreview addon={addon} onSaveAddon={saveAddon} onPrepareLocalInstall={prepareLocalInstall} />
     </div>
   );
 }

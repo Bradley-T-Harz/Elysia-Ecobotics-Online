@@ -6,6 +6,7 @@ import TrustBadge from "./TrustBadge";
 type ActionPreviewProps = {
   addon: AddonManifest | null;
   onSaveAddon: (addonId: string) => void;
+  onPrepareLocalInstall: (addonId: string) => void;
 };
 
 function actionIntent(actionKey: string): string {
@@ -17,7 +18,7 @@ function actionIntent(actionKey: string): string {
   return "Install preview";
 }
 
-export default function ActionPreview({ addon, onSaveAddon }: ActionPreviewProps) {
+export default function ActionPreview({ addon, onSaveAddon, onPrepareLocalInstall }: ActionPreviewProps) {
   if (!addon) {
     return (
       <section className="action-preview muted-panel">
@@ -55,7 +56,7 @@ export default function ActionPreview({ addon, onSaveAddon }: ActionPreviewProps
         <button type="button" onClick={() => onSaveAddon(addon.id)}>Save plan</button>
         <Link className="button-link" to={`/marketplace/addons/${addon.id}`}>View Manifest</Link>
         <Link className="button-link" to="/marketplace/browse">Browse Add-ons</Link>
-        <button type="button" disabled>Open in Elysia, planned</button><button type="button" disabled>.elysia-addon package, planned</button><a className="button-link" href="/catalog-preview.json" target="_blank" rel="noreferrer">View catalog preview JSON</a><button type="button" disabled>Copy install command, planned</button>
+        <button type="button" onClick={() => onPrepareLocalInstall(addon.id)}>Prepare Local Install</button><button type="button" disabled>.elysia-addon package preview only</button><a className="button-link" href="/catalog-preview.json" target="_blank" rel="noreferrer">View catalog preview JSON</a><button type="button" disabled>Copy install command, planned</button>
       </div>
     </section>
   );

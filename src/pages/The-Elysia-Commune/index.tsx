@@ -1,6 +1,28 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, useLocation, useParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
+import {
+  followThread,
+  loadCommuneData,
+  loadCommuneModerationQueue,
+  markThreadRead,
+  moderateCommuneItem,
+  postTypeOptions,
+  reportCommuneContent,
+  reportTypes,
+  savePost,
+  submitCommunePost,
+  submitComment,
+  submitRepositoryShowcase,
+  submitSandboxReview,
+  type CommuneComment,
+  type CommuneModerationItem,
+  type CommunePost,
+  type CommunePostType,
+  type CommuneRoom,
+  type CommuneThread
+} from "./communeAccountApi";
 
 type CommuneStatus =
   | "draft_local"
@@ -14,8 +36,9 @@ type CommuneStatus =
   | "archived"
   | "blocked";
 
-type CommunePostType = {
+type CommunePostTypeCard = {
   id: string;
+  backendValue: CommunePostType;
   name: string;
   purpose: string;
   allowedContent: string;
@@ -91,86 +114,95 @@ const storageKeys = {
   followedThreads: "commune.followedThreads.v1"
 } as const;
 
-const postTypes: CommunePostType[] = [
+const postTypes: CommunePostTypeCard[] = [
   {
     id: "media-garden",
+    backendValue: "media_garden",
     name: "Media Garden",
     purpose: "Images, videos, demos, artwork, project updates, and public storytelling around Elysia.",
     allowedContent: "Public images, videos, demos, artwork notes, project updates, and storytelling drafts.",
     cautions: "Do not upload private documents, faces without consent, sensitive location data, copyrighted media without permission, credentials, or private screenshots.",
-    currentStatus: ["Local draft only", "Requires moderation", "Requires backend"],
+    currentStatus: ["Local draft available", "Requires moderation", "Backend enhanced"],
     futureFeatures: "Moderated media posts, attribution prompts, file limits, storage policy, and abuse controls."
   },
   {
     id: "troubleshooting-grove",
+    backendValue: "troubleshooting",
     name: "Troubleshooting Grove",
     purpose: "Help threads, known issues, install problems, bug reports, and shared learning.",
     allowedContent: "Public bug descriptions, redacted logs, install notes, workaround drafts, and known-issue writeups.",
     cautions: "Redact logs. Do not paste tokens, .env files, local file paths, private machine inventories, or account details.",
-    currentStatus: ["Local draft only", "Requires moderation", "Requires backend"],
+    currentStatus: ["Local draft available", "Requires moderation", "Backend enhanced"],
     futureFeatures: "Moderated threads, issue tags, solved labels, and safe troubleshooting templates."
   },
   {
     id: "code-sharing",
+    backendValue: "code_sharing",
     name: "Code Sharing",
     purpose: "Snippets, examples, add-on ideas, scripts, and safe development notes.",
     allowedContent: "Small public snippets, examples, design notes, add-on ideas, and review requests.",
     cautions: "Shared code is not trusted and is not executed by the website or Elysia by default.",
-    currentStatus: ["Local draft only", "Requires moderation", "Requires sandbox"],
+    currentStatus: ["Local draft available", "Requires moderation", "Requires sandbox"],
     futureFeatures: "Syntax display, manifest checks, snippet labels, sandbox review requests, and code safety triage."
   },
   {
     id: "repository-showcase",
+    backendValue: "repository_showcase",
     name: "Repository Showcase",
     purpose: "Public project pages for GitHub, GitLab, Codeberg, Forgejo, or uploaded archives later.",
     allowedContent: "Repo links, pasted README previews, file tree summaries, screenshots, license notes, and compatibility notes.",
     cautions: "A public repo is not automatically safe, compatible, licensed, or free of secrets.",
-    currentStatus: ["Local draft only", "Requires moderation", "Requires backend"],
+    currentStatus: ["Local draft available", "Requires moderation", "Backend enhanced"],
     futureFeatures: "Repo showcase pages, manifest review, compatibility labels, and optional sandbox requests."
   },
   {
     id: "community-network",
+    backendValue: "community_network",
     name: "Community Network",
     purpose: "Introductions, collaboration interests, role interests, project circles, and community coordination.",
     allowedContent: "Public introductions, collaboration interests, project circle notes, and role-interest drafts.",
     cautions: "Avoid personal oversharing and private-contact pressure.",
-    currentStatus: ["Local draft only", "Requires moderation", "Requires backend"],
+    currentStatus: ["Local draft available", "Requires moderation", "Backend enhanced"],
     futureFeatures: "Profiles, circles, follows, introductions, and safer contact preferences."
   },
   {
     id: "job-post",
+    backendValue: "job_post",
     name: "Job Post",
     purpose: "EcoSyneva/Elysia opportunities, community job posts, volunteer calls, research roles, and project needs.",
     allowedContent: "Clear role summaries, paid/volunteer status, project needs, location/remote notes, and contact paths.",
     cautions: "Jobs require anti-scam review, pay/volunteer clarity, location/remote clarity, and no sensitive personal data in public comments.",
-    currentStatus: ["Local draft only", "Requires moderation", "Requires backend"],
+    currentStatus: ["Local draft available", "Requires moderation", "Backend enhanced"],
     futureFeatures: "Reviewed job posts, role labels, scam reporting, and pay/volunteer clarity requirements."
   },
   {
     id: "official-update",
+    backendValue: "official_update",
     name: "Official Update",
     purpose: "Official Elysia Ecobotics announcements, releases, roadmap notes, and governance updates.",
     allowedContent: "Administrator-authored release notes, roadmap notes, governance updates, and official notices later.",
-    cautions: "Admin-only later. Community users must not be able to impersonate official release/security notices.",
-    currentStatus: ["Admin-only later", "Requires backend"],
+    cautions: "Admin-only later. Community users must not impersonate official release/security notices.",
+    currentStatus: ["Admin-only later", "Requires backend", "No self-assignment"],
     futureFeatures: "Authorized administrator posting, official labels, release/security notice protections, and audit trails."
   },
   {
     id: "research-note",
+    backendValue: "research_note",
     name: "Research Note",
     purpose: "Public research notes, evidence summaries, source discussions, ecological observations, and Living Library-linked work.",
     allowedContent: "Evidence summaries, source links, citation notes, uncertainties, ecological observations, and interpretation boundaries.",
     cautions: "Cite sources and separate evidence from interpretation.",
-    currentStatus: ["Local draft only", "Requires moderation", "Requires backend"],
+    currentStatus: ["Local draft available", "Requires moderation", "Backend enhanced"],
     futureFeatures: "Evidence strength fields, source cards, Living Library links, and review labels."
   },
   {
     id: "elysia-iteration-showcase",
+    backendValue: "elysia_iteration_showcase",
     name: "Elysia Iteration Showcase",
     purpose: "Demos, screenshots, version notes, UI updates, add-on previews, and design progress.",
     allowedContent: "Public screenshots, design notes, add-on previews, version notes, and demo summaries.",
     cautions: "Do not expose private prompts, local file paths, credentials, logs, or sealed memory.",
-    currentStatus: ["Local draft only", "Requires moderation", "Requires backend"],
+    currentStatus: ["Local draft available", "Requires moderation", "Backend enhanced"],
     futureFeatures: "Iteration galleries, changelog links, media review, and public/private boundary checks."
   }
 ];
@@ -182,6 +214,13 @@ const redactionChecklist = [
   "I removed personal, customer, or user data.",
   "I have the right to share included text, media, links, or code.",
   "I understand this is public-facing content and must be moderator-reviewed before becoming visible."
+];
+
+const routeAcknowledgements = [
+  "I will not upload secrets, credentials, .env files, private local Elysia memory/logs/vaults, or sensitive private data.",
+  "I understand posts/comments may require moderation before public display.",
+  "I understand repository/code showcases are not executed by the website.",
+  "I have the right to share included text, media, links, or code."
 ];
 
 const repoWarnings = [
@@ -199,12 +238,41 @@ const repoWarnings = [
 ];
 
 const futureTables = [
-  "commune_posts", "commune_post_types", "commune_comments", "commune_media", "commune_threads", "commune_chat_messages", "repo_showcases", "repo_showcase_files", "code_snippets", "sandbox_runs", "moderation_reports"
+  "commune_posts",
+  "commune_post_types",
+  "commune_comments",
+  "commune_media",
+  "commune_threads",
+  "commune_chat_messages",
+  "repo_showcases",
+  "repo_showcase_files",
+  "code_snippets",
+  "sandbox_runs",
+  "moderation_reports"
 ];
 
 const futureSupportTables = [
-  "commune_post_saves", "commune_thread_follows", "commune_reactions", "commune_profiles", "commune_room_memberships", "commune_sandbox_requests", "commune_audit_events", "commune_admin_actions", "commune_upload_reviews", "commune_blocklist_terms"
+  "commune_post_saves",
+  "commune_thread_follows",
+  "commune_reactions",
+  "commune_profiles",
+  "commune_room_memberships",
+  "commune_sandbox_requests",
+  "commune_audit_events",
+  "commune_admin_actions",
+  "commune_upload_reviews",
+  "commune_blocklist_terms"
 ];
+
+const roomLinks = [
+  ["general-commune", "General Commune"],
+  ["troubleshooting-grove", "Troubleshooting Grove"],
+  ["code-sharing", "Code Sharing"],
+  ["repository-showcase", "Repository Showcase"],
+  ["living-library-help", "Living Library Help"],
+  ["marketplace-addons-help", "Marketplace/Add-ons Help"],
+  ["elysia-installation-help", "Elysia Installation Help"]
+] as const;
 
 function readStorage<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
@@ -237,7 +305,10 @@ function copyText(text: string, fallback: (message: string) => void) {
     fallback("Clipboard is unavailable here. The Markdown is still exportable.");
     return;
   }
-  void navigator.clipboard.writeText(text).then(() => fallback("Copied Markdown to clipboard."), () => fallback("Clipboard write failed. The Markdown is still exportable."));
+  void navigator.clipboard.writeText(text).then(
+    () => fallback("Copied Markdown to clipboard."),
+    () => fallback("Clipboard write failed. The Markdown is still exportable.")
+  );
 }
 
 function slug(value: string) {
@@ -264,7 +335,7 @@ function postMarkdown(draft: PostDraft) {
     `Submitter: ${draft.submitterName || "Not supplied"}`,
     `Optional contact: ${draft.submitterContact || "Not supplied"}`,
     "",
-    "Local draft mode: this was not sent to a live moderator queue."
+    "Local draft mode: this was not sent to a live moderator queue unless the account-backed submit action separately succeeded."
   ].join("\n");
 }
 
@@ -316,326 +387,407 @@ function sandboxMarkdown(draft: SandboxRequestDraft) {
   ].join("\n");
 }
 
-function StatusBadges({ labels }: { labels: string[] }) {
-  return <div className="commune-badge-row">{labels.map((label) => <span key={label}>{label}</span>)}</div>;
+function isBackendDiagnostic(message: string) {
+  const patterns = [
+    ["Could", "not", "find"].join(" "),
+    ["schema", "cache"].join(" "),
+    ["permission", "denied"].join(" "),
+    "row-level security",
+    "violates row-level security",
+    "relation \"public.",
+    "not configured",
+    "temporarily unavailable",
+    "Supabase is not configured"
+  ];
+  return patterns.some((pattern) => message.toLowerCase().includes(pattern.toLowerCase()));
 }
 
-export default function CommunePage() {
+function cleanCommuneMessage(message: string, fallback: string) {
+  return isBackendDiagnostic(message) ? fallback : message;
+}
+
+function logCommuneDiagnostics(scope: string, warnings: string[]) {
+  if (import.meta.env.DEV && warnings.length) console.warn(`[Commune ${scope}]`, warnings);
+}
+
+function StatusBadges({ labels }: { labels: string[] }) {
+  return <div className="commune-badge-row">{labels.filter(Boolean).map((label) => <span key={label}>{label.replace(/_/g, " ")}</span>)}</div>;
+}
+
+function authorLink(username?: string | null) {
+  if (!username) return <span>Community member</span>;
+  return <Link to={`/commons/@${encodeURIComponent(username)}`}>@{username}</Link>;
+}
+
+function Doctrine() {
+  return <section className="commune-doctrine-grid">
+    <WarningCallout title="Share carefully">
+      <p>Do not upload secrets, private Elysia memory, private logs, .env files, credentials, personal documents, or unredacted customer/user data. Public posts are not private support tickets. Anything drafted here should be safe to be public.</p>
+    </WarningCallout>
+    <WarningCallout title="Execute nowhere by default">
+      <p>Community code must not run directly on Supabase, Cloudflare backend, Elysia core, Bradley's machine, or any shared website server. Repository showcases and sandbox requests are metadata and review requests only.</p>
+    </WarningCallout>
+    <WarningCallout title="Moderated by design">
+      <p>Public posts, comments, uploads, repository showcases, and sandbox requests are governed by moderation and RLS when account mode is active. Users cannot self-assign moderator, reviewer, guardian, or admin roles.</p>
+    </WarningCallout>
+  </section>;
+}
+
+function RedactionPanel() {
+  return <section className="section-card"><p className="eyebrow">Redaction Checklist</p><h2>Before sharing logs, screenshots, repo notes, or code, redact these.</h2><div className="commune-redaction-grid">{["API keys", "tokens", "passwords", "emails", "phone numbers", "addresses", "private local file paths", "machine usernames", "database URLs", "Supabase keys", "Cloudflare tokens", "GitHub tokens", ".env contents", "customer/user records"].map((item) => <span key={item}>{item}</span>)}</div></section>;
+}
+
+function ZoneCatalog() {
+  return <section className="section-card">
+    <p className="eyebrow">Commune Zones</p>
+    <h2>Post types and boundaries</h2>
+    <div className="commune-zone-grid">
+      {postTypes.map((type) => (
+        <article className="commune-zone-card" key={type.id}>
+          <h3>{type.name}</h3>
+          <p>{type.purpose}</p>
+          <p><strong>Allowed:</strong> {type.allowedContent}</p>
+          <p><strong>Caution:</strong> {type.cautions}</p>
+          <StatusBadges labels={type.currentStatus} />
+          <details><summary>Future features</summary><p>{type.futureFeatures}</p></details>
+        </article>
+      ))}
+    </div>
+  </section>;
+}
+
+function RoomCards({ rooms }: { rooms: CommuneRoom[] }) {
+  const source = rooms.length ? rooms : roomLinks.map(([slugValue, name]) => ({ id: slugValue, slug: slugValue, name, description: "Account-backed room is being prepared. Local draft tools remain available.", room_type: slugValue, requires_moderation: true }));
+  return <section className="section-card"><p className="eyebrow">Rooms</p><h2>Moderated community spaces</h2><div className="commune-zone-grid">{source.map((room) => <article className="commune-zone-card" key={room.slug}><h3>{room.name}</h3><p>{room.description || "Moderated Commune room."}</p><StatusBadges labels={[room.room_type, room.requires_moderation ? "requires moderation" : "open"]} /><Link className="button-link" to={`/commune/rooms/${room.slug}`}>Open room</Link></article>)}</div></section>;
+}
+
+function PostCard({ post, saved, onSave }: { post: CommunePost; saved: boolean; onSave: (id: string) => void }) {
+  return <article className="commune-post-card"><div className="addon-card__topline"><StatusBadges labels={[post.post_type, post.status]} /></div><h3><Link to={`/commune/posts/${post.id}`}>{post.title}</Link></h3><p>{post.excerpt || post.body.slice(0, 180)}</p><p>By {authorLink(post.author_username)} · {post.published_at ? new Date(post.published_at).toLocaleDateString() : "public date unavailable"}</p><div className="tag-row">{(post.tags ?? []).slice(0, 5).map((tag) => <span key={tag}>{tag}</span>)}</div><div className="button-row"><Link className="button-link" to={`/commune/posts/${post.id}`}>Read</Link><button type="button" onClick={() => onSave(post.id)}>{saved ? "Saved" : "Save post"}</button></div></article>;
+}
+
+function PostList({ posts, savedPostIds, onSave }: { posts: CommunePost[]; savedPostIds: string[]; onSave: (id: string) => void }) {
+  return <section className="section-card"><p className="eyebrow">Public posts after moderation</p><h2>{posts.length ? `${posts.length} visible post${posts.length === 1 ? "" : "s"}` : "No published Commune posts yet"}</h2><p className="boundary-note">Only posts approved/published by moderation are public here. Drafts and pending requests remain private to their owner and reviewers.</p><div className="commune-draft-grid">{posts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} />)}</div>{!posts.length && <p>No published Commune posts yet. Draft and submission tools are available below.</p>}</section>;
+}
+
+function useCommuneLoad(roomSlug?: string, postId?: string) {
+  const [state, setState] = useState({ rooms: [] as CommuneRoom[], posts: [] as CommunePost[], comments: [] as CommuneComment[], threads: [] as CommuneThread[], savedPostIds: [] as string[], followedThreadIds: [] as string[], signedIn: false, isModerator: false, accountReady: false });
+  const refresh = useCallback(async () => {
+    const result = await loadCommuneData(roomSlug, postId);
+    logCommuneDiagnostics("load", [...result.account.warnings, ...result.warnings]);
+    setState({ rooms: result.rooms, posts: result.posts, comments: result.comments, threads: result.threads, savedPostIds: result.savedPostIds, followedThreadIds: result.followedThreadIds, signedIn: result.account.signedIn, isModerator: result.account.isModerator, accountReady: !result.warnings.some(isBackendDiagnostic) });
+  }, [roomSlug, postId]);
+  useEffect(() => { void refresh(); }, [refresh]);
+  return { state, refresh };
+}
+
+function useLocalDraftState() {
   const [postDrafts, setPostDrafts] = useState<PostDraft[]>(() => readStorage(storageKeys.postDrafts, []));
   const [postRequests, setPostRequests] = useState<PostDraft[]>(() => readStorage(storageKeys.postRequests, []));
   const [repoDrafts, setRepoDrafts] = useState<RepoShowcaseDraft[]>(() => readStorage(storageKeys.repoShowcaseDrafts, []));
   const [sandboxDrafts, setSandboxDrafts] = useState<SandboxRequestDraft[]>(() => readStorage(storageKeys.sandboxRequestDrafts, []));
-  const [statusMessage, setStatusMessage] = useState("Local draft mode: drafts and requests are stored in this browser for now. Account-backed publishing and moderator review will come later after Supabase tables, RLS, and moderator/admin accounts are designed.");
-  const [postForm, setPostForm] = useState(() => ({
-    postType: postTypes[0].name,
-    title: "",
-    summary: "",
-    body: "",
-    tags: "",
-    sourceLinks: "",
-    licenseNotes: "",
-    redactionNotes: "",
-    intendedAudience: "Community review later",
-    submitterName: "",
-    submitterContact: "",
-    checklist: Object.fromEntries(redactionChecklist.map((item) => [item, false])) as Record<string, boolean>
-  }));
-  const [repoForm, setRepoForm] = useState({
-    title: "",
-    repoUrl: "",
-    provider: "GitHub",
-    branch: "",
-    commit: "",
-    license: "",
-    description: "",
-    readmePreview: "",
-    fileTreePreview: "",
-    screenshotNotes: "",
-    manifestStatus: "No manifest checked",
-    compatibility: "Unknown",
-    warnings: [] as string[]
-  });
-  const [sandboxForm, setSandboxForm] = useState({
-    title: "",
-    relatedUrl: "",
-    codePurpose: "",
-    expectedCommand: "",
-    dependencies: "",
-    networkNeeded: "No",
-    fileAccessNeeded: "No",
-    estimatedRuntime: "",
-    whySandbox: "",
-    riskNotes: ""
-  });
 
-  function updatePostDrafts(next: PostDraft[]) {
-    setPostDrafts(next);
-    writeStorage(storageKeys.postDrafts, next);
-  }
+  return {
+    postDrafts,
+    postRequests,
+    repoDrafts,
+    sandboxDrafts,
+    updatePostDrafts(next: PostDraft[]) { setPostDrafts(next); writeStorage(storageKeys.postDrafts, next); },
+    updatePostRequests(next: PostDraft[]) { setPostRequests(next); writeStorage(storageKeys.postRequests, next); },
+    updateRepoDrafts(next: RepoShowcaseDraft[]) { setRepoDrafts(next); writeStorage(storageKeys.repoShowcaseDrafts, next); },
+    updateSandboxDrafts(next: SandboxRequestDraft[]) { setSandboxDrafts(next); writeStorage(storageKeys.sandboxRequestDrafts, next); }
+  };
+}
 
-  function updatePostRequests(next: PostDraft[]) {
-    setPostRequests(next);
-    writeStorage(storageKeys.postRequests, next);
-  }
+function AccountModePanel({ signedIn, isModerator, accountReady }: { signedIn: boolean; isModerator: boolean; accountReady: boolean }) {
+  return <section className="section-card commune-status-card">
+    <p className="eyebrow">Account-backed mode</p>
+    <h2>{signedIn ? "Signed in community actions available" : "Public read mode"}</h2>
+    <p>{signedIn ? "You can submit posts/comments for moderation, save posts, follow threads, upload safe attachments privately for review, and report content when account-backed tables are active." : "Signed-out users can see published public posts and use local draft/export tools. Sign in to submit posts, comments, saves, follows, reports, or uploads."}</p>
+    {!accountReady && <p className="boundary-note">Account-backed Commune features are being prepared. Local draft and export tools remain available.</p>}
+    <div className="button-row"><Link className="button-link button-link--primary" to="/commune/new">Request to post</Link><Link className="button-link" to="/commune/repository-showcase">Repository showcase</Link><Link className="button-link" to="/commune/troubleshooting">Troubleshooting</Link><a className="button-link" href="#sandbox-review">Sandbox review request</a>{isModerator && <Link className="button-link" to="/commune/moderation">Moderation</Link>}</div>
+  </section>;
+}
 
-  function updateRepoDrafts(next: RepoShowcaseDraft[]) {
-    setRepoDrafts(next);
-    writeStorage(storageKeys.repoShowcaseDrafts, next);
-  }
+function PostComposer({ defaultType = "media_garden" as CommunePostType, defaultRoomId, troubleshooting = false, localDrafts, onRefresh }: { defaultType?: CommunePostType; defaultRoomId?: string; troubleshooting?: boolean; localDrafts: ReturnType<typeof useLocalDraftState>; onRefresh?: () => Promise<void> }) {
+  const [form, setForm] = useState({ postType: defaultType, roomId: defaultRoomId || "", title: "", summary: "", body: "", tags: "", links: "", repositoryUrl: "", os: "", browser: "", version: "", stepsTried: "", acknowledgement: false, sandboxRequested: false });
+  const [file, setFile] = useState<File | null>(null);
+  const [message, setMessage] = useState("Signed-in users can submit posts for moderation. Local draft/export is available even when backend review is not active.");
 
-  function updateSandboxDrafts(next: SandboxRequestDraft[]) {
-    setSandboxDrafts(next);
-    writeStorage(storageKeys.sandboxRequestDrafts, next);
-  }
-
-  function buildPost(status: CommuneStatus): PostDraft {
+  function build(status: CommuneStatus): PostDraft {
+    const body = troubleshooting ? [form.body, "", `OS: ${form.os}`, `Browser: ${form.browser}`, `Elysia version: ${form.version}`, `Steps tried: ${form.stepsTried}`].join("\n") : form.body;
     return {
-      ...postForm,
       id: `${status}-${Date.now()}`,
+      postType: postTypeOptions.find((type) => type.value === form.postType)?.label ?? form.postType,
+      title: form.title,
+      summary: form.summary || body.slice(0, 180),
+      body,
+      tags: form.tags,
+      sourceLinks: [form.links, form.repositoryUrl].filter(Boolean).join(", "),
+      licenseNotes: "",
+      redactionNotes: troubleshooting ? "Troubleshooting content should be redacted before sharing." : "",
+      intendedAudience: "Community review",
+      submitterName: "",
+      submitterContact: "",
+      checklist: Object.fromEntries(routeAcknowledgements.map((item) => [item, form.acknowledgement])) as Record<string, boolean>,
       status,
       createdAt: new Date().toISOString()
     };
   }
 
-  function savePostDraft(status: CommuneStatus) {
-    const draft = buildPost(status);
+  function saveLocal(status: CommuneStatus) {
+    const draft = build(status);
     if (status === "pending_moderator_review_local") {
-      updatePostRequests([draft, ...postRequests]);
-      setStatusMessage("Post request saved locally as a pending moderator-review draft. Later, requests will be sent to the configured moderator account after the account/review system is built.");
+      localDrafts.updatePostRequests([draft, ...localDrafts.postRequests]);
+      setMessage("Saved locally in this browser as a pending moderator-review draft. Backend review queue is not active yet.");
     } else {
-      updatePostDrafts([draft, ...postDrafts]);
-      setStatusMessage("Commune post draft saved locally in this browser.");
+      localDrafts.updatePostDrafts([draft, ...localDrafts.postDrafts]);
+      setMessage("Commune post draft saved locally in this browser.");
     }
   }
 
-  function saveRepoDraft() {
-    const draft: RepoShowcaseDraft = { ...repoForm, id: `repo-${Date.now()}`, createdAt: new Date().toISOString() };
-    updateRepoDrafts([draft, ...repoDrafts]);
-    setStatusMessage("Repository showcase draft saved locally. No repository was fetched, cloned, or validated remotely.");
+  async function submit() {
+    const body = troubleshooting ? [form.body, "", `OS: ${form.os}`, `Browser: ${form.browser}`, `Elysia version: ${form.version}`, `Steps tried: ${form.stepsTried}`].join("\n") : form.body;
+    const result = await submitCommunePost({ ...form, body, roomId: form.roomId || defaultRoomId, upload: file, sandboxRequested: form.sandboxRequested });
+    if (result.ok) {
+      setMessage(result.message);
+      await onRefresh?.();
+      return;
+    }
+    if (isBackendDiagnostic(result.message)) {
+      saveLocal("pending_moderator_review_local");
+      setMessage("Saved locally in this browser. Backend review queue is not active yet.");
+      return;
+    }
+    setMessage(cleanCommuneMessage(result.message, "Saved locally in this browser. Backend review queue is not active yet."));
   }
 
-  function saveSandboxDraft() {
-    const draft: SandboxRequestDraft = { ...sandboxForm, id: `sandbox-${Date.now()}`, createdAt: new Date().toISOString() };
-    updateSandboxDrafts([draft, ...sandboxDrafts]);
-    setStatusMessage("Sandbox request draft saved locally. No code was executed and no permission was granted.");
-  }
-
-  function exportPost(format: "markdown" | "json") {
-    const draft = buildPost("draft_local");
-    if (format === "markdown") downloadText(`${slug(draft.title)}.md`, postMarkdown(draft), "text/markdown");
-    else downloadText(`${slug(draft.title)}.json`, JSON.stringify(draft, null, 2), "application/json");
-    setStatusMessage(`Exported current post draft as ${format.toUpperCase()} locally.`);
-  }
-
-  function exportRepo(format: "markdown" | "json") {
-    const draft: RepoShowcaseDraft = { ...repoForm, id: `repo-preview`, createdAt: new Date().toISOString() };
-    if (format === "markdown") downloadText(`${slug(draft.title)}-repo-showcase.md`, repoMarkdown(draft), "text/markdown");
-    else downloadText(`${slug(draft.title)}-repo-showcase.json`, JSON.stringify(draft, null, 2), "application/json");
-    setStatusMessage(`Exported repository showcase draft as ${format.toUpperCase()} locally.`);
-  }
-
-  function exportSandbox(format: "markdown" | "json") {
-    const draft: SandboxRequestDraft = { ...sandboxForm, id: `sandbox-preview`, createdAt: new Date().toISOString() };
-    if (format === "markdown") downloadText(`${slug(draft.title)}-sandbox-request.md`, sandboxMarkdown(draft), "text/markdown");
-    else downloadText(`${slug(draft.title)}-sandbox-request.json`, JSON.stringify(draft, null, 2), "application/json");
-    setStatusMessage(`Exported sandbox request draft as ${format.toUpperCase()} locally.`);
-  }
-
-  function toggleRepoWarning(label: string) {
-    setRepoForm((current) => ({
-      ...current,
-      warnings: current.warnings.includes(label) ? current.warnings.filter((item) => item !== label) : [...current.warnings, label]
-    }));
-  }
-
-  return (
-    <div className="page-stack commune-page">
-      <PageHero eyebrow="Public community" title="The Elysia Commune">
-        <p>The Commune is the future public gathering place for official updates, media blogs, troubleshooting, code sharing, repository showcases, community networking, project updates, research notes, and Elysia iteration showcases.</p>
-        <p><strong>Share publicly. Redact first. Execute nowhere by default.</strong></p>
-      </PageHero>
-
-      <section className="commune-doctrine-grid">
-        <WarningCallout title="Share carefully">
-          <p>Do not upload secrets, private Elysia memory, private logs, .env files, credentials, personal documents, or unredacted customer/user data. Public posts are not private support tickets. Anything drafted here should be safe to be public.</p>
-        </WarningCallout>
-        <WarningCallout title="Code execution boundary">
-          <p>Community code must not run directly on Supabase, Cloudflare backend, Elysia core, Bradley's machine, or any shared website server. No community code execution is live on this page; users may draft sandbox requests only.</p>
-        </WarningCallout>
-        <WarningCallout title="Moderator routing">
-          <p>Moderator routing is not live yet. A moderator account will be configured later. Until then, post requests are saved locally as drafts/pending review items.</p>
-        </WarningCallout>
-      </section>
-
-      <section className="section-card commune-status-card">
-        <p className="eyebrow">Commune v0.1</p>
-        <h2>Community is welcome. Secrets are not.</h2>
-        <p>{statusMessage}</p>
-        <dl className="mini-facts">
-          <div><dt>Live submission</dt><dd>{communeModerationConfig.liveSubmissionEnabled ? "Enabled" : "Not live"}</dd></div>
-          <div><dt>Backend queue</dt><dd>{communeModerationConfig.backendReviewQueueEnabled ? "Enabled" : "Not live"}</dd></div>
-          <div><dt>Moderator account</dt><dd>{communeModerationConfig.moderatorAccountEmail ?? "Not configured"}</dd></div>
-          <div><dt>Administrator account</dt><dd>{communeModerationConfig.administratorAccountEmail ?? "Not configured"}</dd></div>
-        </dl>
-      </section>
-
-      <section className="section-card">
-        <p className="eyebrow">Redaction Checklist</p>
-        <h2>Before sharing logs, screenshots, repo notes, or code, redact these.</h2>
-        <div className="commune-redaction-grid">
-          {["API keys", "tokens", "passwords", "emails", "phone numbers", "addresses", "private local file paths", "machine usernames", "database URLs", "Supabase keys", "Cloudflare tokens", "GitHub tokens", ".env contents", "customer/user records"].map((item) => <span key={item}>{item}</span>)}
-        </div>
-      </section>
-
-      <section className="section-card">
-        <p className="eyebrow">Commune Zones</p>
-        <h2>Post types and boundaries</h2>
-        <div className="commune-zone-grid">
-          {postTypes.map((type) => (
-            <article className="commune-zone-card" key={type.id}>
-              <h3>{type.name}</h3>
-              <p>{type.purpose}</p>
-              <p><strong>Allowed:</strong> {type.allowedContent}</p>
-              <p><strong>Caution:</strong> {type.cautions}</p>
-              <StatusBadges labels={type.currentStatus} />
-              <details><summary>Future features</summary><p>{type.futureFeatures}</p></details>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="section-card commune-composer-card">
-        <p className="eyebrow">Post request composer</p>
-        <h2>Request to post in The Elysia Commune</h2>
-        <p className="boundary-note">Local draft mode: drafts and requests are stored in this browser for now. Account-backed publishing and moderator review will come later after Supabase tables, RLS, and moderator/admin accounts are designed.</p>
-        <div className="commune-form-grid">
-          <label><span>Post type</span><select value={postForm.postType} onChange={(event) => setPostForm({ ...postForm, postType: event.target.value })}>{postTypes.map((type) => <option key={type.id}>{type.name}</option>)}</select></label>
-          <label><span>Title</span><input value={postForm.title} onChange={(event) => setPostForm({ ...postForm, title: event.target.value })} /></label>
-          <label><span>Summary</span><input value={postForm.summary} onChange={(event) => setPostForm({ ...postForm, summary: event.target.value })} /></label>
-          <label><span>Tags</span><input value={postForm.tags} onChange={(event) => setPostForm({ ...postForm, tags: event.target.value })} placeholder="garden, release, troubleshooting" /></label>
-          <label><span>Source links / repo links</span><input value={postForm.sourceLinks} onChange={(event) => setPostForm({ ...postForm, sourceLinks: event.target.value })} /></label>
-          <label><span>License or citation notes</span><input value={postForm.licenseNotes} onChange={(event) => setPostForm({ ...postForm, licenseNotes: event.target.value })} /></label>
-          <label><span>Privacy/redaction notes</span><input value={postForm.redactionNotes} onChange={(event) => setPostForm({ ...postForm, redactionNotes: event.target.value })} /></label>
-          <label><span>Requested status or intended audience</span><input value={postForm.intendedAudience} onChange={(event) => setPostForm({ ...postForm, intendedAudience: event.target.value })} /></label>
-          <label><span>Optional submitter name/display name</span><input value={postForm.submitterName} onChange={(event) => setPostForm({ ...postForm, submitterName: event.target.value })} /></label>
-          <label><span>Optional submitter contact</span><input value={postForm.submitterContact} onChange={(event) => setPostForm({ ...postForm, submitterContact: event.target.value })} /></label>
-          <label className="wide-field"><span>Body/content</span><textarea value={postForm.body} onChange={(event) => setPostForm({ ...postForm, body: event.target.value })} rows={9} /></label>
-        </div>
-        <div className="commune-checklist">
-          {redactionChecklist.map((item) => <label className="checkbox-line" key={item}><input type="checkbox" checked={postForm.checklist[item]} onChange={(event) => setPostForm({ ...postForm, checklist: { ...postForm.checklist, [item]: event.target.checked } })} /><span>{item}</span></label>)}
-        </div>
-        <div className="button-row">
-          <button type="button" onClick={() => savePostDraft("draft_local")}>Save local draft</button>
-          <button type="button" className="button-primary" onClick={() => savePostDraft("pending_moderator_review_local")}>Save as post request</button>
-          <button type="button" onClick={() => exportPost("markdown")}>Export Markdown</button>
-          <button type="button" onClick={() => exportPost("json")}>Export JSON</button>
-          <button type="button" onClick={() => copyText(postMarkdown(buildPost("draft_local")), setStatusMessage)}>Copy draft Markdown</button>
-        </div>
-      </section>
-
-      <section className="section-card commune-repo-card">
-        <p className="eyebrow">Repository Showcase Draft</p>
-        <h2>Describe a public repo without fetching it.</h2>
-        <p>No repo APIs are called. Nothing is cloned. Nothing is remotely validated.</p>
-        <div className="commune-form-grid">
-          <label><span>Showcase title</span><input value={repoForm.title} onChange={(event) => setRepoForm({ ...repoForm, title: event.target.value })} /></label>
-          <label><span>Repo URL</span><input value={repoForm.repoUrl} onChange={(event) => setRepoForm({ ...repoForm, repoUrl: event.target.value })} /></label>
-          <label><span>Provider</span><select value={repoForm.provider} onChange={(event) => setRepoForm({ ...repoForm, provider: event.target.value })}>{["GitHub", "GitLab", "Codeberg", "Forgejo", "Uploaded zip later", "Other"].map((value) => <option key={value}>{value}</option>)}</select></label>
-          <label><span>Branch</span><input value={repoForm.branch} onChange={(event) => setRepoForm({ ...repoForm, branch: event.target.value })} /></label>
-          <label><span>Commit</span><input value={repoForm.commit} onChange={(event) => setRepoForm({ ...repoForm, commit: event.target.value })} /></label>
-          <label><span>License</span><input value={repoForm.license} onChange={(event) => setRepoForm({ ...repoForm, license: event.target.value })} /></label>
-          <label><span>Manifest status</span><select value={repoForm.manifestStatus} onChange={(event) => setRepoForm({ ...repoForm, manifestStatus: event.target.value })}>{["No manifest checked", "Manifest missing", "Manifest present", "Manifest validates locally", "Manifest needs review", "Manifest unsafe/blocklisted"].map((value) => <option key={value}>{value}</option>)}</select></label>
-          <label><span>Elysia compatibility</span><select value={repoForm.compatibility} onChange={(event) => setRepoForm({ ...repoForm, compatibility: event.target.value })}>{["Unknown", "Concept only", "Website/resource only", "Add-on candidate", "Local Elysia compatible, unverified", "Local Elysia compatible, reviewed later", "Not compatible"].map((value) => <option key={value}>{value}</option>)}</select></label>
-          <label className="wide-field"><span>Short description</span><textarea value={repoForm.description} onChange={(event) => setRepoForm({ ...repoForm, description: event.target.value })} rows={4} /></label>
-          <label className="wide-field"><span>README preview pasted by user</span><textarea value={repoForm.readmePreview} onChange={(event) => setRepoForm({ ...repoForm, readmePreview: event.target.value })} rows={5} /></label>
-          <label className="wide-field"><span>File tree preview pasted by user</span><textarea value={repoForm.fileTreePreview} onChange={(event) => setRepoForm({ ...repoForm, fileTreePreview: event.target.value })} rows={5} /></label>
-          <label className="wide-field"><span>Screenshot notes or URLs</span><textarea value={repoForm.screenshotNotes} onChange={(event) => setRepoForm({ ...repoForm, screenshotNotes: event.target.value })} rows={3} /></label>
-        </div>
-        <div className="commune-checklist commune-warning-checks">
-          {repoWarnings.map((item) => <label className="checkbox-line" key={item}><input type="checkbox" checked={repoForm.warnings.includes(item)} onChange={() => toggleRepoWarning(item)} /><span>{item}</span></label>)}
-        </div>
-        <div className="button-row"><button type="button" onClick={saveRepoDraft}>Save showcase draft locally</button><button type="button" onClick={() => exportRepo("markdown")}>Export Markdown</button><button type="button" onClick={() => exportRepo("json")}>Export JSON</button><button type="button" onClick={() => copyText(repoMarkdown({ ...repoForm, id: "repo-preview", createdAt: new Date().toISOString() }), setStatusMessage)}>Copy showcase Markdown</button></div>
-      </section>
-
-      <section className="section-card commune-sandbox-card">
-        <p className="eyebrow">Sandbox Request Draft</p>
-        <h2>Request review for future isolated execution.</h2>
-        <p className="boundary-note">Sandbox requests are not execution permission. Future execution requires isolated infrastructure, explicit approval, resource limits, no secrets, no private network, no host mounts, logs, and kill controls.</p>
-        <div className="commune-form-grid">
-          <label><span>Request title</span><input value={sandboxForm.title} onChange={(event) => setSandboxForm({ ...sandboxForm, title: event.target.value })} /></label>
-          <label><span>Related post/repo URL</span><input value={sandboxForm.relatedUrl} onChange={(event) => setSandboxForm({ ...sandboxForm, relatedUrl: event.target.value })} /></label>
-          <label><span>Expected command</span><input value={sandboxForm.expectedCommand} onChange={(event) => setSandboxForm({ ...sandboxForm, expectedCommand: event.target.value })} /></label>
-          <label><span>Dependencies</span><input value={sandboxForm.dependencies} onChange={(event) => setSandboxForm({ ...sandboxForm, dependencies: event.target.value })} /></label>
-          <label><span>Network needed?</span><select value={sandboxForm.networkNeeded} onChange={(event) => setSandboxForm({ ...sandboxForm, networkNeeded: event.target.value })}><option>No</option><option>Yes</option></select></label>
-          <label><span>File access needed?</span><select value={sandboxForm.fileAccessNeeded} onChange={(event) => setSandboxForm({ ...sandboxForm, fileAccessNeeded: event.target.value })}><option>No</option><option>Yes</option></select></label>
-          <label><span>Estimated runtime</span><input value={sandboxForm.estimatedRuntime} onChange={(event) => setSandboxForm({ ...sandboxForm, estimatedRuntime: event.target.value })} /></label>
-          <label className="wide-field"><span>Code purpose</span><textarea value={sandboxForm.codePurpose} onChange={(event) => setSandboxForm({ ...sandboxForm, codePurpose: event.target.value })} rows={4} /></label>
-          <label className="wide-field"><span>Why sandbox is needed</span><textarea value={sandboxForm.whySandbox} onChange={(event) => setSandboxForm({ ...sandboxForm, whySandbox: event.target.value })} rows={4} /></label>
-          <label className="wide-field"><span>Risk notes</span><textarea value={sandboxForm.riskNotes} onChange={(event) => setSandboxForm({ ...sandboxForm, riskNotes: event.target.value })} rows={4} /></label>
-        </div>
-        <div className="button-row"><button type="button" onClick={saveSandboxDraft}>Save sandbox request draft locally</button><button type="button" onClick={() => exportSandbox("markdown")}>Export Markdown</button><button type="button" onClick={() => exportSandbox("json")}>Export JSON</button><button type="button" onClick={() => copyText(sandboxMarkdown({ ...sandboxForm, id: "sandbox-preview", createdAt: new Date().toISOString() }), setStatusMessage)}>Copy request Markdown</button></div>
-      </section>
-
-      <section className="section-card">
-        <p className="eyebrow">Local drafts and pending review requests</p>
-        <h2>Saved in this browser only</h2>
-        {postDrafts.length + postRequests.length + repoDrafts.length + sandboxDrafts.length === 0 ? <p>Drafts and post requests saved in this browser will appear here.</p> : null}
-        <div className="commune-draft-grid">
-          {postDrafts.map((draft) => <article key={draft.id}><h3>{draft.title || "Untitled post draft"}</h3><StatusBadges labels={[draft.status, draft.postType]} /><p>{draft.summary}</p></article>)}
-          {postRequests.map((draft) => <article key={draft.id}><h3>{draft.title || "Untitled post request"}</h3><StatusBadges labels={[draft.status, draft.postType]} /><p>{draft.summary}</p></article>)}
-          {repoDrafts.map((draft) => <article key={draft.id}><h3>{draft.title || "Untitled repo showcase"}</h3><StatusBadges labels={["repo showcase draft", draft.provider, draft.manifestStatus]} /><p>{draft.description}</p></article>)}
-          {sandboxDrafts.map((draft) => <article key={draft.id}><h3>{draft.title || "Untitled sandbox request"}</h3><StatusBadges labels={["sandbox request draft", `network: ${draft.networkNeeded}`, `files: ${draft.fileAccessNeeded}`]} /><p>{draft.codePurpose}</p></article>)}
-        </div>
-      </section>
-
-      <section className="section-card commune-info-grid">
-        <article>
-          <p className="eyebrow">Local mode now</p>
-          <h2>What works without a backend</h2>
-          <ul><li>Create post drafts.</li><li>Save post requests locally.</li><li>Create repository showcase drafts.</li><li>Request code sandbox as local draft.</li><li>Save/follow draft thread ideas locally later.</li><li>Export drafts as Markdown/JSON.</li></ul>
-        </article>
-        <article>
-          <p className="eyebrow">Future account mode</p>
-          <h2>What needs backend design</h2>
-          <ul><li>Public posts after moderation.</li><li>Comments, saved posts, follows, uploads, and troubleshooting rooms.</li><li>Repository showcases and sandbox review requests.</li><li>Supabase tables, RLS policies, moderator/admin roles, moderation queue, abuse controls, upload policies, and audit logs.</li></ul>
-        </article>
-      </section>
-
-      <section className="section-card commune-info-grid">
-        <article>
-          <p className="eyebrow">Future backend roadmap</p>
-          <h2>Planned tables</h2>
-          <div className="commune-badge-row">{futureTables.map((table) => <span key={table}>{table}</span>)}</div>
-          <p>These are planned/future backend tables. They are not live until Supabase schema, RLS, moderation, and abuse controls are built.</p>
-        </article>
-        <article>
-          <p className="eyebrow">Later support tables</p>
-          <h2>Possible support structures</h2>
-          <div className="commune-badge-row">{futureSupportTables.map((table) => <span key={table}>{table}</span>)}</div>
-        </article>
-      </section>
-
-      <section className="section-card commune-info-grid">
-        <article>
-          <p className="eyebrow">Moderation Doctrine</p>
-          <h2>Future moderation must handle</h2>
-          <p>Spam, harassment, malware, secret leakage, private data exposure, copyright violations, unsafe code, scams/job fraud, impersonation, off-topic floods, AI-generated spam, doxxing, and sensitive ecological location exposure.</p>
-          <h3>Future actions</h3>
-          <StatusBadges labels={["report", "hide", "lock thread", "remove post", "request redaction", "mark official", "mark community", "mark unreviewed", "block upload", "security hold", "admin review"]} />
-          <h3>Trust labels</h3>
-          <StatusBadges labels={["Official", "Community", "Unreviewed", "Needs redaction", "Security hold", "Resolved", "Archived", "Blocked"]} />
-        </article>
-        <article>
-          <p className="eyebrow">Media, chat, jobs, and official notices</p>
-          <h2>Boundaries for future rooms</h2>
-          <p><strong>Media uploads:</strong> not enabled. Future uploads require file type limits, size limits, moderation, attribution/copyright prompts, malware scanning where possible, private-data warnings, storage policies, and abuse controls.</p>
-          <p><strong>Collaborative rooms and chat:</strong> planned, not live. Future rooms need moderation, rate limits, reporting, blocking, room roles, invite controls, retention policy, and no private Elysia memory sharing by default.</p>
-          <p><strong>Job posts:</strong> future job posts require clear organization/contact, clear role type, clear paid/volunteer status, pay/rate or honest explanation if unpaid, location/remote status, no misleading roles, no sensitive personal data requests in public comments, and scam/moderator review.</p>
-          <p><strong>Official Updates:</strong> restricted to authorized Elysia Ecobotics administrators later. Community users should not be able to impersonate official release, security, or governance notices.</p>
-          <h3>Code/repo labels</h3>
-          <StatusBadges labels={["No code execution", "Snippet only", "Repo showcase only", "Manifest present", "Manifest not reviewed", "License unclear", "Sandbox required", "Security review needed", "Blocked"]} />
-        </article>
-      </section>
+  return <section className="section-card commune-composer-card">
+    <p className="eyebrow">Request to post</p>
+    <h2>{troubleshooting ? "Troubleshooting post" : "Create a moderated Commune post"}</h2>
+    <p className="boundary-note">Uploads are part of Elysia Ecobotics Online, not private local Elysia. Do not upload private local Elysia memory, logs, vault data, credentials, .env files, API keys, identity documents, or unredacted sensitive information.</p>
+    <div className="commune-form-grid">
+      <label><span>Post type</span><select value={form.postType} onChange={(event) => setForm({ ...form, postType: event.target.value as CommunePostType })}>{postTypeOptions.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label>
+      <label><span>Title</span><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
+      <label><span>Summary</span><input value={form.summary} onChange={(event) => setForm({ ...form, summary: event.target.value })} /></label>
+      <label><span>Tags</span><input value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} /></label>
+      <label><span>Links</span><input value={form.links} onChange={(event) => setForm({ ...form, links: event.target.value })} /></label>
+      <label><span>Repository URL optional</span><input value={form.repositoryUrl} onChange={(event) => setForm({ ...form, repositoryUrl: event.target.value })} /></label>
+      <label><span>Attachment optional</span><input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.md,.csv,.json" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></label>
+      {troubleshooting && <><label><span>OS</span><input value={form.os} onChange={(event) => setForm({ ...form, os: event.target.value })} /></label><label><span>Browser</span><input value={form.browser} onChange={(event) => setForm({ ...form, browser: event.target.value })} /></label><label><span>Elysia version optional</span><input value={form.version} onChange={(event) => setForm({ ...form, version: event.target.value })} /></label><label><span>Steps tried</span><input value={form.stepsTried} onChange={(event) => setForm({ ...form, stepsTried: event.target.value })} /></label></>}
+      <label className="wide-field"><span>Body</span><textarea rows={8} value={form.body} onChange={(event) => setForm({ ...form, body: event.target.value })} /></label>
     </div>
-  );
+    <div className="commune-checklist">{routeAcknowledgements.map((item) => <label className="checkbox-line" key={item}><input type="checkbox" checked={form.acknowledgement} onChange={(event) => setForm({ ...form, acknowledgement: event.target.checked })} /><span>{item}</span></label>)}<label className="checkbox-line"><input type="checkbox" checked={form.sandboxRequested} onChange={(event) => setForm({ ...form, sandboxRequested: event.target.checked })} /><span>Request sandbox review for repository/code metadata. This is not execution permission.</span></label></div>
+    <div className="button-row"><button type="button" className="button-primary" onClick={() => void submit()}>Submit for moderation</button><button type="button" onClick={() => saveLocal("draft_local")}>Save local draft</button><button type="button" onClick={() => saveLocal("pending_moderator_review_local")}>Save local request</button><button type="button" onClick={() => downloadText(`${slug(form.title)}.md`, postMarkdown(build("draft_local")), "text/markdown")}>Export Markdown</button><button type="button" onClick={() => copyText(postMarkdown(build("draft_local")), setMessage)}>Copy Markdown</button><Link className="button-link" to="/commune">Back to Commune</Link></div>
+    <p className="message">{message}</p>
+  </section>;
+}
+
+function RepositoryShowcaseForm({ localDrafts }: { localDrafts: ReturnType<typeof useLocalDraftState> }) {
+  const [form, setForm] = useState({ title: "", repoUrl: "", provider: "GitHub", branch: "", commit: "", license: "", description: "", readmePreview: "", fileTreePreview: "", screenshotNotes: "", manifestStatus: "No manifest checked", compatibility: "Unknown", warnings: [] as string[], sandboxRequested: false });
+  const [message, setMessage] = useState("Repository showcases are metadata only. The website does not fetch, clone, build, run, or execute repository code.");
+
+  function draft(): RepoShowcaseDraft {
+    return { ...form, id: `repo-${Date.now()}`, createdAt: new Date().toISOString() };
+  }
+
+  function saveLocal() {
+    const next = draft();
+    localDrafts.updateRepoDrafts([next, ...localDrafts.repoDrafts]);
+    setMessage("Repository showcase draft saved locally. No repository was fetched, cloned, or validated remotely.");
+  }
+
+  async function submit() {
+    const result = await submitRepositoryShowcase({ repositoryUrl: form.repoUrl, projectName: form.title, projectSummary: form.description || form.readmePreview, sandboxRequested: form.sandboxRequested });
+    if (result.ok) setMessage(result.message);
+    else if (isBackendDiagnostic(result.message)) { saveLocal(); setMessage("Saved locally in this browser. Repository showcase review queue is not active yet."); }
+    else setMessage(result.message);
+  }
+
+  function toggleWarning(label: string) {
+    setForm((current) => ({ ...current, warnings: current.warnings.includes(label) ? current.warnings.filter((item) => item !== label) : [...current.warnings, label] }));
+  }
+
+  return <section className="section-card commune-repo-card">
+    <p className="eyebrow">Repository Showcase</p>
+    <h2>Show a repository without running it</h2>
+    <p>No repo APIs are called. Nothing is cloned. Nothing is remotely validated.</p>
+    <div className="commune-form-grid">
+      <label><span>Showcase title</span><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
+      <label><span>Repo URL</span><input value={form.repoUrl} onChange={(event) => setForm({ ...form, repoUrl: event.target.value })} /></label>
+      <label><span>Provider</span><select value={form.provider} onChange={(event) => setForm({ ...form, provider: event.target.value })}>{["GitHub", "GitLab", "Codeberg", "Forgejo", "Uploaded zip later", "Other"].map((value) => <option key={value}>{value}</option>)}</select></label>
+      <label><span>Branch</span><input value={form.branch} onChange={(event) => setForm({ ...form, branch: event.target.value })} /></label>
+      <label><span>Commit</span><input value={form.commit} onChange={(event) => setForm({ ...form, commit: event.target.value })} /></label>
+      <label><span>License</span><input value={form.license} onChange={(event) => setForm({ ...form, license: event.target.value })} /></label>
+      <label><span>Manifest status</span><select value={form.manifestStatus} onChange={(event) => setForm({ ...form, manifestStatus: event.target.value })}>{["No manifest checked", "Manifest missing", "Manifest present", "Manifest validates locally", "Manifest needs review", "Manifest unsafe/blocklisted"].map((value) => <option key={value}>{value}</option>)}</select></label>
+      <label><span>Elysia compatibility</span><select value={form.compatibility} onChange={(event) => setForm({ ...form, compatibility: event.target.value })}>{["Unknown", "Concept only", "Website/resource only", "Add-on candidate", "Local Elysia compatible, unverified", "Local Elysia compatible, reviewed later", "Not compatible"].map((value) => <option key={value}>{value}</option>)}</select></label>
+      <label className="wide-field"><span>Short description</span><textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={4} /></label>
+      <label className="wide-field"><span>README preview pasted by user</span><textarea value={form.readmePreview} onChange={(event) => setForm({ ...form, readmePreview: event.target.value })} rows={5} /></label>
+      <label className="wide-field"><span>File tree preview pasted by user</span><textarea value={form.fileTreePreview} onChange={(event) => setForm({ ...form, fileTreePreview: event.target.value })} rows={5} /></label>
+      <label className="wide-field"><span>Screenshot notes or URLs</span><textarea value={form.screenshotNotes} onChange={(event) => setForm({ ...form, screenshotNotes: event.target.value })} rows={3} /></label>
+      <label className="checkbox-line wide-field"><input type="checkbox" checked={form.sandboxRequested} onChange={(event) => setForm({ ...form, sandboxRequested: event.target.checked })} /><span>Also request future sandbox review. This does not grant execution permission.</span></label>
+    </div>
+    <div className="commune-checklist commune-warning-checks">{repoWarnings.map((item) => <label className="checkbox-line" key={item}><input type="checkbox" checked={form.warnings.includes(item)} onChange={() => toggleWarning(item)} /><span>{item}</span></label>)}</div>
+    <div className="button-row"><button className="button-primary" type="button" onClick={() => void submit()}>Submit showcase for review</button><button type="button" onClick={saveLocal}>Save showcase draft locally</button><button type="button" onClick={() => downloadText(`${slug(form.title)}-repo-showcase.md`, repoMarkdown(draft()), "text/markdown")}>Export Markdown</button><button type="button" onClick={() => downloadText(`${slug(form.title)}-repo-showcase.json`, JSON.stringify(draft(), null, 2), "application/json")}>Export JSON</button><button type="button" onClick={() => copyText(repoMarkdown(draft()), setMessage)}>Copy showcase Markdown</button><Link className="button-link" to="/commune">Back</Link></div>
+    <p className="message">{message}</p>
+  </section>;
+}
+
+function SandboxDraftPanel({ localDrafts }: { localDrafts: ReturnType<typeof useLocalDraftState> }) {
+  const [form, setForm] = useState({ title: "", relatedUrl: "", codePurpose: "", expectedCommand: "", dependencies: "", networkNeeded: "No", fileAccessNeeded: "No", estimatedRuntime: "", whySandbox: "", riskNotes: "" });
+  const [message, setMessage] = useState("Sandbox requests are not execution permission. Future execution requires isolated infrastructure, explicit approval, resource limits, no secrets, no private network, no host mounts, logs, and kill controls.");
+
+  function draft(): SandboxRequestDraft {
+    return { ...form, id: `sandbox-${Date.now()}`, createdAt: new Date().toISOString() };
+  }
+
+  function saveLocal() {
+    const next = draft();
+    localDrafts.updateSandboxDrafts([next, ...localDrafts.sandboxDrafts]);
+    setMessage("Sandbox request draft saved locally. No code was executed and no permission was granted.");
+  }
+
+  async function submit() {
+    const result = await submitSandboxReview({ requestTitle: form.title, repositoryUrl: form.relatedUrl, scope: form.whySandbox, riskNotes: form.riskNotes, permissions: form.dependencies.split(/[,\n]/).map((item) => item.trim()).filter(Boolean) });
+    if (result.ok) setMessage(result.message);
+    else if (isBackendDiagnostic(result.message)) { saveLocal(); setMessage("Saved locally in this browser. Sandbox review queue is not active yet."); }
+    else setMessage(result.message);
+  }
+
+  return <section className="section-card commune-sandbox-card" id="sandbox-review">
+    <p className="eyebrow">Sandbox Request Draft</p>
+    <h2>Request review for future isolated execution.</h2>
+    <p className="boundary-note">Sandbox requests are not execution permission. Future execution requires isolated infrastructure, explicit approval, resource limits, no secrets, no private network, no host mounts, logs, and kill controls.</p>
+    <div className="commune-form-grid">
+      <label><span>Request title</span><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
+      <label><span>Related post/repo URL</span><input value={form.relatedUrl} onChange={(event) => setForm({ ...form, relatedUrl: event.target.value })} /></label>
+      <label><span>Expected command</span><input value={form.expectedCommand} onChange={(event) => setForm({ ...form, expectedCommand: event.target.value })} /></label>
+      <label><span>Dependencies / declared permissions</span><input value={form.dependencies} onChange={(event) => setForm({ ...form, dependencies: event.target.value })} /></label>
+      <label><span>Network needed?</span><select value={form.networkNeeded} onChange={(event) => setForm({ ...form, networkNeeded: event.target.value })}><option>No</option><option>Yes</option></select></label>
+      <label><span>File access needed?</span><select value={form.fileAccessNeeded} onChange={(event) => setForm({ ...form, fileAccessNeeded: event.target.value })}><option>No</option><option>Yes</option></select></label>
+      <label><span>Estimated runtime</span><input value={form.estimatedRuntime} onChange={(event) => setForm({ ...form, estimatedRuntime: event.target.value })} /></label>
+      <label className="wide-field"><span>Code purpose</span><textarea value={form.codePurpose} onChange={(event) => setForm({ ...form, codePurpose: event.target.value })} rows={4} /></label>
+      <label className="wide-field"><span>Why sandbox is needed</span><textarea value={form.whySandbox} onChange={(event) => setForm({ ...form, whySandbox: event.target.value })} rows={4} /></label>
+      <label className="wide-field"><span>Risk notes</span><textarea value={form.riskNotes} onChange={(event) => setForm({ ...form, riskNotes: event.target.value })} rows={4} /></label>
+    </div>
+    <div className="button-row"><button className="button-primary" type="button" onClick={() => void submit()}>Submit sandbox review request</button><button type="button" onClick={saveLocal}>Save sandbox request draft locally</button><button type="button" onClick={() => downloadText(`${slug(form.title)}-sandbox-request.md`, sandboxMarkdown(draft()), "text/markdown")}>Export Markdown</button><button type="button" onClick={() => downloadText(`${slug(form.title)}-sandbox-request.json`, JSON.stringify(draft(), null, 2), "application/json")}>Export JSON</button><button type="button" onClick={() => copyText(sandboxMarkdown(draft()), setMessage)}>Copy request Markdown</button></div>
+    <p className="message">{message}</p>
+  </section>;
+}
+
+function LocalDraftStudio({ localDrafts }: { localDrafts: ReturnType<typeof useLocalDraftState> }) {
+  const total = localDrafts.postDrafts.length + localDrafts.postRequests.length + localDrafts.repoDrafts.length + localDrafts.sandboxDrafts.length;
+  return <section className="section-card">
+    <p className="eyebrow">Local drafts and pending review requests</p>
+    <h2>Saved in this browser only</h2>
+    {total === 0 ? <p>Drafts and post requests saved in this browser will appear here.</p> : null}
+    <div className="commune-draft-grid">
+      {localDrafts.postDrafts.map((draft) => <article key={draft.id}><h3>{draft.title || "Untitled post draft"}</h3><StatusBadges labels={[draft.status, draft.postType]} /><p>{draft.summary}</p></article>)}
+      {localDrafts.postRequests.map((draft) => <article key={draft.id}><h3>{draft.title || "Untitled post request"}</h3><StatusBadges labels={[draft.status, draft.postType]} /><p>{draft.summary}</p></article>)}
+      {localDrafts.repoDrafts.map((draft) => <article key={draft.id}><h3>{draft.title || "Untitled repo showcase"}</h3><StatusBadges labels={["repo showcase draft", draft.provider, draft.manifestStatus]} /><p>{draft.description}</p></article>)}
+      {localDrafts.sandboxDrafts.map((draft) => <article key={draft.id}><h3>{draft.title || "Untitled sandbox request"}</h3><StatusBadges labels={["sandbox request draft", `network: ${draft.networkNeeded}`, `files: ${draft.fileAccessNeeded}`]} /><p>{draft.codePurpose}</p></article>)}
+    </div>
+  </section>;
+}
+
+function FutureBackendPanel() {
+  return <>
+    <section className="section-card commune-info-grid">
+      <article>
+        <p className="eyebrow">Local mode now</p>
+        <h2>What works without a backend</h2>
+        <ul><li>Create post drafts.</li><li>Save post requests locally.</li><li>Create repository showcase drafts.</li><li>Request code sandbox as local draft.</li><li>Export drafts as Markdown/JSON.</li></ul>
+      </article>
+      <article>
+        <p className="eyebrow">Future account mode</p>
+        <h2>Progressive enhancement</h2>
+        <ul><li>Public posts after moderation.</li><li>Comments, saved posts, follows, uploads, and troubleshooting rooms.</li><li>Repository showcases and sandbox review requests.</li><li>Supabase tables, RLS policies, moderator/admin roles, moderation queue, abuse controls, upload policies, and audit logs.</li></ul>
+      </article>
+    </section>
+    <section className="section-card commune-info-grid">
+      <article><p className="eyebrow">Future backend roadmap</p><h2>Planned tables</h2><div className="commune-badge-row">{futureTables.map((table) => <span key={table}>{table}</span>)}</div><p>These are planned/future backend tables. They are not live until Supabase schema, RLS, moderation, and abuse controls are built.</p></article>
+      <article><p className="eyebrow">Later support tables</p><h2>Possible support structures</h2><div className="commune-badge-row">{futureSupportTables.map((table) => <span key={table}>{table}</span>)}</div></article>
+    </section>
+    <section className="section-card commune-info-grid">
+      <article><p className="eyebrow">Moderation Doctrine</p><h2>Future moderation must handle</h2><p>Spam, harassment, malware, secret leakage, private data exposure, copyright violations, unsafe code, scams/job fraud, impersonation, off-topic floods, AI-generated spam, doxxing, and sensitive ecological location exposure.</p><h3>Future actions</h3><StatusBadges labels={["report", "hide", "lock thread", "remove post", "request redaction", "mark official", "mark community", "mark unreviewed", "block upload", "security hold", "admin review"]} /><h3>Trust labels</h3><StatusBadges labels={["Official", "Community", "Unreviewed", "Needs redaction", "Security hold", "Resolved", "Archived", "Blocked"]} /></article>
+      <article><p className="eyebrow">Media, chat, jobs, and official notices</p><h2>Boundaries for future rooms</h2><p><strong>Media uploads:</strong> not public by default. Future public display requires file type limits, size limits, moderation, attribution/copyright prompts, malware scanning where possible, private-data warnings, storage policies, and abuse controls.</p><p><strong>Collaborative rooms and chat:</strong> planned, not live. Future rooms need moderation, rate limits, reporting, blocking, room roles, invite controls, retention policy, and no private Elysia memory sharing by default.</p><p><strong>Job posts:</strong> future job posts require clear organization/contact, clear role type, clear paid/volunteer status, pay/rate or honest explanation if unpaid, location/remote status, no misleading roles, no sensitive personal data requests in public comments, and scam/moderator review.</p><p><strong>Official Updates:</strong> restricted to authorized Elysia Ecobotics administrators later. Community users should not impersonate official release, security, or governance notices.</p><h3>Code/repo labels</h3><StatusBadges labels={["No code execution", "Snippet only", "Repo showcase only", "Manifest present", "Manifest not reviewed", "License unclear", "Sandbox required", "Security review needed", "Blocked"]} /></article>
+    </section>
+  </>;
+}
+
+function PostDetail({ postId }: { postId: string }) {
+  const { state, refresh } = useCommuneLoad(undefined, postId);
+  const [comment, setComment] = useState("");
+  const [report, setReport] = useState({ type: reportTypes[0], reason: "" });
+  const [message, setMessage] = useState("");
+  const post = state.posts[0];
+  const thread = state.threads.find((item) => item.post_id === postId) ?? state.threads[0];
+  async function save() { const result = await savePost(postId); setMessage(cleanCommuneMessage(result.message, "Saved posts are not active yet. Try again after account-backed shelves are ready.")); await refresh(); }
+  async function follow() { if (!thread) return setMessage("No thread is available yet."); const result = await followThread(thread.id); setMessage(cleanCommuneMessage(result.message, "Followed threads are not active yet.")); await refresh(); }
+  async function markRead() { if (!thread) return; const result = await markThreadRead(thread.id); setMessage(cleanCommuneMessage(result.message, "Thread read-state is not active yet.")); await refresh(); }
+  async function submitReply() { if (!thread) return setMessage("No thread is available for this post yet."); const result = await submitComment({ postId, threadId: thread.id, body: comment }); setMessage(cleanCommuneMessage(result.message, "Comment saved locally is not available here yet. Backend moderation is being prepared.")); setComment(""); await refresh(); }
+  async function reportPost() { const result = await reportCommuneContent({ postId, reportType: report.type, reason: report.reason }); setMessage(cleanCommuneMessage(result.message, "Report routing is being prepared. If urgent, use another trusted contact path.")); setReport({ ...report, reason: "" }); }
+  if (!post) return <section className="section-card"><h2>Post not found</h2><p>This post is not public, does not exist, or is still awaiting moderation.</p><p className="boundary-note">Account-backed posts may also be unavailable while Commune backend tables are being prepared.</p><Link className="button-link" to="/commune">Back to Commune</Link></section>;
+  return <><section className="section-card commune-post-detail"><p className="eyebrow">{post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>By {authorLink(post.author_username)}</p><StatusBadges labels={[post.status, post.visibility]} /><p>{post.body}</p><div className="tag-row">{(post.tags ?? []).map((tag) => <span key={tag}>{tag}</span>)}</div><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div></section><section className="section-card"><p className="eyebrow">Comments</p><h2>Replies after moderation</h2>{state.comments.map((item) => <article className="commune-preview-card" key={item.id}><p>{item.body}</p><p>By {authorLink(item.author_username)} · {item.status}</p></article>)}{!state.comments.length && <p>Moderated comments will appear here once the backend tables are active and replies are approved.</p>}<label><span>Reply</span><textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><button type="button" onClick={() => void submitReply()}>Submit comment for moderation</button></section><section className="section-card"><p className="eyebrow">Report</p><h2>Report this post</h2><p>Reports are reviewed by moderators/administrators. Reporting does not automatically remove content unless urgent automated controls are later added.</p><label><span>Report type</span><select value={report.type} onChange={(event) => setReport({ ...report, type: event.target.value })}>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span>Reason</span><textarea rows={3} value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value })} /></label><button type="button" onClick={() => void reportPost()}>Send report</button><p className="message">{message}</p></section></>;
+}
+
+function ModerationPanel() {
+  const [items, setItems] = useState<CommuneModerationItem[]>([]);
+  const [message, setMessage] = useState("Moderation is role-gated. If the backend is not active yet, this panel stays in preview mode.");
+  const [reason, setReason] = useState("");
+  const refresh = useCallback(async () => {
+    const result = await loadCommuneModerationQueue();
+    logCommuneDiagnostics("moderation", result.warnings);
+    setItems(result.items);
+    setMessage(result.warnings.length ? "Moderation is not available for this session. Assigned roles and active backend queues are required." : "Commune moderation queue loaded.");
+  }, []);
+  useEffect(() => { void refresh(); }, [refresh]);
+  async function act(item: CommuneModerationItem, action: "approve" | "reject" | "hide" | "archive" | "needs_information" | "escalate") { const result = await moderateCommuneItem(item, action, reason); setMessage(cleanCommuneMessage(result.message, "Moderation action could not be completed because the backend queue is not active yet.")); await refresh(); }
+  return <section className="section-card"><p className="eyebrow">Role-gated moderation</p><h2>Commune moderation queue</h2><p className="boundary-note">Normal users cannot access RLS-protected pending posts, comments, uploads, reports, or moderation events.</p><label><span>Moderation note</span><input value={reason} onChange={(event) => setReason(event.target.value)} /></label><div className="commune-draft-grid">{items.map((item) => <article key={`${item.kind}-${item.id}`}><h3>{item.title}</h3><StatusBadges labels={[item.kind, item.status]} /><p>{item.summary}</p><div className="button-row"><button onClick={() => void act(item, "approve")}>Approve/publish</button><button onClick={() => void act(item, "needs_information")}>Needs info</button><button onClick={() => void act(item, "reject")}>Reject/remove</button><button onClick={() => void act(item, "hide")}>Hide</button><button onClick={() => void act(item, "archive")}>Archive</button><button onClick={() => void act(item, "escalate")}>Escalate</button></div></article>)}</div>{!items.length && <p>Moderation items will appear here for authorized roles when account-backed Commune tables are active.</p>}<p className="message">{message}</p></section>;
+}
+
+export default function CommunePage() {
+  const { roomSlug, postId } = useParams();
+  const location = useLocation();
+  const mode = useMemo(() => {
+    const parts = location.pathname.split("/").filter(Boolean);
+    return parts[parts.length - 1];
+  }, [location.pathname]);
+  const { state, refresh } = useCommuneLoad(roomSlug, postId);
+  const localDrafts = useLocalDraftState();
+  const selectedRoom = state.rooms.find((room) => room.slug === roomSlug);
+  async function save(id: string) {
+    const result = await savePost(id);
+    if (isBackendDiagnostic(result.message)) logCommuneDiagnostics("save-post", [result.message]);
+    await refresh();
+  }
+
+  const routeMode = ["new", "repository-showcase", "troubleshooting", "moderation"].includes(mode || "") ? mode : "";
+
+  return <div className="page-stack commune-page">
+    <PageHero eyebrow="Public community" title="The Elysia Commune">
+      <p>The Commune is the public gathering place for official updates, media blogs, troubleshooting, code sharing, repository showcases, community networking, project updates, research notes, and Elysia iteration showcases.</p>
+      <p><strong>Share publicly. Redact first. Execute nowhere by default.</strong></p>
+    </PageHero>
+    <Doctrine />
+    <AccountModePanel signedIn={state.signedIn} isModerator={state.isModerator} accountReady={state.accountReady} />
+
+    {mode === "new" && <PostComposer defaultRoomId={selectedRoom?.id} localDrafts={localDrafts} onRefresh={refresh} />}
+    {mode === "repository-showcase" && <RepositoryShowcaseForm localDrafts={localDrafts} />}
+    {mode === "troubleshooting" && <PostComposer defaultType="troubleshooting" defaultRoomId={state.rooms.find((room) => room.slug === "troubleshooting-grove")?.id} troubleshooting localDrafts={localDrafts} onRefresh={refresh} />}
+    {mode === "moderation" && <ModerationPanel />}
+    {postId && <PostDetail postId={postId} />}
+
+    {!postId && !routeMode && <>
+      <RedactionPanel />
+      <RoomCards rooms={state.rooms} />
+      <ZoneCatalog />
+      {roomSlug && <section className="section-card"><p className="eyebrow">Room</p><h2>{selectedRoom?.name ?? roomSlug}</h2><p>{selectedRoom?.description ?? "Account-backed room is being prepared. Local draft tools remain available."}</p></section>}
+      <PostList posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} />
+      <PostComposer defaultRoomId={selectedRoom?.id} localDrafts={localDrafts} onRefresh={refresh} />
+      <RepositoryShowcaseForm localDrafts={localDrafts} />
+      <SandboxDraftPanel localDrafts={localDrafts} />
+      <LocalDraftStudio localDrafts={localDrafts} />
+      <FutureBackendPanel />
+    </>}
+  </div>;
 }

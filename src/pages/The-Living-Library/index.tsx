@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
+import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
+import { createReviewItem } from "../../shared/review/reviewClient";
 import {
   livingLibraryAccountFunctions,
   livingLibraryEthicsPrinciples,
@@ -384,13 +386,60 @@ export default function LivingLibraryPage() {
     setStatusMessage(`Exported ${activeCollection.name} as ${format.toUpperCase()} from local browser state.`);
   }
 
-  function saveDraft(kind: LocalDraft["kind"], draft: { sourceName: string; officialUrl: string; category?: string; submitterNote?: string; notes: string }) {
+  async function saveDraft(kind: LocalDraft["kind"], draft: { sourceName: string; officialUrl: string; category?: string; submitterNote?: string; notes: string }) {
     if (!draft.sourceName.trim() && !draft.officialUrl.trim() && !draft.notes.trim()) return;
-    const next = [{ id: `${kind}-${Date.now()}`, kind, sourceName: draft.sourceName, officialUrl: draft.officialUrl, category: draft.category, submitterNote: draft.submitterNote, notes: draft.notes, createdAt: new Date().toISOString() }, ...drafts];
-    updateDrafts(next);
-    setStatusMessage(kind === "suggestion" ? "Source request saved locally as a draft. Later, requests will be sent to the administrator review account after the account/review system is built." : "Broken-link report saved locally as a draft. A live review queue requires backend tables and abuse controls.");
-    if (kind === "suggestion") setSuggestion({ sourceName: "", officialUrl: "", category: "", notes: "", submitterNote: "" });
-    else setBrokenLink({ sourceName: "", officialUrl: "", notes: "" });
+    const localDraft = { id: `${kind}-${Date.now()}`, kind, sourceName: draft.sourceName, officialUrl: draft.officialUrl, category: draft.category, submitterNote: draft.submitterNote, notes: draft.notes, createdAt: new Date().toISOString() };
+    if (!hasSupabaseConfig || !supabase) {
+      updateDrafts([localDraft, ...drafts]);
+      setStatusMessage(`${supabaseNotConfiguredMessage} ${kind === "suggestion" ? "Source request" : "Broken-link report"} saved locally as a draft.`);
+      return;
+    }
+    const { data: auth } = await supabase.auth.getUser();
+    if (!auth.user) {
+      updateDrafts([localDraft, ...drafts]);
+      setStatusMessage(`Sign in to a Website Account to save this ${kind === "suggestion" ? "source suggestion" : "broken-link report"} for review. A local draft was saved.`);
+      return;
+    }
+    const requestId = crypto.randomUUID?.() ?? `${kind}-${Date.now()}`;
+    if (kind === "suggestion") {
+      const { error } = await supabase.from("living_library_source_suggestions").insert({
+        id: requestId,
+        user_id: auth.user.id,
+        source_name: draft.sourceName.trim(),
+        official_url: draft.officialUrl.trim(),
+        category: draft.category?.trim() || null,
+        why_it_belongs: draft.notes.trim() || null,
+        privacy_ethics_notes: draft.submitterNote?.trim() || null,
+        submitter_notes: draft.submitterNote?.trim() || null,
+        status: "pending_review"
+      });
+      if (error) {
+        updateDrafts([localDraft, ...drafts]);
+        setStatusMessage(`Could not save source suggestion remotely: ${error.message}. A local draft was saved.`);
+        return;
+      }
+      const reviewResult = await createReviewItem({ domain: "living_library_source", sourceTable: "living_library_source_suggestions", sourceId: requestId, submittedBy: auth.user.id, title: draft.sourceName.trim(), summary: draft.notes.trim().slice(0, 280) });
+      setStatusMessage(reviewResult.ok ? "Source suggestion saved for source-reviewer review." : `Source suggestion saved, but review routing needs attention: ${reviewResult.warning}`);
+      setSuggestion({ sourceName: "", officialUrl: "", category: "", notes: "", submitterNote: "" });
+    } else {
+      const { error } = await supabase.from("broken_link_reports").insert({
+        id: requestId,
+        user_id: auth.user.id,
+        page_url: typeof window === "undefined" ? "/living-library" : window.location.pathname,
+        broken_url: draft.officialUrl.trim(),
+        source_context: draft.sourceName.trim() || "Living Library",
+        report_note: draft.notes.trim() || null,
+        status: "pending_review"
+      });
+      if (error) {
+        updateDrafts([localDraft, ...drafts]);
+        setStatusMessage(`Could not save broken-link report remotely: ${error.message}. A local draft was saved.`);
+        return;
+      }
+      const reviewResult = await createReviewItem({ domain: "living_library_broken_link", sourceTable: "broken_link_reports", sourceId: requestId, submittedBy: auth.user.id, title: `Broken link: ${draft.sourceName || draft.officialUrl}`, summary: draft.notes.trim().slice(0, 280) });
+      setStatusMessage(reviewResult.ok ? "Broken-link report saved for review." : `Broken-link report saved, but review routing needs attention: ${reviewResult.warning}`);
+      setBrokenLink({ sourceName: "", officialUrl: "", notes: "" });
+    }
   }
 
   return (
@@ -485,7 +534,7 @@ export default function LivingLibraryPage() {
       <section className="section-card library-draft-panel">
         <p className="eyebrow">Local Drafts</p>
         <h2>Request a new source</h2>
-        <p>Source request saved locally as a draft. Later, requests will be sent to the administrator review account after the account/review system is built.</p>
+        <p>Source requests save locally when signed out and save for source-reviewer review when signed in with Supabase configured.</p>
         <div className="two-column">
           <div>
             <h3>Request a new source</h3>
@@ -494,14 +543,14 @@ export default function LivingLibraryPage() {
             <label><span>Category</span><input value={suggestion.category} onChange={(event) => setSuggestion({ ...suggestion, category: event.target.value })} placeholder="Environmental Data" /></label>
             <label><span>Why it belongs</span><textarea value={suggestion.notes} onChange={(event) => setSuggestion({ ...suggestion, notes: event.target.value })} rows={4} /></label>
             <label><span>Caution/license/privacy notes or submitter contact</span><textarea value={suggestion.submitterNote} onChange={(event) => setSuggestion({ ...suggestion, submitterNote: event.target.value })} rows={3} /></label>
-            <button type="button" onClick={() => saveDraft("suggestion", suggestion)}>Save source request draft locally</button>
+            <button type="button" onClick={() => void saveDraft("suggestion", suggestion)}>Save source request draft locally</button>
           </div>
           <div>
             <h3>Draft broken-link report</h3>
             <label><span>Source name</span><input value={brokenLink.sourceName} onChange={(event) => setBrokenLink({ ...brokenLink, sourceName: event.target.value })} /></label>
             <label><span>Official URL</span><input value={brokenLink.officialUrl} onChange={(event) => setBrokenLink({ ...brokenLink, officialUrl: event.target.value })} /></label>
             <label><span>What seems broken?</span><textarea value={brokenLink.notes} onChange={(event) => setBrokenLink({ ...brokenLink, notes: event.target.value })} rows={4} /></label>
-            <button type="button" onClick={() => saveDraft("broken-link", brokenLink)}>Save broken-link draft locally</button>
+            <button type="button" onClick={() => void saveDraft("broken-link", brokenLink)}>Save broken-link draft locally</button>
           </div>
         </div>
       </section>

@@ -3,6 +3,7 @@ import { Navigate, useNavigate, useParams } from "react-router-dom";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
 import { loadCurrentProfile } from "../The-Elysia-Marketplace/lib/marketplaceApi";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
+import { createReviewItem } from "../../shared/review/reviewClient";
 import type { MarketplaceProfile, MarketplaceProfileDraft } from "../The-Elysia-Marketplace/types";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
@@ -66,6 +67,16 @@ const areaOptions = [
 ];
 const amountRanges = ["Under $10", "$10-$24", "$25-$49", "$50-$99", "$100-$249", "$250+", "Prefer not to say"];
 const resumeBucketName = "work-with-attachments";
+const receiptBucketName = "stewardship-receipts";
+
+const setupMissingTablePattern = /Could not find the table 'public\.([^']+)' in the schema cache|relation "public\.([^"]+)" does not exist/i;
+
+function setupBackendMessage(label: string, message: string) {
+  if (import.meta.env.DEV) console.warn(`[Commons Circle setup] ${label}: ${message}`);
+  if (setupMissingTablePattern.test(message)) return `${label}: account-backed setup storage is not configured yet.`;
+  if (/permission denied|row-level security|violates row-level security/i.test(message)) return `${label}: account storage is not available for this step yet.`;
+  return `${label}: account-backed setup is temporarily unavailable.`;
+}
 const maxResumeSizeBytes = 10 * 1024 * 1024;
 const acceptedResumeExtensions = new Set(["pdf", "doc", "docx", "odt", "txt", "md"]);
 const acceptedResumeMimeTypes = new Set([
@@ -78,6 +89,8 @@ const acceptedResumeMimeTypes = new Set([
   "text/x-markdown",
   "application/octet-stream"
 ]);
+const acceptedReceiptExtensions = new Set(["pdf", "png", "jpg", "jpeg", "txt", "md"]);
+const acceptedReceiptMimeTypes = new Set(["application/pdf", "image/png", "image/jpeg", "text/plain", "text/markdown", "text/x-markdown", "application/octet-stream"]);
 
 const initialProfileDraft: MarketplaceProfileDraft = {
   username: "",
@@ -167,9 +180,25 @@ function validateResumeFile(file: File | null): string | null {
   return null;
 }
 
+function validateReceiptFile(file: File | null): string | null {
+  if (!file) return null;
+  const extension = extensionForFile(file);
+  if (!acceptedReceiptExtensions.has(extension)) return "Receipt/proof must be a PDF, PNG, JPG, TXT, or Markdown file.";
+  if (file.size > maxResumeSizeBytes) return "Receipt/proof must be 10 MB or smaller.";
+  if (file.type && !acceptedReceiptMimeTypes.has(file.type)) return `Receipt/proof MIME type is not accepted: ${file.type}`;
+  return null;
+}
+
 function sanitizeFilename(name: string) {
   const cleaned = name.normalize("NFKD").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
   return cleaned.slice(0, 120) || "resume-cv";
+}
+
+async function sha256File(file: File): Promise<string | null> {
+  if (!globalThis.crypto?.subtle) return null;
+  const buffer = await file.arrayBuffer();
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", buffer);
+  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function newRequestId() {
@@ -211,6 +240,7 @@ export default function CommonsCircleSetupPage() {
   const [stewardshipDraft, setStewardshipDraft] = useState<StewardshipDraft>(() => readSession(sessionKeys.stewardshipDraft, initialStewardshipDraft));
   const [workWithDraft, setWorkWithDraft] = useState<WorkWithDraft>(() => readSession(sessionKeys.workWithDraft, initialWorkWithDraft));
   const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const groupedOrganizations = useMemo(groupOrganizations, []);
@@ -331,6 +361,7 @@ export default function CommonsCircleSetupPage() {
       gitlab_codeberg_url: workWithDraft.gitlabCodeberg.trim() || null,
       portfolio_url: workWithDraft.portfolio.trim() || null,
       linkedin_url: workWithDraft.linkedin.trim() || null,
+      source_context: "commons_profile_onboarding",
       acknowledgements: {
         volunteer_understanding: workWithDraft.understandsVolunteer,
         public_privacy_boundary: workWithDraft.understandsPublicPrivacy,
@@ -340,7 +371,17 @@ export default function CommonsCircleSetupPage() {
       },
       status: "pending_review"
     });
-    if (requestError) throw new Error(`Could not save Work With request: ${requestError.message}`);
+    if (requestError) throw new Error(setupBackendMessage("Work With request", requestError.message));
+
+    const reviewResult = await createReviewItem({
+      domain: "work_with",
+      sourceTable: "work_with_requests",
+      sourceId: requestId,
+      submittedBy: userId,
+      title: `${workWithDraft.requestType} request from ${profileDraft.username.trim() || "Commons setup"}`,
+      summary: workWithDraft.message.trim().slice(0, 280)
+    });
+    if (!reviewResult.ok) throw new Error(setupBackendMessage("Work With review routing", reviewResult.warning ?? "review routing failed"));
 
     if (resumeFile) {
       const safeName = sanitizeFilename(resumeFile.name);
@@ -350,7 +391,7 @@ export default function CommonsCircleSetupPage() {
         contentType: resumeFile.type || undefined,
         upsert: false
       });
-      if (uploadResult.error) throw new Error(`Work With request was created, but private resume/CV upload failed: ${uploadResult.error.message}`);
+      if (uploadResult.error) throw new Error(setupBackendMessage("Private resume/CV upload", uploadResult.error.message));
 
       const { error: fileError } = await supabase.from("work_with_request_files").insert({
         request_id: requestId,
@@ -362,27 +403,92 @@ export default function CommonsCircleSetupPage() {
         size_bytes: resumeFile.size,
         file_role: "resume_cv"
       });
-      if (fileError) throw new Error(`Private resume/CV uploaded, but file metadata could not be saved: ${fileError.message}`);
+      if (fileError) throw new Error(setupBackendMessage("Private resume/CV metadata", fileError.message));
     }
     return "Work With request saved for administrator review.";
   }
 
-  function persistStewardshipLocal() {
-    if (stewardshipDraft.skipped || !stewardshipDraft.organizationId) return;
-    const localDraft = {
-      id: `draft_local-${Date.now()}`,
-      organizationId: stewardshipDraft.organizationId,
-      organizationName: stewardshipDraft.organizationName,
-      organizationUrl: stewardshipDraft.organizationUrl,
-      donationDate: stewardshipDraft.donationDate,
-      amountRange: stewardshipDraft.amountRange,
-      memberNote: stewardshipDraft.supportNote,
-      redactionConfirmed: stewardshipDraft.redactionConfirmed,
-      status: "draft_local",
-      createdAt: new Date().toISOString(),
-      note: "Created during Commons Profile setup. Receipt upload/review backend is not enabled yet."
-    };
-    writeStorage(localStorageKeys.stewardshipDrafts, [localDraft, ...readStorage<unknown[]>(localStorageKeys.stewardshipDrafts, [])]);
+  async function persistStewardshipRequest(userId: string): Promise<string | null> {
+    if (stewardshipDraft.skipped || !stewardshipDraft.organizationId) return null;
+    if (!hasSupabaseConfig || !supabase) {
+      const localDraft = {
+        id: `draft_local-${Date.now()}`,
+        organizationId: stewardshipDraft.organizationId,
+        organizationName: stewardshipDraft.organizationName,
+        organizationUrl: stewardshipDraft.organizationUrl,
+        donationDate: stewardshipDraft.donationDate,
+        amountRange: stewardshipDraft.amountRange,
+        memberNote: stewardshipDraft.supportNote,
+        redactionConfirmed: stewardshipDraft.redactionConfirmed,
+        status: "draft_local",
+        createdAt: new Date().toISOString(),
+        note: "Created during Commons Profile setup. Supabase is not configured."
+      };
+      writeStorage(localStorageKeys.stewardshipDrafts, [localDraft, ...readStorage<unknown[]>(localStorageKeys.stewardshipDrafts, [])]);
+      return `${supabaseNotConfiguredMessage} Stewardship recognition saved locally as a draft.`;
+    }
+    const validation = validateReceiptFile(receiptFile);
+    if (validation) throw new Error(validation);
+    if (receiptFile && !stewardshipDraft.redactionConfirmed) throw new Error("Confirm receipt/proof redaction before uploading private stewardship proof.");
+
+    const organizationRow = await supabase
+      .from("stewardship_organizations")
+      .select("id,name,official_url")
+      .eq("slug", stewardshipDraft.organizationId)
+      .maybeSingle();
+    if (organizationRow.error) throw new Error(setupBackendMessage("Stewardship organizations", organizationRow.error.message));
+    const organization = organizationRow.data as { id: string; name: string; official_url: string } | null;
+    const requestId = newRequestId();
+    const { error: requestError } = await supabase.from("stewardship_recognition_requests").insert({
+      id: requestId,
+      user_id: userId,
+      organization_id: organization?.id ?? null,
+      organization_name: organization?.name ?? stewardshipDraft.organizationName,
+      organization_url: organization?.official_url ?? stewardshipDraft.organizationUrl,
+      support_note: stewardshipDraft.supportNote.trim() || null,
+      amount_range: stewardshipDraft.amountRange,
+      donation_date: stewardshipDraft.donationDate || null,
+      redaction_confirmed: stewardshipDraft.redactionConfirmed,
+      status: "pending_review"
+    });
+    if (requestError) throw new Error(setupBackendMessage("Stewardship recognition request", requestError.message));
+
+    const reviewResult = await createReviewItem({
+      domain: "stewardship",
+      sourceTable: "stewardship_recognition_requests",
+      sourceId: requestId,
+      submittedBy: userId,
+      title: `Stewardship recognition: ${organization?.name ?? stewardshipDraft.organizationName}`,
+      summary: stewardshipDraft.supportNote.trim().slice(0, 280)
+    });
+    if (!reviewResult.ok) throw new Error(setupBackendMessage("Stewardship review routing", reviewResult.warning ?? "review routing failed"));
+
+    if (receiptFile) {
+      const fileId = newRequestId();
+      const safeName = sanitizeFilename(receiptFile.name);
+      const storagePath = `${userId}/${requestId}/${fileId}-${safeName}`;
+      const uploadResult = await supabase.storage.from(receiptBucketName).upload(storagePath, receiptFile, {
+        cacheControl: "3600",
+        contentType: receiptFile.type || undefined,
+        upsert: false
+      });
+      if (uploadResult.error) throw new Error(setupBackendMessage("Private stewardship receipt upload", uploadResult.error.message));
+      const hash = await sha256File(receiptFile);
+      const { error: fileError } = await supabase.from("stewardship_receipt_files").insert({
+        id: fileId,
+        request_id: requestId,
+        user_id: userId,
+        bucket: receiptBucketName,
+        storage_path: storagePath,
+        original_filename: receiptFile.name,
+        mime_type: receiptFile.type || null,
+        size_bytes: receiptFile.size,
+        sha256_hash: hash
+      });
+      if (fileError) throw new Error(setupBackendMessage("Private stewardship receipt metadata", fileError.message));
+      await supabase.from("stewardship_recognition_requests").update({ receipt_file_id: fileId, updated_at: new Date().toISOString() }).eq("id", requestId);
+    }
+    return receiptFile ? "Stewardship recognition request and private receipt/proof saved for administrator review." : "Stewardship recognition request saved for administrator review.";
   }
 
   async function finalizeProfile() {
@@ -412,7 +518,7 @@ export default function CommonsCircleSetupPage() {
         .select("id,is_admin,is_developer")
         .eq("id", auth.user.id)
         .maybeSingle();
-      if (existingError) throw new Error(`Could not check existing Commons Profile: ${existingError.message}`);
+      if (existingError) throw new Error(setupBackendMessage("Commons Profile lookup", existingError.message));
 
       const now = new Date().toISOString();
       const baseProfileFields = {
@@ -439,7 +545,7 @@ export default function CommonsCircleSetupPage() {
             is_developer: Boolean(existingFlags.is_developer || profileDraft.is_developer)
           })
           .eq("id", auth.user.id);
-        if (updateError) throw new Error(`Could not update existing Commons Profile: ${updateError.message}`);
+        if (updateError) throw new Error(setupBackendMessage("Commons Profile update", updateError.message));
       } else {
         const { error: insertError } = await supabase.from("profiles").insert({
           id: auth.user.id,
@@ -447,10 +553,11 @@ export default function CommonsCircleSetupPage() {
           is_developer: Boolean(profileDraft.is_developer),
           is_admin: false
         });
-        if (insertError) throw new Error(`Could not create Commons Profile: ${insertError.message}`);
+        if (insertError) throw new Error(setupBackendMessage("Commons Profile creation", insertError.message));
       }
 
-      persistStewardshipLocal();
+      const stewardshipMessage = await persistStewardshipRequest(auth.user.id);
+      if (stewardshipMessage) pushMessage(stewardshipMessage);
       const workWithMessage = await persistWorkWithRequest(auth.user.id);
       if (workWithMessage) pushMessage(workWithMessage);
       writeStorage(localStorageKeys.onboarding, { completed: true, welcomed: true, membershipTier: "Free Member", completedAt: now });
@@ -519,7 +626,7 @@ export default function CommonsCircleSetupPage() {
         <p className="eyebrow">Step 2: Stewardship & Donation Options</p>
         <h2>Optional stewardship support</h2>
         <WarningCallout title="Optional and direct"><p>Donations are optional and made directly to independent organizations. Elysia Ecobotics does not process these donations. Stewardship recognition may be requested, but it requires administrator review and does not grant authority, paid status, moderator access, reviewer access, or administrator access.</p></WarningCallout>
-        <p className="boundary-note">Receipt/proof upload is not enabled in this setup wizard yet because the private stewardship receipt bucket and review tables are not live. Do not upload receipts here.</p>
+        <p className="boundary-note">Receipt/proof uploads are private administrator-review materials stored in the private stewardship-receipts bucket only after final confirmation. Do not upload identity documents, medical records, passwords, API keys, .env files, bank account numbers, full card numbers, or unredacted third-party personal data.</p>
         {Object.entries(groupedOrganizations).map(([category, orgs]) => <section className="commons-org-category" key={category}>
           <div className="section-heading section-heading--inline"><h3>{category}</h3><span className="trust-badge">{orgs.length} organizations</span></div>
           <div className="commons-org-grid">
@@ -538,7 +645,19 @@ export default function CommonsCircleSetupPage() {
           <label><span>Amount range, optional</span><select value={stewardshipDraft.amountRange} onChange={(event) => updateStewardshipDraft({ ...stewardshipDraft, amountRange: event.target.value })}>{amountRanges.map((range) => <option key={range}>{range}</option>)}</select></label>
           <label><span>Donation date, optional</span><input type="date" value={stewardshipDraft.donationDate} onChange={(event) => updateStewardshipDraft({ ...stewardshipDraft, donationDate: event.target.value })} /></label>
           <label className="wide-field"><span>Support note, optional</span><textarea rows={3} value={stewardshipDraft.supportNote} onChange={(event) => updateStewardshipDraft({ ...stewardshipDraft, supportNote: event.target.value })} /></label>
-          <label className="checkbox-line wide-field"><input type="checkbox" checked={stewardshipDraft.redactionConfirmed} onChange={(event) => updateStewardshipDraft({ ...stewardshipDraft, redactionConfirmed: event.target.checked })} /><span>I understand any future proof must be redacted and must not include card numbers, bank details, passwords, tax records, private account data, or unredacted receipts.</span></label>
+          <label className="wide-field"><span>Receipt/proof file, optional</span><input type="file" accept=".pdf,.png,.jpg,.jpeg,.txt,.md,application/pdf,image/png,image/jpeg,text/plain,text/markdown,text/x-markdown" onChange={(event) => {
+            const nextFile = event.target.files?.[0] ?? null;
+            const validation = validateReceiptFile(nextFile);
+            if (validation) {
+              setReceiptFile(null);
+              event.currentTarget.value = "";
+              pushMessage(validation);
+              return;
+            }
+            setReceiptFile(nextFile);
+          }} /></label>
+          <div className="wide-field boundary-note">{receiptFile ? `Selected private receipt/proof: ${receiptFile.name} (${Math.ceil(receiptFile.size / 1024)} KB).` : "No receipt/proof selected. You may request recognition without uploading a file."}</div>
+          <label className="checkbox-line wide-field"><input type="checkbox" checked={stewardshipDraft.redactionConfirmed} onChange={(event) => updateStewardshipDraft({ ...stewardshipDraft, redactionConfirmed: event.target.checked })} /><span>I understand this file will be stored privately in Elysia Ecobotics Online's Supabase backend for administrator review, I have redacted unnecessary sensitive information, and stewardship recognition does not grant authority, paid status, moderation access, reviewer access, administrator access, or employment.</span></label>
         </div>
         <div className="button-row"><button type="button" onClick={prepareStewardship}>Prepare stewardship recognition</button><button type="button" onClick={skipStewardship}>Skip stewardship for now</button><button type="button" className="button-primary" onClick={() => go("work-with")}>Continue to Work With Elysia Ecobotics</button></div>
       </section>}
@@ -584,7 +703,7 @@ export default function CommonsCircleSetupPage() {
           <div><dt>Username</dt><dd>{profileDraft.username || "Not set"}</dd></div>
           <div><dt>Display name</dt><dd>{profileDraft.display_name || "Not set"}</dd></div>
           <div><dt>Stewardship</dt><dd>{stewardshipDraft.skipped ? "Skipped" : stewardshipDraft.organizationName || "No organization selected"}</dd></div>
-          <div><dt>Receipt upload</dt><dd>Not enabled for stewardship in this setup pass</dd></div>
+          <div><dt>Receipt upload</dt><dd>{receiptFile ? `Private upload after final confirmation: ${receiptFile.name}` : "None selected"}</dd></div>
           <div><dt>Work With request</dt><dd>{workWithDraft.skipped ? "Skipped" : workWithDraft.prepared ? "Prepared" : "Not prepared"}</dd></div>
           <div><dt>Resume/CV</dt><dd>{resumeFile ? `Private upload after final confirmation: ${resumeFile.name}` : "None selected"}</dd></div>
         </dl>

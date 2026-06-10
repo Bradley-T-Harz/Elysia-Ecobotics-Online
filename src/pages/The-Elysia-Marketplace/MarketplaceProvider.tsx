@@ -3,6 +3,7 @@ import { Outlet } from "react-router-dom";
 import { loadAdminReviewQueue, loadCurrentProfile, loadPublishedAddons, removeSavedAddon, saveAddonForUser } from "./lib/marketplaceApi";
 import { getAddonById, getCategories, getTrustTiers, sortAddons } from "./lib/addonCatalog";
 import { hasSupabaseConfig } from "./lib/supabase";
+import { prepareLocalInstallIntent } from "./lib/installIntentApi";
 import type { AddonManifest, AddonSubmission, CatalogSourceState, MarketplaceProfile } from "./types";
 
 export type MarketplaceContext = {
@@ -24,6 +25,7 @@ export type MarketplaceContext = {
   refreshCatalog: () => Promise<void>;
   saveAddon: (addonId: string) => Promise<void>;
   removeAddon: (addonId: string) => Promise<void>;
+  prepareLocalInstall: (addonId: string) => Promise<void>;
   getAddon: (addonId: string | undefined) => AddonManifest | null;
 };
 
@@ -93,10 +95,20 @@ export default function MarketplaceProvider() {
     if (result.data.removed) await refreshProfile();
   }, [pushMessage, refreshProfile, sortedAddons]);
 
+  const prepareLocalInstall = useCallback(async (addonId: string) => {
+    const addon = getAddonById(sortedAddons, addonId);
+    if (!addon) {
+      pushMessage("Choose an approved Marketplace add-on before preparing a local install intent.");
+      return;
+    }
+    const result = await prepareLocalInstallIntent(addon);
+    pushMessage(result.statusMessage || result.data.message || result.warnings.join(" "));
+  }, [pushMessage, sortedAddons]);
+
   const context: MarketplaceContext = {
     addons, sortedAddons, categories, trustTiers, profile, reviewQueue, demoMode,
     supabaseConfigured: hasSupabaseConfig, seedFallbackActive, catalogSourceState, catalogStatusMessage,
-    messages, pushMessage, refreshProfile, refreshReviewQueue, refreshCatalog, saveAddon, removeAddon,
+    messages, pushMessage, refreshProfile, refreshReviewQueue, refreshCatalog, saveAddon, removeAddon, prepareLocalInstall,
     getAddon: (addonId) => addonId ? getAddonById(sortedAddons, addonId) ?? null : null
   };
 

@@ -1,43 +1,30 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { CSSProperties } from "react";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
-import { loadCurrentProfile, loadAdminReviewQueue } from "../The-Elysia-Marketplace/lib/marketplaceApi";
-import { hasSupabaseConfig } from "../The-Elysia-Marketplace/lib/supabase";
-import type { MarketplaceProfile } from "../The-Elysia-Marketplace/types";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
+import {
+  commonsStorageKeys,
+  defaultCustomization,
+  defaultNotificationPreferences,
+  defaultVisibility,
+  loadCommonsHomebase,
+  markAllNotificationsRead,
+  markNotificationRead,
+  plannedBadges,
+  readLocalStorage,
+  saveCustomization,
+  saveNotificationPreferences,
+  saveVisibilitySettings,
+  syncLocalLivingLibraryToAccount,
+  updateBadgeVisibility,
+  uploadProfileMedia,
+  writeLocalStorage
+} from "./commonsCircleApi";
+import type { CommonsHomebaseData, NotificationPreferences, ProfileCustomization, VisibilitySettings } from "./commonsCircleApi";
 
-type PrivacySettings = {
-  showDisplayName: boolean;
-  showWebsite: boolean;
-  showGithub: boolean;
-  showBadges: boolean;
-  showContributionHistory: boolean;
-  allowPublicContact: boolean;
-  emailUpdatesLater: boolean;
-};
-
-type OnboardingState = {
-  skippedStewardship?: boolean;
-  welcomed?: boolean;
-  completed?: boolean;
-  completedAt?: string;
-  membershipTier?: "Free Member";
-};
-
+type OnboardingState = { skippedStewardship?: boolean; welcomed?: boolean; completed?: boolean; completedAt?: string; membershipTier?: "Free Member" };
 type StewardshipDraft = { status?: "draft_local" | "pending_admin_review_local" };
-type ProfileWithSetup = MarketplaceProfile & {
-  commons_onboarding_completed_at?: string | null;
-  stewardship_onboarding_skipped_at?: string | null;
-  work_with_onboarding_skipped_at?: string | null;
-};
-
-const storageKeys = {
-  onboarding: "commonsCircle.onboarding.v1",
-  stewardshipDrafts: "commonsCircle.stewardshipVerificationDrafts.v1",
-  privacySettings: "commonsCircle.privacySettings.v1",
-  membershipLocalState: "commonsCircle.membershipLocalState.v1",
-  contributionRequests: "commonsCircle.contributionInterestRequests.v1"
-} as const;
 
 const membershipTiers = [
   { name: "Free Member", purpose: "Default account tier for participation in the public website commons. No donation is required.", awarded: "Default tier after account/profile creation.", status: "Default tier", note: "No private Elysia access." },
@@ -47,103 +34,155 @@ const membershipTiers = [
   { name: "Founding Steward", purpose: "Early project recognition for meaningful early support of Elysia Ecobotics and the commons around her.", awarded: "Manually assigned by an administrator.", status: "Early recognition", note: "Not pay-to-win power." }
 ];
 
-const badgeExamples = [
-  "Free Member", "Stewardship Supporter", "Water Steward", "Forest Steward", "Reef Steward", "Health Steward", "Knowledge Commons Supporter", "Contributor", "Source Curator", "Troubleshooting Helper", "Developer Contributor", "Founding Steward", "Guardian / Reviewer"
-];
-
-const futureTables = [
-  "profiles", "membership_records", "membership_badges", "user_badges", "contribution_records", "donation_verifications", "stewardship_organizations", "user_saved_addons", "user_saved_library_sources", "user_saved_posts", "account_links"
-];
-
-const futureSupportTables = [
-  "account_privacy_settings", "account_notification_settings", "developer_profiles", "moderator_roles", "admin_review_events", "donation_verification_files"
-];
-
-const defaultPrivacySettings: PrivacySettings = {
-  showDisplayName: true,
-  showWebsite: false,
-  showGithub: false,
-  showBadges: true,
-  showContributionHistory: false,
-  allowPublicContact: false,
-  emailUpdatesLater: false
-};
-
-function readStorage<T>(key: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
-  try {
-    const stored = window.localStorage.getItem(key);
-    return stored ? JSON.parse(stored) as T : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function writeStorage<T>(key: string, value: T) {
-  if (typeof window === "undefined") return;
-  window.localStorage.setItem(key, JSON.stringify(value));
-}
+const futureTables = ["profiles", "membership_records", "membership_badges", "user_badges", "contribution_records", "donation_verifications", "stewardship_organizations", "user_saved_addons", "user_saved_library_sources", "user_saved_posts", "account_links"];
+const futureSupportTables = ["account_privacy_settings", "account_notification_settings", "developer_profiles", "moderator_roles", "admin_review_events", "donation_verification_files"];
+const themeModes = ["deep_grove", "starlit_archive", "solar_meadow", "moonlit_reef", "aether_blue", "high_contrast"];
+const decalOptions = ["none", "leaf_glyph", "water_ripple", "star_map", "mushroom_badge", "circuit_vine", "pollinator", "wetland_reed", "moon_crest", "robotic_seed"];
 
 function BadgeRow({ labels }: { labels: string[] }) {
   return <div className="commons-badge-row">{labels.map((label) => <span key={label}>{label}</span>)}</div>;
 }
 
-function countStorageArray(key: string) {
-  return readStorage<unknown[]>(key, []).length;
+function EmptyState({ children }: { children: string }) {
+  return <p className="commons-empty-state">{children}</p>;
+}
+
+function MiniFact({ label, value }: { label: string; value: string | number }) {
+  return <div><dt>{label}</dt><dd>{value}</dd></div>;
+}
+
+function privacyLabel(key: string) {
+  return key.replace(/^show_/, "show ").replace(/_/g, " ");
+}
+
+function isBackendDiagnostic(message: string) {
+  return /not configured yet|temporarily unavailable|Could not find|schema cache|permission denied|row-level security|violates row-level security|Account-backed data|Account storage/i.test(message);
+}
+
+function logDiagnostics(scope: string, warnings: string[]) {
+  if (import.meta.env.DEV && warnings.length) console.warn(`[Commons Circle ${scope}]`, warnings);
+}
+
+function polishedActionMessages(scope: string, warnings: string[], fallback: string) {
+  if (!warnings.length) return [];
+  logDiagnostics(scope, warnings);
+  return warnings.some(isBackendDiagnostic) ? [fallback] : warnings;
 }
 
 export default function CommonsCirclePage() {
-  const [profile, setProfile] = useState<ProfileWithSetup | null>(null);
+  const [homebase, setHomebase] = useState<CommonsHomebaseData | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
-  const [privacySettings, setPrivacySettings] = useState<PrivacySettings>(() => readStorage(storageKeys.privacySettings, defaultPrivacySettings));
-  const [onboardingDone, setOnboardingDone] = useState<OnboardingState>(() => readStorage(storageKeys.onboarding, { skippedStewardship: false, welcomed: false }));
-  const [verificationDrafts, setVerificationDrafts] = useState<StewardshipDraft[]>(() => readStorage(storageKeys.stewardshipDrafts, []));
-  const [contributionRequests, setContributionRequests] = useState<unknown[]>(() => readStorage(storageKeys.contributionRequests, []));
+  const [visibilityDraft, setVisibilityDraft] = useState<VisibilitySettings>(defaultVisibility);
+  const [customizationDraft, setCustomizationDraft] = useState<ProfileCustomization>(defaultCustomization);
+  const [notificationDraft, setNotificationDraft] = useState<NotificationPreferences>(defaultNotificationPreferences);
+  const [syncChoice, setSyncChoice] = useState(() => readLocalStorage<{ choice?: string }>(commonsStorageKeys.syncChoice, {}));
+  const [onboardingDone, setOnboardingDone] = useState<OnboardingState>(() => readLocalStorage(commonsStorageKeys.onboarding, { skippedStewardship: false, welcomed: false }));
+  const [verificationDrafts, setVerificationDrafts] = useState<StewardshipDraft[]>(() => readLocalStorage(commonsStorageKeys.stewardshipDrafts, []));
+  const [contributionRequests, setContributionRequests] = useState<unknown[]>(() => readLocalStorage(commonsStorageKeys.contributionRequests, []));
 
-  const pushMessage = useCallback((message: string) => { if (message.trim()) setMessages((current) => [message, ...current].slice(0, 5)); }, []);
-  const refreshProfile = useCallback(async () => { const result = await loadCurrentProfile(); setProfile(result.data as ProfileWithSetup | null); result.warnings.forEach(pushMessage); }, [pushMessage]);
-  const refreshReviewQueue = useCallback(async () => { const result = await loadAdminReviewQueue(); result.warnings.forEach(pushMessage); }, [pushMessage]);
-  const refreshLocalCounts = useCallback(() => {
-    setOnboardingDone(readStorage(storageKeys.onboarding, { skippedStewardship: false, welcomed: false }));
-    setVerificationDrafts(readStorage(storageKeys.stewardshipDrafts, []));
-    setContributionRequests(readStorage(storageKeys.contributionRequests, []));
+  const pushMessage = useCallback((message: string) => {
+    if (message.trim()) setMessages((current) => [message, ...current].slice(0, 6));
   }, []);
-  const refreshAccountSurfaces = useCallback(async () => { refreshLocalCounts(); await refreshProfile(); await refreshReviewQueue(); }, [refreshLocalCounts, refreshProfile, refreshReviewQueue]);
-  useEffect(() => { void refreshAccountSurfaces(); }, [refreshAccountSurfaces]);
+
+  const refreshLocalCounts = useCallback(() => {
+    setOnboardingDone(readLocalStorage(commonsStorageKeys.onboarding, { skippedStewardship: false, welcomed: false }));
+    setVerificationDrafts(readLocalStorage(commonsStorageKeys.stewardshipDrafts, []));
+    setContributionRequests(readLocalStorage(commonsStorageKeys.contributionRequests, []));
+    setSyncChoice(readLocalStorage(commonsStorageKeys.syncChoice, {}));
+  }, []);
+
+  const refreshHomebase = useCallback(async () => {
+    refreshLocalCounts();
+    const result = await loadCommonsHomebase();
+    setHomebase(result);
+    setVisibilityDraft(result.visibility);
+    setCustomizationDraft(result.customization);
+    setNotificationDraft(result.notificationPreferences);
+    logDiagnostics("homebase", result.warnings);
+  }, [refreshLocalCounts]);
+
+  useEffect(() => { void refreshHomebase(); }, [refreshHomebase]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("commons-circle-onboarding") : null;
     const onComplete = () => {
-      refreshLocalCounts();
-      void refreshAccountSurfaces();
-      pushMessage("Commons Circle setup updated. Website Account, Commons Profile, and local membership counts were refreshed.");
+      void refreshHomebase();
+      pushMessage("Commons Circle setup updated. Website Account, Commons Profile, and account shelves were refreshed.");
     };
     channel?.addEventListener("message", (event) => { if (event.data?.type === "commons-circle-onboarding-complete") onComplete(); });
-    const onStorage = (event: StorageEvent) => { if (event.key === storageKeys.onboarding || event.key === storageKeys.stewardshipDrafts || event.key === storageKeys.contributionRequests) onComplete(); };
-    window.addEventListener("storage", onStorage);
-    return () => {
-      channel?.close();
-      window.removeEventListener("storage", onStorage);
+    const onStorage = (event: StorageEvent) => {
+      const refreshKeys: string[] = [commonsStorageKeys.onboarding, commonsStorageKeys.stewardshipDrafts, commonsStorageKeys.contributionRequests];
+      if (event.key && refreshKeys.includes(event.key)) onComplete();
     };
-  }, [pushMessage, refreshAccountSurfaces, refreshLocalCounts]);
+    window.addEventListener("storage", onStorage);
+    return () => { channel?.close(); window.removeEventListener("storage", onStorage); };
+  }, [pushMessage, refreshHomebase]);
 
-  const savedLibrarySources = countStorageArray("elysiaLivingLibrary.savedSources.v1");
-  const savedCommuneDrafts = countStorageArray("commune.postDrafts.v1") + countStorageArray("commune.postRequests.v1");
-  const savedSourceCollections = readStorage<unknown[]>("elysiaLivingLibrary.collections.v1", []).length;
-  const followedThreads = countStorageArray("commune.followedThreads.v1");
-  const pendingRecognitionCount = verificationDrafts.filter((draft) => draft.status === "pending_admin_review_local").length;
+  const profile = homebase?.profile ?? null;
   const profileSetupComplete = Boolean(profile?.commons_onboarding_completed_at || onboardingDone.completed);
-  const setupPath = profile ? "/commons-circle/setup/profile" : "/commons-circle/setup/profile";
+  const publicProfilePath = profile?.username ? `/commons/@${encodeURIComponent(profile.username)}` : "/commons-circle/setup/profile";
+  const pendingRecognitionCount = verificationDrafts.filter((draft) => draft.status === "pending_admin_review_local").length;
+  const localLivingCount = homebase?.localLiving.savedSourceIds.length ?? 0;
+  const shouldPromptSync = Boolean(homebase?.signedIn && localLivingCount > 0 && syncChoice.choice !== "synced" && syncChoice.choice !== "keep_local");
+  const unreadCount = homebase?.notifications.filter((notice) => !notice.read_at).length ?? 0;
+  const homeStyle = { "--commons-accent": customizationDraft.accent_color || "#8ee8dc" } as CSSProperties;
 
-  function savePrivacySettings(next: PrivacySettings) {
-    setPrivacySettings(next);
-    writeStorage(storageKeys.privacySettings, next);
-    pushMessage("Privacy settings saved locally as placeholders until account-backed settings are built.");
+  async function saveVisibility() {
+    if (!homebase?.signedIn) {
+      writeLocalStorage("commonsCircle.publicVisibilityDemo.v1", visibilityDraft);
+      pushMessage("Visibility settings saved locally. Sign in to save account-backed public profile visibility.");
+      return;
+    }
+    const warnings = await saveVisibilitySettings(visibilityDraft);
+    const visibleMessages = polishedActionMessages("visibility", warnings, "Public profile visibility saving is not active yet. Your current choices remain available in this browser for now.");
+    visibleMessages.forEach(pushMessage);
+    if (!visibleMessages.length) pushMessage("Public profile visibility saved to your Website Account.");
+    await refreshHomebase();
+  }
+
+  async function saveProfileRoom() {
+    if (!homebase?.signedIn) {
+      writeLocalStorage("commonsCircle.customizationDemo.v1", customizationDraft);
+      pushMessage("Profile room customization saved locally. Sign in to save it to your Website Account.");
+      return;
+    }
+    const warnings = await saveCustomization(customizationDraft);
+    const visibleMessages = polishedActionMessages("customization", warnings, "Profile room customization saving is not active yet. Your current choices remain available in this browser for now.");
+    visibleMessages.forEach(pushMessage);
+    if (!visibleMessages.length) pushMessage("Profile room customization saved.");
+    await refreshHomebase();
+  }
+
+  async function saveNoticePrefs() {
+    const warnings = await saveNotificationPreferences(notificationDraft);
+    const visibleMessages = polishedActionMessages("notifications", warnings, "Notification preferences are not active yet. Signals will appear here when this section is ready.");
+    visibleMessages.forEach(pushMessage);
+    if (!visibleMessages.length) pushMessage("Notification preferences saved.");
+    await refreshHomebase();
+  }
+
+  async function syncLivingLibrary() {
+    const result = await syncLocalLivingLibraryToAccount();
+    const visibleMessages = polishedActionMessages("living-library-sync", result.warnings, "Living Library account sync is not active yet. Your browser-local saves are still safe in this browser.");
+    visibleMessages.forEach(pushMessage);
+    pushMessage(visibleMessages.length ? `Living Library sync prepared ${result.synced} item changes before account storage stopped.` : `Synced ${result.synced} Living Library saved item changes to your Website Account.`);
+    await refreshHomebase();
+  }
+
+  async function handleProfileMedia(file: File | null, mediaType: "avatar" | "banner") {
+    if (!file) return;
+    const result = await uploadProfileMedia(file, mediaType);
+    polishedActionMessages("profile-media", result.warnings, "Public profile media upload is not active yet. No file was published.").forEach(pushMessage);
+    if (result.publicUrl) {
+      setCustomizationDraft((current) => ({ ...current, [mediaType === "avatar" ? "avatar_url" : "banner_url"]: result.publicUrl }));
+      pushMessage(`${mediaType === "avatar" ? "Avatar" : "Banner"} uploaded as public profile media. Private files still never use this bucket.`);
+      await refreshHomebase();
+    }
   }
 
   return (
-    <div className="page-stack commons-circle-page">
+    <div className="page-stack commons-circle-page commons-homebase" style={homeStyle}>
       <PageHero eyebrow="Membership" title="The Commons Circle">
         <p>Membership is not a gate around Elysia. It is a way to help sustain the public commons around her.</p>
         <p>A Commons account helps you participate in the public ecosystem around Elysia: Marketplace, Developer Forge, Living Library, Commune, saved items, stewardship recognition, and public contributions. It does not unlock private local Elysia memory and does not sync private local files, logs, passwords, or credentials by default.</p>
@@ -159,12 +198,10 @@ export default function CommonsCirclePage() {
 
       <section className="two-column commons-account-panels">
         <div className="commons-account-start">
-          <div className="boundary-note">
-            <strong>Start here:</strong> create or sign in to your Website Account first. This is the actual authentication account for Elysia Ecobotics Online.
-          </div>
+          <div className="boundary-note"><strong>Start here:</strong> create or sign in to your Website Account first. This is the actual authentication account for Elysia Ecobotics Online.</div>
           <AuthPanel
             onMessage={pushMessage}
-            onAuthChanged={refreshAccountSurfaces}
+            onAuthChanged={refreshHomebase}
             copy={{
               eyebrow: "Website Account",
               title: "Create or Sign In to Website Account",
@@ -181,86 +218,129 @@ export default function CommonsCirclePage() {
           <p>Your Commons Profile is the public profile connected to your signed-in Website Account. It is not a second account and not a second login.</p>
           {!profile && <p className="boundary-note">Create or sign in to a Website Account first, then start the Commons Profile setup wizard. The first profile screen is a draft; the profile is not finalized until the final confirmation step.</p>}
           {profile && !profileSetupComplete && <p className="boundary-note">Finish Commons Profile setup to complete the missing stewardship and Work With steps without creating a duplicate profile.</p>}
-          {profile && profileSetupComplete && <dl className="mini-facts"><div><dt>Username</dt><dd>{profile.username}</dd></div><div><dt>Display name</dt><dd>{profile.display_name || "Not set"}</dd></div><div><dt>Developer</dt><dd>{profile.is_developer ? "Requested / visible" : "Pending / No"}</dd></div><div><dt>Admin</dt><dd>{profile.is_admin ? "Yes" : "No"}</dd></div></dl>}
-          <div className="button-row"><a className="button-link button-link--primary" href={setupPath}>{profile ? profileSetupComplete ? "Review setup / update profile" : "Finish Commons Profile setup" : "Start Commons Profile setup"}</a></div>
+          {profile && <dl className="mini-facts"><MiniFact label="Username" value={profile.username} /><MiniFact label="Display name" value={profile.display_name || "Not set"} /><MiniFact label="Developer" value={profile.is_developer ? "Requested / visible" : "Pending / No"} /><MiniFact label="Admin" value={profile.is_admin ? "Yes" : "No"} /></dl>}
+          <div className="button-row"><a className="button-link button-link--primary" href="/commons-circle/setup/profile">{profile ? profileSetupComplete ? "Review setup / update profile" : "Finish Commons Profile setup" : "Start Commons Profile setup"}</a></div>
           <p className="boundary-note">Admin, moderator, reviewer, developer trust, and other authority roles cannot be self-assigned in this UI. Local Elysia linking must be explicit, narrow, revocable, and controlled by local Elysia.</p>
         </section>
       </section>
 
-      <section className="section-card commons-stepper">
-        <p className="eyebrow">Setup sequence</p>
-        <h2>Website Account → profile draft → optional requests → final creation</h2>
-        <ol>
-          <li>Create or sign in to Website Account.</li>
-          <li>Draft Commons Profile fields. This does not finalize the profile.</li>
-          <li>Choose optional stewardship support or skip it.</li>
-          <li>Prepare an optional Work With Elysia Ecobotics request or skip it.</li>
-          <li>Review the final confirmation and click Create Commons Profile.</li>
-        </ol>
-        <p className="boundary-note">Donations are optional, direct-to-organization, and never required for membership. Helping Elysia Ecobotics is optional and subject to administrator review.</p>
+      <section className="section-card commons-homebase-hero">
+        <div className="commons-profile-mantle" style={customizationDraft.banner_url ? { backgroundImage: `linear-gradient(135deg, rgba(10, 20, 22, .35), rgba(18, 44, 48, .4)), url(${customizationDraft.banner_url})` } : undefined}>
+          <div className="commons-avatar">{customizationDraft.avatar_url ? <img src={customizationDraft.avatar_url} alt="Commons profile avatar" /> : <span>{(profile?.display_name || profile?.username || "C").slice(0, 1).toUpperCase()}</span>}</div>
+          <div>
+            <p className="eyebrow">Private Account Homebase</p>
+            <h2>{profile?.display_name || profile?.username || "Website member"}</h2>
+            <p>{profile?.username ? `@${profile.username}` : "Sign in and create a Commons Profile to claim your public handle."}</p>
+          </div>
+        </div>
+        <dl className="mini-facts">
+          <MiniFact label="Tier" value="Free Member" />
+          <MiniFact label="Setup" value={profileSetupComplete ? "Complete" : "Needs setup"} />
+          <MiniFact label="Unread signals" value={unreadCount} />
+          <MiniFact label="Saved shelves" value={(homebase?.savedAddons.length ?? 0) + (homebase?.savedLivingSources.length ?? 0) + (homebase?.sourceCollections.length ?? 0)} />
+        </dl>
+        <div className="button-row">
+          <a className="button-link button-link--primary" href={publicProfilePath}>View public profile</a>
+          <a className="button-link" href="/commons-circle/setup/profile">Edit profile setup</a>
+          <a className="button-link" href="#customization-studio">Customize circle</a>
+          <a className="button-link" href="#privacy-lanterns">Privacy settings</a>
+        </div>
       </section>
 
-      <section className="commons-tier-grid">
-        {membershipTiers.map((tier) => <article className="section-card commons-tier-card" key={tier.name}><p className="eyebrow">{tier.status}</p><h3>{tier.name}</h3><p>{tier.purpose}</p><p><strong>How awarded:</strong> {tier.awarded}</p><p className="boundary-note">{tier.note}</p></article>)}
+      {shouldPromptSync && <section className="section-card commons-sync-card">
+        <p className="eyebrow">Explicit sync available</p>
+        <h2>You have browser-local Living Library saves.</h2>
+        <p>Sync them to your Website Account only if you choose. Elysia Ecobotics Online will not upload browser-local saved items silently.</p>
+        <div className="button-row"><button className="button-primary" type="button" onClick={() => void syncLivingLibrary()}>Sync now</button><button type="button" onClick={() => { writeLocalStorage(commonsStorageKeys.syncChoice, { choice: "keep_local", decidedAt: new Date().toISOString() }); setSyncChoice({ choice: "keep_local" }); }}>Keep local only</button><button type="button" onClick={() => { writeLocalStorage(commonsStorageKeys.syncChoice, { choice: "not_now", decidedAt: new Date().toISOString() }); setSyncChoice({ choice: "not_now" }); }}>Not now</button></div>
+      </section>}
+
+      <section className="commons-homebase-grid">
+        <article className="section-card commons-signal-feed">
+          <p className="eyebrow">Signal Feed</p>
+          <h2>Notifications and review signals</h2>
+          {!homebase?.notifications.length && <EmptyState>No notifications yet. Review status, followed threads, and marketplace updates will appear here when account-backed events exist.</EmptyState>}
+          {homebase?.notifications.map((notice) => <div className="commons-preview-card" key={notice.id}><strong>{notice.title}</strong><p>{notice.body || notice.notification_type || "Account signal"}</p><span>{notice.read_at ? "read" : "unread"}</span><div className="button-row"><button type="button" onClick={async () => { polishedActionMessages("notification-read", await markNotificationRead(notice.id), "Notification actions are not active yet.").forEach(pushMessage); await refreshHomebase(); }}>Mark read</button>{notice.action_url && <a className="button-link" href={notice.action_url}>Open</a>}</div></div>)}
+          {homebase?.notifications.length ? <button type="button" onClick={async () => { polishedActionMessages("notifications-read-all", await markAllNotificationsRead(), "Notification actions are not active yet.").forEach(pushMessage); await refreshHomebase(); }}>Mark all read</button> : null}
+        </article>
+
+        <article className="section-card">
+          <p className="eyebrow">Requests and review status</p>
+          <h2>Private request status</h2>
+          <dl className="mini-facts"><MiniFact label="Stewardship local pending" value={pendingRecognitionCount} /><MiniFact label="Contribution help drafts" value={contributionRequests.length} /><MiniFact label="Work With / review queues" value="private; account-backed when submitted" /></dl>
+          <p className="boundary-note">Work With requests, resumes/CVs, stewardship receipts/proofs, admin review data, and private drafts are never shown on the public profile.</p>
+        </article>
+      </section>
+
+      <section className="section-card commons-shelves">
+        <p className="eyebrow">Saved Shelves</p>
+        <h2>Your private saved archive room</h2>
+        <p>Your saved add-ons, sources, citations, collections, Commune posts, and followed threads live together in your Saved Shelves.</p>
+        <dl className="mini-facts">
+          <MiniFact label="Add-ons" value={homebase?.savedAddons.length ?? 0} />
+          <MiniFact label="Sources" value={(homebase?.savedLivingSources.length ?? 0) + (homebase?.localLiving.savedSources.length ?? 0)} />
+          <MiniFact label="Citations" value={(homebase?.savedCitations.length ?? 0) + (homebase?.localLiving.savedCitations.length ?? 0)} />
+          <MiniFact label="Collections" value={(homebase?.sourceCollections.length ?? 0) + (homebase?.localLiving.collections.length ?? 0)} />
+          <MiniFact label="Commune" value={(homebase?.communePosts.length ?? 0) + (homebase?.localCommuneDrafts.length ?? 0)} />
+          <MiniFact label="Threads" value={(homebase?.followedThreads.length ?? 0) + (homebase?.localFollowedThreads.length ?? 0)} />
+        </dl>
+        <div className="button-row"><a className="button-link button-link--primary" href="/commons-circle/saved-shelves">Open Saved Shelves</a><span className="commons-empty-state">Private by default. Public profile visibility is controlled separately.</span></div>
       </section>
 
       <section className="section-card commons-membership-status">
         <p className="eyebrow">Membership Status</p>
         <h2>Free Member by default</h2>
-        <dl className="mini-facts">
-          <div><dt>Current tier</dt><dd>Free Member</dd></div>
-          <div><dt>Setup complete</dt><dd>{profileSetupComplete ? "Yes" : "Not yet"}</dd></div>
-          <div><dt>Pending recognition drafts</dt><dd>{pendingRecognitionCount}</dd></div>
-          <div><dt>Contribution help drafts</dt><dd>{contributionRequests.length}</dd></div>
-          <div><dt>Developer</dt><dd>{profile?.is_developer ? "Requested / visible" : "Pending / No"}</dd></div>
-          <div><dt>Admin</dt><dd>{profile?.is_admin ? "Yes" : "No"}</dd></div>
-          <div><dt>Saved add-ons</dt><dd>{profile?.saved_addon_ids.length ?? 0}</dd></div>
-          <div><dt>Saved library sources</dt><dd>{savedLibrarySources}</dd></div>
-          <div><dt>Saved posts/drafts</dt><dd>{savedCommuneDrafts}</dd></div>
-        </dl>
-        <p className="boundary-note">Membership tiers and badges are ultimately assigned by authorized administrators. Donation proof may support Steward recognition, but it does not create administrator, moderator, reviewer, or developer authority.</p>
-        <BadgeRow labels={badgeExamples.map((badge) => badge === "Free Member" ? `${badge}: earned/local` : `${badge}: planned`)} />
+        <dl className="mini-facts"><MiniFact label="Current tier" value="Free Member" /><MiniFact label="Setup complete" value={profileSetupComplete ? "Yes" : "Not yet"} /><MiniFact label="Pending recognition drafts" value={pendingRecognitionCount} /><MiniFact label="Contribution help drafts" value={contributionRequests.length} /><MiniFact label="Developer" value={profile?.is_developer ? "Requested / visible" : "Pending / No"} /><MiniFact label="Admin" value={profile?.is_admin ? "Yes" : "No"} /></dl>
+        <p className="boundary-note">Membership tiers and badges are ultimately assigned by authorized administrators. Donation proof may support Steward recognition, but it does not create administrator, moderator, reviewer, developer, paid role, or guardian authority.</p>
       </section>
 
-      <section className="section-card">
-        <p className="eyebrow">Saved across the site</p>
-        <h2>One public account hub, multiple modules</h2>
-        <div className="commons-module-grid">
-          <article><h3>Saved add-ons</h3><p>{profile?.saved_addon_ids.length ?? 0} through the Marketplace module when signed in.</p></article>
-          <article><h3>Saved Living Library sources</h3><p>{savedLibrarySources} browser-local now; account sync later.</p></article>
-          <article><h3>Saved Commune posts</h3><p>{savedCommuneDrafts} local drafts/requests in this browser.</p></article>
-          <article><h3>Saved source collections</h3><p>{savedSourceCollections} browser-local collections.</p></article>
-          <article><h3>Followed Commune threads</h3><p>{followedThreads} local placeholder follows.</p></article>
-          <article><h3>Developer dashboard</h3><p><a href="/developer-forge">Developer Forge</a> · <a href="/marketplace/submit">Submit add-on</a> · <a href="/marketplace/trust">Marketplace trust</a></p></article>
+      <section className="section-card commons-medallion-wall">
+        <p className="eyebrow">Medallion Wall</p>
+        <h2>Badges are recognition, not authority</h2>
+        <div className="commons-medallion-grid">{(homebase?.userBadges.length ? homebase.userBadges : plannedBadges.map((badge) => ({ ...badge, earned: badge.badge_key === "free_member", visibility: "public" }))).map((badge) => <article className={badge.earned ? "earned" : "locked"} key={badge.badge_key}><span className="medallion-glyph">{badge.earned ? "✦" : "○"}</span><h3>{badge.name}</h3><p>{badge.description}</p><BadgeRow labels={[badge.rarity, badge.category || badge.badge_type, badge.earned ? "earned" : "planned/locked"]} />{badge.earned && <label className="checkbox-line"><span>Visibility</span><select value={badge.visibility || "public"} onChange={async (event) => { polishedActionMessages("badge-visibility", await updateBadgeVisibility(badge.badge_key, event.target.value as "public" | "private" | "hidden"), "Badge visibility controls are not active yet.").forEach(pushMessage); await refreshHomebase(); }}><option value="public">public</option><option value="private">private</option><option value="hidden">hidden</option></select></label>}</article>)}</div>
+      </section>
+
+      <section className="commons-tier-grid">{membershipTiers.map((tier) => <article className="section-card commons-tier-card" key={tier.name}><p className="eyebrow">{tier.status}</p><h3>{tier.name}</h3><p>{tier.purpose}</p><p><strong>How awarded:</strong> {tier.awarded}</p><p className="boundary-note">{tier.note}</p></article>)}</section>
+
+      <section className="section-card commons-studio" id="customization-studio">
+        <p className="eyebrow">Customization Studio</p>
+        <h2>Shape your public profile room</h2>
+        <p>Avatar and banner media are public profile presentation assets. Do not upload receipts, resumes, private screenshots, credentials, or local Elysia material here.</p>
+        <div className="commons-studio-grid">
+          <label><span>Theme mode</span><select value={customizationDraft.theme_mode} onChange={(event) => setCustomizationDraft({ ...customizationDraft, theme_mode: event.target.value })}>{themeModes.map((theme) => <option key={theme}>{theme}</option>)}</select></label>
+          <label><span>Accent color</span><input type="color" value={customizationDraft.accent_color} onChange={(event) => setCustomizationDraft({ ...customizationDraft, accent_color: event.target.value })} /></label>
+          <label><span>Decal set</span><select value={customizationDraft.decal_set} onChange={(event) => setCustomizationDraft({ ...customizationDraft, decal_set: event.target.value })}>{decalOptions.map((decal) => <option key={decal}>{decal}</option>)}</select></label>
+          <label><span>Profile layout</span><select value={customizationDraft.profile_layout} onChange={(event) => setCustomizationDraft({ ...customizationDraft, profile_layout: event.target.value })}><option>classic_homebase</option><option>compact_archive</option><option>garden_shelves</option></select></label>
+          <label><span>Avatar upload</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleProfileMedia(event.target.files?.[0] ?? null, "avatar")} /></label>
+          <label><span>Banner upload</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleProfileMedia(event.target.files?.[0] ?? null, "banner")} /></label>
         </div>
+        <div className="button-row"><button className="button-primary" type="button" onClick={() => void saveProfileRoom()}>Save customization</button></div>
+      </section>
+
+      <section className="section-card commons-privacy" id="privacy-lanterns">
+        <p className="eyebrow">Privacy Lanterns</p>
+        <h2>Public profile visibility</h2>
+        <p className="boundary-note">Email, resumes/CVs, stewardship receipts/proofs, private review requests, private drafts, notifications, admin queues, and local Elysia connection data are never public profile fields.</p>
+        <div className="commons-privacy-grid">{Object.entries(visibilityDraft).map(([key, value]) => <label className="checkbox-line" key={key}><input type="checkbox" checked={value} onChange={(event) => setVisibilityDraft({ ...visibilityDraft, [key]: event.target.checked })} /><span>{privacyLabel(key)}</span></label>)}</div>
+        <div className="button-row"><button className="button-primary" type="button" onClick={() => void saveVisibility()}>Save visibility</button></div>
       </section>
 
       <section className="section-card commons-settings-grid">
         <article>
-          <p className="eyebrow">Privacy settings</p>
-          <h2>Local placeholders</h2>
-          <p>Privacy settings are local placeholders until account-backed settings are built.</p>
-          {Object.entries(privacySettings).map(([key, value]) => <label className="checkbox-line" key={key}><input type="checkbox" checked={value} onChange={(event) => savePrivacySettings({ ...privacySettings, [key]: event.target.checked })} /><span>{key.replace(/([A-Z])/g, " $1").toLowerCase()}</span></label>)}
+          <p className="eyebrow">Notification Preferences</p>
+          <h2>Signal lantern settings</h2>
+          {Object.entries(notificationDraft).map(([key, value]) => <label className="checkbox-line" key={key}><input type="checkbox" checked={value} onChange={(event) => setNotificationDraft({ ...notificationDraft, [key]: event.target.checked })} /><span>{key.replace(/_/g, " ")}</span></label>)}
+          <button type="button" onClick={() => void saveNoticePrefs()}>Save notification preferences</button>
         </article>
         <article>
           <p className="eyebrow">Connected local Elysia</p>
           <h2>Not connected</h2>
-          <p>Future local Elysia linking must be explicit, narrow, revocable, and controlled by local Elysia. Private memory, files, logs, local passwords, vaults, and credentials do not sync by default.</p>
+          <p>Future local Elysia linking must be explicit, narrow, revocable, and controlled by local Elysia. Private memory, files, logs, local passwords, vaults, credentials, and machine data do not sync by default.</p>
         </article>
       </section>
 
       <section className="section-card commons-settings-grid">
-        <article>
-          <p className="eyebrow">Future backend roadmap</p>
-          <h2>Planned schema areas</h2>
-          <BadgeRow labels={futureTables} />
-          <p>These are planned/future backend tables or schema areas. They are not all live until Supabase schema, RLS, storage policies, admin roles, and review tools are built.</p>
-        </article>
-        <article>
-          <p className="eyebrow">Later support tables</p>
-          <h2>Possible account support</h2>
-          <BadgeRow labels={futureSupportTables} />
-        </article>
+        <article><p className="eyebrow">Future backend roadmap</p><h2>Planned schema areas</h2><BadgeRow labels={futureTables} /><p>These are planned/future backend tables or schema areas. They are not all live until Supabase schema, RLS, storage policies, admin roles, and review tools are built.</p></article>
+        <article><p className="eyebrow">Later support tables</p><h2>Possible account support</h2><BadgeRow labels={futureSupportTables} /></article>
       </section>
     </div>
   );

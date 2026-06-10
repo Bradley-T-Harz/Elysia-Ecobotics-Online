@@ -9,6 +9,7 @@ import type {
   TrustTier
 } from "../types";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "./supabase";
+import { createReviewItem } from "../../../shared/review/reviewClient";
 
 const seedBySlug = new Map(seedAddons.map((addon) => [addon.id, addon]));
 
@@ -288,15 +289,37 @@ export async function upsertMarketplaceProfile(draft: MarketplaceProfileDraft): 
 export async function saveAddonForUser(addonId: string): Promise<MarketplaceApiResult<{ saved: boolean; addonId: string }>> {
   if (!hasSupabaseConfig || !supabase) return demo({ saved: true, addonId }, ["Saved only in this demo session; no remote Marketplace account write occurred."]);
   const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return configuredResult({ saved: false, addonId }, { warnings: ["Sign in to save add-ons to your Marketplace account."] });
+  if (!auth.user) return configuredResult({ saved: false, addonId }, { warnings: ["Sign in to save add-ons to your Website Account."] });
 
   const profileReady = await ensureMarketplaceProfileForUser(auth.user);
   if (!profileReady.ok) return configuredResult({ saved: false, addonId }, { warnings: profileReady.warnings });
 
-  const { error } = await supabase.from("user_saved_addons").upsert({ user_id: auth.user.id, addon_slug: addonId });
-  return configuredResult({ saved: !error, addonId }, {
-    warnings: error ? [error.message] : profileReady.warnings,
-    statusMessage: error ? undefined : "Add-on saved to your Marketplace account. No local Elysia installation occurred."
+  const seedMatch = seedBySlug.get(addonId);
+  const { data: addonRows } = await supabase
+    .from("addons")
+    .select("id, slug, name, addon_versions(id, version, review_status)")
+    .eq("slug", addonId)
+    .limit(1);
+  const addonRow = Array.isArray(addonRows) ? addonRows[0] as { id?: string; name?: string; addon_versions?: Array<{ id: string; version: string; review_status: string }> } | undefined : undefined;
+  const approvedVersion = addonRow?.addon_versions?.find((version) => version.review_status === "approved" && version.version === seedMatch?.version)
+    ?? addonRow?.addon_versions?.find((version) => version.review_status === "approved");
+
+  const payload = {
+    user_id: auth.user.id,
+    addon_slug: addonId,
+    addon_name: addonRow?.name ?? seedMatch?.name ?? addonId,
+    addon_id: addonRow?.id ?? null,
+    addon_version_id: approvedVersion?.id ?? null
+  };
+  const { error } = await supabase.from("user_saved_addons").upsert(payload, { onConflict: "user_id,addon_slug" });
+  if (error) {
+    return configuredResult({ saved: false, addonId }, {
+      warnings: [`Marketplace account storage is not configured yet: ${error.message}`, ...profileReady.warnings]
+    });
+  }
+  return configuredResult({ saved: true, addonId }, {
+    warnings: profileReady.warnings,
+    statusMessage: "Add-on saved to your Website Account. No local Elysia installation occurred."
   });
 }
 
@@ -305,7 +328,7 @@ export async function removeSavedAddon(addonId: string): Promise<MarketplaceApiR
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return configuredResult({ removed: false, addonId }, { warnings: ["Sign in first."] });
   const { error } = await supabase.from("user_saved_addons").delete().eq("user_id", auth.user.id).eq("addon_slug", addonId);
-  return configuredResult({ removed: !error, addonId }, { warnings: error ? [error.message] : [], statusMessage: error ? undefined : "Saved add-on removed." });
+  return configuredResult({ removed: !error, addonId }, { warnings: error ? [`Marketplace account storage is not configured yet: ${error.message}`] : [], statusMessage: error ? undefined : "Saved add-on removed." });
 }
 
 export async function submitAddonDraft(payload: unknown): Promise<MarketplaceApiResult<{ submitted: boolean }>> {
@@ -318,15 +341,25 @@ export async function submitAddonDraft(payload: unknown): Promise<MarketplaceApi
 
   const submission = payload as { manifest?: AddonManifest; version?: string };
   const version = submission.version ?? submission.manifest?.version ?? "0.1.0";
-  const { error } = await supabase.from("addon_versions").insert({
+  const { data, error } = await supabase.from("addon_versions").insert({
     manifest: submission.manifest ?? payload,
     version,
     review_status: "submitted",
     created_by: auth.user.id
+  }).select("id").single();
+  if (error) return configuredResult({ submitted: false }, { warnings: [error.message, ...profileReady.warnings] });
+  const versionId = (data as { id: string }).id;
+  const reviewResult = await createReviewItem({
+    domain: "marketplace",
+    sourceTable: "addon_versions",
+    sourceId: versionId,
+    submittedBy: auth.user.id,
+    title: submission.manifest?.name ?? "Marketplace add-on submission",
+    summary: submission.manifest?.summary ?? "Manifest submitted for Marketplace review."
   });
-  return configuredResult({ submitted: !error }, {
-    warnings: error ? [error.message] : profileReady.warnings,
-    statusMessage: error ? undefined : "Add-on draft submitted for Marketplace review. It is not approved or installable yet."
+  return configuredResult({ submitted: true }, {
+    warnings: reviewResult.ok ? profileReady.warnings : [`Review routing needs attention: ${reviewResult.warning}`, ...profileReady.warnings],
+    statusMessage: reviewResult.ok ? "Add-on draft submitted for Marketplace review. It is not approved or installable yet." : "Add-on draft saved, but review queue routing needs attention."
   });
 }
 

@@ -21,10 +21,13 @@ import CommunePage from "./pages/The-Elysia-Commune";
 import WorkWithPage from "./pages/Work-With-Elysia-Ecobotics";
 import CommonsCirclePage from "./pages/The-Commons-Circle";
 import CommonsCircleSetupPage from "./pages/The-Commons-Circle/CommonsCircleSetupPage";
+import SavedShelvesPage from "./pages/The-Commons-Circle/SavedShelvesPage";
+import PublicCommonsProfilePage from "./pages/Public-Commons-Profile";
 import StoryPage from "./pages/The-Story-of-Elysia";
 import AboutPage from "./pages/About-Elysia-Ecobotics";
 import MissionPage from "./pages/The-Elysia-Mission";
 import LegalPage, { LegalPolicyPage } from "./pages/Legal";
+import { AdminAuditPage, AdminHomePage, AdminReviewPage, AdminRolesPage } from "./pages/Admin";
 
 function LegacyAddonAlias() {
   const { id } = useParams();
@@ -60,15 +63,33 @@ export default function App() {
             <Route path="developer-forge" element={<DeveloperForgePage />} />
             <Route path="living-library" element={<LivingLibraryPage />} />
             <Route path="commune" element={<CommunePage />} />
+            <Route path="commune/rooms/:roomSlug" element={<CommunePage />} />
+            <Route path="commune/posts/:postId" element={<CommunePage />} />
+            <Route path="commune/new" element={<CommunePage />} />
+            <Route path="commune/repository-showcase" element={<CommunePage />} />
+            <Route path="commune/troubleshooting" element={<CommunePage />} />
+            <Route path="commune/moderation" element={<CommunePage />} />
             <Route path="work-with-elysia-ecobotics" element={<WorkWithPage />} />
             <Route path="commons-circle" element={<CommonsCirclePage />} />
+            <Route path="commons-circle/saved-shelves" element={<SavedShelvesPage />} />
             <Route path="commons-circle/onboarding" element={<Navigate to="/commons-circle/setup/profile" replace />} />
             <Route path="commons-circle/setup/:step" element={<CommonsCircleSetupPage />} />
+            <Route path="commons/@:username" element={<PublicCommonsProfilePage />} />
             <Route path="story" element={<StoryPage />} />
             <Route path="about" element={<AboutPage />} />
             <Route path="mission" element={<MissionPage />} />
             <Route path="legal" element={<LegalPage />} />
             <Route path="legal/:slug" element={<LegalPolicyPage />} />
+            <Route path="admin" element={<AdminHomePage />} />
+            <Route path="admin/review" element={<AdminReviewPage />} />
+            <Route path="admin/review/work-with" element={<AdminReviewPage />} />
+            <Route path="admin/review/stewardship" element={<AdminReviewPage />} />
+            <Route path="admin/review/commune" element={<AdminReviewPage />} />
+            <Route path="admin/review/living-library" element={<AdminReviewPage />} />
+            <Route path="admin/review/marketplace" element={<AdminReviewPage />} />
+            <Route path="admin/review/broken-links" element={<AdminReviewPage />} />
+            <Route path="admin/roles" element={<AdminRolesPage />} />
+            <Route path="admin/audit" element={<AdminAuditPage />} />
             <Route path="browse" element={<Navigate to="/marketplace/browse" replace />} />
             <Route path="addons/:id" element={<LegacyAddonAlias />} />
             <Route path="action-preview" element={<LegacySearchAlias target="/marketplace/action-preview" />} />
@@ -76,7 +97,6 @@ export default function App() {
             <Route path="submit" element={<Navigate to="/marketplace/submit" replace />} />
             <Route path="trust" element={<Navigate to="/marketplace/trust" replace />} />
             <Route path="manifest-api" element={<Navigate to="/marketplace/manifest-api" replace />} />
-            <Route path="admin" element={<Navigate to="/marketplace/admin" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

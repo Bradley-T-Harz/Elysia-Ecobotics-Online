@@ -4,6 +4,7 @@ import FeatureCard from "../../shared/components/FeatureCard";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
+import { createReviewItem } from "../../shared/review/reviewClient";
 
 type RequestStatus = "draft_local" | "pending_admin_review_local" | "pending_review";
 
@@ -231,6 +232,7 @@ export default function WorkWithPage() {
       portfolio_url: form.portfolio.trim() || null,
       linkedin_url: form.linkedin.trim() || null,
       acknowledgements,
+      source_context: "standalone",
       status: "pending_review"
     });
 
@@ -271,8 +273,19 @@ export default function WorkWithPage() {
       }
     }
 
+    const reviewResult = await createReviewItem({
+      domain: "work_with",
+      sourceTable: "work_with_requests",
+      sourceId: requestId,
+      submittedBy: auth.user.id,
+      title: `${form.requestType} request from ${form.name.trim() || form.commonsUsername.trim() || "Website member"}`,
+      summary: form.message.trim().slice(0, 280)
+    });
+
     setUploadBusy(false);
-    setMessage("Request saved for administrator review.");
+    setMessage(reviewResult.ok
+      ? "Request saved for administrator review."
+      : `Request saved, but review queue routing needs attention: ${reviewResult.warning}`);
     setResumeFile(null);
   }
 

@@ -2,16 +2,18 @@ const requiredRoutes = [
   "/", "/archive", "/marketplace", "/marketplace/browse", "/marketplace/addons/:id",
   "/marketplace/action-preview", "/marketplace/account", "/marketplace/submit", "/marketplace/trust",
   "/marketplace/manifest-api", "/marketplace/admin", "/products", "/lab", "/developer-forge",
-  "/living-library", "/commune", "/work-with-elysia-ecobotics", "/commons-circle",
+  "/living-library", "/commune", "/commune/rooms/:roomSlug", "/commune/posts/:postId", "/commune/new", "/commune/repository-showcase", "/commune/troubleshooting", "/commune/moderation", "/work-with-elysia-ecobotics", "/commons-circle", "/commons-circle/saved-shelves",
   "/commons-circle/onboarding", "/commons-circle/setup/profile", "/commons-circle/setup/stewardship",
-  "/commons-circle/setup/work-with", "/commons-circle/setup/confirm", "/story",
+  "/commons-circle/setup/work-with", "/commons-circle/setup/confirm", "/commons/@:username", "/story",
   "/about", "/mission", "/legal", "/legal/privacy-policy", "/legal/terms-of-use",
   "/legal/community-guidelines", "/legal/marketplace-developer-agreement",
   "/legal/add-on-submission-policy", "/legal/security-review-policy",
   "/legal/vulnerability-disclosure-policy", "/legal/dmca-copyright-policy",
   "/legal/acceptable-use-policy", "/legal/code-of-conduct",
   "/legal/volunteer-contributor-disclaimer", "/legal/donation-recognition-terms",
-  "/legal/trademark-notice", "/browse", "/addons/:id", "/action-preview", "/account", "/submit",
+  "/legal/trademark-notice", "/admin", "/admin/review", "/admin/review/work-with",
+  "/admin/review/stewardship", "/admin/review/commune", "/admin/review/living-library",
+  "/admin/review/marketplace", "/admin/review/broken-links", "/admin/roles", "/admin/audit", "/browse", "/addons/:id", "/action-preview", "/account", "/submit",
   "/trust", "/manifest-api", "/admin"
 ];
 const app = await import("node:fs/promises").then((fs) => fs.readFile(new URL("../src/App.tsx", import.meta.url), "utf8"));

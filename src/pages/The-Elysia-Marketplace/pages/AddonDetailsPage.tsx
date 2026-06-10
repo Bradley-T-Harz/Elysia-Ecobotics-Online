@@ -5,7 +5,7 @@ import { useMarketplaceContext } from "./useMarketplaceContext";
 export default function AddonDetailsPage() {
   const navigate = useNavigate();
   const { id } = useParams();
-  const { getAddon } = useMarketplaceContext();
+  const { getAddon, prepareLocalInstall } = useMarketplaceContext();
   const addon = getAddon(id);
 
   if (!addon) {
@@ -27,6 +27,7 @@ export default function AddonDetailsPage() {
       <AddonDetails
         addon={addon}
         onPrepareInstall={(addonId) => navigate(`/marketplace/action-preview?addon=${encodeURIComponent(addonId)}`)}
+        onOpenLocalInstall={(addonId) => void prepareLocalInstall(addonId)}
       />
     </div>
   );

@@ -5,9 +5,10 @@ import TrustBadge from "./TrustBadge";
 type AddonDetailsProps = {
   addon: AddonManifest | null;
   onPrepareInstall: (addonId: string) => void;
+  onOpenLocalInstall: (addonId: string) => void;
 };
 
-export default function AddonDetails({ addon, onPrepareInstall }: AddonDetailsProps) {
+export default function AddonDetails({ addon, onPrepareInstall, onOpenLocalInstall }: AddonDetailsProps) {
   if (!addon) {
     return <section className="details-panel muted-panel"><h2>Select an add-on</h2><p>Choose an add-on to inspect its manifest, dependencies, actions, and security labels.</p></section>;
   }
@@ -46,7 +47,7 @@ export default function AddonDetails({ addon, onPrepareInstall }: AddonDetailsPr
         <summary>View Manifest JSON</summary>
         <pre>{JSON.stringify(addon, null, 2)}</pre>
       </details>
-      <div className="button-row"><button type="button" className="button-primary" onClick={() => onPrepareInstall(addon.id)}>Review permissions</button><button type="button" disabled>Open in Elysia, planned</button><button type="button" disabled>.elysia-addon package, planned</button><a className="button-link" href="/catalog-preview.json" target="_blank" rel="noreferrer">View catalog preview JSON</a></div>
+      <div className="button-row"><button type="button" className="button-primary" onClick={() => onPrepareInstall(addon.id)}>Review permissions</button><button type="button" onClick={() => onOpenLocalInstall(addon.id)}>Prepare Local Install</button><button type="button" disabled>.elysia-addon package preview only</button><a className="button-link" href="/catalog-preview.json" target="_blank" rel="noreferrer">View catalog preview JSON</a></div>
     </section>
   );
 }
