@@ -11,6 +11,7 @@ type ProfilePanelCopy = {
   saveMessage?: string;
   updateButton?: string;
   createButton?: string;
+  usernamePlaceholder?: string;
   displayNamePlaceholder?: string;
   bioPlaceholder?: string;
   interestsPlaceholder?: string;
@@ -71,7 +72,7 @@ export default function ProfilePanel({ profile, supabaseConfigured, onMessage, o
       <p>{profile?.bio || copy?.description || "Create a Marketplace profile to save add-ons and developer submissions. This never changes the local Elysia account."}</p>
       {status && <p className="inline-status">{status}</p>}
       <div className="profile-form-grid">
-        <label><span>Username</span><input value={draft.username} onChange={(event) => update("username", event.target.value)} placeholder="market-builder" /></label>
+        <label><span>Username</span><input value={draft.username} onChange={(event) => update("username", event.target.value)} placeholder={copy?.usernamePlaceholder ?? "market-builder"} /></label>
         <label><span>Display name</span><input value={draft.display_name} onChange={(event) => update("display_name", event.target.value)} placeholder={copy?.displayNamePlaceholder ?? "Marketplace Builder"} /></label>
         <label className="wide-field"><span>Bio</span><textarea value={draft.bio} onChange={(event) => update("bio", event.target.value)} placeholder={copy?.bioPlaceholder ?? "Short public Marketplace bio"} rows={4} /></label>
         <label className="wide-field"><span>Interests</span><textarea value={draft.interests ?? ""} onChange={(event) => update("interests", event.target.value)} placeholder={copy?.interestsPlaceholder ?? "Public Marketplace interests, such as privacy, GIS, research, or developer tools"} rows={3} /></label>

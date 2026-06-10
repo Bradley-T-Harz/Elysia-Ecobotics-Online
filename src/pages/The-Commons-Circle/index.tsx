@@ -208,9 +208,26 @@ export default function CommonsCirclePage() {
       </section>
 
       <section className="two-column commons-account-panels">
+        <div className="commons-account-start">
+          <div className="boundary-note">
+            <strong>Start here:</strong> create or sign in to your Website Account first. After you are signed in, create your Commons Profile on the right.
+          </div>
+          <AuthPanel
+            onMessage={pushMessage}
+            onAuthChanged={refreshAccountSurfaces}
+            copy={{
+              eyebrow: "Website Account",
+              title: "Create or Sign In to Website Account",
+              description: "This is your public Elysia Ecobotics Online account. It is separate from the private local Elysia core. Do not use your local Elysia password here.",
+              signedOutText: "No active website session.",
+              confirmationPath: "/commons-circle",
+              confirmationCopy: "If email confirmation is enabled, open the confirmation link to return to the site; the session should appear after Supabase completes the redirect."
+            }}
+          />
+        </div>
         <div className="commons-profile-start">
           <div className="boundary-note">
-            <strong>Start here:</strong> create your Commons Profile first. If you are not signed in yet, use the Website Account panel on the right, then return here to create your profile.
+            <strong>Next:</strong> your Commons Profile is the public profile connected to your signed-in Website Account. It is not a second account and not a second login.
           </div>
           <ProfilePanel
             profile={profile}
@@ -221,30 +238,19 @@ export default function CommonsCirclePage() {
               eyebrow: "Commons Profile",
               createTitle: "Create Commons Profile",
               demoTitle: "Demo Commons Profile",
-              noProfileText: "Sign in or create a Website Account first using the panel on the right, then create your Commons Profile here.",
-              description: "Start with your Commons Profile. This becomes your public website identity for saved add-ons, source collections, Commune participation, developer links, and stewardship recognition. This never changes the local Elysia account.",
+              noProfileText: "Create or sign in to a Website Account first, then create your Commons Profile.",
+              description: "Your Commons Profile is the public profile connected to your signed-in Website Account. It is not a second login. It supports saved add-ons, source collections, Commune participation, developer links, and stewardship recognition without changing the local Elysia account.",
               saveMessage: "Commons profile saved.",
               updateButton: "Update Commons Profile",
               createButton: "Create Commons Profile",
-              displayNamePlaceholder: "Commons Builder",
+              usernamePlaceholder: "bradley-harz",
+              displayNamePlaceholder: "Bradley T. Harz",
               bioPlaceholder: "Short public Commons bio",
               interestsPlaceholder: "Public interests such as ecology, privacy, open science, add-ons, or community support",
-              boundaryNote: "Admin and trust roles cannot be self-assigned in this UI. Local Elysia linking is planned and must be explicit, narrow, revocable, and controlled by local Elysia. Website profile data does not overwrite local Elysia profile data, and passwords are never shared."
+              boundaryNote: "Admin, moderator, reviewer, developer trust, and other authority roles cannot be self-assigned in this UI. Local Elysia linking is planned and must be explicit, narrow, revocable, and controlled by local Elysia. Website profile data does not overwrite local Elysia profile data, and passwords are never shared."
             }}
           />
         </div>
-        <AuthPanel
-          onMessage={pushMessage}
-          onAuthChanged={refreshAccountSurfaces}
-          copy={{
-            eyebrow: "Website Account",
-            title: "Website Account",
-            description: "Sign in to your Elysia Ecobotics Online account. This is for the public website, not the private local Elysia core. Do not enter your local Elysia password here.",
-            signedOutText: "No active website session.",
-            confirmationPath: "/commons-circle",
-            confirmationCopy: "If email confirmation is enabled, open the confirmation link to return to the site; the session should appear after Supabase completes the redirect."
-          }}
-        />
       </section>
 
       <section className="section-card commons-membership-status">
