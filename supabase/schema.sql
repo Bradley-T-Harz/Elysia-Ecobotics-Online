@@ -102,5 +102,44 @@ create table if not exists addon_reviews (
   created_at timestamptz not null default now()
 );
 
+create table if not exists work_with_requests (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  name text,
+  preferred_contact text,
+  commons_username text,
+  request_type text,
+  availability text,
+  areas_of_interest text[] not null default '{}'::text[],
+  message text,
+  skills_experience text,
+  github_url text,
+  gitlab_codeberg_url text,
+  portfolio_url text,
+  linkedin_url text,
+  acknowledgements jsonb not null default '{}'::jsonb,
+  status text not null default 'pending_review',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (status in ('pending_review','needs_redaction','approved','rejected','archived','withdrawn'))
+);
+
+create table if not exists work_with_request_files (
+  id uuid primary key default gen_random_uuid(),
+  request_id uuid not null references work_with_requests(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  bucket text not null default 'work-with-attachments',
+  storage_path text not null,
+  original_filename text not null,
+  mime_type text,
+  size_bytes bigint,
+  file_role text not null default 'resume_cv',
+  created_at timestamptz not null default now(),
+  unique(bucket, storage_path),
+  check (bucket = 'work-with-attachments'),
+  check (file_role in ('resume_cv')),
+  check (size_bytes is null or size_bytes <= 10485760)
+);
+
 -- Future only: local Elysia pairing should use short-lived codes and never share local passwords.
 -- create table device_links (...);

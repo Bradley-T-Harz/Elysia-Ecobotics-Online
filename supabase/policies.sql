@@ -87,3 +87,102 @@ create policy "admins manage reviews" on addon_reviews for all using (public.is_
 
 -- Bootstrap Bradley admin manually after account creation through SQL Editor.
 -- Browser clients must never receive or use a service-role key.
+
+
+-- Work With requests and private resume/CV attachment metadata.
+alter table public.work_with_requests enable row level security;
+alter table public.work_with_request_files enable row level security;
+
+create or replace function public.can_review_work_with_requests()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce((select is_admin from public.profiles where id = auth.uid()), false);
+$$;
+
+drop policy if exists "users insert own work with requests" on public.work_with_requests;
+drop policy if exists "users read own work with requests" on public.work_with_requests;
+drop policy if exists "admins read all work with requests" on public.work_with_requests;
+drop policy if exists "admins update work with requests" on public.work_with_requests;
+
+create policy "users insert own work with requests" on public.work_with_requests
+  for insert
+  to authenticated
+  with check (user_id = auth.uid());
+
+create policy "users read own work with requests" on public.work_with_requests
+  for select
+  to authenticated
+  using (user_id = auth.uid());
+
+create policy "admins read all work with requests" on public.work_with_requests
+  for select
+  to authenticated
+  using (public.can_review_work_with_requests());
+
+create policy "admins update work with requests" on public.work_with_requests
+  for update
+  to authenticated
+  using (public.can_review_work_with_requests())
+  with check (public.can_review_work_with_requests());
+
+drop policy if exists "users insert own work with request files" on public.work_with_request_files;
+drop policy if exists "users read own work with request files" on public.work_with_request_files;
+drop policy if exists "admins read all work with request files" on public.work_with_request_files;
+
+create policy "users insert own work with request files" on public.work_with_request_files
+  for insert
+  to authenticated
+  with check (
+    user_id = auth.uid()
+    and bucket = 'work-with-attachments'
+    and exists (
+      select 1 from public.work_with_requests
+      where id = request_id and user_id = auth.uid()
+    )
+  );
+
+create policy "users read own work with request files" on public.work_with_request_files
+  for select
+  to authenticated
+  using (user_id = auth.uid());
+
+create policy "admins read all work with request files" on public.work_with_request_files
+  for select
+  to authenticated
+  using (public.can_review_work_with_requests());
+
+drop policy if exists "users upload own work with attachments" on storage.objects;
+drop policy if exists "users read own work with attachments" on storage.objects;
+drop policy if exists "admins read all work with attachments" on storage.objects;
+
+create policy "users upload own work with attachments" on storage.objects
+  for insert
+  to authenticated
+  with check (
+    bucket_id = 'work-with-attachments'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+create policy "users read own work with attachments" on storage.objects
+  for select
+  to authenticated
+  using (
+    bucket_id = 'work-with-attachments'
+    and (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+create policy "admins read all work with attachments" on storage.objects
+  for select
+  to authenticated
+  using (
+    bucket_id = 'work-with-attachments'
+    and public.can_review_work_with_requests()
+  );
+
+grant select, insert on table public.work_with_requests to authenticated;
+grant update (status, updated_at) on table public.work_with_requests to authenticated;
+grant select, insert on table public.work_with_request_files to authenticated;

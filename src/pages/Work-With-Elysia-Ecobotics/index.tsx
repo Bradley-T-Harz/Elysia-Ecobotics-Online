@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import FeatureCard from "../../shared/components/FeatureCard";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
+import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
 
-type RequestStatus = "draft_local" | "pending_admin_review_local";
+type RequestStatus = "draft_local" | "pending_admin_review_local" | "pending_review";
 
 type WorkRequest = {
   id: string;
@@ -64,6 +65,51 @@ const initialForm = {
   understandsReview: false
 };
 
+const resumeBucketName = "work-with-attachments";
+const maxResumeSizeBytes = 10 * 1024 * 1024;
+const acceptedResumeExtensions = new Set(["pdf", "doc", "docx", "odt", "txt", "md"]);
+const acceptedResumeMimeTypes = new Set([
+  "application/pdf",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.oasis.opendocument.text",
+  "text/plain",
+  "text/markdown",
+  "text/x-markdown",
+  "application/octet-stream"
+]);
+
+type ResumeValidation = { ok: true } | { ok: false; message: string };
+
+function extensionForFile(file: File): string {
+  return file.name.split(".").pop()?.toLowerCase() ?? "";
+}
+
+function validateResumeFile(file: File | null): ResumeValidation {
+  if (!file) return { ok: true };
+  const extension = extensionForFile(file);
+  if (!acceptedResumeExtensions.has(extension)) {
+    return { ok: false, message: "Resume/CV must be a PDF, DOC, DOCX, ODT, TXT, or Markdown file." };
+  }
+  if (file.size > maxResumeSizeBytes) {
+    return { ok: false, message: "Resume/CV must be 10 MB or smaller." };
+  }
+  if (file.type && !acceptedResumeMimeTypes.has(file.type)) {
+    return { ok: false, message: `Resume/CV MIME type is not accepted: ${file.type}` };
+  }
+  return { ok: true };
+}
+
+function sanitizeFilename(name: string) {
+  const cleaned = name.normalize("NFKD").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  return cleaned.slice(0, 120) || "resume-cv";
+}
+
+function newRequestId() {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return `request-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 function readRequests(): WorkRequest[] {
   if (typeof window === "undefined") return [];
   try {
@@ -114,7 +160,18 @@ export default function WorkWithPage() {
   const [form, setForm] = useState(initialForm);
   const [requests, setRequests] = useState<WorkRequest[]>(() => readRequests());
   const [message, setMessage] = useState("");
+  const [signedInUserId, setSignedInUserId] = useState<string | null>(null);
+  const [resumeFile, setResumeFile] = useState<File | null>(null);
+  const [uploadBusy, setUploadBusy] = useState(false);
   const currentMarkdown = useMemo(() => formatMarkdown(form, "draft_local"), [form]);
+
+  useEffect(() => {
+    if (!supabase) return;
+    let mounted = true;
+    supabase.auth.getUser().then(({ data }) => { if (mounted) setSignedInUserId(data.user?.id ?? null); });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => { setSignedInUserId(session?.user.id ?? null); });
+    return () => { mounted = false; listener.subscription.unsubscribe(); };
+  }, []);
 
   function toggleArea(area: string) {
     setForm((current) => ({ ...current, areasOfInterest: current.areasOfInterest.includes(area) ? current.areasOfInterest.filter((item) => item !== area) : [...current.areasOfInterest, area] }));
@@ -126,8 +183,97 @@ export default function WorkWithPage() {
     setRequests(next);
     writeRequests(next);
     setMessage(status === "pending_admin_review_local"
-      ? "Request saved locally as a pending administrator-review draft. A live administrator review queue will be connected later."
+      ? "Request saved locally as a pending administrator-review draft. Sign in to a Website Account to save it for administrator review."
       : "Request draft saved locally in this browser.");
+  }
+
+  async function submitForAdministratorReview() {
+    if (!hasSupabaseConfig || !supabase) {
+      saveRequest("pending_admin_review_local");
+      setMessage(`${supabaseNotConfiguredMessage} Request saved locally as a pending administrator-review draft.`);
+      return;
+    }
+    const { data: auth, error: authError } = await supabase.auth.getUser();
+    if (authError || !auth.user) {
+      saveRequest("pending_admin_review_local");
+      setMessage("Sign in to a Website Account before uploading a resume or CV or saving a request for administrator review. A local pending-review draft was saved in this browser.");
+      return;
+    }
+
+    const validation = validateResumeFile(resumeFile);
+    if (!validation.ok) {
+      setMessage(validation.message);
+      return;
+    }
+
+    const requestId = newRequestId();
+    setUploadBusy(true);
+    const acknowledgements = {
+      volunteer_understanding: form.understandsVolunteer,
+      public_privacy_boundary: form.understandsPublicPrivacy,
+      administrator_review_required: form.understandsReview,
+      resume_cv_private_admin_review: Boolean(resumeFile)
+    };
+
+    const { error: requestError } = await supabase.from("work_with_requests").insert({
+      id: requestId,
+      user_id: auth.user.id,
+      name: form.name.trim() || null,
+      preferred_contact: form.contact.trim() || null,
+      commons_username: form.commonsUsername.trim() || null,
+      request_type: form.requestType,
+      availability: form.availability,
+      areas_of_interest: form.areasOfInterest,
+      message: form.message.trim() || null,
+      skills_experience: form.skills.trim() || null,
+      github_url: form.github.trim() || null,
+      gitlab_codeberg_url: form.gitlabCodeberg.trim() || null,
+      portfolio_url: form.portfolio.trim() || null,
+      linkedin_url: form.linkedin.trim() || null,
+      acknowledgements,
+      status: "pending_review"
+    });
+
+    if (requestError) {
+      setUploadBusy(false);
+      setMessage(`Could not save request for administrator review: ${requestError.message}`);
+      return;
+    }
+
+    if (resumeFile) {
+      const safeName = sanitizeFilename(resumeFile.name);
+      const storagePath = `${auth.user.id}/${requestId}/${Date.now()}-${safeName}`;
+      const uploadResult = await supabase.storage.from(resumeBucketName).upload(storagePath, resumeFile, {
+        cacheControl: "3600",
+        contentType: resumeFile.type || undefined,
+        upsert: false
+      });
+      if (uploadResult.error) {
+        setUploadBusy(false);
+        setMessage(`Request row was created, but the private resume/CV upload failed: ${uploadResult.error.message}. The file was not saved.`);
+        return;
+      }
+
+      const { error: fileError } = await supabase.from("work_with_request_files").insert({
+        request_id: requestId,
+        user_id: auth.user.id,
+        bucket: resumeBucketName,
+        storage_path: storagePath,
+        original_filename: resumeFile.name,
+        mime_type: resumeFile.type || null,
+        size_bytes: resumeFile.size,
+        file_role: "resume_cv"
+      });
+      if (fileError) {
+        setUploadBusy(false);
+        setMessage(`Private resume/CV uploaded, but file metadata could not be saved: ${fileError.message}. Do not assume the attachment is reviewable yet.`);
+        return;
+      }
+    }
+
+    setUploadBusy(false);
+    setMessage("Request saved for administrator review.");
+    setResumeFile(null);
   }
 
   function exportMarkdown() {
@@ -189,14 +335,31 @@ export default function WorkWithPage() {
           <label><span>GitLab / Codeberg</span><input value={form.gitlabCodeberg} onChange={(event) => setForm({ ...form, gitlabCodeberg: event.target.value })} /></label>
           <label><span>Portfolio / website</span><input value={form.portfolio} onChange={(event) => setForm({ ...form, portfolio: event.target.value })} /></label>
           <label><span>LinkedIn, optional</span><input value={form.linkedin} onChange={(event) => setForm({ ...form, linkedin: event.target.value })} /></label>
+          <label className="wide-field resume-upload-field"><span>Resume or CV, optional</span><input type="file" accept=".pdf,.doc,.docx,.odt,.txt,.md,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.oasis.opendocument.text,text/plain,text/markdown,text/x-markdown" onChange={(event) => {
+            const nextFile = event.target.files?.[0] ?? null;
+            const validation = validateResumeFile(nextFile);
+            if (!validation.ok) {
+              setResumeFile(null);
+              event.currentTarget.value = "";
+              setMessage(validation.message);
+              return;
+            }
+            setResumeFile(nextFile);
+            if (nextFile) setMessage(`Selected private resume/CV attachment: ${nextFile.name}. It will upload only when you save for administrator review while signed in.`);
+          }} /></label>
+          <div className="wide-field boundary-note resume-upload-note">
+            <strong>Resume or CV, optional.</strong> Upload a PDF, DOC, DOCX, ODT, TXT, or Markdown resume/CV for administrator review. This file is private, not public, and is only for reviewing your Work With request. {signedInUserId ? "You are signed in; upload will occur only when you save for administrator review." : "Sign in to a Website Account before uploading a resume or CV."}
+            <br />Resume/CV uploads are private administrator-review materials. Do not upload identity documents, financial records, medical records, passwords, API keys, .env files, private local Elysia data, or unredacted third-party personal data.
+            {resumeFile && <span className="inline-status">Selected file: {resumeFile.name} ({Math.ceil(resumeFile.size / 1024)} KB)</span>}
+          </div>
         </div>
         <div className="work-confirm-grid">
           <label className="checkbox-line"><input type="checkbox" checked={form.understandsVolunteer} onChange={(event) => setForm({ ...form, understandsVolunteer: event.target.checked })} /><span>I understand current opportunities are generally volunteer, contributor, or collaborator roles unless explicitly marked paid.</span></label>
           <label className="checkbox-line"><input type="checkbox" checked={form.understandsPublicPrivacy} onChange={(event) => setForm({ ...form, understandsPublicPrivacy: event.target.checked })} /><span>I understand this is a public website request and I should not include secrets, private Elysia memory, credentials, .env files, private logs, or sensitive personal/customer data.</span></label>
           <label className="checkbox-line"><input type="checkbox" checked={form.understandsReview} onChange={(event) => setForm({ ...form, understandsReview: event.target.checked })} /><span>I understand this request requires administrator review and does not automatically grant a role, badge, membership tier, moderator authority, reviewer authority, or paid position.</span></label>
         </div>
-        <div className="button-row"><button type="button" onClick={() => saveRequest("draft_local")}>Save request draft locally</button><button type="button" className="button-primary" onClick={() => saveRequest("pending_admin_review_local")}>Save as pending administrator-review request</button><button type="button" onClick={exportMarkdown}>Export request as Markdown</button><button type="button" onClick={() => void copyRequest()}>Copy request</button></div>
-        <p className="boundary-note">If no live backend review table exists, requests are saved locally in this browser only. Later, this form will connect to an administrator review queue. The administrator will decide which requests become volunteer tasks, collaboration threads, contributor recognition, reviewer roles, or future paid opportunities.</p>
+        <div className="button-row"><button type="button" onClick={() => saveRequest("draft_local")}>Save request draft locally</button><button type="button" className="button-primary" onClick={() => void submitForAdministratorReview()} disabled={uploadBusy}>{uploadBusy ? "Saving for review..." : "Save as pending administrator-review request"}</button><button type="button" onClick={exportMarkdown}>Export request as Markdown</button><button type="button" onClick={() => void copyRequest()}>Copy request</button></div>
+        <p className="boundary-note">If Supabase is configured and you are signed in, pending administrator-review requests are saved to the private review table. Otherwise requests are saved locally in this browser only. Later, this form will connect to an administrator review queue. The administrator will decide which requests become volunteer tasks, collaboration threads, contributor recognition, reviewer roles, or future paid opportunities.</p>
       </section>
 
       <section className="two-column work-review-panels">
