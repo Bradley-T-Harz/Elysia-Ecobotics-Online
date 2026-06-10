@@ -116,6 +116,9 @@ export type MarketplaceProfile = {
   is_developer: boolean;
   is_admin: boolean;
   saved_addon_ids: string[];
+  commons_onboarding_completed_at?: string | null;
+  stewardship_onboarding_skipped_at?: string | null;
+  work_with_onboarding_skipped_at?: string | null;
 };
 
 export type MarketplaceProfileDraft = {

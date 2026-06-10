@@ -1120,7 +1120,9 @@ code { color: var(--teal); overflow-wrap: anywhere; }
 }
 
 .commons-onboarding-page .hero,
-.commons-onboarding-page .page-hero {
+.commons-onboarding-page .page-hero,
+.commons-setup-page .hero,
+.commons-setup-page .page-hero {
   min-height: auto;
 }
 
@@ -1134,6 +1136,33 @@ code { color: var(--teal); overflow-wrap: anywhere; }
 .commons-onboarding-panel {
   display: grid;
   gap: 0.85rem;
+}
+
+.commons-profile-setup-card,
+.commons-setup-form-card,
+.commons-setup-panel {
+  display: grid;
+  gap: 0.85rem;
+  align-content: start;
+}
+
+.commons-setup-progress {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.commons-setup-page .commons-org-grid {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.commons-setup-page .commons-org-card {
+  align-content: start;
+}
+
+.commons-setup-page .two-column .wide-field {
+  grid-column: 1 / -1;
 }
 
 .commons-org-category {
@@ -1664,5 +1693,55 @@ code { color: var(--teal); overflow-wrap: anywhere; }
 
   .section-heading-row {
     display: grid;
+  }
+}
+
+/* Commons Circle post-profile next steps */
+.commons-next-steps-panel,
+.commons-stewardship-section {
+  scroll-margin-top: 7.5rem;
+}
+
+.commons-next-steps-grid,
+.commons-stewardship-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin-top: 0.85rem;
+}
+
+.commons-next-steps-grid article,
+.commons-stewardship-grid article {
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.035);
+  padding: 1rem;
+}
+
+.commons-next-steps-grid h3,
+.commons-stewardship-grid h3 {
+  margin-top: 0;
+}
+
+.commons-next-steps-grid p,
+.commons-stewardship-section p,
+.commons-stewardship-grid li {
+  color: var(--muted);
+  line-height: 1.55;
+}
+
+.commons-stewardship-grid ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.commons-stewardship-grid a {
+  color: var(--teal);
+}
+
+@media (max-width: 980px) {
+  .commons-next-steps-grid,
+  .commons-stewardship-grid {
+    grid-template-columns: 1fr;
   }
 }

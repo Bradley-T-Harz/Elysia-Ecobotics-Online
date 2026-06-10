@@ -20,7 +20,7 @@ import LivingLibraryPage from "./pages/The-Living-Library";
 import CommunePage from "./pages/The-Elysia-Commune";
 import WorkWithPage from "./pages/Work-With-Elysia-Ecobotics";
 import CommonsCirclePage from "./pages/The-Commons-Circle";
-import CommonsCircleOnboardingPage from "./pages/The-Commons-Circle/CommonsCircleOnboardingPage";
+import CommonsCircleSetupPage from "./pages/The-Commons-Circle/CommonsCircleSetupPage";
 import StoryPage from "./pages/The-Story-of-Elysia";
 import AboutPage from "./pages/About-Elysia-Ecobotics";
 import MissionPage from "./pages/The-Elysia-Mission";
@@ -62,7 +62,8 @@ export default function App() {
             <Route path="commune" element={<CommunePage />} />
             <Route path="work-with-elysia-ecobotics" element={<WorkWithPage />} />
             <Route path="commons-circle" element={<CommonsCirclePage />} />
-            <Route path="commons-circle/onboarding" element={<CommonsCircleOnboardingPage />} />
+            <Route path="commons-circle/onboarding" element={<Navigate to="/commons-circle/setup/profile" replace />} />
+            <Route path="commons-circle/setup/:step" element={<CommonsCircleSetupPage />} />
             <Route path="story" element={<StoryPage />} />
             <Route path="about" element={<AboutPage />} />
             <Route path="mission" element={<MissionPage />} />

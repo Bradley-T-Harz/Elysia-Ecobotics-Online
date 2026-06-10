@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
-import ProfilePanel from "../The-Elysia-Marketplace/components/ProfilePanel";
 import { loadCurrentProfile, loadAdminReviewQueue } from "../The-Elysia-Marketplace/lib/marketplaceApi";
 import { hasSupabaseConfig } from "../The-Elysia-Marketplace/lib/supabase";
 import type { MarketplaceProfile } from "../The-Elysia-Marketplace/types";
@@ -25,8 +24,11 @@ type OnboardingState = {
   membershipTier?: "Free Member";
 };
 
-type StewardshipDraft = {
-  status?: "draft_local" | "pending_admin_review_local";
+type StewardshipDraft = { status?: "draft_local" | "pending_admin_review_local" };
+type ProfileWithSetup = MarketplaceProfile & {
+  commons_onboarding_completed_at?: string | null;
+  stewardship_onboarding_skipped_at?: string | null;
+  work_with_onboarding_skipped_at?: string | null;
 };
 
 const storageKeys = {
@@ -91,17 +93,15 @@ function countStorageArray(key: string) {
 }
 
 export default function CommonsCirclePage() {
-  const [profile, setProfile] = useState<MarketplaceProfile | null>(null);
+  const [profile, setProfile] = useState<ProfileWithSetup | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
   const [privacySettings, setPrivacySettings] = useState<PrivacySettings>(() => readStorage(storageKeys.privacySettings, defaultPrivacySettings));
   const [onboardingDone, setOnboardingDone] = useState<OnboardingState>(() => readStorage(storageKeys.onboarding, { skippedStewardship: false, welcomed: false }));
   const [verificationDrafts, setVerificationDrafts] = useState<StewardshipDraft[]>(() => readStorage(storageKeys.stewardshipDrafts, []));
   const [contributionRequests, setContributionRequests] = useState<unknown[]>(() => readStorage(storageKeys.contributionRequests, []));
-  const [showOnboardingPrompt, setShowOnboardingPrompt] = useState(false);
-  const [popupBlocked, setPopupBlocked] = useState(false);
 
   const pushMessage = useCallback((message: string) => { if (message.trim()) setMessages((current) => [message, ...current].slice(0, 5)); }, []);
-  const refreshProfile = useCallback(async () => { const result = await loadCurrentProfile(); setProfile(result.data); result.warnings.forEach(pushMessage); }, [pushMessage]);
+  const refreshProfile = useCallback(async () => { const result = await loadCurrentProfile(); setProfile(result.data as ProfileWithSetup | null); result.warnings.forEach(pushMessage); }, [pushMessage]);
   const refreshReviewQueue = useCallback(async () => { const result = await loadAdminReviewQueue(); result.warnings.forEach(pushMessage); }, [pushMessage]);
   const refreshLocalCounts = useCallback(() => {
     setOnboardingDone(readStorage(storageKeys.onboarding, { skippedStewardship: false, welcomed: false }));
@@ -117,7 +117,7 @@ export default function CommonsCirclePage() {
     const onComplete = () => {
       refreshLocalCounts();
       void refreshAccountSurfaces();
-      pushMessage("Commons Circle onboarding updated. Your Website Account and local membership counts were refreshed.");
+      pushMessage("Commons Circle setup updated. Website Account, Commons Profile, and local membership counts were refreshed.");
     };
     channel?.addEventListener("message", (event) => { if (event.data?.type === "commons-circle-onboarding-complete") onComplete(); });
     const onStorage = (event: StorageEvent) => { if (event.key === storageKeys.onboarding || event.key === storageKeys.stewardshipDrafts || event.key === storageKeys.contributionRequests) onComplete(); };
@@ -133,36 +133,13 @@ export default function CommonsCirclePage() {
   const savedSourceCollections = readStorage<unknown[]>("elysiaLivingLibrary.collections.v1", []).length;
   const followedThreads = countStorageArray("commune.followedThreads.v1");
   const pendingRecognitionCount = verificationDrafts.filter((draft) => draft.status === "pending_admin_review_local").length;
+  const profileSetupComplete = Boolean(profile?.commons_onboarding_completed_at || onboardingDone.completed);
+  const setupPath = profile ? "/commons-circle/setup/profile" : "/commons-circle/setup/profile";
 
   function savePrivacySettings(next: PrivacySettings) {
     setPrivacySettings(next);
     writeStorage(storageKeys.privacySettings, next);
     pushMessage("Privacy settings saved locally as placeholders until account-backed settings are built.");
-  }
-
-  function skipStewardship() {
-    const next: OnboardingState = { skippedStewardship: true, welcomed: true, membershipTier: "Free Member" };
-    setOnboardingDone(next);
-    writeStorage(storageKeys.onboarding, next);
-    pushMessage("Welcome to The Commons Circle. You are now a Free Member. You can support stewardship organizations or request contribution review later from this page.");
-  }
-
-  function openOnboarding() {
-    if (typeof window === "undefined") return;
-    setPopupBlocked(false);
-    const child = window.open("/commons-circle/onboarding", "_blank");
-    if (child) {
-      try { child.opener = null; } catch { /* Browser may block opener access. */ }
-      child.focus();
-      return;
-    }
-    setPopupBlocked(true);
-  }
-
-  async function handleProfileSaved() {
-    setShowOnboardingPrompt(true);
-    pushMessage("Commons Profile saved. Continue membership onboarding in a new tab when you are ready.");
-    await refreshAccountSurfaces();
   }
 
   return (
@@ -180,37 +157,10 @@ export default function CommonsCirclePage() {
         <WarningCallout title="Administrator authority"><p>Membership recognition does not buy authority over Elysia. Guardian, reviewer, moderator, administrator, and trust roles are assigned by authorized administrators.</p></WarningCallout>
       </section>
 
-      <section className="section-card commons-stepper">
-        <p className="eyebrow">Onboarding</p>
-        <h2>From account to commons membership</h2>
-        <ol>
-          <li>Create or sign in to Website Account.</li>
-          <li>Create Commons Profile.</li>
-          <li>Free Member welcome.</li>
-          <li>Optional stewardship support.</li>
-          <li>Redacted proof / recognition request, or skip.</li>
-          <li>Optional contribution/help request.</li>
-          <li>Membership confirmation.</li>
-        </ol>
-        <div className="button-row commons-onboarding-actions">
-          <button type="button" className="button-primary" onClick={openOnboarding}>Continue onboarding in new tab</button>
-          <button type="button" onClick={openOnboarding}>Resume onboarding</button>
-          <button type="button" onClick={skipStewardship}>Skip for now</button>
-          <a className="button-link" href="/commons-circle/onboarding" target="_blank" rel="noreferrer noopener">Open onboarding route</a>
-        </div>
-        {popupBlocked && <p className="validation validation--bad">Your browser blocked the onboarding tab. Use the visible “Open onboarding route” link to continue in a new tab.</p>}
-        {showOnboardingPrompt && <p className="validation validation--ok">Commons Profile saved. You can continue membership onboarding in a new tab, or skip and remain a Free Member.</p>}
-        {onboardingDone.welcomed && <p className="inline-status">Welcome to The Commons Circle. You are now a Free Member.</p>}
-      </section>
-
-      <section className="commons-tier-grid">
-        {membershipTiers.map((tier) => <article className="section-card commons-tier-card" key={tier.name}><p className="eyebrow">{tier.status}</p><h3>{tier.name}</h3><p>{tier.purpose}</p><p><strong>How awarded:</strong> {tier.awarded}</p><p className="boundary-note">{tier.note}</p></article>)}
-      </section>
-
       <section className="two-column commons-account-panels">
         <div className="commons-account-start">
           <div className="boundary-note">
-            <strong>Start here:</strong> create or sign in to your Website Account first. After you are signed in, create your Commons Profile on the right.
+            <strong>Start here:</strong> create or sign in to your Website Account first. This is the actual authentication account for Elysia Ecobotics Online.
           </div>
           <AuthPanel
             onMessage={pushMessage}
@@ -225,32 +175,33 @@ export default function CommonsCirclePage() {
             }}
           />
         </div>
-        <div className="commons-profile-start">
-          <div className="boundary-note">
-            <strong>Next:</strong> your Commons Profile is the public profile connected to your signed-in Website Account. It is not a second account and not a second login.
-          </div>
-          <ProfilePanel
-            profile={profile}
-            supabaseConfigured={hasSupabaseConfig}
-            onMessage={pushMessage}
-            onProfileSaved={handleProfileSaved}
-            copy={{
-              eyebrow: "Commons Profile",
-              createTitle: "Create Commons Profile",
-              demoTitle: "Demo Commons Profile",
-              noProfileText: "Create or sign in to a Website Account first, then create your Commons Profile.",
-              description: "Your Commons Profile is the public profile connected to your signed-in Website Account. It is not a second login. It supports saved add-ons, source collections, Commune participation, developer links, and stewardship recognition without changing the local Elysia account.",
-              saveMessage: "Commons profile saved.",
-              updateButton: "Update Commons Profile",
-              createButton: "Create Commons Profile",
-              usernamePlaceholder: "bradley-harz",
-              displayNamePlaceholder: "Bradley T. Harz",
-              bioPlaceholder: "Short public Commons bio",
-              interestsPlaceholder: "Public interests such as ecology, privacy, open science, add-ons, or community support",
-              boundaryNote: "Admin, moderator, reviewer, developer trust, and other authority roles cannot be self-assigned in this UI. Local Elysia linking is planned and must be explicit, narrow, revocable, and controlled by local Elysia. Website profile data does not overwrite local Elysia profile data, and passwords are never shared."
-            }}
-          />
-        </div>
+        <section className="section-card commons-profile-setup-card">
+          <p className="eyebrow">Commons Profile</p>
+          <h2>{profile ? profileSetupComplete ? "Commons Profile setup complete" : "Finish Commons Profile setup" : "Create Commons Profile"}</h2>
+          <p>Your Commons Profile is the public profile connected to your signed-in Website Account. It is not a second account and not a second login.</p>
+          {!profile && <p className="boundary-note">Create or sign in to a Website Account first, then start the Commons Profile setup wizard. The first profile screen is a draft; the profile is not finalized until the final confirmation step.</p>}
+          {profile && !profileSetupComplete && <p className="boundary-note">Finish Commons Profile setup to complete the missing stewardship and Work With steps without creating a duplicate profile.</p>}
+          {profile && profileSetupComplete && <dl className="mini-facts"><div><dt>Username</dt><dd>{profile.username}</dd></div><div><dt>Display name</dt><dd>{profile.display_name || "Not set"}</dd></div><div><dt>Developer</dt><dd>{profile.is_developer ? "Requested / visible" : "Pending / No"}</dd></div><div><dt>Admin</dt><dd>{profile.is_admin ? "Yes" : "No"}</dd></div></dl>}
+          <div className="button-row"><a className="button-link button-link--primary" href={setupPath}>{profile ? profileSetupComplete ? "Review setup / update profile" : "Finish Commons Profile setup" : "Start Commons Profile setup"}</a></div>
+          <p className="boundary-note">Admin, moderator, reviewer, developer trust, and other authority roles cannot be self-assigned in this UI. Local Elysia linking must be explicit, narrow, revocable, and controlled by local Elysia.</p>
+        </section>
+      </section>
+
+      <section className="section-card commons-stepper">
+        <p className="eyebrow">Setup sequence</p>
+        <h2>Website Account → profile draft → optional requests → final creation</h2>
+        <ol>
+          <li>Create or sign in to Website Account.</li>
+          <li>Draft Commons Profile fields. This does not finalize the profile.</li>
+          <li>Choose optional stewardship support or skip it.</li>
+          <li>Prepare an optional Work With Elysia Ecobotics request or skip it.</li>
+          <li>Review the final confirmation and click Create Commons Profile.</li>
+        </ol>
+        <p className="boundary-note">Donations are optional, direct-to-organization, and never required for membership. Helping Elysia Ecobotics is optional and subject to administrator review.</p>
+      </section>
+
+      <section className="commons-tier-grid">
+        {membershipTiers.map((tier) => <article className="section-card commons-tier-card" key={tier.name}><p className="eyebrow">{tier.status}</p><h3>{tier.name}</h3><p>{tier.purpose}</p><p><strong>How awarded:</strong> {tier.awarded}</p><p className="boundary-note">{tier.note}</p></article>)}
       </section>
 
       <section className="section-card commons-membership-status">
@@ -258,6 +209,7 @@ export default function CommonsCirclePage() {
         <h2>Free Member by default</h2>
         <dl className="mini-facts">
           <div><dt>Current tier</dt><dd>Free Member</dd></div>
+          <div><dt>Setup complete</dt><dd>{profileSetupComplete ? "Yes" : "Not yet"}</dd></div>
           <div><dt>Pending recognition drafts</dt><dd>{pendingRecognitionCount}</dd></div>
           <div><dt>Contribution help drafts</dt><dd>{contributionRequests.length}</dd></div>
           <div><dt>Developer</dt><dd>{profile?.is_developer ? "Requested / visible" : "Pending / No"}</dd></div>

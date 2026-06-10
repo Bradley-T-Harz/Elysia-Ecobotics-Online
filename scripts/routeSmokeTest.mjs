@@ -3,7 +3,8 @@ const requiredRoutes = [
   "/marketplace/action-preview", "/marketplace/account", "/marketplace/submit", "/marketplace/trust",
   "/marketplace/manifest-api", "/marketplace/admin", "/products", "/lab", "/developer-forge",
   "/living-library", "/commune", "/work-with-elysia-ecobotics", "/commons-circle",
-  "/commons-circle/onboarding", "/story",
+  "/commons-circle/onboarding", "/commons-circle/setup/profile", "/commons-circle/setup/stewardship",
+  "/commons-circle/setup/work-with", "/commons-circle/setup/confirm", "/story",
   "/about", "/mission", "/legal", "/legal/privacy-policy", "/legal/terms-of-use",
   "/legal/community-guidelines", "/legal/marketplace-developer-agreement",
   "/legal/add-on-submission-policy", "/legal/security-review-policy",
@@ -19,7 +20,8 @@ const missing = requiredRoutes.filter((route) => {
   const path = route.replace(/^\//, "");
   const nestedPath = path.replace(/^marketplace\//, "");
   const legalPolicyRoute = path.startsWith("legal/") && app.includes(`path=\"legal/:slug\"`);
-  return !(legalPolicyRoute || app.includes(`path=\"${path}\"`) || app.includes(`path=\"${nestedPath}\"`) || app.includes(`to=\"${route}\"`) || app.includes(`target=\"${route}\"`));
+  const commonsSetupRoute = path.startsWith("commons-circle/setup/") && app.includes(`path=\"commons-circle/setup/:step\"`);
+  return !(legalPolicyRoute || commonsSetupRoute || app.includes(`path=\"${path}\"`) || app.includes(`path=\"${nestedPath}\"`) || app.includes(`to=\"${route}\"`) || app.includes(`target=\"${route}\"`));
 });
 if (missing.length) {
   console.error(`Missing route wiring: ${missing.join(", ")}`);
