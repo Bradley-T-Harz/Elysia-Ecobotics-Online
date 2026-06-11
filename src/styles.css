@@ -838,30 +838,39 @@ code { color: var(--teal); overflow-wrap: anywhere; }
 .commune-status-card,
 .commune-composer-card,
 .commune-repo-card,
-.commune-sandbox-card {
+.commune-sandbox-card,
+.commune-lobby,
+.commune-search-panel,
+.commune-feed {
   overflow: hidden;
 }
 
 .commune-zone-grid,
-.commune-draft-grid {
+.commune-draft-grid,
+.commune-feed-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 0.85rem;
 }
 
 .commune-zone-card,
+.commune-feed-card,
 .commune-draft-grid article,
 .commune-info-grid article {
+  position: relative;
   display: grid;
   gap: 0.65rem;
   min-width: 0;
   border: 1px solid var(--line);
   border-radius: 18px;
-  background: rgba(8, 11, 16, 0.48);
+  background:
+    radial-gradient(circle at 92% 8%, rgba(142, 232, 220, 0.08), transparent 10rem),
+    rgba(8, 11, 16, 0.56);
   padding: 1rem;
 }
 
 .commune-zone-card h3,
+.commune-feed-card h3,
 .commune-draft-grid h3,
 .commune-info-grid h2,
 .commune-info-grid h3 {
@@ -869,6 +878,7 @@ code { color: var(--teal); overflow-wrap: anywhere; }
 }
 
 .commune-zone-card p,
+.commune-feed-card p,
 .commune-draft-grid p,
 .commune-info-grid p,
 .commune-info-grid li,
@@ -922,6 +932,117 @@ code { color: var(--teal); overflow-wrap: anywhere; }
 
 .commune-warning-checks .checkbox-line {
   border-color: rgba(216, 182, 111, 0.22);
+}
+
+.commune-lobby {
+  display: grid;
+  gap: 1rem;
+  border-color: rgba(216, 182, 111, 0.22);
+  background:
+    radial-gradient(circle at 15% 10%, rgba(216, 182, 111, 0.12), transparent 18rem),
+    radial-gradient(circle at 86% 14%, rgba(142, 232, 220, 0.12), transparent 18rem),
+    linear-gradient(135deg, rgba(11, 18, 24, 0.92), rgba(8, 13, 18, 0.76));
+}
+
+.commune-lobby h2,
+.commune-search-panel h2,
+.commune-feed h2 {
+  margin-bottom: 0.35rem;
+}
+
+.commune-action-row,
+.commune-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.commune-focused-toolbar {
+  display: flex;
+  justify-content: flex-start;
+  margin-top: -0.35rem;
+}
+
+.commune-focused-toolbar .button-link {
+  border-color: rgba(216, 182, 111, 0.28);
+  background: rgba(216, 182, 111, 0.08);
+}
+
+.commune-search-panel {
+  display: grid;
+  gap: 1rem;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(142, 232, 220, 0.08), transparent 14rem),
+    rgba(8, 11, 16, 0.55);
+}
+
+.commune-filter-group {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.commune-filter-group p {
+  margin: 0;
+  color: var(--muted);
+  font-weight: 850;
+}
+
+.commune-filter-chips button {
+  min-height: 2.25rem;
+  padding-inline: 0.7rem;
+}
+
+.commune-feed {
+  background:
+    radial-gradient(circle at 10% 0%, rgba(216, 182, 111, 0.08), transparent 16rem),
+    rgba(8, 11, 16, 0.5);
+}
+
+.commune-feed-card {
+  border-color: rgba(216, 182, 111, 0.2);
+}
+
+.commune-card-sigil,
+.commune-author-sigil {
+  display: inline-grid;
+  place-items: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  border: 1px solid rgba(142, 232, 220, 0.3);
+  background:
+    radial-gradient(circle at 35% 25%, rgba(255,255,255,0.36), transparent 32%),
+    rgba(7, 18, 23, 0.82);
+  color: var(--teal);
+  font-family: var(--brand-title-font, serif);
+  font-weight: 900;
+  box-shadow: 0 0 22px rgba(142, 232, 220, 0.1);
+}
+
+.commune-card-sigil {
+  position: absolute;
+  top: 0.85rem;
+  right: 0.85rem;
+  opacity: 0.78;
+}
+
+.commune-room-card,
+.commune-draft-desk {
+  border-color: rgba(142, 232, 220, 0.2);
+}
+
+.commune-anchor-button {
+  justify-self: start;
+}
+
+.commune-empty-state {
+  color: var(--muted);
+  font-style: italic;
+}
+
+.commune-page .section-card[id] {
+  scroll-margin-top: 7rem;
 }
 
 .commune-zone-card details {

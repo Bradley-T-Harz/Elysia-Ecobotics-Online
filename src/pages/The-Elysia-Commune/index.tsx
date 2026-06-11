@@ -47,6 +47,13 @@ type CommunePostTypeCard = {
   futureFeatures: string;
 };
 
+type CommuneFilters = {
+  search: string;
+  category: string;
+  status: string;
+  safety: string;
+};
+
 type PostDraft = {
   id: string;
   postType: string;
@@ -274,6 +281,15 @@ const roomLinks = [
   ["elysia-installation-help", "Elysia Installation Help"]
 ] as const;
 
+const statusFilters = ["All", "Published", "Local drafts", "Pending review", "Repository showcases", "Sandbox requests", "Needs backend"];
+const safetyFilters = ["All", "No code execution", "Requires moderation", "Requires backend", "Requires sandbox", "Admin-only later"];
+const communeActions = [
+  { label: "Request to post", href: "/commune/new", kind: "post" },
+  { label: "Troubleshooting", href: "/commune/troubleshooting", kind: "troubleshooting" },
+  { label: "Repository showcase", href: "/commune/repository-showcase", kind: "repository" },
+  { label: "Sandbox review request", href: "/commune/sandbox-review", kind: "sandbox" }
+] as const;
+
 function readStorage<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
@@ -414,9 +430,49 @@ function StatusBadges({ labels }: { labels: string[] }) {
   return <div className="commune-badge-row">{labels.filter(Boolean).map((label) => <span key={label}>{label.replace(/_/g, " ")}</span>)}</div>;
 }
 
+function normalize(value: string) {
+  return value.toLowerCase().replace(/[_-]+/g, " ");
+}
+
+function matchesSearch(values: string[], search: string) {
+  const query = normalize(search.trim());
+  return !query || values.some((value) => normalize(value).includes(query));
+}
+
+function matchesCategory(typeName: string, category: string) {
+  return category === "All" || typeName === category;
+}
+
+function matchesStatus(labels: string[], status: string) {
+  if (status === "All") return true;
+  const haystack = labels.map(normalize).join(" ");
+  const needle = normalize(status);
+  if (needle === "published") return haystack.includes("published");
+  if (needle === "local drafts") return haystack.includes("local") || haystack.includes("draft");
+  if (needle === "pending review") return haystack.includes("pending") || haystack.includes("review");
+  if (needle === "repository showcases") return haystack.includes("repository") || haystack.includes("repo");
+  if (needle === "sandbox requests") return haystack.includes("sandbox");
+  if (needle === "needs backend") return haystack.includes("backend");
+  return true;
+}
+
+function matchesSafety(labels: string[], safety: string) {
+  if (safety === "All") return true;
+  const haystack = labels.map(normalize).join(" ");
+  return haystack.includes(normalize(safety));
+}
+
 function authorLink(username?: string | null) {
   if (!username) return <span>Community member</span>;
   return <Link to={`/commons/@${encodeURIComponent(username)}`}>@{username}</Link>;
+}
+
+function CommuneActionNav({ activeKind, includeModeration }: { activeKind?: string; includeModeration?: boolean }) {
+  return <div className="commune-action-row">{communeActions.map((action) => <Link className={activeKind === action.kind ? "button-link button-link--primary" : "button-link"} to={action.href} key={action.kind}>{action.label}</Link>)}{includeModeration && <Link className={activeKind === "moderation" ? "button-link button-link--primary" : "button-link"} to="/commune/moderation">Moderation</Link>}</div>;
+}
+
+function CommuneFocusedToolbar() {
+  return <div className="commune-focused-toolbar"><Link className="button-link" to="/commune">← Back to The Elysia Commune</Link></div>;
 }
 
 function Doctrine() {
@@ -437,36 +493,92 @@ function RedactionPanel() {
   return <section className="section-card"><p className="eyebrow">Redaction Checklist</p><h2>Before sharing logs, screenshots, repo notes, or code, redact these.</h2><div className="commune-redaction-grid">{["API keys", "tokens", "passwords", "emails", "phone numbers", "addresses", "private local file paths", "machine usernames", "database URLs", "Supabase keys", "Cloudflare tokens", "GitHub tokens", ".env contents", "customer/user records"].map((item) => <span key={item}>{item}</span>)}</div></section>;
 }
 
-function ZoneCatalog() {
+function CommuneLobby() {
+  return <section className="section-card commune-lobby" id="commune-lobby">
+    <div>
+      <p className="eyebrow">Commune Lobby</p>
+      <h2>Browse rooms, search posts, draft something safe to share, or prepare a repository/sandbox review request.</h2>
+      <p>The Commune is where Elysia Ecobotics members can gather around public updates, troubleshooting, research notes, repository showcases, add-on ideas, and ecological/technical work. Everything here should be safe to make public. Redact first. Code executes nowhere by default.</p>
+    </div>
+    <CommuneActionNav activeKind="" />
+    <div className="commune-action-row"><a className="button-link" href="#commune-rooms">Browse rooms</a><a className="button-link" href="#commune-local-drafts">View local drafts</a></div>
+  </section>;
+}
+
+function CommuneSearchPanel({ filters, setFilters }: { filters: CommuneFilters; setFilters: (filters: CommuneFilters) => void }) {
+  return <section className="section-card commune-search-panel" id="commune-search">
+    <div className="section-heading section-heading--inline">
+      <div>
+        <p className="eyebrow">Search and filters</p>
+        <h2>Find the right room before the page gets long.</h2>
+        <p>Filters apply to room/type cards, the community feed, and local drafts. They do not fake published posts.</p>
+      </div>
+      <button type="button" onClick={() => setFilters({ search: "", category: "All", status: "All", safety: "All" })}>Clear filters</button>
+    </div>
+    <label><span>Search keyword</span><input value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="troubleshooting, repo, research, sandbox..." /></label>
+    <div className="commune-filter-group">
+      <p>Category</p>
+      <div className="commune-filter-chips">{["All", ...postTypes.map((type) => type.name)].map((category) => <button className={filters.category === category ? "button-primary" : ""} type="button" key={category} onClick={() => setFilters({ ...filters, category })}>{category}</button>)}</div>
+    </div>
+    <div className="commune-filter-group">
+      <p>Status / visibility</p>
+      <div className="commune-filter-chips">{statusFilters.map((status) => <button className={filters.status === status ? "button-primary" : ""} type="button" key={status} onClick={() => setFilters({ ...filters, status })}>{status}</button>)}</div>
+    </div>
+    <div className="commune-filter-group">
+      <p>Safety</p>
+      <div className="commune-filter-chips">{safetyFilters.map((safety) => <button className={filters.safety === safety ? "button-primary" : ""} type="button" key={safety} onClick={() => setFilters({ ...filters, safety })}>{safety}</button>)}</div>
+    </div>
+  </section>;
+}
+
+function ZoneCatalog({ filters }: { filters: CommuneFilters }) {
+  const filteredTypes = postTypes.filter((type) => {
+    const labels = [...type.currentStatus, type.futureFeatures, type.cautions, type.allowedContent];
+    return matchesCategory(type.name, filters.category) && matchesSearch([type.name, type.purpose, type.allowedContent, type.cautions, type.futureFeatures], filters.search) && matchesStatus(labels, filters.status) && matchesSafety(labels, filters.safety);
+  });
   return <section className="section-card">
     <p className="eyebrow">Commune Zones</p>
-    <h2>Post types and boundaries</h2>
+    <h2>{filteredTypes.length ? "Post types and boundaries" : "No matching Commune zones"}</h2>
     <div className="commune-zone-grid">
-      {postTypes.map((type) => (
+      {filteredTypes.map((type) => (
         <article className="commune-zone-card" key={type.id}>
+          <span className="commune-card-sigil" aria-hidden="true">{type.name.slice(0, 1)}</span>
           <h3>{type.name}</h3>
           <p>{type.purpose}</p>
           <p><strong>Allowed:</strong> {type.allowedContent}</p>
           <p><strong>Caution:</strong> {type.cautions}</p>
           <StatusBadges labels={type.currentStatus} />
+          <a className="button-link commune-anchor-button" href="#commune-post-composer">Draft this type</a>
           <details><summary>Future features</summary><p>{type.futureFeatures}</p></details>
         </article>
       ))}
     </div>
+    {!filteredTypes.length && <p className="commune-empty-state">Try clearing a filter or searching for a broader room theme.</p>}
   </section>;
 }
 
 function RoomCards({ rooms }: { rooms: CommuneRoom[] }) {
   const source = rooms.length ? rooms : roomLinks.map(([slugValue, name]) => ({ id: slugValue, slug: slugValue, name, description: "Account-backed room is being prepared. Local draft tools remain available.", room_type: slugValue, requires_moderation: true }));
-  return <section className="section-card"><p className="eyebrow">Rooms</p><h2>Moderated community spaces</h2><div className="commune-zone-grid">{source.map((room) => <article className="commune-zone-card" key={room.slug}><h3>{room.name}</h3><p>{room.description || "Moderated Commune room."}</p><StatusBadges labels={[room.room_type, room.requires_moderation ? "requires moderation" : "open"]} /><Link className="button-link" to={`/commune/rooms/${room.slug}`}>Open room</Link></article>)}</div></section>;
+  return <section className="section-card" id="commune-rooms"><p className="eyebrow">Rooms</p><h2>Moderated community spaces</h2><div className="commune-zone-grid">{source.map((room) => <article className="commune-zone-card commune-room-card" key={room.slug}><span className="commune-card-sigil" aria-hidden="true">{room.name.slice(0, 1)}</span><h3>{room.name}</h3><p>{room.description || "Moderated Commune room."}</p><StatusBadges labels={[room.room_type, room.requires_moderation ? "requires moderation" : "open"]} /><Link className="button-link" to={`/commune/rooms/${room.slug}`}>Open room</Link></article>)}</div></section>;
 }
 
 function PostCard({ post, saved, onSave }: { post: CommunePost; saved: boolean; onSave: (id: string) => void }) {
   return <article className="commune-post-card"><div className="addon-card__topline"><StatusBadges labels={[post.post_type, post.status]} /></div><h3><Link to={`/commune/posts/${post.id}`}>{post.title}</Link></h3><p>{post.excerpt || post.body.slice(0, 180)}</p><p>By {authorLink(post.author_username)} · {post.published_at ? new Date(post.published_at).toLocaleDateString() : "public date unavailable"}</p><div className="tag-row">{(post.tags ?? []).slice(0, 5).map((tag) => <span key={tag}>{tag}</span>)}</div><div className="button-row"><Link className="button-link" to={`/commune/posts/${post.id}`}>Read</Link><button type="button" onClick={() => onSave(post.id)}>{saved ? "Saved" : "Save post"}</button></div></article>;
 }
 
-function PostList({ posts, savedPostIds, onSave }: { posts: CommunePost[]; savedPostIds: string[]; onSave: (id: string) => void }) {
-  return <section className="section-card"><p className="eyebrow">Public posts after moderation</p><h2>{posts.length ? `${posts.length} visible post${posts.length === 1 ? "" : "s"}` : "No published Commune posts yet"}</h2><p className="boundary-note">Only posts approved/published by moderation are public here. Drafts and pending requests remain private to their owner and reviewers.</p><div className="commune-draft-grid">{posts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} />)}</div>{!posts.length && <p>No published Commune posts yet. Draft and submission tools are available below.</p>}</section>;
+function CommunityFeed({ posts, savedPostIds, onSave, filters }: { posts: CommunePost[]; savedPostIds: string[]; onSave: (id: string) => void; filters: CommuneFilters }) {
+  const filteredPosts = posts.filter((post) => {
+    const type = postTypes.find((item) => item.backendValue === post.post_type);
+    const labels = [post.status, post.visibility, type?.name ?? post.post_type, ...(post.tags ?? [])];
+    return matchesCategory(type?.name ?? post.post_type, filters.category) && matchesSearch([post.title, post.excerpt ?? "", post.body, ...(post.tags ?? [])], filters.search) && matchesStatus(labels, filters.status) && matchesSafety(labels, filters.safety);
+  });
+  const emptyCards = postTypes.filter((type) => matchesCategory(type.name, filters.category) && matchesSearch([type.name, type.purpose], filters.search) && matchesStatus([...type.currentStatus, "needs backend"], filters.status) && matchesSafety([...type.currentStatus, type.cautions], filters.safety)).slice(0, 5);
+  return <section className="section-card commune-feed" id="commune-feed">
+    <p className="eyebrow">Community Feed</p>
+    <h2>{filteredPosts.length ? `${filteredPosts.length} published item${filteredPosts.length === 1 ? "" : "s"}` : "No published Commune posts yet"}</h2>
+    <p className="boundary-note">Only posts approved/published by moderation are public here. Drafts and pending requests remain private to their owner and reviewers.</p>
+    {filteredPosts.length ? <div className="commune-feed-grid">{filteredPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} />)}</div> : <div className="commune-feed-grid">{emptyCards.map((type) => <article className="commune-feed-card" key={type.id}><div className="commune-author-sigil" aria-hidden="true">{type.name.slice(0, 1)}</div><p className="eyebrow">{type.name}</p><h3>No {type.name} posts yet.</h3><p>{type.purpose}</p><a className="button-link" href={type.backendValue === "repository_showcase" ? "#commune-repository-showcase" : "#commune-post-composer"}>{type.backendValue === "repository_showcase" ? "Prepare request" : "Draft one"}</a></article>)}</div>}
+  </section>;
 }
 
 function useCommuneLoad(roomSlug?: string, postId?: string) {
@@ -498,13 +610,13 @@ function useLocalDraftState() {
   };
 }
 
-function AccountModePanel({ signedIn, isModerator, accountReady }: { signedIn: boolean; isModerator: boolean; accountReady: boolean }) {
+function AccountModePanel({ signedIn, isModerator, accountReady, activeKind }: { signedIn: boolean; isModerator: boolean; accountReady: boolean; activeKind?: string }) {
   return <section className="section-card commune-status-card">
     <p className="eyebrow">Account-backed mode</p>
     <h2>{signedIn ? "Signed in community actions available" : "Public read mode"}</h2>
     <p>{signedIn ? "You can submit posts/comments for moderation, save posts, follow threads, upload safe attachments privately for review, and report content when account-backed tables are active." : "Signed-out users can see published public posts and use local draft/export tools. Sign in to submit posts, comments, saves, follows, reports, or uploads."}</p>
     {!accountReady && <p className="boundary-note">Account-backed Commune features are being prepared. Local draft and export tools remain available.</p>}
-    <div className="button-row"><Link className="button-link button-link--primary" to="/commune/new">Request to post</Link><Link className="button-link" to="/commune/repository-showcase">Repository showcase</Link><Link className="button-link" to="/commune/troubleshooting">Troubleshooting</Link><a className="button-link" href="#sandbox-review">Sandbox review request</a>{isModerator && <Link className="button-link" to="/commune/moderation">Moderation</Link>}</div>
+    <CommuneActionNav activeKind={activeKind} includeModeration={isModerator} />
   </section>;
 }
 
@@ -561,7 +673,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     setMessage(cleanCommuneMessage(result.message, "Saved locally in this browser. Backend review queue is not active yet."));
   }
 
-  return <section className="section-card commune-composer-card">
+  return <section className="section-card commune-composer-card commune-draft-desk" id="commune-post-composer">
     <p className="eyebrow">Request to post</p>
     <h2>{troubleshooting ? "Troubleshooting post" : "Create a moderated Commune post"}</h2>
     <p className="boundary-note">Uploads are part of Elysia Ecobotics Online, not private local Elysia. Do not upload private local Elysia memory, logs, vault data, credentials, .env files, API keys, identity documents, or unredacted sensitive information.</p>
@@ -607,7 +719,7 @@ function RepositoryShowcaseForm({ localDrafts }: { localDrafts: ReturnType<typeo
     setForm((current) => ({ ...current, warnings: current.warnings.includes(label) ? current.warnings.filter((item) => item !== label) : [...current.warnings, label] }));
   }
 
-  return <section className="section-card commune-repo-card">
+  return <section className="section-card commune-repo-card" id="commune-repository-showcase">
     <p className="eyebrow">Repository Showcase</p>
     <h2>Show a repository without running it</h2>
     <p>No repo APIs are called. Nothing is cloned. Nothing is remotely validated.</p>
@@ -653,7 +765,7 @@ function SandboxDraftPanel({ localDrafts }: { localDrafts: ReturnType<typeof use
     else setMessage(result.message);
   }
 
-  return <section className="section-card commune-sandbox-card" id="sandbox-review">
+  return <section className="section-card commune-sandbox-card" id="commune-sandbox-review">
     <p className="eyebrow">Sandbox Request Draft</p>
     <h2>Request review for future isolated execution.</h2>
     <p className="boundary-note">Sandbox requests are not execution permission. Future execution requires isolated infrastructure, explicit approval, resource limits, no secrets, no private network, no host mounts, logs, and kill controls.</p>
@@ -674,18 +786,22 @@ function SandboxDraftPanel({ localDrafts }: { localDrafts: ReturnType<typeof use
   </section>;
 }
 
-function LocalDraftStudio({ localDrafts }: { localDrafts: ReturnType<typeof useLocalDraftState> }) {
+function LocalDraftStudio({ localDrafts, filters }: { localDrafts: ReturnType<typeof useLocalDraftState>; filters: CommuneFilters }) {
+  const draftCards = [
+    ...localDrafts.postDrafts.map((draft) => ({ id: draft.id, title: draft.title || "Untitled post draft", labels: [draft.status, draft.postType], summary: draft.summary })),
+    ...localDrafts.postRequests.map((draft) => ({ id: draft.id, title: draft.title || "Untitled post request", labels: [draft.status, draft.postType], summary: draft.summary })),
+    ...localDrafts.repoDrafts.map((draft) => ({ id: draft.id, title: draft.title || "Untitled repo showcase", labels: ["repo showcase draft", draft.provider, draft.manifestStatus, "Repository Showcase"], summary: draft.description })),
+    ...localDrafts.sandboxDrafts.map((draft) => ({ id: draft.id, title: draft.title || "Untitled sandbox request", labels: ["sandbox request draft", `network: ${draft.networkNeeded}`, `files: ${draft.fileAccessNeeded}`], summary: draft.codePurpose }))
+  ].filter((draft) => matchesSearch([draft.title, draft.summary, ...draft.labels], filters.search) && matchesStatus(draft.labels, filters.status) && matchesSafety(draft.labels, filters.safety) && (filters.category === "All" || draft.labels.includes(filters.category)));
   const total = localDrafts.postDrafts.length + localDrafts.postRequests.length + localDrafts.repoDrafts.length + localDrafts.sandboxDrafts.length;
-  return <section className="section-card">
+  return <section className="section-card" id="commune-local-drafts">
     <p className="eyebrow">Local drafts and pending review requests</p>
     <h2>Saved in this browser only</h2>
     {total === 0 ? <p>Drafts and post requests saved in this browser will appear here.</p> : null}
     <div className="commune-draft-grid">
-      {localDrafts.postDrafts.map((draft) => <article key={draft.id}><h3>{draft.title || "Untitled post draft"}</h3><StatusBadges labels={[draft.status, draft.postType]} /><p>{draft.summary}</p></article>)}
-      {localDrafts.postRequests.map((draft) => <article key={draft.id}><h3>{draft.title || "Untitled post request"}</h3><StatusBadges labels={[draft.status, draft.postType]} /><p>{draft.summary}</p></article>)}
-      {localDrafts.repoDrafts.map((draft) => <article key={draft.id}><h3>{draft.title || "Untitled repo showcase"}</h3><StatusBadges labels={["repo showcase draft", draft.provider, draft.manifestStatus]} /><p>{draft.description}</p></article>)}
-      {localDrafts.sandboxDrafts.map((draft) => <article key={draft.id}><h3>{draft.title || "Untitled sandbox request"}</h3><StatusBadges labels={["sandbox request draft", `network: ${draft.networkNeeded}`, `files: ${draft.fileAccessNeeded}`]} /><p>{draft.codePurpose}</p></article>)}
+      {draftCards.map((draft) => <article key={draft.id}><h3>{draft.title}</h3><StatusBadges labels={draft.labels} /><p>{draft.summary}</p></article>)}
     </div>
+    {total > 0 && !draftCards.length && <p className="commune-empty-state">No local drafts match the active filters.</p>}
   </section>;
 }
 
@@ -707,7 +823,7 @@ function FutureBackendPanel() {
       <article><p className="eyebrow">Future backend roadmap</p><h2>Planned tables</h2><div className="commune-badge-row">{futureTables.map((table) => <span key={table}>{table}</span>)}</div><p>These are planned/future backend tables. They are not live until Supabase schema, RLS, moderation, and abuse controls are built.</p></article>
       <article><p className="eyebrow">Later support tables</p><h2>Possible support structures</h2><div className="commune-badge-row">{futureSupportTables.map((table) => <span key={table}>{table}</span>)}</div></article>
     </section>
-    <section className="section-card commune-info-grid">
+    <section className="section-card commune-info-grid" id="commune-moderation-doctrine">
       <article><p className="eyebrow">Moderation Doctrine</p><h2>Future moderation must handle</h2><p>Spam, harassment, malware, secret leakage, private data exposure, copyright violations, unsafe code, scams/job fraud, impersonation, off-topic floods, AI-generated spam, doxxing, and sensitive ecological location exposure.</p><h3>Future actions</h3><StatusBadges labels={["report", "hide", "lock thread", "remove post", "request redaction", "mark official", "mark community", "mark unreviewed", "block upload", "security hold", "admin review"]} /><h3>Trust labels</h3><StatusBadges labels={["Official", "Community", "Unreviewed", "Needs redaction", "Security hold", "Resolved", "Archived", "Blocked"]} /></article>
       <article><p className="eyebrow">Media, chat, jobs, and official notices</p><h2>Boundaries for future rooms</h2><p><strong>Media uploads:</strong> not public by default. Future public display requires file type limits, size limits, moderation, attribution/copyright prompts, malware scanning where possible, private-data warnings, storage policies, and abuse controls.</p><p><strong>Collaborative rooms and chat:</strong> planned, not live. Future rooms need moderation, rate limits, reporting, blocking, room roles, invite controls, retention policy, and no private Elysia memory sharing by default.</p><p><strong>Job posts:</strong> future job posts require clear organization/contact, clear role type, clear paid/volunteer status, pay/rate or honest explanation if unpaid, location/remote status, no misleading roles, no sensitive personal data requests in public comments, and scam/moderator review.</p><p><strong>Official Updates:</strong> restricted to authorized Elysia Ecobotics administrators later. Community users should not impersonate official release, security, or governance notices.</p><h3>Code/repo labels</h3><StatusBadges labels={["No code execution", "Snippet only", "Repo showcase only", "Manifest present", "Manifest not reviewed", "License unclear", "Sandbox required", "Security review needed", "Blocked"]} /></article>
     </section>
@@ -754,6 +870,7 @@ export default function CommunePage() {
   }, [location.pathname]);
   const { state, refresh } = useCommuneLoad(roomSlug, postId);
   const localDrafts = useLocalDraftState();
+  const [filters, setFilters] = useState<CommuneFilters>({ search: "", category: "All", status: "All", safety: "All" });
   const selectedRoom = state.rooms.find((room) => room.slug === roomSlug);
   async function save(id: string) {
     const result = await savePost(id);
@@ -761,7 +878,8 @@ export default function CommunePage() {
     await refresh();
   }
 
-  const routeMode = ["new", "repository-showcase", "troubleshooting", "moderation"].includes(mode || "") ? mode : "";
+  const routeMode = ["new", "repository-showcase", "troubleshooting", "sandbox-review", "moderation"].includes(mode || "") ? mode : "";
+  const activeActionKind = mode === "new" ? "post" : mode === "troubleshooting" ? "troubleshooting" : mode === "repository-showcase" ? "repository" : mode === "sandbox-review" ? "sandbox" : mode === "moderation" ? "moderation" : "";
 
   return <div className="page-stack commune-page">
     <PageHero eyebrow="Public community" title="The Elysia Commune">
@@ -769,24 +887,28 @@ export default function CommunePage() {
       <p><strong>Share publicly. Redact first. Execute nowhere by default.</strong></p>
     </PageHero>
     <Doctrine />
-    <AccountModePanel signedIn={state.signedIn} isModerator={state.isModerator} accountReady={state.accountReady} />
+    {!postId && !routeMode && <CommuneLobby />}
+    {!postId && !routeMode && <CommuneSearchPanel filters={filters} setFilters={setFilters} />}
+    <AccountModePanel signedIn={state.signedIn} isModerator={state.isModerator} accountReady={state.accountReady} activeKind={activeActionKind} />
+    {["new", "troubleshooting", "repository-showcase", "sandbox-review"].includes(routeMode) && <CommuneFocusedToolbar />}
 
     {mode === "new" && <PostComposer defaultRoomId={selectedRoom?.id} localDrafts={localDrafts} onRefresh={refresh} />}
     {mode === "repository-showcase" && <RepositoryShowcaseForm localDrafts={localDrafts} />}
     {mode === "troubleshooting" && <PostComposer defaultType="troubleshooting" defaultRoomId={state.rooms.find((room) => room.slug === "troubleshooting-grove")?.id} troubleshooting localDrafts={localDrafts} onRefresh={refresh} />}
+    {mode === "sandbox-review" && <SandboxDraftPanel localDrafts={localDrafts} />}
     {mode === "moderation" && <ModerationPanel />}
     {postId && <PostDetail postId={postId} />}
 
     {!postId && !routeMode && <>
       <RedactionPanel />
       <RoomCards rooms={state.rooms} />
-      <ZoneCatalog />
+      <ZoneCatalog filters={filters} />
       {roomSlug && <section className="section-card"><p className="eyebrow">Room</p><h2>{selectedRoom?.name ?? roomSlug}</h2><p>{selectedRoom?.description ?? "Account-backed room is being prepared. Local draft tools remain available."}</p></section>}
-      <PostList posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} />
+      <CommunityFeed posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} filters={filters} />
       <PostComposer defaultRoomId={selectedRoom?.id} localDrafts={localDrafts} onRefresh={refresh} />
       <RepositoryShowcaseForm localDrafts={localDrafts} />
       <SandboxDraftPanel localDrafts={localDrafts} />
-      <LocalDraftStudio localDrafts={localDrafts} />
+      <LocalDraftStudio localDrafts={localDrafts} filters={filters} />
       <FutureBackendPanel />
     </>}
   </div>;

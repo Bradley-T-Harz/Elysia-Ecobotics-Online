@@ -2,7 +2,7 @@ const requiredRoutes = [
   "/", "/archive", "/marketplace", "/marketplace/browse", "/marketplace/addons/:id",
   "/marketplace/action-preview", "/marketplace/account", "/marketplace/submit", "/marketplace/trust",
   "/marketplace/manifest-api", "/marketplace/admin", "/products", "/lab", "/developer-forge",
-  "/living-library", "/commune", "/commune/rooms/:roomSlug", "/commune/posts/:postId", "/commune/new", "/commune/repository-showcase", "/commune/troubleshooting", "/commune/moderation", "/work-with-elysia-ecobotics", "/commons-circle", "/commons-circle/saved-shelves",
+  "/living-library", "/commune", "/commune/rooms/:roomSlug", "/commune/posts/:postId", "/commune/new", "/commune/repository-showcase", "/commune/troubleshooting", "/commune/sandbox-review", "/commune/moderation", "/work-with-elysia-ecobotics", "/commons-circle", "/commons-circle/saved-shelves",
   "/commons-circle/onboarding", "/commons-circle/setup/profile", "/commons-circle/setup/stewardship",
   "/commons-circle/setup/work-with", "/commons-circle/setup/confirm", "/commons/@:username", "/story",
   "/about", "/mission", "/legal", "/legal/privacy-policy", "/legal/terms-of-use",

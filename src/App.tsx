@@ -68,6 +68,7 @@ export default function App() {
             <Route path="commune/new" element={<CommunePage />} />
             <Route path="commune/repository-showcase" element={<CommunePage />} />
             <Route path="commune/troubleshooting" element={<CommunePage />} />
+            <Route path="commune/sandbox-review" element={<CommunePage />} />
             <Route path="commune/moderation" element={<CommunePage />} />
             <Route path="work-with-elysia-ecobotics" element={<WorkWithPage />} />
             <Route path="commons-circle" element={<CommonsCirclePage />} />
