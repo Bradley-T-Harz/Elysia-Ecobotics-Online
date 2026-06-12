@@ -3,9 +3,12 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
 import {
+  createCodeSnippet,
   followThread,
+  loadCategories,
   loadCommuneData,
   loadCommuneModerationQueue,
+  loadCodeSnippets,
   markThreadRead,
   moderateCommuneItem,
   postTypeOptions,
@@ -17,12 +20,15 @@ import {
   submitRepositoryShowcase,
   submitSandboxReview,
   type CommuneComment,
+  type CommuneCategory,
+  type CommuneCodeSnippet,
   type CommuneModerationItem,
   type CommunePost,
   type CommunePostType,
   type CommuneRoom,
   type CommuneThread
 } from "./communeAccountApi";
+import { communeFallbackCategories, inertCodeSnippetLabel, scanCommuneTextForSecrets, validateCommuneMediaFile } from "./communeSafety";
 
 type CommuneStatus =
   | "draft_local"
@@ -245,6 +251,7 @@ const repoWarnings = [
 ];
 
 const futureTables = [
+  "commune_categories",
   "commune_posts",
   "commune_post_types",
   "commune_comments",
@@ -620,13 +627,17 @@ function AccountModePanel({ signedIn, isModerator, accountReady, activeKind }: {
   </section>;
 }
 
-function PostComposer({ defaultType = "media_garden" as CommunePostType, defaultRoomId, troubleshooting = false, localDrafts, onRefresh }: { defaultType?: CommunePostType; defaultRoomId?: string; troubleshooting?: boolean; localDrafts: ReturnType<typeof useLocalDraftState>; onRefresh?: () => Promise<void> }) {
-  const [form, setForm] = useState({ postType: defaultType, roomId: defaultRoomId || "", title: "", summary: "", body: "", tags: "", links: "", repositoryUrl: "", os: "", browser: "", version: "", stepsTried: "", acknowledgement: false, sandboxRequested: false });
+function PostComposer({ defaultType = "media_garden" as CommunePostType, defaultRoomId, troubleshooting = false, localDrafts, categories, onRefresh }: { defaultType?: CommunePostType; defaultRoomId?: string; troubleshooting?: boolean; localDrafts: ReturnType<typeof useLocalDraftState>; categories: CommuneCategory[]; onRefresh?: () => Promise<void> }) {
+  const [form, setForm] = useState({ postType: defaultType, categorySlug: categories[0]?.slug ?? "general", roomId: defaultRoomId || "", title: "", summary: "", body: "", tags: "", links: "", repositoryUrl: "", os: "", browser: "", version: "", stepsTried: "", codeLanguage: "", codeFileName: "", codeText: "", stepsCodeAck: false, acknowledgement: false, sandboxRequested: false });
   const [file, setFile] = useState<File | null>(null);
   const [message, setMessage] = useState("Signed-in users can submit posts for moderation. Local draft/export is available even when backend review is not active.");
+  const secretScan = scanCommuneTextForSecrets([form.title, form.body, form.codeFileName, form.codeText, form.repositoryUrl].join("\n"));
+  const fileValidation = file ? validateCommuneMediaFile(file) : null;
 
   function build(status: CommuneStatus): PostDraft {
-    const body = troubleshooting ? [form.body, "", `OS: ${form.os}`, `Browser: ${form.browser}`, `Elysia version: ${form.version}`, `Steps tried: ${form.stepsTried}`].join("\n") : form.body;
+    const codeBlock = form.codeText ? ["", `## Inert code snippet (${inertCodeSnippetLabel(form.codeLanguage)})`, "", "```" + inertCodeSnippetLabel(form.codeLanguage), form.codeText, "```", "", "Code is shown for discussion only. Do not run code you do not trust."].join("\n") : "";
+    const bodyBase = troubleshooting ? [form.body, "", `OS: ${form.os}`, `Browser: ${form.browser}`, `Elysia version: ${form.version}`, `Steps tried: ${form.stepsTried}`].join("\n") : form.body;
+    const body = `${bodyBase}${codeBlock}`;
     return {
       id: `${status}-${Date.now()}`,
       postType: postTypeOptions.find((type) => type.value === form.postType)?.label ?? form.postType,
@@ -658,10 +669,28 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
   }
 
   async function submit() {
-    const body = troubleshooting ? [form.body, "", `OS: ${form.os}`, `Browser: ${form.browser}`, `Elysia version: ${form.version}`, `Steps tried: ${form.stepsTried}`].join("\n") : form.body;
+    if (secretScan.blocked) {
+      setMessage(`Submission blocked because it appears to include private or secret material: ${secretScan.warnings.join(", ")}. Remove it before submitting.`);
+      return;
+    }
+    if (fileValidation && !fileValidation.ok) {
+      setMessage(fileValidation.message);
+      return;
+    }
+    if (form.codeText && !form.stepsCodeAck) {
+      setMessage("Acknowledge that code snippets are inert text and not execution permission before submitting code.");
+      return;
+    }
+    const bodyBase = troubleshooting ? [form.body, "", `OS: ${form.os}`, `Browser: ${form.browser}`, `Elysia version: ${form.version}`, `Steps tried: ${form.stepsTried}`].join("\n") : form.body;
+    const body = form.codeText ? `${bodyBase}\n\nCode snippet attached separately for inert display.` : bodyBase;
     const result = await submitCommunePost({ ...form, body, roomId: form.roomId || defaultRoomId, upload: file, sandboxRequested: form.sandboxRequested });
     if (result.ok) {
+      if (form.codeText && result.postId) {
+        const snippet = await createCodeSnippet({ postId: result.postId, language: form.codeLanguage, fileName: form.codeFileName, codeText: form.codeText, sandboxAcknowledged: form.stepsCodeAck });
+        setMessage(`${result.message} ${snippet.message}`);
+      } else {
       setMessage(result.message);
+      }
       await onRefresh?.();
       return;
     }
@@ -679,6 +708,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     <p className="boundary-note">Uploads are part of Elysia Ecobotics Online, not private local Elysia. Do not upload private local Elysia memory, logs, vault data, credentials, .env files, API keys, identity documents, or unredacted sensitive information.</p>
     <div className="commune-form-grid">
       <label><span>Post type</span><select value={form.postType} onChange={(event) => setForm({ ...form, postType: event.target.value as CommunePostType })}>{postTypeOptions.map((type) => <option key={type.value} value={type.value}>{type.label}</option>)}</select></label>
+      <label><span>Category</span><select value={form.categorySlug} onChange={(event) => setForm({ ...form, categorySlug: event.target.value })}>{categories.map((category) => <option key={category.slug} value={category.slug}>{category.title}</option>)}</select></label>
       <label><span>Title</span><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
       <label><span>Summary</span><input value={form.summary} onChange={(event) => setForm({ ...form, summary: event.target.value })} /></label>
       <label><span>Tags</span><input value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} /></label>
@@ -687,8 +717,14 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       <label><span>Attachment optional</span><input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.md,.csv,.json" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></label>
       {troubleshooting && <><label><span>OS</span><input value={form.os} onChange={(event) => setForm({ ...form, os: event.target.value })} /></label><label><span>Browser</span><input value={form.browser} onChange={(event) => setForm({ ...form, browser: event.target.value })} /></label><label><span>Elysia version optional</span><input value={form.version} onChange={(event) => setForm({ ...form, version: event.target.value })} /></label><label><span>Steps tried</span><input value={form.stepsTried} onChange={(event) => setForm({ ...form, stepsTried: event.target.value })} /></label></>}
       <label className="wide-field"><span>Body</span><textarea rows={8} value={form.body} onChange={(event) => setForm({ ...form, body: event.target.value })} /></label>
+      <label><span>Code language optional</span><input value={form.codeLanguage} onChange={(event) => setForm({ ...form, codeLanguage: event.target.value })} placeholder="typescript, bash, python..." /></label>
+      <label><span>Code filename optional</span><input value={form.codeFileName} onChange={(event) => setForm({ ...form, codeFileName: event.target.value })} /></label>
+      <label className="wide-field"><span>Inert code snippet optional</span><textarea rows={7} value={form.codeText} onChange={(event) => setForm({ ...form, codeText: event.target.value })} placeholder="Displayed as text only. The website will not execute it." /></label>
     </div>
-    <div className="commune-checklist">{routeAcknowledgements.map((item) => <label className="checkbox-line" key={item}><input type="checkbox" checked={form.acknowledgement} onChange={(event) => setForm({ ...form, acknowledgement: event.target.checked })} /><span>{item}</span></label>)}<label className="checkbox-line"><input type="checkbox" checked={form.sandboxRequested} onChange={(event) => setForm({ ...form, sandboxRequested: event.target.checked })} /><span>Request sandbox review for repository/code metadata. This is not execution permission.</span></label></div>
+    {secretScan.warnings.length > 0 && <WarningCallout title="Secret warning"><p>{secretScan.blocked ? "Submission is blocked until private/secret material is removed." : "Review this content carefully before sharing."} Flags: {secretScan.warnings.join(", ")}.</p></WarningCallout>}
+    {fileValidation && <p className={fileValidation.ok ? "boundary-note" : "message"}>{fileValidation.message}</p>}
+    {form.codeText && <section className="commune-code-preview"><div className="addon-card__topline"><strong>{inertCodeSnippetLabel(form.codeLanguage)}</strong><span>{form.codeFileName || "snippet"}</span></div><pre><code>{form.codeText}</code></pre><p className="boundary-note">Code is shown for discussion only. Do not run code you do not trust.</p></section>}
+    <div className="commune-checklist">{routeAcknowledgements.map((item) => <label className="checkbox-line" key={item}><input type="checkbox" checked={form.acknowledgement} onChange={(event) => setForm({ ...form, acknowledgement: event.target.checked })} /><span>{item}</span></label>)}<label className="checkbox-line"><input type="checkbox" checked={form.stepsCodeAck} onChange={(event) => setForm({ ...form, stepsCodeAck: event.target.checked })} /><span>Any code snippet is inert text for discussion only. It is not execution permission.</span></label><label className="checkbox-line"><input type="checkbox" checked={form.sandboxRequested} onChange={(event) => setForm({ ...form, sandboxRequested: event.target.checked })} /><span>Request sandbox review for repository/code metadata. This is not execution permission.</span></label></div>
     <div className="button-row"><button type="button" className="button-primary" onClick={() => void submit()}>Submit for moderation</button><button type="button" onClick={() => saveLocal("draft_local")}>Save local draft</button><button type="button" onClick={() => saveLocal("pending_moderator_review_local")}>Save local request</button><button type="button" onClick={() => downloadText(`${slug(form.title)}.md`, postMarkdown(build("draft_local")), "text/markdown")}>Export Markdown</button><button type="button" onClick={() => copyText(postMarkdown(build("draft_local")), setMessage)}>Copy Markdown</button><Link className="button-link" to="/commune">Back to Commune</Link></div>
     <p className="message">{message}</p>
   </section>;
@@ -832,18 +868,20 @@ function FutureBackendPanel() {
 
 function PostDetail({ postId }: { postId: string }) {
   const { state, refresh } = useCommuneLoad(undefined, postId);
+  const [snippets, setSnippets] = useState<CommuneCodeSnippet[]>([]);
   const [comment, setComment] = useState("");
-  const [report, setReport] = useState({ type: reportTypes[0], reason: "" });
+  const [report, setReport] = useState<{ type: string; reason: string }>({ type: reportTypes[0], reason: "" });
   const [message, setMessage] = useState("");
   const post = state.posts[0];
   const thread = state.threads.find((item) => item.post_id === postId) ?? state.threads[0];
+  useEffect(() => { void loadCodeSnippets(postId).then((result) => { setSnippets(result.snippets); logCommuneDiagnostics("code-snippets", result.warnings); }); }, [postId]);
   async function save() { const result = await savePost(postId); setMessage(cleanCommuneMessage(result.message, "Saved posts are not active yet. Try again after account-backed shelves are ready.")); await refresh(); }
   async function follow() { if (!thread) return setMessage("No thread is available yet."); const result = await followThread(thread.id); setMessage(cleanCommuneMessage(result.message, "Followed threads are not active yet.")); await refresh(); }
   async function markRead() { if (!thread) return; const result = await markThreadRead(thread.id); setMessage(cleanCommuneMessage(result.message, "Thread read-state is not active yet.")); await refresh(); }
   async function submitReply() { if (!thread) return setMessage("No thread is available for this post yet."); const result = await submitComment({ postId, threadId: thread.id, body: comment }); setMessage(cleanCommuneMessage(result.message, "Comment saved locally is not available here yet. Backend moderation is being prepared.")); setComment(""); await refresh(); }
   async function reportPost() { const result = await reportCommuneContent({ postId, reportType: report.type, reason: report.reason }); setMessage(cleanCommuneMessage(result.message, "Report routing is being prepared. If urgent, use another trusted contact path.")); setReport({ ...report, reason: "" }); }
   if (!post) return <section className="section-card"><h2>Post not found</h2><p>This post is not public, does not exist, or is still awaiting moderation.</p><p className="boundary-note">Account-backed posts may also be unavailable while Commune backend tables are being prepared.</p><Link className="button-link" to="/commune">Back to Commune</Link></section>;
-  return <><section className="section-card commune-post-detail"><p className="eyebrow">{post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>By {authorLink(post.author_username)}</p><StatusBadges labels={[post.status, post.visibility]} /><p>{post.body}</p><div className="tag-row">{(post.tags ?? []).map((tag) => <span key={tag}>{tag}</span>)}</div><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div></section><section className="section-card"><p className="eyebrow">Comments</p><h2>Replies after moderation</h2>{state.comments.map((item) => <article className="commune-preview-card" key={item.id}><p>{item.body}</p><p>By {authorLink(item.author_username)} · {item.status}</p></article>)}{!state.comments.length && <p>Moderated comments will appear here once the backend tables are active and replies are approved.</p>}<label><span>Reply</span><textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><button type="button" onClick={() => void submitReply()}>Submit comment for moderation</button></section><section className="section-card"><p className="eyebrow">Report</p><h2>Report this post</h2><p>Reports are reviewed by moderators/administrators. Reporting does not automatically remove content unless urgent automated controls are later added.</p><label><span>Report type</span><select value={report.type} onChange={(event) => setReport({ ...report, type: event.target.value })}>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span>Reason</span><textarea rows={3} value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value })} /></label><button type="button" onClick={() => void reportPost()}>Send report</button><p className="message">{message}</p></section></>;
+  return <><section className="section-card commune-post-detail"><p className="eyebrow">{post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>By {authorLink(post.author_username)}</p><StatusBadges labels={[post.status, post.visibility]} /><p>{post.body}</p><div className="tag-row">{(post.tags ?? []).map((tag) => <span key={tag}>{tag}</span>)}</div><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div></section>{snippets.length > 0 && <section className="section-card"><p className="eyebrow">Code snippets</p><h2>Inert display only</h2>{snippets.map((snippet) => <article className="commune-code-preview" key={snippet.id}><div className="addon-card__topline"><strong>{inertCodeSnippetLabel(snippet.language ?? "")}</strong><span>{snippet.file_name ?? "snippet"}</span></div><pre><code>{snippet.code_text}</code></pre><p className="boundary-note">Code is shown for discussion only. Do not run code you do not trust. The website did not execute this snippet.</p></article>)}</section>}<section className="section-card"><p className="eyebrow">Comments</p><h2>Replies after moderation</h2>{state.comments.map((item) => <article className="commune-preview-card" key={item.id}><p>{item.body}</p><p>By {authorLink(item.author_username)} · {item.status}</p></article>)}{!state.comments.length && <p>Moderated comments will appear here once the backend tables are active and replies are approved.</p>}<label><span>Reply</span><textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><button type="button" onClick={() => void submitReply()}>Submit comment for moderation</button></section><section className="section-card"><p className="eyebrow">Report</p><h2>Report this post</h2><p>Reports are reviewed by moderators/administrators. Reporting does not automatically remove content unless urgent automated controls are later added.</p><label><span>Report type</span><select value={report.type} onChange={(event) => setReport({ ...report, type: event.target.value })}>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span>Reason</span><textarea rows={3} value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value })} /></label><button type="button" onClick={() => void reportPost()}>Send report</button><p className="message">{message}</p></section></>;
 }
 
 function ModerationPanel() {
@@ -861,6 +899,26 @@ function ModerationPanel() {
   return <section className="section-card"><p className="eyebrow">Role-gated moderation</p><h2>Commune moderation queue</h2><p className="boundary-note">Normal users cannot access RLS-protected pending posts, comments, uploads, reports, or moderation events.</p><label><span>Moderation note</span><input value={reason} onChange={(event) => setReason(event.target.value)} /></label><div className="commune-draft-grid">{items.map((item) => <article key={`${item.kind}-${item.id}`}><h3>{item.title}</h3><StatusBadges labels={[item.kind, item.status]} /><p>{item.summary}</p><div className="button-row"><button onClick={() => void act(item, "approve")}>Approve/publish</button><button onClick={() => void act(item, "needs_information")}>Needs info</button><button onClick={() => void act(item, "reject")}>Reject/remove</button><button onClick={() => void act(item, "hide")}>Hide</button><button onClick={() => void act(item, "archive")}>Archive</button><button onClick={() => void act(item, "escalate")}>Escalate</button></div></article>)}</div>{!items.length && <p>Moderation items will appear here for authorized roles when account-backed Commune tables are active.</p>}<p className="message">{message}</p></section>;
 }
 
+function RealtimeFoundationPanel() {
+  return <section className="section-card commune-realtime-card">
+    <p className="eyebrow">Realtime foundation</p>
+    <h2>Live chat is prepared, not launched.</h2>
+    <p>Realtime community rooms need moderation, rate limits, report tools, retention rules, and private-data warnings before public write access is treated as safe.</p>
+    <StatusBadges labels={["plain text only", "no private DMs", "no file uploads", "reportable", "moderation required", "rate limits required"]} />
+    <p className="boundary-note">The `commune_realtime_messages` table foundation is private-safe by RLS, but this page intentionally presents it as future infrastructure until moderation/rate limits are fully configured.</p>
+  </section>;
+}
+
+function CodeExecutionBoundaryPanel() {
+  return <section className="section-card commune-sandbox-card">
+    <p className="eyebrow">Code execution sandbox foundation</p>
+    <h2>The public website does not execute code.</h2>
+    <p>Future execution requires isolated sandbox workers, resource limits, network controls, filesystem isolation, logging, kill controls, and explicit user/admin approval. Local Elysia remains final authority for local tools and installs.</p>
+    <StatusBadges labels={["no shell", "no npm install", "no package hooks", "no repo clone", "no dependency execution", "metadata review only"]} />
+    <Link className="button-link" to="/commune/sandbox-review">Request sandbox review metadata</Link>
+  </section>;
+}
+
 export default function CommunePage() {
   const { roomSlug, postId } = useParams();
   const location = useLocation();
@@ -871,6 +929,8 @@ export default function CommunePage() {
   const { state, refresh } = useCommuneLoad(roomSlug, postId);
   const localDrafts = useLocalDraftState();
   const [filters, setFilters] = useState<CommuneFilters>({ search: "", category: "All", status: "All", safety: "All" });
+  const [categories, setCategories] = useState<CommuneCategory[]>(() => communeFallbackCategories.map((item, index) => ({ ...item, id: item.slug, sort_order: index, is_active: true })));
+  useEffect(() => { void loadCategories().then((result) => { setCategories(result.categories); logCommuneDiagnostics("categories", result.warnings); }); }, []);
   const selectedRoom = state.rooms.find((room) => room.slug === roomSlug);
   async function save(id: string) {
     const result = await savePost(id);
@@ -878,7 +938,7 @@ export default function CommunePage() {
     await refresh();
   }
 
-  const routeMode = ["new", "repository-showcase", "troubleshooting", "sandbox-review", "moderation"].includes(mode || "") ? mode : "";
+  const routeMode = ["new", "repository-showcase", "troubleshooting", "sandbox-review", "moderation", "realtime"].includes(mode || "") ? mode : "";
   const activeActionKind = mode === "new" ? "post" : mode === "troubleshooting" ? "troubleshooting" : mode === "repository-showcase" ? "repository" : mode === "sandbox-review" ? "sandbox" : mode === "moderation" ? "moderation" : "";
 
   return <div className="page-stack commune-page">
@@ -892,11 +952,12 @@ export default function CommunePage() {
     <AccountModePanel signedIn={state.signedIn} isModerator={state.isModerator} accountReady={state.accountReady} activeKind={activeActionKind} />
     {["new", "troubleshooting", "repository-showcase", "sandbox-review"].includes(routeMode) && <CommuneFocusedToolbar />}
 
-    {mode === "new" && <PostComposer defaultRoomId={selectedRoom?.id} localDrafts={localDrafts} onRefresh={refresh} />}
+    {mode === "new" && <PostComposer defaultRoomId={selectedRoom?.id} localDrafts={localDrafts} categories={categories} onRefresh={refresh} />}
     {mode === "repository-showcase" && <RepositoryShowcaseForm localDrafts={localDrafts} />}
-    {mode === "troubleshooting" && <PostComposer defaultType="troubleshooting" defaultRoomId={state.rooms.find((room) => room.slug === "troubleshooting-grove")?.id} troubleshooting localDrafts={localDrafts} onRefresh={refresh} />}
+    {mode === "troubleshooting" && <PostComposer defaultType="troubleshooting" defaultRoomId={state.rooms.find((room) => room.slug === "troubleshooting-grove")?.id} troubleshooting localDrafts={localDrafts} categories={categories} onRefresh={refresh} />}
     {mode === "sandbox-review" && <SandboxDraftPanel localDrafts={localDrafts} />}
     {mode === "moderation" && <ModerationPanel />}
+    {mode === "realtime" && <RealtimeFoundationPanel />}
     {postId && <PostDetail postId={postId} />}
 
     {!postId && !routeMode && <>
@@ -905,9 +966,11 @@ export default function CommunePage() {
       <ZoneCatalog filters={filters} />
       {roomSlug && <section className="section-card"><p className="eyebrow">Room</p><h2>{selectedRoom?.name ?? roomSlug}</h2><p>{selectedRoom?.description ?? "Account-backed room is being prepared. Local draft tools remain available."}</p></section>}
       <CommunityFeed posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} filters={filters} />
-      <PostComposer defaultRoomId={selectedRoom?.id} localDrafts={localDrafts} onRefresh={refresh} />
+      <PostComposer defaultRoomId={selectedRoom?.id} localDrafts={localDrafts} categories={categories} onRefresh={refresh} />
       <RepositoryShowcaseForm localDrafts={localDrafts} />
       <SandboxDraftPanel localDrafts={localDrafts} />
+      <RealtimeFoundationPanel />
+      <CodeExecutionBoundaryPanel />
       <LocalDraftStudio localDrafts={localDrafts} filters={filters} />
       <FutureBackendPanel />
     </>}

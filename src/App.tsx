@@ -1,33 +1,48 @@
+import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 import SiteLayout from "./layouts/SiteLayout";
 import { AuthProvider } from "./shared/auth/AuthProvider";
-import MarketplaceProvider from "./pages/The-Elysia-Marketplace/MarketplaceProvider";
-import OnlineMainPage from "./pages/Elysia-Ecobotics-Online-MainPage";
-import ArchivePage from "./pages/The-Elysia-Archive";
-import MarketplaceHomePage from "./pages/The-Elysia-Marketplace/pages/HomePage";
-import BrowsePage from "./pages/The-Elysia-Marketplace/pages/BrowsePage";
-import AddonDetailsPage from "./pages/The-Elysia-Marketplace/pages/AddonDetailsPage";
-import ActionPreviewPage from "./pages/The-Elysia-Marketplace/pages/ActionPreviewPage";
-import AccountPage from "./pages/The-Elysia-Marketplace/pages/AccountPage";
-import SubmitPage from "./pages/The-Elysia-Marketplace/pages/SubmitPage";
-import TrustPage from "./pages/The-Elysia-Marketplace/pages/TrustPage";
-import ManifestApiPage from "./pages/The-Elysia-Marketplace/pages/ManifestApiPage";
-import AdminPage from "./pages/The-Elysia-Marketplace/pages/AdminPage";
-import ProductsPage from "./pages/Elysia-Ecobotics-Products";
-import LabPage from "./pages/The-Elysia-Ecobotics-Lab";
-import DeveloperForgePage from "./pages/The-Developer-Forge";
-import LivingLibraryPage from "./pages/The-Living-Library";
-import CommunePage from "./pages/The-Elysia-Commune";
-import WorkWithPage from "./pages/Work-With-Elysia-Ecobotics";
-import CommonsCirclePage from "./pages/The-Commons-Circle";
-import CommonsCircleSetupPage from "./pages/The-Commons-Circle/CommonsCircleSetupPage";
-import SavedShelvesPage from "./pages/The-Commons-Circle/SavedShelvesPage";
-import PublicCommonsProfilePage from "./pages/Public-Commons-Profile";
-import StoryPage from "./pages/The-Story-of-Elysia";
-import AboutPage from "./pages/About-Elysia-Ecobotics";
-import MissionPage from "./pages/The-Elysia-Mission";
-import LegalPage, { LegalPolicyPage } from "./pages/Legal";
-import { AdminAuditPage, AdminHomePage, AdminReviewPage, AdminRolesPage } from "./pages/Admin";
+
+const MarketplaceProvider = lazy(() => import("./pages/The-Elysia-Marketplace/MarketplaceProvider"));
+const OnlineMainPage = lazy(() => import("./pages/Elysia-Ecobotics-Online-MainPage"));
+const ArchivePage = lazy(() => import("./pages/The-Elysia-Archive"));
+const MarketplaceHomePage = lazy(() => import("./pages/The-Elysia-Marketplace/pages/HomePage"));
+const BrowsePage = lazy(() => import("./pages/The-Elysia-Marketplace/pages/BrowsePage"));
+const AddonDetailsPage = lazy(() => import("./pages/The-Elysia-Marketplace/pages/AddonDetailsPage"));
+const ActionPreviewPage = lazy(() => import("./pages/The-Elysia-Marketplace/pages/ActionPreviewPage"));
+const AccountPage = lazy(() => import("./pages/The-Elysia-Marketplace/pages/AccountPage"));
+const SubmitPage = lazy(() => import("./pages/The-Elysia-Marketplace/pages/SubmitPage"));
+const TrustPage = lazy(() => import("./pages/The-Elysia-Marketplace/pages/TrustPage"));
+const ManifestApiPage = lazy(() => import("./pages/The-Elysia-Marketplace/pages/ManifestApiPage"));
+const MarketplaceAdminPage = lazy(() => import("./pages/The-Elysia-Marketplace/pages/AdminPage"));
+const ProductsPage = lazy(() => import("./pages/Elysia-Ecobotics-Products"));
+const LabPage = lazy(() => import("./pages/The-Elysia-Ecobotics-Lab"));
+const DeveloperForgePage = lazy(() => import("./pages/The-Developer-Forge"));
+const LivingLibraryPage = lazy(() => import("./pages/The-Living-Library"));
+const CommunePage = lazy(() => import("./pages/The-Elysia-Commune"));
+const WorkWithPage = lazy(() => import("./pages/Work-With-Elysia-Ecobotics"));
+const CommonsCirclePage = lazy(() => import("./pages/The-Commons-Circle"));
+const CommonsCircleSetupPage = lazy(() => import("./pages/The-Commons-Circle/CommonsCircleSetupPage"));
+const SavedShelvesPage = lazy(() => import("./pages/The-Commons-Circle/SavedShelvesPage"));
+const PublicCommonsProfilePage = lazy(() => import("./pages/Public-Commons-Profile"));
+const StoryPage = lazy(() => import("./pages/The-Story-of-Elysia"));
+const AboutPage = lazy(() => import("./pages/About-Elysia-Ecobotics"));
+const MissionPage = lazy(() => import("./pages/The-Elysia-Mission"));
+const LegalPage = lazy(() => import("./pages/Legal"));
+const LegalPolicyPage = lazy(() => import("./pages/Legal").then((module) => ({ default: module.LegalPolicyPage })));
+const AdminHomePage = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminHomePage })));
+const AdminReviewPage = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminReviewPage })));
+const AdminRolesPage = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminRolesPage })));
+const AdminAuditPage = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminAuditPage })));
+const AdminReportsPage = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminReportsPage })));
+const AdminDevelopersPage = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminDevelopersPage })));
+const AdminAddonSubmissionsPage = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminAddonSubmissionsPage })));
+const AdminLibrarySourcesPage = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminLibrarySourcesPage })));
+const AdminWorkSubmissionsPage = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminWorkSubmissionsPage })));
+
+function PageLoading() {
+  return <main className="site-loading" aria-live="polite">Loading Elysia Ecobotics Online...</main>;
+}
 
 function LegacyAddonAlias() {
   const { id } = useParams();
@@ -43,8 +58,9 @@ export default function App() {
   return (
     <AuthProvider>
       <BrowserRouter>
-        <Routes>
-          <Route element={<SiteLayout />}>
+        <Suspense fallback={<PageLoading />}>
+          <Routes>
+            <Route element={<SiteLayout />}>
             <Route index element={<OnlineMainPage />} />
             <Route path="archive" element={<ArchivePage />} />
             <Route path="marketplace" element={<MarketplaceProvider />}>
@@ -56,7 +72,7 @@ export default function App() {
               <Route path="submit" element={<SubmitPage />} />
               <Route path="trust" element={<TrustPage />} />
               <Route path="manifest-api" element={<ManifestApiPage />} />
-              <Route path="admin" element={<AdminPage />} />
+              <Route path="admin" element={<MarketplaceAdminPage />} />
             </Route>
             <Route path="products" element={<ProductsPage />} />
             <Route path="lab" element={<LabPage />} />
@@ -88,6 +104,7 @@ export default function App() {
             <Route path="commune/repository-showcase" element={<CommunePage />} />
             <Route path="commune/troubleshooting" element={<CommunePage />} />
             <Route path="commune/sandbox-review" element={<CommunePage />} />
+            <Route path="commune/realtime" element={<CommunePage />} />
             <Route path="commune/moderation" element={<CommunePage />} />
             <Route path="work-with-elysia-ecobotics" element={<WorkWithPage />} />
             <Route path="commons-circle" element={<CommonsCirclePage />} />
@@ -101,6 +118,12 @@ export default function App() {
             <Route path="legal" element={<LegalPage />} />
             <Route path="legal/:slug" element={<LegalPolicyPage />} />
             <Route path="admin" element={<AdminHomePage />} />
+            <Route path="admin/moderation" element={<AdminReportsPage />} />
+            <Route path="admin/reports" element={<AdminReportsPage />} />
+            <Route path="admin/addon-submissions" element={<AdminAddonSubmissionsPage />} />
+            <Route path="admin/developers" element={<AdminDevelopersPage />} />
+            <Route path="admin/library-sources" element={<AdminLibrarySourcesPage />} />
+            <Route path="admin/work-submissions" element={<AdminWorkSubmissionsPage />} />
             <Route path="admin/review" element={<AdminReviewPage />} />
             <Route path="admin/review/work-with" element={<AdminReviewPage />} />
             <Route path="admin/review/stewardship" element={<AdminReviewPage />} />
@@ -118,8 +141,9 @@ export default function App() {
             <Route path="trust" element={<Navigate to="/marketplace/trust" replace />} />
             <Route path="manifest-api" element={<Navigate to="/marketplace/manifest-api" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
-          </Route>
-        </Routes>
+            </Route>
+          </Routes>
+        </Suspense>
       </BrowserRouter>
     </AuthProvider>
   );

@@ -1,5 +1,6 @@
 import { createReviewItem, loadCurrentRoleState, type AppRole } from "../../shared/review/reviewClient";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
+import { communeFallbackCategories, communeReportReasons, scanCommuneTextForSecrets, validateCommuneMediaFile } from "./communeSafety";
 
 export type CommunePostType = "media_garden" | "troubleshooting" | "code_sharing" | "repository_showcase" | "community_network" | "job_post" | "official_update" | "research_note" | "elysia_iteration_showcase";
 export type CommunePostStatus = "draft" | "pending_review" | "in_review" | "needs_information" | "approved" | "published" | "rejected" | "hidden" | "archived" | "deleted_by_user" | "removed_by_moderator";
@@ -10,6 +11,8 @@ export type CommuneComment = { id: string; thread_id: string; post_id?: string |
 export type CommuneModerationItem = { id: string; kind: "post" | "comment" | "upload" | "repo" | "sandbox" | "report"; title: string; status: string; created_at?: string | null; summary?: string | null };
 export type CommuneAccountState = { signedIn: boolean; userId: string | null; username: string | null; roles: AppRole[]; isModerator: boolean; warnings: string[] };
 export type LoadCommuneData = { rooms: CommuneRoom[]; posts: CommunePost[]; comments: CommuneComment[]; threads: CommuneThread[]; savedPostIds: string[]; followedThreadIds: string[]; account: CommuneAccountState; warnings: string[] };
+export type CommuneCategory = { id: string; slug: string; title: string; description?: string | null; sort_order?: number | null; is_active?: boolean | null };
+export type CommuneCodeSnippet = { id: string; post_id: string; author_user_id: string; language?: string | null; file_name?: string | null; code_text: string; secret_scan_status?: string | null; sandbox_warning_acknowledged?: boolean | null; created_at?: string | null };
 
 export const postTypeOptions: { value: CommunePostType; label: string }[] = [
   { value: "media_garden", label: "Media Garden" },
@@ -23,9 +26,7 @@ export const postTypeOptions: { value: CommunePostType; label: string }[] = [
   { value: "elysia_iteration_showcase", label: "Elysia Iteration Showcase" }
 ];
 
-export const reportTypes = ["spam", "harassment", "hate_or_abuse", "private_information", "secrets_or_credentials", "unsafe_code_or_malware", "copyright", "misinformation", "other"];
-const allowedUploadExt = new Set(["pdf", "png", "jpg", "jpeg", "webp", "txt", "md", "csv", "json"]);
-const blockedNamePattern = /(^|[._-])(env|secret|secrets|credential|credentials|private[_-]?key|id[_-]?rsa|token|password)([._-]|$)/i;
+export const reportTypes = [...communeReportReasons];
 
 function fallback<T>(data: T, warning = supabaseNotConfiguredMessage) { return { data, warnings: [warning] }; }
 function splitList(value: string) { return value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean); }
@@ -37,6 +38,20 @@ async function accountState(): Promise<CommuneAccountState> {
   if (!hasSupabaseConfig || !supabase || !roleState.signedIn || !roleState.userId) return { signedIn: roleState.signedIn, userId: roleState.userId, username: null, roles: roleState.roles, isModerator: isModerator(roleState.roles, roleState.isAdmin), warnings: roleState.warnings };
   const { data, error } = await supabase.from("profiles").select("username").eq("id", roleState.userId).maybeSingle();
   return { signedIn: true, userId: roleState.userId, username: (data as { username?: string } | null)?.username ?? null, roles: roleState.roles, isModerator: isModerator(roleState.roles, roleState.isAdmin), warnings: error ? [...roleState.warnings, error.message] : roleState.warnings };
+}
+
+function friendlyError(message: string, fallbackMessage: string) {
+  if (import.meta.env.DEV) console.warn("[Commune backend]", message);
+  if (/schema cache|Could not find|does not exist|relation/i.test(message)) return fallbackMessage;
+  if (/permission denied|row-level security|violates row-level security/i.test(message)) return "Your current account cannot use that Commune action yet.";
+  return message;
+}
+
+export async function loadCategories(): Promise<{ categories: CommuneCategory[]; warnings: string[] }> {
+  if (!hasSupabaseConfig || !supabase) return { categories: communeFallbackCategories.map((item, index) => ({ ...item, id: item.slug, sort_order: index, is_active: true })), warnings: [supabaseNotConfiguredMessage] };
+  const { data, error } = await supabase.from("commune_categories").select("id,slug,title,description,sort_order,is_active").eq("is_active", true).order("sort_order");
+  if (error) return { categories: communeFallbackCategories.map((item, index) => ({ ...item, id: item.slug, sort_order: index, is_active: true })), warnings: [friendlyError(error.message, "Commune categories are using the safe built-in fallback until the latest migration is applied.")] };
+  return { categories: (data ?? []) as CommuneCategory[], warnings: [] };
 }
 
 export async function loadCommuneData(roomSlug?: string, postId?: string): Promise<LoadCommuneData> {
@@ -79,17 +94,23 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
   return { rooms: (rooms ?? []) as CommuneRoom[], posts: (posts ?? []) as CommunePost[], comments: (comments ?? []) as CommuneComment[], threads: (threads ?? []) as CommuneThread[], savedPostIds, followedThreadIds, account, warnings };
 }
 
-export async function submitCommunePost(input: { postType: CommunePostType; roomId?: string; title: string; body: string; tags: string; links: string; repositoryUrl?: string; acknowledgement: boolean; upload?: File | null; sandboxRequested?: boolean }): Promise<{ ok: boolean; message: string }> {
+export async function submitCommunePost(input: { postType: CommunePostType; roomId?: string; title: string; body: string; tags: string; links: string; repositoryUrl?: string; acknowledgement: boolean; upload?: File | null; sandboxRequested?: boolean }): Promise<{ ok: boolean; message: string; postId?: string }> {
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
   if (!account.userId) return { ok: false, message: "Sign in to submit a Commune post for moderation." };
   if (!input.acknowledgement) return { ok: false, message: "Confirm the safety acknowledgements before submitting." };
+  const secretScan = scanCommuneTextForSecrets([input.title, input.body, input.tags, input.links, input.repositoryUrl ?? ""].join("\n"));
+  if (secretScan.blocked) return { ok: false, message: `Submission blocked because it appears to contain private or secret material: ${secretScan.warnings.join(", ")}. Remove it before submitting.` };
+  if (input.upload) {
+    const media = validateCommuneMediaFile(input.upload);
+    if (!media.ok) return { ok: false, message: media.message };
+  }
   if (input.postType === "official_update" && !account.isModerator) return { ok: false, message: "Official Updates are restricted to authorized administrators/moderators." };
   const tags = splitList(input.tags);
   const links = splitList(input.links);
   const postId = crypto.randomUUID();
   const { error: postError } = await supabase.from("commune_posts").insert({ id: postId, user_id: account.userId, author_username: account.username, post_type: input.postType, title: input.title.trim(), body: input.body.trim(), excerpt: excerpt(input.body), tags, links, repository_url: input.repositoryUrl?.trim() || null, status: "pending_review", moderation_status: "pending_review", safety_acknowledgements: { public_boundary: true, no_secrets: true, no_execution: true } });
-  if (postError) return { ok: false, message: `Commune post could not be saved: ${postError.message}` };
+  if (postError) return { ok: false, message: friendlyError(postError.message, "Community posting backend is not active yet.") };
   let threadId: string | null = null;
   const { data: thread, error: threadError } = await supabase.from("commune_threads").insert({ post_id: postId, room_id: input.roomId || null, title: input.title.trim(), created_by: account.userId, visibility: "public" }).select("id").single();
   if (!threadError) threadId = (thread as { id: string }).id;
@@ -102,16 +123,18 @@ export async function submitCommunePost(input: { postType: CommunePostType; room
     if (!repo.ok) return { ok: false, message: `Post saved, but repository showcase failed: ${repo.message}` };
   }
   const review = await createReviewItem({ domain: "commune", sourceTable: "commune_posts", sourceId: postId, submittedBy: account.userId, title: input.title.trim(), summary: excerpt(input.body) });
-  return { ok: true, message: review.ok ? `Commune post submitted for moderation${threadId ? " with a pending thread" : ""}. It is not public until approved.` : `Post saved, but review routing needs attention: ${review.warning}` };
+  return { ok: true, postId, message: review.ok ? `Commune post submitted for moderation${threadId ? " with a pending thread" : ""}. It is not public until approved.` : `Post saved, but review routing needs attention: ${review.warning}` };
 }
 
 export async function submitComment(input: { postId: string; threadId: string; body: string; parentCommentId?: string | null }): Promise<{ ok: boolean; message: string }> {
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
   if (!account.userId) return { ok: false, message: "Sign in to submit a comment for moderation." };
+  const secretScan = scanCommuneTextForSecrets(input.body);
+  if (secretScan.blocked) return { ok: false, message: `Comment blocked because it appears to contain private or secret material: ${secretScan.warnings.join(", ")}.` };
   const id = crypto.randomUUID();
   const { error } = await supabase.from("commune_comments").insert({ id, thread_id: input.threadId, post_id: input.postId, parent_comment_id: input.parentCommentId || null, user_id: account.userId, author_username: account.username, body: input.body.trim(), status: "pending_review" });
-  if (error) return { ok: false, message: error.message };
+  if (error) return { ok: false, message: friendlyError(error.message, "Comment moderation backend is not active yet.") };
   await createReviewItem({ domain: "commune", sourceTable: "commune_comments", sourceId: id, submittedBy: account.userId, title: "Commune comment", summary: excerpt(input.body) });
   return { ok: true, message: "Comment submitted for moderation. It is not public until approved." };
 }
@@ -166,8 +189,17 @@ export async function submitSandboxReview(input: { requestTitle: string; reposit
 export async function reportCommuneContent(input: { postId?: string; commentId?: string; reportType: string; reason: string; profileUsername?: string }): Promise<{ ok: boolean; message: string }> {
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
+  const targetId = input.postId || input.commentId;
+  if (targetId) {
+    const { data: unified, error: unifiedError } = await supabase.from("commune_reports").insert({ reporter_user_id: account.userId, target_type: input.postId ? "post" : "comment", target_id: targetId, reason: input.reportType, details: input.reason, status: "submitted" }).select("id").single();
+    if (!unifiedError) {
+      if (account.userId) await createReviewItem({ domain: "commune", sourceTable: "commune_reports", sourceId: (unified as { id: string }).id, submittedBy: account.userId, title: `Commune report: ${input.reportType}`, summary: excerpt(input.reason) });
+      return { ok: true, message: "Report saved for moderator review. Reporting does not automatically remove content." };
+    }
+    if (import.meta.env.DEV) console.warn("[Commune report fallback]", unifiedError.message);
+  }
   const { data, error } = await supabase.from("commune_abuse_reports").insert({ reporter_user_id: account.userId, post_id: input.postId || null, comment_id: input.commentId || null, public_profile_username: input.profileUsername || null, report_type: input.reportType, report_reason: input.reason, status: "pending_review" }).select("id").single();
-  if (error) return { ok: false, message: error.message };
+  if (error) return { ok: false, message: friendlyError(error.message, "Report routing is not active yet.") };
   if (account.userId) await createReviewItem({ domain: "commune", sourceTable: "commune_abuse_reports", sourceId: (data as { id: string }).id, submittedBy: account.userId, title: `Commune report: ${input.reportType}`, summary: excerpt(input.reason) });
   return { ok: true, message: "Report saved for moderator review. Reporting does not automatically remove content." };
 }
@@ -176,17 +208,36 @@ export async function uploadCommuneAttachment(file: File, attach: { postId?: str
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
   if (!account.userId) return { ok: false, message: "Sign in before uploading Commune attachments." };
+  const media = validateCommuneMediaFile(file);
+  if (!media.ok) return { ok: false, message: media.message };
   const ext = file.name.split(".").pop()?.toLowerCase() || "";
-  if (!allowedUploadExt.has(ext)) return { ok: false, message: "Unsupported upload type. Allowed: pdf, png, jpg/jpeg, webp, txt, md, csv, json." };
-  if (blockedNamePattern.test(file.name)) return { ok: false, message: "Unsafe filename blocked. Do not upload .env, credentials, tokens, secrets, or private key files." };
-  if (file.size > 10 * 1024 * 1024) return { ok: false, message: "Commune uploads must be 10 MB or smaller." };
   const safeName = file.name.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || `upload.${ext}`;
   const storagePath = `${account.userId}/${Date.now()}-${safeName}`;
-  const upload = await supabase.storage.from("commune-uploads").upload(storagePath, file, { contentType: file.type || undefined, upsert: false });
-  if (upload.error) return { ok: false, message: upload.error.message };
+  const bucket = "commune-media";
+  const upload = await supabase.storage.from(bucket).upload(storagePath, file, { contentType: file.type || undefined, upsert: false });
+  if (upload.error) return { ok: false, message: friendlyError(upload.error.message, "Community media storage is not active yet.") };
+  await supabase.from("commune_media").insert({ owner_user_id: account.userId, post_id: attach.postId || null, comment_id: attach.commentId || null, storage_bucket: bucket, storage_path: storagePath, file_name: file.name, mime_type: file.type || null, file_size: file.size, media_kind: media.mediaKind, visibility_state: "submitted", warning_acknowledged: true });
   const { data, error } = await supabase.from("commune_uploads").insert({ user_id: account.userId, post_id: attach.postId || null, comment_id: attach.commentId || null, repository_showcase_id: attach.repositoryShowcaseId || null, storage_path: storagePath, original_filename: file.name, mime_type: file.type || null, size_bytes: file.size, upload_role: attach.role, status: "pending_review" }).select("id").single();
-  if (error) return { ok: false, message: `File uploaded privately, but metadata save failed: ${error.message}` };
+  if (error) return { ok: false, message: `File uploaded privately, but legacy metadata save failed: ${friendlyError(error.message, "legacy upload metadata unavailable")}` };
   return { ok: true, message: "Attachment uploaded privately for moderation. No public URL was created.", id: (data as { id: string }).id };
+}
+
+export async function createCodeSnippet(input: { postId: string; language: string; fileName: string; codeText: string; sandboxAcknowledged: boolean }): Promise<{ ok: boolean; message: string; id?: string }> {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId) return { ok: false, message: "Sign in before adding code snippets." };
+  if (!input.sandboxAcknowledged) return { ok: false, message: "Acknowledge that code snippets are inert text and not execution permission." };
+  const scan = scanCommuneTextForSecrets([input.fileName, input.codeText].join("\n"));
+  if (scan.blocked) return { ok: false, message: `Code snippet blocked because it appears to contain private or secret material: ${scan.warnings.join(", ")}.` };
+  const { data, error } = await supabase.from("commune_code_snippets").insert({ post_id: input.postId, author_user_id: account.userId, language: input.language || null, file_name: input.fileName || null, code_text: input.codeText, secret_scan_status: scan.warnings.length ? "warning" : "clear", sandbox_warning_acknowledged: true }).select("id").single();
+  if (error) return { ok: false, message: friendlyError(error.message, "Code snippet backend is not active yet.") };
+  return { ok: true, message: "Code snippet saved as inert text. It was not executed.", id: (data as { id: string }).id };
+}
+
+export async function loadCodeSnippets(postId: string): Promise<{ snippets: CommuneCodeSnippet[]; warnings: string[] }> {
+  if (!supabase) return { snippets: [], warnings: [supabaseNotConfiguredMessage] };
+  const { data, error } = await supabase.from("commune_code_snippets").select("*").eq("post_id", postId).order("created_at");
+  return { snippets: (data ?? []) as CommuneCodeSnippet[], warnings: error ? [friendlyError(error.message, "Code snippets are not active yet.")] : [] };
 }
 
 export async function loadCommuneModerationQueue(): Promise<{ items: CommuneModerationItem[]; warnings: string[] }> {

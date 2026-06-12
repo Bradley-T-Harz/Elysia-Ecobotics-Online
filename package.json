@@ -9,7 +9,11 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "typecheck": "tsc -b",
-    "test:routes": "node scripts/routeSmokeTest.mjs"
+    "test:routes": "node scripts/routeSmokeTest.mjs",
+    "test:security": "node scripts/securitySmokeTest.mjs",
+    "test:content": "node scripts/siteContentSmokeTest.mjs",
+    "test:commune": "node scripts/communeSmokeTest.mjs",
+    "test:all": "npm run test:routes && npm run test:security && npm run test:content && npm run test:commune && npm run typecheck && npm run build"
   },
   "dependencies": {
     "@supabase/supabase-js": "latest",
