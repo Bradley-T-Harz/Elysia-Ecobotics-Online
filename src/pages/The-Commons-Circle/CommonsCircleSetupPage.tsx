@@ -556,6 +556,9 @@ export default function CommonsCircleSetupPage() {
         if (insertError) throw new Error(setupBackendMessage("Commons Profile creation", insertError.message));
       }
 
+      const { error: freeMemberError } = await supabase.rpc("grant_free_member_for_user", { p_target_user_id: auth.user.id });
+      if (freeMemberError) pushMessage(setupBackendMessage("Free Member badge", freeMemberError.message));
+
       const stewardshipMessage = await persistStewardshipRequest(auth.user.id);
       if (stewardshipMessage) pushMessage(stewardshipMessage);
       const workWithMessage = await persistWorkWithRequest(auth.user.id);

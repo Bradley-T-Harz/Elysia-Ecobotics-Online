@@ -637,20 +637,39 @@ insert into public.profile_decals (decal_key, name, category, unlock_condition) 
   ('robotic_seed', 'Robotic Seed', 'ecobotics', 'Available by default')
 on conflict (decal_key) do nothing;
 
-insert into public.badge_definitions (badge_key, name, description, badge_type, category, rarity) values
-  ('free_member', 'Free Member', 'Default recognition for joining the public website commons.', 'member', 'membership', 'common'),
-  ('stewardship_supporter', 'Stewardship Supporter', 'Recognition for reviewed public-benefit stewardship support.', 'stewardship', 'stewardship', 'uncommon'),
-  ('water_steward', 'Water Steward', 'Recognition connected to water access, watersheds, wetlands, or aquatic care.', 'stewardship', 'water', 'uncommon'),
-  ('forest_steward', 'Forest Steward', 'Recognition connected to forests, restoration, and habitat care.', 'stewardship', 'forest', 'uncommon'),
-  ('reef_steward', 'Reef Steward', 'Recognition connected to reef and ocean stewardship.', 'stewardship', 'reef', 'uncommon'),
-  ('health_steward', 'Health Steward', 'Recognition connected to health, dignity, and public-benefit support.', 'stewardship', 'health', 'uncommon'),
-  ('knowledge_commons_supporter', 'Knowledge Commons Supporter', 'Recognition for supporting public knowledge and open learning.', 'stewardship', 'knowledge', 'uncommon'),
-  ('source_curator', 'Source Curator', 'Recognition for useful Living Library source suggestions and care.', 'contributor', 'living_library', 'rare'),
-  ('troubleshooting_helper', 'Troubleshooting Helper', 'Recognition for helping others resolve issues safely.', 'contributor', 'commune', 'rare'),
-  ('developer_contributor', 'Developer Contributor', 'Recognition for add-on, tooling, or developer ecosystem contributions.', 'developer', 'developer', 'rare'),
-  ('founding_steward', 'Founding Steward', 'Early project recognition manually assigned by an administrator.', 'founding', 'membership', 'founding'),
-  ('guardian_reviewer', 'Guardian / Reviewer', 'Recognition associated with trust and review work. Authority still requires user_roles.', 'review', 'authority-linked', 'epic')
-on conflict (badge_key) do nothing;
+insert into public.badge_definitions (badge_key, name, description, badge_type, icon_path, category, rarity) values
+  ('free_member', 'Free Member', 'Default recognition for joining the public website commons.', 'member', '/images/badges/Free_Member.png', 'membership', 'common'),
+  ('stewardship_supporter', 'Stewardship Supporter', 'Recognition for reviewed public-benefit stewardship support.', 'stewardship', '/images/badges/Stewardship_Supporter.png', 'stewardship', 'uncommon'),
+  ('water_steward', 'Water Steward', 'Recognition connected to water access, watersheds, wetlands, or aquatic care.', 'stewardship', '/images/badges/Water_Steward.png', 'water', 'uncommon'),
+  ('forest_steward', 'Forest Steward', 'Recognition connected to forests, restoration, and habitat care.', 'stewardship', '/images/badges/Forest_Steward.png', 'forest', 'uncommon'),
+  ('reef_steward', 'Reef Steward', 'Recognition connected to reef and ocean stewardship.', 'stewardship', '/images/badges/Reef_Steward.png', 'reef', 'uncommon'),
+  ('health_steward', 'Health Steward', 'Recognition connected to health, dignity, and public-benefit support.', 'stewardship', '/images/badges/Health_Steward.png', 'health', 'uncommon'),
+  ('knowledge_commons_supporter', 'Knowledge Commons Supporter', 'Recognition for supporting public knowledge and open learning.', 'stewardship', '/images/badges/Knowledge_Commons_Supporter.png', 'knowledge', 'uncommon'),
+  ('source_curator', 'Source Curator', 'Recognition for useful Living Library source suggestions and care.', 'contributor', '/images/badges/Source_Curator.png', 'living-library', 'rare'),
+  ('troubleshooting_helper', 'Troubleshooting Helper', 'Recognition for helping others resolve issues safely.', 'contributor', '/images/badges/Troubleshooting_Helper.png', 'commune', 'rare'),
+  ('developer_contributor', 'Developer Contributor', 'Recognition for add-on, tooling, or developer ecosystem contributions.', 'developer', '/images/badges/Developer_Contributor.png', 'developer', 'rare'),
+  ('founding_steward', 'Founding Steward', 'Early project recognition manually assigned by an administrator.', 'founding', '/images/badges/Founding_Steward.png', 'membership', 'epic'),
+  ('guardian_reviewer', 'Guardian / Reviewer', 'Recognition associated with trust and review work. Authority still requires roles assigned by administrators.', 'review', '/images/badges/Guardian_Reviewer.png', 'authority-linked', 'epic'),
+  ('seed_sower', 'Seed Sower', 'Recognition for planting a first useful contribution in the public commons.', 'contributor', '/images/badges/Seed_Sower.png', 'contribution', 'common'),
+  ('bridge_builder', 'Bridge Builder', 'Recognition for helping people, projects, ideas, and resources find each other.', 'community', '/images/badges/Bridge_Builder.png', 'community', 'uncommon'),
+  ('archive_warden', 'Archive Warden', 'Recognition for preserving records, improving sources, checking links, and strengthening public memory.', 'archive', '/images/badges/Archive_Warden.png', 'archive', 'uncommon'),
+  ('forge_tester', 'Forge Tester', 'Recognition for careful testing, bug reports, compatibility notes, and safe release feedback.', 'testing', '/images/badges/Forge_Tester.png', 'testing', 'rare'),
+  ('field_witness', 'Field Witness', 'Recognition for public ecological observations, field evidence, maps, restoration notes, or environmental records.', 'ecology', '/images/badges/Field_Witness.png', 'fieldwork', 'rare'),
+  ('radiant_scribe', 'Radiant Scribe', 'Recognition for clear writing, tutorials, research notes, guides, and public learning contributions.', 'writing', '/images/badges/Radiant_Scribe.png', 'writing', 'rare'),
+  ('hearth_keeper', 'Hearth Keeper', 'Recognition for trusted moderation and care of the public Commune.', 'moderation', '/images/badges/Hearth_Keeper.png', 'authority-linked', 'epic'),
+  ('ecobotics_forgewright', 'Ecobotics Forgewright', 'Recognition for robotics, hardware, ecological devices, and physical system contributions.', 'ecobotics', '/images/badges/Ecobotics_Forgewright.png', 'robotics', 'epic'),
+  ('elysian_artwright', 'Elysian Artwright', 'Recognition for visual art, concept work, icons, and imagery that help give Elysia Ecobotics a living face.', 'art', '/images/badges/Elysian_Artwright.png', 'art', 'rare'),
+  ('kindred_ally', 'Kindred Ally', 'Recognition for helping allied people, friends, collaborators, and associated projects with care and usefulness.', 'community', '/images/badges/Kindred_Ally.png', 'allied-service', 'uncommon'),
+  ('open_pathmaker', 'Open Pathmaker', 'Recognition for making the Commons easier, clearer, and more accessible for more people.', 'accessibility', '/images/badges/Open_Pathmaker.png', 'accessibility', 'rare'),
+  ('boundary_lantern', 'Boundary Lantern', 'Recognition for strengthening privacy, consent, safety, and ethical boundaries in the public commons.', 'safety', '/images/badges/Boundary_Lantern.png', 'privacy', 'rare')
+on conflict (badge_key) do update set
+  name = excluded.name,
+  description = excluded.description,
+  badge_type = excluded.badge_type,
+  icon_path = excluded.icon_path,
+  category = excluded.category,
+  rarity = excluded.rarity,
+  is_active = true;
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types) values
   ('profile-avatars', 'profile-avatars', true, 5242880, array['image/png','image/jpeg','image/webp']),
@@ -1219,3 +1238,939 @@ grant select, insert, update on table public.commune_abuse_reports to authentica
 grant select, insert on table public.commune_moderation_events to authenticated;
 grant select, insert, update, delete on table public.user_saved_commune_posts to authenticated;
 grant select, insert, update, delete on table public.user_followed_commune_threads to authenticated;
+-- Commons Circle badge credits and earned-only badge awards.
+-- Badges are recognition, not authority. Credits are typed evidence, not currency.
+
+create extension if not exists pgcrypto;
+
+alter table public.badge_definitions
+  add column if not exists sort_order integer,
+  add column if not exists authority_linked boolean not null default false,
+  add column if not exists award_mode text,
+  add column if not exists rule_summary text,
+  add column if not exists is_manual_only boolean not null default false,
+  add column if not exists updated_at timestamptz not null default now();
+
+alter table public.badge_definitions drop constraint if exists badge_definitions_award_mode_check;
+alter table public.badge_definitions
+  add constraint badge_definitions_award_mode_check
+  check (award_mode is null or award_mode in ('automatic','review_triggered','manual_admin','role_linked','project_lead'));
+
+alter table public.user_badges
+  add column if not exists award_source text,
+  add column if not exists evidence_type text,
+  add column if not exists evidence_id uuid,
+  add column if not exists revoked_at timestamptz,
+  add column if not exists revoked_by uuid references auth.users(id),
+  add column if not exists revoked_reason text,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+update public.user_badges set visibility = 'private' where visibility = 'hidden';
+alter table public.user_badges drop constraint if exists user_badges_visibility_check;
+alter table public.user_badges
+  add constraint user_badges_visibility_check check (visibility in ('public','private'));
+alter table public.user_badges drop constraint if exists user_badges_user_id_badge_key_key;
+create unique index if not exists user_badges_one_active_badge on public.user_badges(user_id, badge_key) where revoked_at is null;
+create index if not exists user_badges_user_active_idx on public.user_badges(user_id, revoked_at, visibility);
+
+create table if not exists public.badge_credit_events (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  credit_type text not null,
+  credit_amount integer not null default 1,
+  contribution_type text not null,
+  contribution_id uuid,
+  review_item_id uuid references public.review_items(id) on delete set null,
+  awarded_by uuid references auth.users(id),
+  awarded_at timestamptz not null default now(),
+  is_major boolean not null default false,
+  distinct_subject_key text,
+  notes text,
+  revoked_at timestamptz,
+  revoked_by uuid references auth.users(id),
+  revoked_reason text,
+  check (credit_amount between 1 and 2),
+  check (credit_type in (
+    'account_membership',
+    'stewardship_general',
+    'stewardship_water',
+    'stewardship_forest',
+    'stewardship_reef',
+    'stewardship_health',
+    'knowledge_support',
+    'source_curation',
+    'troubleshooting_resolution',
+    'developer_contribution',
+    'bridge_building',
+    'archive_maintenance',
+    'testing_feedback',
+    'field_observation',
+    'writing_teaching',
+    'art_contribution',
+    'accessibility_improvement',
+    'boundary_safety'
+  ))
+);
+
+create index if not exists badge_credit_events_user_type_idx on public.badge_credit_events(user_id, credit_type, revoked_at);
+create index if not exists badge_credit_events_review_idx on public.badge_credit_events(review_item_id);
+create unique index if not exists badge_credit_events_one_active_contribution_credit
+  on public.badge_credit_events(user_id, credit_type, contribution_type, contribution_id)
+  where contribution_id is not null and revoked_at is null;
+
+create table if not exists public.badge_rules (
+  id uuid primary key default gen_random_uuid(),
+  badge_slug text not null references public.badge_definitions(badge_key) on delete cascade,
+  rule_type text not null,
+  required_credit_type text,
+  required_count integer,
+  required_credit_sum integer,
+  requires_major boolean not null default false,
+  distinct_subject_min integer,
+  eligible_credit_types text[] default '{}',
+  description text,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (rule_type in ('profile_completed','credit_count','credit_sum','first_eligible_credit','manual_only','role_linked'))
+);
+
+create table if not exists public.badge_audit_log (
+  id uuid primary key default gen_random_uuid(),
+  actor_user_id uuid references auth.users(id),
+  target_user_id uuid references auth.users(id) on delete cascade,
+  action text not null,
+  badge_slug text references public.badge_definitions(badge_key),
+  credit_event_id uuid references public.badge_credit_events(id) on delete set null,
+  evidence_type text,
+  evidence_id uuid,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  check (action in ('credit_created','credit_revoked','badge_granted','badge_revoked','manual_grant','manual_revoke','free_member_granted','rule_evaluated'))
+);
+
+create index if not exists badge_audit_log_target_idx on public.badge_audit_log(target_user_id, created_at desc);
+create index if not exists badge_audit_log_badge_idx on public.badge_audit_log(badge_slug, created_at desc);
+
+insert into public.badge_definitions (badge_key, name, description, badge_type, icon_path, category, rarity, sort_order, authority_linked, award_mode, rule_summary, is_manual_only, is_active) values
+  ('free_member', 'Free Member', 'Default recognition for joining the public website commons.', 'member', '/images/badges/Free_Member.png', 'membership', 'common', 1, false, 'automatic', 'Granted when a verified Website Account has a Commons Profile.', false, true),
+  ('stewardship_supporter', 'Stewardship Supporter', 'Recognition for reviewed public-benefit stewardship support.', 'stewardship', '/images/badges/Stewardship_Supporter.png', 'stewardship', 'uncommon', 2, false, 'review_triggered', 'Granted after 1 approved stewardship support verification.', false, true),
+  ('water_steward', 'Water Steward', 'Recognition connected to water access, watersheds, wetlands, or aquatic care.', 'stewardship', '/images/badges/Water_Steward.png', 'water', 'uncommon', 3, false, 'review_triggered', 'Granted after 3 approved water stewardship credits or 1 major water contribution.', false, true),
+  ('forest_steward', 'Forest Steward', 'Recognition connected to forests, restoration, and habitat care.', 'stewardship', '/images/badges/Forest_Steward.png', 'forest', 'uncommon', 4, false, 'review_triggered', 'Granted after 3 approved forest stewardship credits or 1 major forest contribution.', false, true),
+  ('reef_steward', 'Reef Steward', 'Recognition connected to reef and ocean stewardship.', 'stewardship', '/images/badges/Reef_Steward.png', 'reef', 'uncommon', 5, false, 'review_triggered', 'Granted after 3 approved reef/ocean stewardship credits or 1 major reef contribution.', false, true),
+  ('health_steward', 'Health Steward', 'Recognition connected to health, dignity, and public-benefit support.', 'stewardship', '/images/badges/Health_Steward.png', 'health', 'uncommon', 6, false, 'review_triggered', 'Granted after 3 approved health stewardship credits or 1 major health/public-dignity contribution.', false, true),
+  ('knowledge_commons_supporter', 'Knowledge Commons Supporter', 'Recognition for supporting public knowledge and open learning.', 'stewardship', '/images/badges/Knowledge_Commons_Supporter.png', 'knowledge', 'uncommon', 7, false, 'review_triggered', 'Granted after 2 approved knowledge support credits or 1 major knowledge contribution.', false, true),
+  ('source_curator', 'Source Curator', 'Recognition for useful Living Library source suggestions and care.', 'contributor', '/images/badges/Source_Curator.png', 'living-library', 'rare', 8, false, 'review_triggered', 'Granted after 3 accepted Living Library sources or 1 major source pack/curated collection.', false, true),
+  ('troubleshooting_helper', 'Troubleshooting Helper', 'Recognition for helping others resolve issues safely.', 'contributor', '/images/badges/Troubleshooting_Helper.png', 'commune', 'rare', 9, false, 'review_triggered', 'Granted after 3 reviewed helpful troubleshooting resolutions across at least 2 distinct users.', false, true),
+  ('developer_contributor', 'Developer Contributor', 'Recognition for add-on, tooling, or developer ecosystem contributions.', 'developer', '/images/badges/Developer_Contributor.png', 'developer', 'rare', 10, false, 'review_triggered', 'Granted after 1 substantial developer contribution or 3 smaller approved developer contributions.', false, true),
+  ('founding_steward', 'Founding Steward', 'Early project recognition manually assigned by an administrator.', 'founding', '/images/badges/Founding_Steward.png', 'membership', 'epic', 11, false, 'manual_admin', 'Manual founding-era recognition only; never automatic.', true, true),
+  ('guardian_reviewer', 'Guardian / Reviewer', 'Recognition associated with trust and review work. Authority still requires roles assigned by administrators.', 'review', '/images/badges/Guardian_Reviewer.png', 'authority-linked', 'epic', 12, true, 'role_linked', 'Role-linked recognition only. The badge itself grants no permissions.', true, true),
+  ('seed_sower', 'Seed Sower', 'Recognition for planting a first useful contribution in the public commons.', 'contributor', '/images/badges/Seed_Sower.png', 'contribution', 'common', 13, false, 'review_triggered', 'Granted after the first approved eligible contribution of any type.', false, true),
+  ('bridge_builder', 'Bridge Builder', 'Recognition for helping people, projects, ideas, and resources find each other.', 'community', '/images/badges/Bridge_Builder.png', 'community', 'uncommon', 14, false, 'review_triggered', 'Granted after 5 reviewed bridge-building actions across at least 3 distinct users/projects.', false, true),
+  ('archive_warden', 'Archive Warden', 'Recognition for preserving records, improving sources, checking links, and strengthening public memory.', 'archive', '/images/badges/Archive_Warden.png', 'archive', 'uncommon', 15, false, 'review_triggered', 'Granted after 5 archive/documentation maintenance contributions or 1 major archive project.', false, true),
+  ('forge_tester', 'Forge Tester', 'Recognition for careful testing, bug reports, compatibility notes, and safe release feedback.', 'testing', '/images/badges/Forge_Tester.png', 'testing', 'rare', 16, false, 'review_triggered', 'Granted after 3 accepted test reports or 1 critical confirmed report that led to a fix.', false, true),
+  ('field_witness', 'Field Witness', 'Recognition for public ecological observations, field evidence, maps, restoration notes, or environmental records.', 'ecology', '/images/badges/Field_Witness.png', 'fieldwork', 'rare', 17, false, 'review_triggered', 'Granted after 3 accepted field observations or 1 major field record.', false, true),
+  ('radiant_scribe', 'Radiant Scribe', 'Recognition for clear writing, tutorials, research notes, guides, and public learning contributions.', 'writing', '/images/badges/Radiant_Scribe.png', 'writing', 'rare', 18, false, 'review_triggered', 'Granted after 2 substantial writing contributions, 5 smaller writing contributions, or 1 major guide/tutorial.', false, true),
+  ('hearth_keeper', 'Hearth Keeper', 'Recognition for trusted moderation and care of the public Commune.', 'moderation', '/images/badges/Hearth_Keeper.png', 'authority-linked', 'epic', 19, true, 'role_linked', 'Role-linked community care recognition only. The badge itself grants no permissions.', true, true),
+  ('ecobotics_forgewright', 'Ecobotics Forgewright', 'Recognition for robotics, hardware, ecological devices, and physical system contributions.', 'ecobotics', '/images/badges/Ecobotics_Forgewright.png', 'robotics', 'epic', 20, false, 'project_lead', 'Project-lead/manual recognition for meaningful robotics or physical-system contribution.', true, true),
+  ('elysian_artwright', 'Elysian Artwright', 'Recognition for visual art, concept work, icons, and imagery that help give Elysia Ecobotics a living face.', 'art', '/images/badges/Elysian_Artwright.png', 'art', 'rare', 21, false, 'review_triggered', 'Granted after 1 substantial accepted art contribution or 3 smaller accepted art contributions.', false, true),
+  ('kindred_ally', 'Kindred Ally', 'Recognition for helping allied people, friends, collaborators, and associated projects with care and usefulness.', 'community', '/images/badges/Kindred_Ally.png', 'allied-service', 'uncommon', 22, false, 'manual_admin', 'Manual allied-service recognition only; does not imply partnership, sponsorship, employment, endorsement, or authority.', true, true),
+  ('open_pathmaker', 'Open Pathmaker', 'Recognition for making the Commons easier, clearer, and more accessible for more people.', 'accessibility', '/images/badges/Open_Pathmaker.png', 'accessibility', 'rare', 23, false, 'review_triggered', 'Granted after 3 accessibility/usability improvements or 1 major access improvement.', false, true),
+  ('boundary_lantern', 'Boundary Lantern', 'Recognition for strengthening privacy, consent, safety, and ethical boundaries in the public commons.', 'safety', '/images/badges/Boundary_Lantern.png', 'privacy', 'rare', 24, false, 'review_triggered', 'Granted after 2 safety/privacy/boundary improvements or 1 major risk-prevention contribution.', false, true)
+on conflict (badge_key) do update set
+  name = excluded.name,
+  description = excluded.description,
+  badge_type = excluded.badge_type,
+  icon_path = excluded.icon_path,
+  category = excluded.category,
+  rarity = excluded.rarity,
+  sort_order = excluded.sort_order,
+  authority_linked = excluded.authority_linked,
+  award_mode = excluded.award_mode,
+  rule_summary = excluded.rule_summary,
+  is_manual_only = excluded.is_manual_only,
+  is_active = true,
+  updated_at = now();
+
+delete from public.badge_rules where badge_slug in (
+  'free_member','stewardship_supporter','water_steward','forest_steward','reef_steward','health_steward',
+  'knowledge_commons_supporter','source_curator','troubleshooting_helper','developer_contributor','founding_steward',
+  'guardian_reviewer','seed_sower','bridge_builder','archive_warden','forge_tester','field_witness','radiant_scribe',
+  'hearth_keeper','ecobotics_forgewright','elysian_artwright','kindred_ally','open_pathmaker','boundary_lantern'
+);
+
+insert into public.badge_rules (badge_slug, rule_type, required_credit_type, required_count, required_credit_sum, requires_major, distinct_subject_min, eligible_credit_types, description, is_active) values
+  ('free_member', 'profile_completed', 'account_membership', 1, null, false, null, '{}', 'Verified Website Account plus completed Commons Profile.', true),
+  ('stewardship_supporter', 'credit_count', 'stewardship_general', 1, null, false, null, '{}', 'One approved stewardship support verification.', true),
+  ('water_steward', 'credit_count', 'stewardship_water', 3, null, true, null, '{}', 'Three water credits or one major water contribution.', true),
+  ('forest_steward', 'credit_count', 'stewardship_forest', 3, null, true, null, '{}', 'Three forest credits or one major forest contribution.', true),
+  ('reef_steward', 'credit_count', 'stewardship_reef', 3, null, true, null, '{}', 'Three reef/ocean credits or one major reef contribution.', true),
+  ('health_steward', 'credit_count', 'stewardship_health', 3, null, true, null, '{}', 'Three health credits or one major health/public-dignity contribution.', true),
+  ('knowledge_commons_supporter', 'credit_count', 'knowledge_support', 2, null, true, null, '{}', 'Two knowledge support credits or one major knowledge contribution.', true),
+  ('source_curator', 'credit_count', 'source_curation', 3, null, true, null, '{}', 'Three accepted sources or one major source pack/curated collection.', true),
+  ('troubleshooting_helper', 'credit_count', 'troubleshooting_resolution', 3, null, false, 2, '{}', 'Three reviewed troubleshooting resolutions across at least two distinct users.', true),
+  ('developer_contributor', 'credit_count', 'developer_contribution', 3, null, true, null, '{}', 'Three smaller approved developer contributions or one substantial developer contribution.', true),
+  ('founding_steward', 'manual_only', null, null, null, false, null, '{}', 'Manual founding-era recognition only.', true),
+  ('guardian_reviewer', 'role_linked', null, null, null, false, null, '{}', 'Role-linked trust/review recognition only; no badge-derived authority.', true),
+  ('seed_sower', 'first_eligible_credit', null, 1, null, false, null, array['stewardship_general','stewardship_water','stewardship_forest','stewardship_reef','stewardship_health','knowledge_support','source_curation','troubleshooting_resolution','developer_contribution','bridge_building','archive_maintenance','testing_feedback','field_observation','writing_teaching','art_contribution','accessibility_improvement','boundary_safety'], 'First approved eligible contribution of any type.', true),
+  ('bridge_builder', 'credit_count', 'bridge_building', 5, null, false, 3, '{}', 'Five bridge-building actions across at least three distinct users/projects.', true),
+  ('archive_warden', 'credit_count', 'archive_maintenance', 5, null, true, null, '{}', 'Five archive/documentation contributions or one major archive project.', true),
+  ('forge_tester', 'credit_count', 'testing_feedback', 3, null, true, null, '{}', 'Three accepted test reports or one critical confirmed report that led to a fix.', true),
+  ('field_witness', 'credit_count', 'field_observation', 3, null, true, null, '{}', 'Three accepted field observations or one major field record.', true),
+  ('radiant_scribe', 'credit_sum', 'writing_teaching', null, 4, true, null, '{}', 'Two substantial writing contributions, five smaller writing contributions, or one major guide/tutorial.', true),
+  ('hearth_keeper', 'role_linked', null, null, null, false, null, '{}', 'Role-linked moderation care recognition only; no badge-derived authority.', true),
+  ('ecobotics_forgewright', 'manual_only', null, null, null, false, null, '{}', 'Project-lead/manual robotics or physical-system recognition.', true),
+  ('elysian_artwright', 'credit_sum', 'art_contribution', null, 3, true, null, '{}', 'One substantial accepted art contribution or three smaller accepted art contributions.', true),
+  ('kindred_ally', 'manual_only', null, null, null, false, null, '{}', 'Manual allied-service recognition only.', true),
+  ('open_pathmaker', 'credit_count', 'accessibility_improvement', 3, null, true, null, '{}', 'Three access improvements or one major access improvement.', true),
+  ('boundary_lantern', 'credit_count', 'boundary_safety', 2, null, true, null, '{}', 'Two boundary/safety improvements or one major risk-prevention contribution.', true)
+;
+
+create unique index if not exists badge_rules_one_active_rule on public.badge_rules(badge_slug, rule_type, coalesce(required_credit_type, '')) where is_active = true;
+
+create or replace function public.current_user_can_create_badge_credit()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select public.current_user_is_admin()
+    or public.current_user_has_role('reviewer'::public.app_role)
+    or public.current_user_has_role('guardian_reviewer'::public.app_role)
+    or public.current_user_has_role('source_reviewer'::public.app_role)
+    or public.current_user_has_role('marketplace_reviewer'::public.app_role)
+    or public.current_user_has_role('moderator'::public.app_role)
+    or public.current_user_has_role('commune_moderator'::public.app_role);
+$$;
+
+create or replace function public.award_badge_if_missing(
+  p_target_user_id uuid,
+  p_badge_key text,
+  p_award_source text,
+  p_award_reason text default null,
+  p_evidence_type text default null,
+  p_evidence_id uuid default null,
+  p_actor_user_id uuid default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not exists (select 1 from public.badge_definitions where badge_key = p_badge_key and is_active = true) then
+    return;
+  end if;
+
+  insert into public.user_badges (user_id, badge_key, awarded_by, award_source, award_reason, evidence_type, evidence_id, visibility)
+  select p_target_user_id, p_badge_key, p_actor_user_id, p_award_source, p_award_reason, p_evidence_type, p_evidence_id, 'public'
+  where not exists (
+    select 1 from public.user_badges ub
+    where ub.user_id = p_target_user_id and ub.badge_key = p_badge_key and ub.revoked_at is null
+  );
+
+  insert into public.badge_audit_log (actor_user_id, target_user_id, action, badge_slug, evidence_type, evidence_id, metadata)
+  values (p_actor_user_id, p_target_user_id, 'badge_granted', p_badge_key, p_evidence_type, p_evidence_id, jsonb_build_object('award_source', p_award_source, 'award_reason', p_award_reason));
+end;
+$$;
+
+create or replace function public.grant_free_member_for_user(p_target_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor uuid := auth.uid();
+begin
+  if actor is not null and actor <> p_target_user_id and not public.current_user_is_admin() then
+    raise exception 'Only the profile owner or an administrator can initialize Free Member recognition.';
+  end if;
+
+  if not exists (select 1 from public.profiles where id = p_target_user_id) then
+    raise exception 'Commons Profile is required before Free Member recognition.';
+  end if;
+
+  insert into public.badge_credit_events (user_id, credit_type, credit_amount, contribution_type, contribution_id, awarded_by, is_major, notes)
+  select p_target_user_id, 'account_membership', 1, 'commons_profile', p_target_user_id, actor, false, 'Commons Profile completed.'
+  where not exists (
+    select 1 from public.badge_credit_events bce
+    where bce.user_id = p_target_user_id
+      and bce.credit_type = 'account_membership'
+      and bce.contribution_type = 'commons_profile'
+      and bce.contribution_id = p_target_user_id
+      and bce.revoked_at is null
+  );
+
+  perform public.award_badge_if_missing(p_target_user_id, 'free_member', 'automatic', 'Commons Profile completed.', 'commons_profile', p_target_user_id, actor);
+  insert into public.badge_audit_log (actor_user_id, target_user_id, action, badge_slug, evidence_type, evidence_id)
+  values (actor, p_target_user_id, 'free_member_granted', 'free_member', 'commons_profile', p_target_user_id);
+end;
+$$;
+
+create or replace function public.evaluate_badges_for_user(p_target_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor uuid := auth.uid();
+  credit record;
+begin
+  if actor is not null and actor <> p_target_user_id and not public.current_user_can_create_badge_credit() then
+    raise exception 'Badge evaluation is limited to the profile owner or authorized reviewers.';
+  end if;
+
+  if exists (select 1 from public.profiles where id = p_target_user_id) then
+    perform public.award_badge_if_missing(p_target_user_id, 'free_member', 'automatic', 'Commons Profile completed.', 'commons_profile', p_target_user_id, actor);
+  end if;
+
+  if exists (select 1 from public.badge_credit_events where user_id = p_target_user_id and revoked_at is null and credit_type <> 'account_membership') then
+    perform public.award_badge_if_missing(p_target_user_id, 'seed_sower', 'credit_rule', 'First approved contribution recorded.', 'badge_rule', null, actor);
+  end if;
+
+  for credit in select * from (values
+    ('stewardship_supporter','stewardship_general',1,null::integer,false,null::integer,'Approved stewardship support verification.'),
+    ('water_steward','stewardship_water',3,null::integer,true,null::integer,'Approved water stewardship credits.'),
+    ('forest_steward','stewardship_forest',3,null::integer,true,null::integer,'Approved forest stewardship credits.'),
+    ('reef_steward','stewardship_reef',3,null::integer,true,null::integer,'Approved reef/ocean stewardship credits.'),
+    ('health_steward','stewardship_health',3,null::integer,true,null::integer,'Approved health stewardship credits.'),
+    ('knowledge_commons_supporter','knowledge_support',2,null::integer,true,null::integer,'Approved knowledge commons support credits.'),
+    ('source_curator','source_curation',3,null::integer,true,null::integer,'Accepted Living Library source curation credits.'),
+    ('troubleshooting_helper','troubleshooting_resolution',3,null::integer,false,2,'Reviewed helpful troubleshooting resolutions.'),
+    ('developer_contributor','developer_contribution',3,null::integer,true,null::integer,'Approved developer contribution credits.'),
+    ('bridge_builder','bridge_building',5,null::integer,false,3,'Reviewed bridge-building credits.'),
+    ('archive_warden','archive_maintenance',5,null::integer,true,null::integer,'Approved archive and documentation maintenance credits.'),
+    ('forge_tester','testing_feedback',3,null::integer,true,null::integer,'Accepted testing and release feedback credits.'),
+    ('field_witness','field_observation',3,null::integer,true,null::integer,'Accepted field observation credits.'),
+    ('radiant_scribe','writing_teaching',null::integer,4,true,null::integer,'Approved writing and teaching credits.'),
+    ('elysian_artwright','art_contribution',null::integer,3,true,null::integer,'Accepted art contribution credits.'),
+    ('open_pathmaker','accessibility_improvement',3,null::integer,true,null::integer,'Approved accessibility and usability improvement credits.'),
+    ('boundary_lantern','boundary_safety',2,null::integer,true,null::integer,'Approved privacy, consent, safety, or boundary improvement credits.')
+  ) as rule(badge_key, credit_type, required_count, required_sum, major_shortcut, distinct_min, reason) loop
+    if (
+      (credit.required_count is not null and (select count(*) from public.badge_credit_events where user_id = p_target_user_id and credit_type = credit.credit_type and revoked_at is null) >= credit.required_count)
+      or (credit.required_sum is not null and (select coalesce(sum(credit_amount), 0) from public.badge_credit_events where user_id = p_target_user_id and credit_type = credit.credit_type and revoked_at is null) >= credit.required_sum)
+      or (credit.major_shortcut and exists (select 1 from public.badge_credit_events where user_id = p_target_user_id and credit_type = credit.credit_type and is_major = true and revoked_at is null))
+    ) and (
+      credit.distinct_min is null
+      or (select count(distinct distinct_subject_key) from public.badge_credit_events where user_id = p_target_user_id and credit_type = credit.credit_type and revoked_at is null and distinct_subject_key is not null) >= credit.distinct_min
+    ) then
+      perform public.award_badge_if_missing(p_target_user_id, credit.badge_key, 'credit_rule', credit.reason, 'badge_rule', null, actor);
+    end if;
+  end loop;
+
+  insert into public.badge_audit_log (actor_user_id, target_user_id, action, metadata)
+  values (actor, p_target_user_id, 'rule_evaluated', jsonb_build_object('source', 'evaluate_badges_for_user'));
+end;
+$$;
+
+create or replace function public.create_badge_credit_event(
+  p_target_user_id uuid,
+  p_credit_type text,
+  p_credit_amount integer,
+  p_contribution_type text,
+  p_contribution_id uuid default null,
+  p_review_item_id uuid default null,
+  p_is_major boolean default false,
+  p_distinct_subject_key text default null,
+  p_notes text default null
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor uuid := auth.uid();
+  created_id uuid;
+begin
+  if actor is null or not public.current_user_can_create_badge_credit() then
+    raise exception 'Only authorized reviewers or administrators can create badge credits.';
+  end if;
+  if p_target_user_id = actor and not public.current_user_is_admin() then
+    raise exception 'Reviewers cannot award badge credits to themselves.';
+  end if;
+
+  insert into public.badge_credit_events (user_id, credit_type, credit_amount, contribution_type, contribution_id, review_item_id, awarded_by, is_major, distinct_subject_key, notes)
+  values (p_target_user_id, p_credit_type, greatest(1, least(coalesce(p_credit_amount, 1), 2)), p_contribution_type, p_contribution_id, p_review_item_id, actor, coalesce(p_is_major, false), p_distinct_subject_key, p_notes)
+  returning id into created_id;
+
+  insert into public.badge_audit_log (actor_user_id, target_user_id, action, credit_event_id, evidence_type, evidence_id, metadata)
+  values (actor, p_target_user_id, 'credit_created', created_id, p_contribution_type, p_contribution_id, jsonb_build_object('credit_type', p_credit_type, 'credit_amount', p_credit_amount, 'is_major', p_is_major));
+
+  perform public.evaluate_badges_for_user(p_target_user_id);
+  return created_id;
+end;
+$$;
+
+create or replace function public.grant_user_badge(
+  p_target_user_id uuid,
+  p_badge_key text,
+  p_award_reason text default null,
+  p_evidence_type text default null,
+  p_evidence_id uuid default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor uuid := auth.uid();
+begin
+  if actor is null or not public.current_user_is_admin() then
+    raise exception 'Only administrators can manually grant badges.';
+  end if;
+  if p_target_user_id = actor then
+    raise exception 'Administrators should not manually grant badges to themselves through the public client.';
+  end if;
+
+  perform public.award_badge_if_missing(p_target_user_id, p_badge_key, 'manual_admin', p_award_reason, p_evidence_type, p_evidence_id, actor);
+  insert into public.badge_audit_log (actor_user_id, target_user_id, action, badge_slug, evidence_type, evidence_id, metadata)
+  values (actor, p_target_user_id, 'manual_grant', p_badge_key, p_evidence_type, p_evidence_id, jsonb_build_object('award_reason', p_award_reason));
+end;
+$$;
+
+create or replace function public.revoke_user_badge(
+  p_target_user_id uuid,
+  p_badge_key text,
+  p_revoked_reason text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor uuid := auth.uid();
+begin
+  if actor is null or not public.current_user_is_admin() then
+    raise exception 'Only administrators can revoke badges.';
+  end if;
+
+  update public.user_badges
+  set revoked_at = now(), revoked_by = actor, revoked_reason = p_revoked_reason, updated_at = now()
+  where user_id = p_target_user_id and badge_key = p_badge_key and revoked_at is null;
+
+  insert into public.badge_audit_log (actor_user_id, target_user_id, action, badge_slug, metadata)
+  values (actor, p_target_user_id, 'badge_revoked', p_badge_key, jsonb_build_object('revoked_reason', p_revoked_reason));
+end;
+$$;
+
+create or replace function public.revoke_badge_credit_event(
+  p_credit_event_id uuid,
+  p_revoked_reason text default null
+)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor uuid := auth.uid();
+  target_id uuid;
+begin
+  if actor is null or not public.current_user_is_admin() then
+    raise exception 'Only administrators can revoke badge credits.';
+  end if;
+
+  update public.badge_credit_events
+  set revoked_at = now(), revoked_by = actor, revoked_reason = p_revoked_reason
+  where id = p_credit_event_id and revoked_at is null
+  returning user_id into target_id;
+
+  if target_id is not null then
+    insert into public.badge_audit_log (actor_user_id, target_user_id, action, credit_event_id, metadata)
+    values (actor, target_id, 'credit_revoked', p_credit_event_id, jsonb_build_object('revoked_reason', p_revoked_reason));
+    perform public.evaluate_badges_for_user(target_id);
+  end if;
+end;
+$$;
+
+create or replace function public.backfill_free_member_badges()
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  profile_row record;
+  granted_count integer := 0;
+begin
+  if auth.uid() is not null and not public.current_user_is_admin() then
+    raise exception 'Only administrators can backfill Free Member badges.';
+  end if;
+
+  for profile_row in select id from public.profiles loop
+    perform public.award_badge_if_missing(profile_row.id, 'free_member', 'automatic_backfill', 'Existing Commons Profile backfill.', 'commons_profile', profile_row.id, auth.uid());
+    insert into public.badge_credit_events (user_id, credit_type, credit_amount, contribution_type, contribution_id, awarded_by, notes)
+    select profile_row.id, 'account_membership', 1, 'commons_profile', profile_row.id, auth.uid(), 'Existing Commons Profile backfill.'
+    where not exists (
+      select 1 from public.badge_credit_events bce
+      where bce.user_id = profile_row.id
+        and bce.credit_type = 'account_membership'
+        and bce.contribution_type = 'commons_profile'
+        and bce.contribution_id = profile_row.id
+        and bce.revoked_at is null
+    );
+    granted_count := granted_count + 1;
+  end loop;
+  return granted_count;
+end;
+$$;
+
+select public.backfill_free_member_badges();
+
+alter table public.badge_definitions enable row level security;
+alter table public.user_badges enable row level security;
+alter table public.badge_credit_events enable row level security;
+alter table public.badge_rules enable row level security;
+alter table public.badge_audit_log enable row level security;
+
+drop policy if exists "public reads active badge definitions" on public.badge_definitions;
+create policy "public reads active badge definitions" on public.badge_definitions for select using (is_active = true);
+drop policy if exists "admins manage badge definitions" on public.badge_definitions;
+create policy "admins manage badge definitions" on public.badge_definitions for all to authenticated using (public.current_user_is_admin()) with check (public.current_user_is_admin());
+
+drop policy if exists "public reads visible user badges" on public.user_badges;
+create policy "public reads visible user badges" on public.user_badges for select using (visibility = 'public' and revoked_at is null);
+drop policy if exists "users read own badges" on public.user_badges;
+create policy "users read own badges" on public.user_badges for select to authenticated using (user_id = auth.uid() and revoked_at is null);
+drop policy if exists "users update own badge visibility" on public.user_badges;
+create policy "users update own badge visibility" on public.user_badges for update to authenticated using (user_id = auth.uid() and revoked_at is null) with check (user_id = auth.uid() and revoked_at is null);
+drop policy if exists "admins award badges" on public.user_badges;
+drop policy if exists "admins manage badges" on public.user_badges;
+create policy "admins read all user badges" on public.user_badges for select to authenticated using (public.current_user_is_admin() or public.current_user_can_create_badge_credit());
+
+drop policy if exists "reviewers read badge credit events" on public.badge_credit_events;
+create policy "reviewers read badge credit events" on public.badge_credit_events for select to authenticated using (public.current_user_is_admin() or public.current_user_can_create_badge_credit());
+drop policy if exists "reviewers read badge rules" on public.badge_rules;
+create policy "reviewers read badge rules" on public.badge_rules for select to authenticated using (public.current_user_is_admin() or public.current_user_can_create_badge_credit());
+drop policy if exists "admins manage badge rules" on public.badge_rules;
+create policy "admins manage badge rules" on public.badge_rules for all to authenticated using (public.current_user_is_admin()) with check (public.current_user_is_admin());
+drop policy if exists "reviewers read badge audit log" on public.badge_audit_log;
+create policy "reviewers read badge audit log" on public.badge_audit_log for select to authenticated using (public.current_user_is_admin() or public.current_user_can_create_badge_credit());
+
+revoke all on table public.user_badges from anon, authenticated;
+grant select on table public.user_badges to anon, authenticated;
+grant update(visibility, updated_at) on table public.user_badges to authenticated;
+grant select on table public.badge_definitions to anon, authenticated;
+grant select on table public.badge_credit_events to authenticated;
+grant select on table public.badge_rules to authenticated;
+grant select on table public.badge_audit_log to authenticated;
+
+revoke all on function public.award_badge_if_missing(uuid, text, text, text, text, uuid, uuid) from public, anon, authenticated;
+grant execute on function public.current_user_can_create_badge_credit() to authenticated;
+grant execute on function public.evaluate_badges_for_user(uuid) to authenticated;
+grant execute on function public.grant_free_member_for_user(uuid) to authenticated;
+grant execute on function public.create_badge_credit_event(uuid, text, integer, text, uuid, uuid, boolean, text, text) to authenticated;
+grant execute on function public.grant_user_badge(uuid, text, text, text, uuid) to authenticated;
+grant execute on function public.revoke_user_badge(uuid, text, text) to authenticated;
+grant execute on function public.revoke_badge_credit_event(uuid, text) to authenticated;
+grant execute on function public.backfill_free_member_badges() to authenticated;
+
+-- Free Member badge repair/backfill.
+-- This migration awards only Free Member recognition to existing website profiles and keeps badges separate from authority.
+
+create extension if not exists pgcrypto;
+
+insert into public.badge_definitions (badge_key, name, description, badge_type, icon_path, category, rarity, sort_order, authority_linked, award_mode, rule_summary, is_manual_only, is_active)
+values ('free_member', 'Free Member', 'Default recognition for joining the public website commons.', 'member', '/images/badges/Free_Member.png', 'membership', 'common', 1, false, 'automatic', 'Granted when a Website Account has a Commons Profile.', false, true)
+on conflict (badge_key) do update set
+  name = excluded.name,
+  description = excluded.description,
+  badge_type = excluded.badge_type,
+  icon_path = excluded.icon_path,
+  category = excluded.category,
+  rarity = excluded.rarity,
+  sort_order = excluded.sort_order,
+  authority_linked = excluded.authority_linked,
+  award_mode = excluded.award_mode,
+  rule_summary = excluded.rule_summary,
+  is_manual_only = excluded.is_manual_only,
+  is_active = true,
+  updated_at = now();
+
+create or replace function public.grant_free_member_for_user(p_target_user_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  actor uuid := auth.uid();
+  inserted_badge_id uuid;
+  inserted_credit_id uuid;
+begin
+  if actor is not null and actor <> p_target_user_id and not public.current_user_is_admin() then
+    raise exception 'Only the profile owner or an administrator can initialize Free Member recognition.';
+  end if;
+
+  if not exists (
+    select 1
+    from public.profiles p
+    join auth.users u on u.id = p.id
+    where p.id = p_target_user_id
+  ) then
+    raise exception 'A Website Account with a Commons Profile is required before Free Member recognition.';
+  end if;
+
+  insert into public.badge_credit_events (user_id, credit_type, credit_amount, contribution_type, contribution_id, awarded_by, is_major, notes)
+  select p_target_user_id, 'account_membership', 1, 'commons_profile', p_target_user_id, actor, false, 'Free membership recognition for a completed Commons profile.'
+  where to_regclass('public.badge_credit_events') is not null
+    and not exists (
+      select 1
+      from public.badge_credit_events bce
+      where bce.user_id = p_target_user_id
+        and bce.credit_type = 'account_membership'
+        and bce.contribution_type = 'commons_profile'
+        and bce.contribution_id = p_target_user_id
+        and bce.revoked_at is null
+    )
+  returning id into inserted_credit_id;
+
+  insert into public.user_badges (user_id, badge_key, awarded_by, awarded_at, award_source, award_reason, evidence_type, evidence_id, visibility)
+  select p_target_user_id, 'free_member', actor, now(), 'automatic', 'Free membership recognition for a completed Commons profile.', 'commons_profile', p_target_user_id, 'public'
+  where not exists (
+    select 1
+    from public.user_badges ub
+    where ub.user_id = p_target_user_id
+      and ub.badge_key = 'free_member'
+      and ub.revoked_at is null
+  )
+  returning id into inserted_badge_id;
+
+  if inserted_badge_id is not null and to_regclass('public.badge_audit_log') is not null then
+    insert into public.badge_audit_log (actor_user_id, target_user_id, action, badge_slug, credit_event_id, evidence_type, evidence_id, metadata)
+    values (actor, p_target_user_id, 'free_member_granted', 'free_member', inserted_credit_id, 'commons_profile', p_target_user_id, jsonb_build_object('award_source', 'automatic'));
+  end if;
+end;
+$$;
+
+create or replace function public.backfill_free_member_badges()
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  profile_row record;
+  granted_count integer := 0;
+  had_badge boolean;
+begin
+  if auth.uid() is not null and not public.current_user_is_admin() then
+    raise exception 'Only administrators can backfill Free Member badges.';
+  end if;
+
+  for profile_row in
+    select p.id
+    from public.profiles p
+    join auth.users u on u.id = p.id
+  loop
+    select exists (
+      select 1 from public.user_badges ub
+      where ub.user_id = profile_row.id
+        and ub.badge_key = 'free_member'
+        and ub.revoked_at is null
+    ) into had_badge;
+
+    perform public.grant_free_member_for_user(profile_row.id);
+
+    if not had_badge then
+      granted_count := granted_count + 1;
+    end if;
+  end loop;
+
+  return granted_count;
+end;
+$$;
+
+select public.backfill_free_member_badges();
+
+grant execute on function public.grant_free_member_for_user(uuid) to authenticated;
+grant execute on function public.backfill_free_member_badges() to authenticated;
+
+-- Developer Forge full safe foundation.
+-- The Forge prepares add-ons for review. It does not install, execute, or publish add-ons.
+
+create table if not exists public.developer_profiles (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null unique references auth.users(id) on delete cascade,
+  developer_slug text unique,
+  display_name text not null,
+  bio text,
+  website_url text,
+  github_url text,
+  support_url text,
+  contact_email text,
+  status text not null default 'draft',
+  verified_at timestamptz,
+  suspended_at timestamptz,
+  suspended_reason text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint developer_profiles_status_check check (status in ('draft','requested','active','trusted','suspended','revoked'))
+);
+
+create table if not exists public.addon_drafts (
+  id uuid primary key default gen_random_uuid(),
+  owner_user_id uuid not null references auth.users(id) on delete cascade,
+  developer_profile_id uuid references public.developer_profiles(id) on delete set null,
+  addon_slug text,
+  addon_name text,
+  short_summary text,
+  long_description text,
+  version text,
+  license text,
+  homepage_url text,
+  source_url text,
+  support_url text,
+  category text,
+  tags text[] default '{}',
+  icon_path text,
+  manifest_json jsonb not null default '{}'::jsonb,
+  package_file_path text,
+  compatibility_targets jsonb default '{}'::jsonb,
+  permission_summary text,
+  risk_level text not null default 'unknown',
+  validation_status text not null default 'not_validated',
+  package_status text not null default 'not_uploaded',
+  submission_status text not null default 'draft',
+  review_status text not null default 'not_submitted',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  submitted_at timestamptz,
+  published_at timestamptz,
+  archived_at timestamptz,
+  constraint addon_drafts_submission_status_check check (submission_status in ('draft','validating','ready_to_submit','submitted','changes_requested','approved','published','rejected','withdrawn','archived','security_hold')),
+  constraint addon_drafts_validation_status_check check (validation_status in ('not_validated','valid','warnings','errors')),
+  constraint addon_drafts_package_status_check check (package_status in ('not_uploaded','metadata_only','uploaded','scan_warning','scan_blocked')),
+  constraint addon_drafts_review_status_check check (review_status in ('not_submitted','pending','changes_requested','approved','rejected','security_hold','withdrawn','published'))
+);
+
+create table if not exists public.addon_packages (
+  id uuid primary key default gen_random_uuid(),
+  addon_draft_id uuid not null references public.addon_drafts(id) on delete cascade,
+  version text,
+  storage_path text,
+  file_name text,
+  file_size bigint,
+  sha256 text,
+  package_format_version text default '0.1',
+  scan_status text not null default 'not_scanned',
+  signature_status text not null default 'unsigned',
+  created_at timestamptz not null default now(),
+  constraint addon_packages_scan_status_check check (scan_status in ('not_scanned','passed','warning','blocked')),
+  constraint addon_packages_signature_status_check check (signature_status in ('unsigned','pending','signed','signature_failed'))
+);
+
+create table if not exists public.addon_validation_results (
+  id uuid primary key default gen_random_uuid(),
+  addon_draft_id uuid not null references public.addon_drafts(id) on delete cascade,
+  severity text not null,
+  code text not null,
+  message text not null,
+  field_path text,
+  fix_suggestion text,
+  created_at timestamptz not null default now(),
+  constraint addon_validation_results_severity_check check (severity in ('error','warning','info'))
+);
+
+create table if not exists public.addon_permission_catalog (
+  permission_key text primary key,
+  title text not null,
+  description text not null,
+  risk_level text not null,
+  requires_user_approval boolean not null default true,
+  requires_reviewer_approval boolean not null default false,
+  requires_local_runtime_gate boolean not null default true,
+  allowed_scope_format text,
+  examples text[] default '{}',
+  blocked_examples text[] default '{}',
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint addon_permission_catalog_risk_check check (risk_level in ('low','medium','high','blocked'))
+);
+
+create table if not exists public.addon_draft_permissions (
+  id uuid primary key default gen_random_uuid(),
+  addon_draft_id uuid not null references public.addon_drafts(id) on delete cascade,
+  permission_key text not null references public.addon_permission_catalog(permission_key),
+  reason text,
+  scope_json jsonb default '{}'::jsonb,
+  risk_acknowledged boolean not null default false,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(addon_draft_id, permission_key)
+);
+
+create table if not exists public.addon_submissions (
+  id uuid primary key default gen_random_uuid(),
+  addon_draft_id uuid not null references public.addon_drafts(id) on delete cascade,
+  submitted_by uuid not null references auth.users(id) on delete cascade,
+  status text not null default 'pending',
+  submitted_at timestamptz not null default now(),
+  review_item_id uuid references public.review_items(id) on delete set null,
+  review_summary text,
+  reviewer_feedback text,
+  updated_at timestamptz not null default now(),
+  constraint addon_submissions_status_check check (status in ('pending','changes_requested','approved','rejected','security_hold','withdrawn','published'))
+);
+
+create table if not exists public.addon_compatibility_results (
+  id uuid primary key default gen_random_uuid(),
+  addon_draft_id uuid references public.addon_drafts(id) on delete cascade,
+  addon_package_id uuid references public.addon_packages(id) on delete set null,
+  elysia_version text,
+  addon_api_version text,
+  os text,
+  status text not null,
+  warnings text[] default '{}',
+  errors text[] default '{}',
+  created_at timestamptz not null default now(),
+  constraint addon_compatibility_results_status_check check (status in ('compatible','warning','incompatible','unknown'))
+);
+
+create table if not exists public.addon_audit_log (
+  id uuid primary key default gen_random_uuid(),
+  actor_user_id uuid references auth.users(id) on delete set null,
+  target_type text not null,
+  target_id uuid,
+  action text not null,
+  metadata jsonb default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists addon_drafts_owner_idx on public.addon_drafts(owner_user_id, updated_at desc);
+create index if not exists addon_submissions_submitter_idx on public.addon_submissions(submitted_by, submitted_at desc);
+create index if not exists addon_packages_draft_idx on public.addon_packages(addon_draft_id, created_at desc);
+create index if not exists addon_validation_results_draft_idx on public.addon_validation_results(addon_draft_id, created_at desc);
+
+insert into public.addon_permission_catalog (permission_key, title, description, risk_level, requires_user_approval, requires_reviewer_approval, requires_local_runtime_gate, allowed_scope_format, examples, blocked_examples) values
+  ('theme_assets_read','Theme assets read','Read public theme or visual assets bundled with the add-on.','low',false,false,true,'bundled asset paths only',array['assets/theme.css','assets/icon.png'],array['/home/user/.ssh/id_rsa']),
+  ('marketplace_metadata_read','Marketplace metadata read','Read public Marketplace catalog metadata.','low',false,false,true,'public catalog records',array['addon name','published version'],array['private draft package']),
+  ('living_library_metadata_read','Living Library metadata read','Read public Living Library source metadata.','low',false,false,true,'public source records',array['source title','official URL'],array['private user collections']),
+  ('public_docs_read','Public docs read','Read public Elysia Ecobotics documentation.','low',false,false,true,'public documentation paths',array['manifest reference'],array['private local logs']),
+  ('network_declared_domains','Network to declared domains','Request network access only to explicitly declared domains.','medium',true,true,true,'array of HTTPS domains',array['https://api.example.org'],array['http://localhost:3000','*']),
+  ('user_selected_file_read','Read user-selected file','Read a file the user explicitly picks in local Elysia.','medium',true,true,true,'local user picker grant',array['a selected CSV file'],array['silent home directory scan']),
+  ('user_selected_file_write','Write user-selected file','Write only to a file/location the user explicitly picks in local Elysia.','medium',true,true,true,'local user picker grant',array['exported report.md'],array['overwrite arbitrary system file']),
+  ('project_folder_read','Read approved project folder','Read a project folder after explicit local approval.','high',true,true,true,'local approved project folder',array['selected add-on project folder'],array['/home','C:\\Users']),
+  ('project_folder_write','Write approved project folder','Write inside a project folder after explicit local approval.','high',true,true,true,'local approved project folder',array['selected project output folder'],array['system directories']),
+  ('local_model_request','Local model request','Request local model inference through an approved local router.','high',true,true,true,'local model router scope',array['summarize selected text'],array['silent private memory access']),
+  ('sandboxed_worker','Sandboxed worker','Run bounded work only inside a future reviewed local sandbox.','high',true,true,true,'reviewed sandbox profile',array['validation-only local worker'],array['shell without sandbox']),
+  ('vault_access','Vault access','Blocked. Add-ons may not access private vaults.','blocked',true,true,true,'blocked',array[]::text[],array['read vault secrets']),
+  ('credential_access','Credential access','Blocked. Add-ons may not access credentials or tokens.','blocked',true,true,true,'blocked',array[]::text[],array['read API keys']),
+  ('private_memory_access','Private memory access','Blocked. Add-ons may not access private local Elysia memory by default.','blocked',true,true,true,'blocked',array[]::text[],array['read private memories']),
+  ('silent_shell_execution','Silent shell execution','Blocked. Add-ons may not run shell commands silently.','blocked',true,true,true,'blocked',array[]::text[],array['postinstall shell script']),
+  ('read_all_files','Read all files','Blocked. Broad filesystem access is not allowed.','blocked',true,true,true,'blocked',array[]::text[],array['read entire home directory']),
+  ('write_arbitrary_files','Write arbitrary files','Blocked. Broad arbitrary writes are not allowed.','blocked',true,true,true,'blocked',array[]::text[],array['write to system paths']),
+  ('silent_network_access','Silent network access','Blocked. Network access must be declared and locally approved.','blocked',true,true,true,'blocked',array[]::text[],array['send data to hidden endpoint']),
+  ('silent_install','Silent install','Blocked. The website cannot install or enable add-ons.','blocked',true,true,true,'blocked',array[]::text[],array['install without local Elysia review'])
+on conflict (permission_key) do update set
+  title = excluded.title,
+  description = excluded.description,
+  risk_level = excluded.risk_level,
+  requires_user_approval = excluded.requires_user_approval,
+  requires_reviewer_approval = excluded.requires_reviewer_approval,
+  requires_local_runtime_gate = excluded.requires_local_runtime_gate,
+  allowed_scope_format = excluded.allowed_scope_format,
+  examples = excluded.examples,
+  blocked_examples = excluded.blocked_examples,
+  is_active = true,
+  updated_at = now();
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types) values
+  ('addon-icons','addon-icons',true,5242880,array['image/png','image/jpeg','image/webp']),
+  ('addon-listing-assets','addon-listing-assets',true,10485760,array['image/png','image/jpeg','image/webp','application/pdf','text/plain','text/markdown']),
+  ('addon-packages','addon-packages',false,52428800,array['application/octet-stream','application/zip','application/x-zip-compressed']),
+  ('addon-review-attachments','addon-review-attachments',false,10485760,array['application/pdf','text/plain','text/markdown','image/png','image/jpeg','image/webp'])
+on conflict (id) do update set public = excluded.public, file_size_limit = excluded.file_size_limit, allowed_mime_types = excluded.allowed_mime_types;
+
+alter table public.developer_profiles enable row level security;
+alter table public.addon_drafts enable row level security;
+alter table public.addon_packages enable row level security;
+alter table public.addon_validation_results enable row level security;
+alter table public.addon_permission_catalog enable row level security;
+alter table public.addon_draft_permissions enable row level security;
+alter table public.addon_submissions enable row level security;
+alter table public.addon_compatibility_results enable row level security;
+alter table public.addon_audit_log enable row level security;
+
+drop policy if exists "public reads active developer profiles" on public.developer_profiles;
+create policy "public reads active developer profiles" on public.developer_profiles for select using (status in ('active','trusted'));
+drop policy if exists "users create own developer profile" on public.developer_profiles;
+create policy "users create own developer profile" on public.developer_profiles for insert to authenticated with check (user_id = auth.uid() and status in ('draft','requested'));
+drop policy if exists "users read own developer profile" on public.developer_profiles;
+create policy "users read own developer profile" on public.developer_profiles for select to authenticated using (user_id = auth.uid() or public.current_user_can_review_domain('marketplace'::public.review_domain));
+drop policy if exists "users update own safe developer profile" on public.developer_profiles;
+create policy "users update own safe developer profile" on public.developer_profiles for update to authenticated using (user_id = auth.uid()) with check (user_id = auth.uid() and status in ('draft','requested'));
+drop policy if exists "reviewers manage developer profiles" on public.developer_profiles;
+create policy "reviewers manage developer profiles" on public.developer_profiles for all to authenticated using (public.current_user_can_review_domain('marketplace'::public.review_domain)) with check (public.current_user_can_review_domain('marketplace'::public.review_domain));
+
+drop policy if exists "public reads active permission catalog" on public.addon_permission_catalog;
+create policy "public reads active permission catalog" on public.addon_permission_catalog for select using (is_active = true);
+drop policy if exists "admins manage permission catalog" on public.addon_permission_catalog;
+create policy "admins manage permission catalog" on public.addon_permission_catalog for all to authenticated using (public.current_user_is_admin()) with check (public.current_user_is_admin());
+
+drop policy if exists "users manage own addon drafts" on public.addon_drafts;
+create policy "users manage own addon drafts" on public.addon_drafts for all to authenticated using (owner_user_id = auth.uid() or public.current_user_can_review_domain('marketplace'::public.review_domain)) with check (owner_user_id = auth.uid() or public.current_user_can_review_domain('marketplace'::public.review_domain));
+
+drop policy if exists "users read own addon packages" on public.addon_packages;
+create policy "users read own addon packages" on public.addon_packages for select to authenticated using (exists (select 1 from public.addon_drafts d where d.id = addon_draft_id and (d.owner_user_id = auth.uid() or public.current_user_can_review_domain('marketplace'::public.review_domain))));
+drop policy if exists "users create own addon packages" on public.addon_packages;
+create policy "users create own addon packages" on public.addon_packages for insert to authenticated with check (exists (select 1 from public.addon_drafts d where d.id = addon_draft_id and d.owner_user_id = auth.uid()));
+
+drop policy if exists "users read own validation results" on public.addon_validation_results;
+create policy "users read own validation results" on public.addon_validation_results for select to authenticated using (exists (select 1 from public.addon_drafts d where d.id = addon_draft_id and (d.owner_user_id = auth.uid() or public.current_user_can_review_domain('marketplace'::public.review_domain))));
+drop policy if exists "users write own validation results" on public.addon_validation_results;
+create policy "users write own validation results" on public.addon_validation_results for insert to authenticated with check (exists (select 1 from public.addon_drafts d where d.id = addon_draft_id and d.owner_user_id = auth.uid()));
+drop policy if exists "users delete own validation results" on public.addon_validation_results;
+create policy "users delete own validation results" on public.addon_validation_results for delete to authenticated using (exists (select 1 from public.addon_drafts d where d.id = addon_draft_id and d.owner_user_id = auth.uid()));
+
+drop policy if exists "users manage own addon permissions" on public.addon_draft_permissions;
+create policy "users manage own addon permissions" on public.addon_draft_permissions for all to authenticated using (exists (select 1 from public.addon_drafts d where d.id = addon_draft_id and (d.owner_user_id = auth.uid() or public.current_user_can_review_domain('marketplace'::public.review_domain)))) with check (exists (select 1 from public.addon_drafts d where d.id = addon_draft_id and d.owner_user_id = auth.uid()));
+
+drop policy if exists "users read own submissions" on public.addon_submissions;
+create policy "users read own submissions" on public.addon_submissions for select to authenticated using (submitted_by = auth.uid() or public.current_user_can_review_domain('marketplace'::public.review_domain));
+drop policy if exists "users create own submissions" on public.addon_submissions;
+create policy "users create own submissions" on public.addon_submissions for insert to authenticated with check (submitted_by = auth.uid() and exists (select 1 from public.addon_drafts d where d.id = addon_draft_id and d.owner_user_id = auth.uid()));
+drop policy if exists "reviewers update submissions" on public.addon_submissions;
+create policy "reviewers update submissions" on public.addon_submissions for update to authenticated using (public.current_user_can_review_domain('marketplace'::public.review_domain)) with check (public.current_user_can_review_domain('marketplace'::public.review_domain));
+
+drop policy if exists "users read own compatibility" on public.addon_compatibility_results;
+create policy "users read own compatibility" on public.addon_compatibility_results for select to authenticated using (exists (select 1 from public.addon_drafts d where d.id = addon_draft_id and (d.owner_user_id = auth.uid() or public.current_user_can_review_domain('marketplace'::public.review_domain))));
+drop policy if exists "users write own compatibility" on public.addon_compatibility_results;
+create policy "users write own compatibility" on public.addon_compatibility_results for insert to authenticated with check (exists (select 1 from public.addon_drafts d where d.id = addon_draft_id and d.owner_user_id = auth.uid()));
+
+drop policy if exists "reviewers read addon audit log" on public.addon_audit_log;
+create policy "reviewers read addon audit log" on public.addon_audit_log for select to authenticated using (public.current_user_can_review_domain('marketplace'::public.review_domain));
+drop policy if exists "users create own addon audit events" on public.addon_audit_log;
+create policy "users create own addon audit events" on public.addon_audit_log for insert to authenticated with check (actor_user_id = auth.uid());
+
+drop policy if exists "developers upload own addon packages" on storage.objects;
+create policy "developers upload own addon packages" on storage.objects for insert to authenticated with check (bucket_id = 'addon-packages' and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "developers read own addon packages" on storage.objects;
+create policy "developers read own addon packages" on storage.objects for select to authenticated using (bucket_id = 'addon-packages' and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "reviewers read addon packages" on storage.objects;
+create policy "reviewers read addon packages" on storage.objects for select to authenticated using (bucket_id = 'addon-packages' and public.current_user_can_review_domain('marketplace'::public.review_domain));
+drop policy if exists "developers upload own addon icons" on storage.objects;
+create policy "developers upload own addon icons" on storage.objects for insert to authenticated with check (bucket_id in ('addon-icons','addon-listing-assets') and (storage.foldername(name))[1] = auth.uid()::text);
+drop policy if exists "public reads published addon assets" on storage.objects;
+create policy "public reads published addon assets" on storage.objects for select using (bucket_id in ('addon-icons','addon-listing-assets'));
+
+grant select, insert, update on table public.developer_profiles to authenticated;
+grant select on table public.developer_profiles to anon;
+grant select, insert, update on table public.addon_drafts to authenticated;
+grant select, insert on table public.addon_packages to authenticated;
+grant select, insert, delete on table public.addon_validation_results to authenticated;
+grant select on table public.addon_permission_catalog to anon, authenticated;
+grant insert, update, delete on table public.addon_permission_catalog to authenticated;
+grant select, insert, update, delete on table public.addon_draft_permissions to authenticated;
+grant select, insert, update on table public.addon_submissions to authenticated;
+grant select, insert on table public.addon_compatibility_results to authenticated;
+grant select, insert on table public.addon_audit_log to authenticated;

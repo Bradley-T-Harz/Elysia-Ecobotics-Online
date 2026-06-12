@@ -55,8 +55,9 @@ export type SourceCollectionPreview = { id?: string; title: string; description?
 export type CommuneShelfPreview = { id: string; title: string; status: string; type: string; updated_at?: string; source: "local" | "account"; target_id?: string | null };
 export type FollowedThreadPreview = { id: string; title: string; unread_count?: number; muted?: boolean; source: "local" | "account" };
 export type NotificationPreview = { id: string; title: string; body?: string | null; action_url?: string | null; read_at?: string | null; created_at?: string | null; notification_type?: string | null };
-export type BadgeDefinition = { badge_key: string; name: string; description: string; badge_type: string; category?: string | null; rarity: string; is_active?: boolean };
-export type UserBadge = BadgeDefinition & { awarded_at?: string | null; award_reason?: string | null; visibility?: string | null; earned: boolean };
+export type BadgeDefinition = { badge_key: string; name: string; description: string; badge_type: string; category?: string | null; rarity: string; is_active?: boolean; icon_path?: string | null; tags?: string[]; authority?: boolean; authority_linked?: boolean | null; award_mode?: string | null; rule_summary?: string | null; is_manual_only?: boolean | null; sort_order?: number | null; note?: string; default_status?: string };
+export type BadgeAwardRow = { badge_key: string; awarded_at?: string | null; award_reason?: string | null; award_source?: string | null; evidence_type?: string | null; evidence_id?: string | null; visibility?: "public" | "private" | null; revoked_at?: string | null };
+export type UserBadge = BadgeDefinition & BadgeAwardRow & { visibility?: "public" | "private" | null; earned: true };
 
 export type LocalLivingSnapshot = {
   savedSourceIds: string[];
@@ -151,18 +152,30 @@ export const defaultNotificationPreferences: NotificationPreferences = {
 };
 
 export const plannedBadges: BadgeDefinition[] = [
-  { badge_key: "free_member", name: "Free Member", description: "Default recognition for joining the public website commons.", badge_type: "member", category: "membership", rarity: "common" },
-  { badge_key: "stewardship_supporter", name: "Stewardship Supporter", description: "Recognition for reviewed public-benefit stewardship support.", badge_type: "stewardship", category: "stewardship", rarity: "uncommon" },
-  { badge_key: "water_steward", name: "Water Steward", description: "Recognition connected to water access, watersheds, wetlands, or aquatic care.", badge_type: "stewardship", category: "water", rarity: "uncommon" },
-  { badge_key: "forest_steward", name: "Forest Steward", description: "Recognition connected to forests, restoration, and habitat care.", badge_type: "stewardship", category: "forest", rarity: "uncommon" },
-  { badge_key: "reef_steward", name: "Reef Steward", description: "Recognition connected to reef and ocean stewardship.", badge_type: "stewardship", category: "reef", rarity: "uncommon" },
-  { badge_key: "health_steward", name: "Health Steward", description: "Recognition connected to health, dignity, and public-benefit support.", badge_type: "stewardship", category: "health", rarity: "uncommon" },
-  { badge_key: "knowledge_commons_supporter", name: "Knowledge Commons Supporter", description: "Recognition for supporting public knowledge and open learning.", badge_type: "stewardship", category: "knowledge", rarity: "uncommon" },
-  { badge_key: "source_curator", name: "Source Curator", description: "Recognition for useful Living Library source suggestions and care.", badge_type: "contributor", category: "living_library", rarity: "rare" },
-  { badge_key: "troubleshooting_helper", name: "Troubleshooting Helper", description: "Recognition for helping others resolve issues safely.", badge_type: "contributor", category: "commune", rarity: "rare" },
-  { badge_key: "developer_contributor", name: "Developer Contributor", description: "Recognition for add-on, tooling, or developer ecosystem contributions.", badge_type: "developer", category: "developer", rarity: "rare" },
-  { badge_key: "founding_steward", name: "Founding Steward", description: "Early project recognition manually assigned by an administrator.", badge_type: "founding", category: "membership", rarity: "founding" },
-  { badge_key: "guardian_reviewer", name: "Guardian / Reviewer", description: "Recognition associated with trust and review work. Authority still requires roles assigned by administrators.", badge_type: "review", category: "authority-linked", rarity: "epic" }
+  { badge_key: "free_member", name: "Free Member", description: "Default recognition for joining the public website commons.", badge_type: "member", category: "membership", rarity: "common", icon_path: "/images/badges/Free_Member.png", tags: ["membership", "common"], authority: false, award_mode: "automatic for website members", default_status: "earned" },
+  { badge_key: "stewardship_supporter", name: "Stewardship Supporter", description: "Recognition for reviewed public-benefit stewardship support.", badge_type: "stewardship", category: "stewardship", rarity: "uncommon", icon_path: "/images/badges/Stewardship_Supporter.png", tags: ["stewardship", "public-benefit"], authority: false, award_mode: "review-awarded", default_status: "planned/locked" },
+  { badge_key: "water_steward", name: "Water Steward", description: "Recognition connected to water access, watersheds, wetlands, or aquatic care.", badge_type: "stewardship", category: "water", rarity: "uncommon", icon_path: "/images/badges/Water_Steward.png", tags: ["water", "stewardship"], authority: false, award_mode: "review-awarded", default_status: "planned/locked" },
+  { badge_key: "forest_steward", name: "Forest Steward", description: "Recognition connected to forests, restoration, and habitat care.", badge_type: "stewardship", category: "forest", rarity: "uncommon", icon_path: "/images/badges/Forest_Steward.png", tags: ["forest", "stewardship"], authority: false, award_mode: "review-awarded", default_status: "planned/locked" },
+  { badge_key: "reef_steward", name: "Reef Steward", description: "Recognition connected to reef and ocean stewardship.", badge_type: "stewardship", category: "reef", rarity: "uncommon", icon_path: "/images/badges/Reef_Steward.png", tags: ["reef", "ocean", "stewardship"], authority: false, award_mode: "review-awarded", default_status: "planned/locked" },
+  { badge_key: "health_steward", name: "Health Steward", description: "Recognition connected to health, dignity, and public-benefit support.", badge_type: "stewardship", category: "health", rarity: "uncommon", icon_path: "/images/badges/Health_Steward.png", tags: ["health", "stewardship"], authority: false, award_mode: "review-awarded", default_status: "planned/locked" },
+  { badge_key: "knowledge_commons_supporter", name: "Knowledge Commons Supporter", description: "Recognition for supporting public knowledge and open learning.", badge_type: "stewardship", category: "knowledge", rarity: "uncommon", icon_path: "/images/badges/Knowledge_Commons_Supporter.png", tags: ["knowledge", "learning"], authority: false, award_mode: "review-awarded", default_status: "planned/locked" },
+  { badge_key: "source_curator", name: "Source Curator", description: "Recognition for useful Living Library source suggestions and care.", badge_type: "contributor", category: "living-library", rarity: "rare", icon_path: "/images/badges/Source_Curator.png", tags: ["living-library", "curation"], authority: false, award_mode: "review-awarded", default_status: "planned/locked" },
+  { badge_key: "troubleshooting_helper", name: "Troubleshooting Helper", description: "Recognition for helping others resolve issues safely.", badge_type: "contributor", category: "commune", rarity: "rare", icon_path: "/images/badges/Troubleshooting_Helper.png", tags: ["commune", "support"], authority: false, award_mode: "review-awarded", default_status: "planned/locked" },
+  { badge_key: "developer_contributor", name: "Developer Contributor", description: "Recognition for add-on, tooling, or developer ecosystem contributions.", badge_type: "developer", category: "developer", rarity: "rare", icon_path: "/images/badges/Developer_Contributor.png", tags: ["developer", "code"], authority: false, award_mode: "review-awarded", default_status: "planned/locked" },
+  { badge_key: "founding_steward", name: "Founding Steward", description: "Early project recognition manually assigned by an administrator.", badge_type: "founding", category: "membership", rarity: "epic", icon_path: "/images/badges/Founding_Steward.png", tags: ["founding", "membership"], authority: false, award_mode: "admin-awarded", default_status: "planned/locked", note: "This is one of the rarest badges. It is recognition for meaningful early support and foundational contribution, not automatic administrative authority." },
+  { badge_key: "guardian_reviewer", name: "Guardian / Reviewer", description: "Recognition associated with trust and review work. Authority still requires roles assigned by administrators.", badge_type: "review", category: "authority-linked", rarity: "epic", icon_path: "/images/badges/Guardian_Reviewer.png", tags: ["trust", "review", "authority-linked"], authority: true, award_mode: "admin-awarded / role-linked", default_status: "planned/locked", note: "This badge may be authority-linked, but the badge itself should not grant permissions in frontend code." },
+  { badge_key: "seed_sower", name: "Seed Sower", description: "Recognition for planting a first useful contribution in the public commons.", badge_type: "contributor", category: "contribution", rarity: "common", icon_path: "/images/badges/Seed_Sower.png", tags: ["contribution", "first-step"], authority: false, award_mode: "earned or review-awarded later", default_status: "planned/locked" },
+  { badge_key: "bridge_builder", name: "Bridge Builder", description: "Recognition for helping people, projects, ideas, and resources find each other.", badge_type: "community", category: "community", rarity: "uncommon", icon_path: "/images/badges/Bridge_Builder.png", tags: ["community", "connection"], authority: false, award_mode: "review-awarded", default_status: "planned/locked" },
+  { badge_key: "archive_warden", name: "Archive Warden", description: "Recognition for preserving records, improving sources, checking links, and strengthening public memory.", badge_type: "archive", category: "archive", rarity: "uncommon", icon_path: "/images/badges/Archive_Warden.png", tags: ["archive", "documentation"], authority: false, award_mode: "review-awarded", default_status: "planned/locked" },
+  { badge_key: "forge_tester", name: "Forge Tester", description: "Recognition for careful testing, bug reports, compatibility notes, and safe release feedback.", badge_type: "testing", category: "testing", rarity: "rare", icon_path: "/images/badges/Forge_Tester.png", tags: ["testing", "release"], authority: false, award_mode: "review-awarded", default_status: "planned/locked" },
+  { badge_key: "field_witness", name: "Field Witness", description: "Recognition for public ecological observations, field evidence, maps, restoration notes, or environmental records.", badge_type: "ecology", category: "fieldwork", rarity: "rare", icon_path: "/images/badges/Field_Witness.png", tags: ["fieldwork", "ecology"], authority: false, award_mode: "review-awarded / evidence-linked", default_status: "planned/locked" },
+  { badge_key: "radiant_scribe", name: "Radiant Scribe", description: "Recognition for clear writing, tutorials, research notes, guides, and public learning contributions.", badge_type: "writing", category: "writing", rarity: "rare", icon_path: "/images/badges/Radiant_Scribe.png", tags: ["writing", "teaching"], authority: false, award_mode: "review-awarded", default_status: "planned/locked" },
+  { badge_key: "hearth_keeper", name: "Hearth Keeper", description: "Recognition for trusted moderation and care of the public Commune.", badge_type: "moderation", category: "authority-linked", rarity: "epic", icon_path: "/images/badges/Hearth_Keeper.png", tags: ["commune", "moderation", "authority-linked"], authority: true, award_mode: "admin-awarded / role-linked", default_status: "planned/locked", note: "This is one of the rarest badges. It should only appear as earned when the person actually holds a moderator or equivalent trust role assigned by an administrator. Nobody can self-assign it." },
+  { badge_key: "ecobotics_forgewright", name: "Ecobotics Forgewright", description: "Recognition for robotics, hardware, ecological devices, and physical system contributions.", badge_type: "ecobotics", category: "robotics", rarity: "epic", icon_path: "/images/badges/Ecobotics_Forgewright.png", tags: ["robotics", "hardware", "ecobotics"], authority: false, award_mode: "review-awarded / project-contribution", default_status: "planned/locked", note: "This is one of the rarest badges. It does not grant permission to control hardware, deploy drones, access private systems, or operate real devices." },
+  { badge_key: "elysian_artwright", name: "Elysian Artwright", description: "Recognition for visual art, concept work, icons, and imagery that help give Elysia Ecobotics a living face.", badge_type: "art", category: "art", rarity: "rare", icon_path: "/images/badges/Elysian_Artwright.png", tags: ["art", "visual-identity"], authority: false, award_mode: "review-awarded", default_status: "planned/locked" },
+  { badge_key: "kindred_ally", name: "Kindred Ally", description: "Recognition for helping allied people, friends, collaborators, and associated projects with care and usefulness.", badge_type: "community", category: "allied-service", rarity: "uncommon", icon_path: "/images/badges/Kindred_Ally.png", tags: ["allied-service", "community"], authority: false, award_mode: "admin-awarded", default_status: "planned/locked", note: "This does not imply official partnership, sponsorship, endorsement, or authority." },
+  { badge_key: "open_pathmaker", name: "Open Pathmaker", description: "Recognition for making the Commons easier, clearer, and more accessible for more people.", badge_type: "accessibility", category: "accessibility", rarity: "rare", icon_path: "/images/badges/Open_Pathmaker.png", tags: ["accessibility", "inclusion"], authority: false, award_mode: "review-awarded", default_status: "planned/locked" },
+  { badge_key: "boundary_lantern", name: "Boundary Lantern", description: "Recognition for strengthening privacy, consent, safety, and ethical boundaries in the public commons.", badge_type: "safety", category: "privacy", rarity: "rare", icon_path: "/images/badges/Boundary_Lantern.png", tags: ["privacy", "safety", "ethics"], authority: false, award_mode: "admin-or-review-awarded", default_status: "planned/locked", note: "This is not the same as Guardian / Reviewer. It recognizes ethical architecture work without automatically granting formal review authority." }
 ];
 
 export function readLocalStorage<T>(key: string, fallback: T): T {
@@ -268,13 +281,43 @@ async function safeQuery<T>(warnings: string[], label: string, query: PromiseLik
   }
 }
 
-function mergeBadges(definitions: BadgeDefinition[], awarded: Array<{ badge_key: string; awarded_at?: string | null; award_reason?: string | null; visibility?: string | null }>): UserBadge[] {
-  const allDefinitions = definitions.length ? definitions : plannedBadges;
-  const awardedByKey = new Map(awarded.map((badge) => [badge.badge_key, badge]));
-  return allDefinitions.map((definition) => {
-    const award = awardedByKey.get(definition.badge_key);
-    return { ...definition, earned: Boolean(award), awarded_at: award?.awarded_at, award_reason: award?.award_reason, visibility: award?.visibility ?? "public" };
+function orderedBadgeDefinitions(definitions: BadgeDefinition[]) {
+  const definitionsByKey = new Map(definitions.map((definition) => [definition.badge_key, definition]));
+  const plannedByKey = new Map(plannedBadges.map((definition) => [definition.badge_key, definition]));
+  const ordered = plannedBadges.map((planned, index) => {
+    const databaseDefinition = definitionsByKey.get(planned.badge_key);
+    return databaseDefinition ? {
+      ...planned,
+      ...databaseDefinition,
+      icon_path: databaseDefinition.icon_path || planned.icon_path,
+      tags: planned.tags,
+      authority: Boolean(databaseDefinition.authority_linked ?? planned.authority),
+      authority_linked: databaseDefinition.authority_linked ?? planned.authority ?? false,
+      award_mode: databaseDefinition.award_mode || planned.award_mode,
+      rule_summary: databaseDefinition.rule_summary ?? null,
+      sort_order: databaseDefinition.sort_order ?? index + 1,
+      note: planned.note,
+      default_status: planned.default_status
+    } : { ...planned, sort_order: index + 1, authority_linked: planned.authority ?? false };
   });
+  const extra = definitions.filter((definition) => !plannedByKey.has(definition.badge_key));
+  return [...ordered, ...extra].sort((left, right) => (left.sort_order ?? 999) - (right.sort_order ?? 999) || left.name.localeCompare(right.name));
+}
+
+function mergeBadges(definitions: BadgeDefinition[], awarded: BadgeAwardRow[]): UserBadge[] {
+  const definitionsByKey = new Map(orderedBadgeDefinitions(definitions.length ? definitions : plannedBadges).map((definition) => [definition.badge_key, definition]));
+  const earned: UserBadge[] = [];
+  for (const award of awarded) {
+    if (award.revoked_at) continue;
+    const definition = definitionsByKey.get(award.badge_key) ?? plannedBadges.find((badge) => badge.badge_key === award.badge_key);
+    if (!definition) continue;
+    earned.push({ ...definition, ...award, visibility: award.visibility ?? "public", earned: true });
+  }
+  return earned.sort((left, right) => (left.sort_order ?? 999) - (right.sort_order ?? 999) || left.name.localeCompare(right.name));
+}
+
+export function freeMemberFallbackBadge(awardedAt?: string | null): UserBadge {
+  return mergeBadges(plannedBadges, [{ badge_key: "free_member", awarded_at: awardedAt ?? new Date().toISOString(), award_source: "local_fallback", visibility: "public" }])[0];
 }
 
 export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
@@ -305,7 +348,7 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
       followedThreads: [],
       notifications: [],
       badgeDefinitions: plannedBadges,
-      userBadges: mergeBadges(plannedBadges, [{ badge_key: "free_member", awarded_at: new Date().toISOString(), visibility: "public" }]),
+      userBadges: [freeMemberFallbackBadge()],
       localLiving,
       localCommuneDrafts: localCommune,
       localFollowedThreads: localThreads
@@ -332,7 +375,7 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
       followedThreads: [],
       notifications: [],
       badgeDefinitions: plannedBadges,
-      userBadges: mergeBadges(plannedBadges, []),
+      userBadges: [],
       localLiving,
       localCommuneDrafts: localCommune,
       localFollowedThreads: localThreads
@@ -342,7 +385,7 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
   const [visibilityRows, customizationRows, mediaRows, prefRows, savedAddons, savedSources, savedCitations, collectionRows, collectionItems, savedCommuneRows, followedRows, notificationRows, definitions, awarded] = await Promise.all([
     safeQuery<VisibilitySettings[]>(warnings, "Visibility settings", supabase.from("profile_visibility_settings").select("*").eq("user_id", userId).limit(1), []),
     safeQuery<ProfileCustomization[]>(warnings, "Profile customization", supabase.from("profile_customization").select("*").eq("user_id", userId).limit(1), []),
-    safeQuery<Array<{ media_type: string; public_url?: string | null }>>(warnings, "Profile media", supabase.from("profile_media").select("media_type, public_url").eq("user_id", userId).eq("status", "active"), []),
+    safeQuery<Array<{ media_type: string; public_url?: string | null; created_at?: string | null }>>(warnings, "Profile media", supabase.from("profile_media").select("media_type, public_url, created_at").eq("user_id", userId).eq("status", "active").order("created_at", { ascending: false }), []),
     safeQuery<NotificationPreferences[]>(warnings, "Notification preferences", supabase.from("notification_preferences").select("*").eq("user_id", userId).limit(1), []),
     safeQuery<SavedAddonPreview[]>(warnings, "Saved add-ons", supabase.from("user_saved_addons").select("addon_slug, addon_name, addon_version_id, saved_at, notes").eq("user_id", userId).order("saved_at", { ascending: false }).limit(200), []),
     safeQuery<SavedLivingSourcePreview[]>(warnings, "Saved Living Library sources", supabase.from("user_saved_living_sources").select("id, source_id, source_name, source_url, category, saved_at, notes").eq("user_id", userId).order("saved_at", { ascending: false }).limit(200), []),
@@ -352,12 +395,28 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
     safeQuery<Array<{ id: string; post_id?: string | null; draft_id?: string | null; saved_at?: string | null; notes?: string | null }>>(warnings, "Saved Commune posts", supabase.from("user_saved_commune_posts").select("id, post_id, draft_id, saved_at, notes").eq("user_id", userId).order("saved_at", { ascending: false }).limit(200), []),
     safeQuery<Array<{ id: string; thread_id: string; followed_at?: string | null; last_read_at?: string | null; muted?: boolean | null }>>(warnings, "Followed Commune threads", supabase.from("user_followed_commune_threads").select("id, thread_id, followed_at, last_read_at, muted").eq("user_id", userId).order("followed_at", { ascending: false }).limit(200), []),
     safeQuery<NotificationPreview[]>(warnings, "Notifications", supabase.from("user_notifications").select("id, title, body, action_url, read_at, created_at, notification_type").eq("user_id", userId).order("created_at", { ascending: false }).limit(12), []),
-    safeQuery<BadgeDefinition[]>(warnings, "Badge definitions", supabase.from("badge_definitions").select("badge_key, name, description, badge_type, category, rarity, is_active").eq("is_active", true).order("name"), plannedBadges),
-    safeQuery<Array<{ badge_key: string; awarded_at?: string | null; award_reason?: string | null; visibility?: string | null }>>(warnings, "User badges", supabase.from("user_badges").select("badge_key, awarded_at, award_reason, visibility").eq("user_id", userId), [])
+    safeQuery<BadgeDefinition[]>(warnings, "Badge definitions", supabase.from("badge_definitions").select("badge_key, name, description, badge_type, icon_path, category, rarity, sort_order, authority_linked, award_mode, rule_summary, is_manual_only, is_active").eq("is_active", true).order("sort_order", { ascending: true }), plannedBadges),
+    safeQuery<BadgeAwardRow[]>(warnings, "User badges", supabase.from("user_badges").select("badge_key, awarded_at, award_reason, award_source, evidence_type, evidence_id, visibility, revoked_at").eq("user_id", userId).is("revoked_at", null), [])
   ]);
 
   const avatarUrl = mediaRows.find((row) => row.media_type === "avatar")?.public_url;
   const bannerUrl = mediaRows.find((row) => row.media_type === "banner")?.public_url;
+  const localOnboarding = readLocalStorage<{ completed?: boolean; completedAt?: string }>(commonsStorageKeys.onboarding, {});
+  const profileQualifiesForFreeMember = Boolean(profile && (profile.commons_onboarding_completed_at || localOnboarding.completed));
+  let badgeAwards: BadgeAwardRow[] = [...awarded];
+  const hasFreeMemberAward = badgeAwards.some((badge) => badge.badge_key === "free_member" && !badge.revoked_at);
+  if (profileQualifiesForFreeMember && !hasFreeMemberAward) {
+    const rpcResult = await supabase.rpc("grant_free_member_for_user", { p_target_user_id: userId });
+    if (rpcResult.error) {
+      logBackendDetail("Free Member badge", rpcResult.error.message);
+      badgeAwards = [{ badge_key: "free_member", awarded_at: profile?.commons_onboarding_completed_at ?? localOnboarding.completedAt ?? new Date().toISOString(), award_source: "local_fallback", visibility: "public" }, ...badgeAwards];
+    } else {
+      const refreshed = await safeQuery<BadgeAwardRow[]>(warnings, "User badges", supabase.from("user_badges").select("badge_key, awarded_at, award_reason, award_source, evidence_type, evidence_id, visibility, revoked_at").eq("user_id", userId).is("revoked_at", null), []);
+      badgeAwards = refreshed.some((badge) => badge.badge_key === "free_member" && !badge.revoked_at)
+        ? refreshed
+        : [{ badge_key: "free_member", awarded_at: profile?.commons_onboarding_completed_at ?? localOnboarding.completedAt ?? new Date().toISOString(), award_source: "local_fallback", visibility: "public" }, ...badgeAwards];
+    }
+  }
   const customization = { ...defaultCustomization, ...(customizationRows[0] ?? {}), avatar_url: avatarUrl ?? (profile?.avatar_url || null), banner_url: bannerUrl ?? customizationRows[0]?.banner_url ?? null };
   const collectionSourceIds = collectionItems.reduce<Record<string, string[]>>((collections, item) => ({
     ...collections,
@@ -386,7 +445,7 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
     followedThreads: followedRows.map((row) => ({ id: row.thread_id, title: `Thread ${row.thread_id.slice(0, 8)}`, unread_count: 0, muted: Boolean(row.muted), source: "account" })),
     notifications: notificationRows,
     badgeDefinitions: definitions.length ? definitions : plannedBadges,
-    userBadges: mergeBadges(definitions.length ? definitions : plannedBadges, awarded.length ? awarded : [{ badge_key: "free_member", awarded_at: profile?.commons_onboarding_completed_at ?? new Date().toISOString(), visibility: "public" }]),
+    userBadges: mergeBadges(definitions.length ? definitions : plannedBadges, badgeAwards),
     localLiving,
     localCommuneDrafts: localCommune,
     localFollowedThreads: localThreads
@@ -441,6 +500,8 @@ export async function uploadProfileMedia(file: File, mediaType: "avatar" | "bann
   if (upload.error) return { warnings: [friendlyBackendMessage("Profile media", upload.error.message)] };
   const { data } = supabase.storage.from(bucket).getPublicUrl(storagePath);
   const publicUrl = data.publicUrl;
+  const previous = await supabase.from("profile_media").update({ status: "hidden" }).eq("user_id", auth.user.id).eq("media_type", mediaType).eq("status", "active");
+  if (previous.error) logBackendDetail("Profile media replacement", previous.error.message);
   const { error } = await supabase.from("profile_media").insert({ user_id: auth.user.id, media_type: mediaType, bucket, storage_path: storagePath, public_url: publicUrl, status: "active" });
   return { publicUrl, warnings: error ? [friendlyBackendMessage("Profile media", error.message)] : [] };
 }
@@ -493,11 +554,11 @@ export async function markAllNotificationsRead(): Promise<string[]> {
   return error ? [friendlyBackendMessage("Notifications", error.message)] : [];
 }
 
-export async function updateBadgeVisibility(badgeKey: string, visibility: "public" | "private" | "hidden"): Promise<string[]> {
+export async function updateBadgeVisibility(badgeKey: string, visibility: "public" | "private"): Promise<string[]> {
   if (!supabase) return [supabaseNotConfiguredMessage];
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return ["Sign in before updating badge visibility."];
-  const { error } = await supabase.from("user_badges").update({ visibility }).eq("user_id", auth.user.id).eq("badge_key", badgeKey);
+  const { error } = await supabase.from("user_badges").update({ visibility, updated_at: new Date().toISOString() }).eq("user_id", auth.user.id).eq("badge_key", badgeKey).is("revoked_at", null);
   return error ? [friendlyBackendMessage("User badges", error.message)] : [];
 }
 
@@ -589,9 +650,9 @@ export async function loadPublicCommonsProfile(username: string): Promise<{ data
   const [visibilityRows, customizationRows, mediaRows, definitions, awarded, collections, savedSources] = await Promise.all([
     safeQuery<VisibilitySettings[]>(warnings, "Public visibility", supabase.from("profile_visibility_settings").select("*").eq("user_id", profileRow.id).limit(1), []),
     safeQuery<ProfileCustomization[]>(warnings, "Public customization", supabase.from("profile_customization").select("*").eq("user_id", profileRow.id).limit(1), []),
-    safeQuery<Array<{ media_type: string; public_url?: string | null }>>(warnings, "Public profile media", supabase.from("profile_media").select("media_type, public_url").eq("user_id", profileRow.id).eq("status", "active"), []),
-    safeQuery<BadgeDefinition[]>(warnings, "Public badges", supabase.from("badge_definitions").select("badge_key, name, description, badge_type, category, rarity, is_active").eq("is_active", true), plannedBadges),
-    safeQuery<Array<{ badge_key: string; awarded_at?: string | null; award_reason?: string | null; visibility?: string | null }>>(warnings, "Public user badges", supabase.from("user_badges").select("badge_key, awarded_at, award_reason, visibility").eq("user_id", profileRow.id).eq("visibility", "public"), []),
+    safeQuery<Array<{ media_type: string; public_url?: string | null; created_at?: string | null }>>(warnings, "Public profile media", supabase.from("profile_media").select("media_type, public_url, created_at").eq("user_id", profileRow.id).eq("status", "active").order("created_at", { ascending: false }), []),
+    safeQuery<BadgeDefinition[]>(warnings, "Public badges", supabase.from("badge_definitions").select("badge_key, name, description, badge_type, icon_path, category, rarity, sort_order, authority_linked, award_mode, rule_summary, is_manual_only, is_active").eq("is_active", true).order("sort_order", { ascending: true }), plannedBadges),
+    safeQuery<BadgeAwardRow[]>(warnings, "Public user badges", supabase.from("user_badges").select("badge_key, awarded_at, award_reason, award_source, evidence_type, evidence_id, visibility, revoked_at").eq("user_id", profileRow.id).eq("visibility", "public").is("revoked_at", null), []),
     safeQuery<Array<{ id: string; title: string; description?: string | null; visibility: string; created_at?: string | null }>>(warnings, "Public collections", supabase.from("user_source_collections").select("id, title, description, visibility, created_at").eq("user_id", profileRow.id).eq("visibility", "public").limit(12), []),
     safeQuery<SavedLivingSourcePreview[]>(warnings, "Public saved sources", supabase.from("user_saved_living_sources").select("id, source_id, source_name, source_url, category, saved_at, notes").eq("user_id", profileRow.id).limit(12), [])
   ]);
@@ -604,7 +665,7 @@ export async function loadPublicCommonsProfile(username: string): Promise<{ data
       profile: profileRow,
       visibility,
       customization: { ...defaultCustomization, ...(customizationRows[0] ?? {}), avatar_url: avatarUrl ?? profileRow.avatar_url ?? null, banner_url: bannerUrl ?? null },
-      badges: visibility.show_badges ? mergeBadges(definitions, awarded).filter((badge) => badge.earned && badge.visibility === "public") : [],
+      badges: visibility.show_badges ? mergeBadges(definitions.length ? definitions : plannedBadges, awarded).filter((badge) => badge.visibility === "public") : [],
       publicCollections: visibility.show_source_collections ? collections.map((collection) => ({ ...collection, source_count: 0 })) : [],
       publicSavedSources: visibility.show_saved_sources ? savedSources : [],
       isOwner: auth.user?.id === profileRow.id

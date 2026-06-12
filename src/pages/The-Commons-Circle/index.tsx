@@ -8,10 +8,10 @@ import {
   defaultCustomization,
   defaultNotificationPreferences,
   defaultVisibility,
+  freeMemberFallbackBadge,
   loadCommonsHomebase,
   markAllNotificationsRead,
   markNotificationRead,
-  plannedBadges,
   readLocalStorage,
   saveCustomization,
   saveNotificationPreferences,
@@ -21,7 +21,7 @@ import {
   uploadProfileMedia,
   writeLocalStorage
 } from "./commonsCircleApi";
-import type { CommonsHomebaseData, NotificationPreferences, ProfileCustomization, VisibilitySettings } from "./commonsCircleApi";
+import type { CommonsHomebaseData, NotificationPreferences, ProfileCustomization, UserBadge, VisibilitySettings } from "./commonsCircleApi";
 
 type OnboardingState = { skippedStewardship?: boolean; welcomed?: boolean; completed?: boolean; completedAt?: string; membershipTier?: "Free Member" };
 type StewardshipDraft = { status?: "draft_local" | "pending_admin_review_local" };
@@ -37,10 +37,20 @@ const membershipTiers = [
 const futureTables = ["profiles", "membership_records", "membership_badges", "user_badges", "contribution_records", "donation_verifications", "stewardship_organizations", "user_saved_addons", "user_saved_library_sources", "user_saved_posts", "account_links"];
 const futureSupportTables = ["account_privacy_settings", "account_notification_settings", "developer_profiles", "moderator_roles", "admin_review_events", "donation_verification_files"];
 const themeModes = ["deep_grove", "starlit_archive", "solar_meadow", "moonlit_reef", "aether_blue", "high_contrast"];
+const backgroundStyleOptions = ["soft_cyber_garden", "starfield_mantle", "living_archive", "clear_lantern"];
 const decalOptions = ["none", "leaf_glyph", "water_ripple", "star_map", "mushroom_badge", "circuit_vine", "pollinator", "wetland_reed", "moon_crest", "robotic_seed"];
 
 function BadgeRow({ labels }: { labels: string[] }) {
-  return <div className="commons-badge-row">{labels.map((label) => <span key={label}>{label}</span>)}</div>;
+  return <div className="commons-badge-row">{labels.filter(Boolean).map((label) => <span key={label}>{label}</span>)}</div>;
+}
+
+function BadgeIcon({ badge }: { badge: UserBadge }) {
+  const [failed, setFailed] = useState(false);
+  return <div className="medallion-icon-frame">{badge.icon_path && !failed ? <img className="medallion-icon" src={badge.icon_path} alt={`${badge.name} badge icon`} onError={() => setFailed(true)} /> : <span className="medallion-glyph">✦</span>}</div>;
+}
+
+function badgeLabels(badge: UserBadge) {
+  return [badge.rarity, ...(badge.tags ?? [badge.category || badge.badge_type]), badge.authority || badge.authority_linked ? "authority-linked recognition" : "recognition", badge.award_source || badge.award_mode || "review-awarded", "earned"];
 }
 
 function EmptyState({ children }: { children: string }) {
@@ -54,6 +64,30 @@ function MiniFact({ label, value }: { label: string; value: string | number }) {
 function privacyLabel(key: string) {
   return key.replace(/^show_/, "show ").replace(/_/g, " ");
 }
+
+function classToken(value: string | null | undefined, fallback: string) {
+  return (value || fallback).replace(/[^a-z0-9_-]/gi, "_");
+}
+
+function customizationClass(settings: ProfileCustomization) {
+  return `commons-theme-${classToken(settings.theme_mode, "starlit_archive")} commons-background-${classToken(settings.background_style, "soft_cyber_garden")} commons-layout-${classToken(settings.profile_layout, "classic_homebase")}`;
+}
+
+function formatDecalLabel(value: string) {
+  return value.replace(/_/g, " ");
+}
+
+function visibleDecals(settings: ProfileCustomization) {
+  const decals = settings.selected_decals?.length ? settings.selected_decals : settings.decal_set && settings.decal_set !== "none" ? [settings.decal_set] : [];
+  return decals.filter(Boolean);
+}
+
+function DecalStrip({ settings }: { settings: ProfileCustomization }) {
+  const decals = visibleDecals(settings);
+  if (!decals.length) return null;
+  return <div className="commons-decal-strip" aria-label="Selected profile decals">{decals.map((decal) => <span className="commons-decal-chip" key={decal}>{formatDecalLabel(decal)}</span>)}</div>;
+}
+
 
 function isBackendDiagnostic(message: string) {
   return /not configured yet|temporarily unavailable|Could not find|schema cache|permission denied|row-level security|violates row-level security|Account-backed data|Account storage/i.test(message);
@@ -91,12 +125,14 @@ export default function CommonsCirclePage() {
     setSyncChoice(readLocalStorage(commonsStorageKeys.syncChoice, {}));
   }, []);
 
-  const refreshHomebase = useCallback(async () => {
+  const refreshHomebase = useCallback(async (options?: { preserveCustomization?: ProfileCustomization }) => {
     refreshLocalCounts();
     const result = await loadCommonsHomebase();
+    const localCustomization = readLocalStorage<ProfileCustomization | null>("commonsCircle.customizationDemo.v1", null);
+    const customizationWarnings = result.warnings.some((warning) => /Profile customization|profile_customization/i.test(warning));
     setHomebase(result);
     setVisibilityDraft(result.visibility);
-    setCustomizationDraft(result.customization);
+    setCustomizationDraft(options?.preserveCustomization ?? (customizationWarnings && localCustomization ? { ...result.customization, ...localCustomization } : result.customization));
     setNotificationDraft(result.notificationPreferences);
     logDiagnostics("homebase", result.warnings);
   }, [refreshLocalCounts]);
@@ -127,6 +163,12 @@ export default function CommonsCirclePage() {
   const shouldPromptSync = Boolean(homebase?.signedIn && localLivingCount > 0 && syncChoice.choice !== "synced" && syncChoice.choice !== "keep_local");
   const unreadCount = homebase?.notifications.filter((notice) => !notice.read_at).length ?? 0;
   const homeStyle = { "--commons-accent": customizationDraft.accent_color || "#8ee8dc" } as CSSProperties;
+  const homebaseClasses = `page-stack commons-circle-page commons-homebase ${customizationClass(customizationDraft)}`;
+  const earnedBadges = useMemo(() => {
+    const earned = homebase?.userBadges.filter((badge) => badge.earned && !badge.revoked_at) ?? [];
+    const hasFreeMember = earned.some((badge) => badge.badge_key === "free_member");
+    return profile && profileSetupComplete && !hasFreeMember ? [freeMemberFallbackBadge(profile.commons_onboarding_completed_at ?? onboardingDone.completedAt), ...earned] : earned;
+  }, [homebase?.userBadges, onboardingDone.completedAt, profile, profileSetupComplete]);
 
   async function saveVisibility() {
     if (!homebase?.signedIn) {
@@ -141,17 +183,34 @@ export default function CommonsCirclePage() {
     await refreshHomebase();
   }
 
+  function updateCustomizationDraft(patch: Partial<ProfileCustomization>) {
+    setCustomizationDraft((current) => ({ ...current, ...patch }));
+  }
+
+  function toggleSelectedDecal(decal: string) {
+    setCustomizationDraft((current) => {
+      const selected = current.selected_decals ?? [];
+      return { ...current, selected_decals: selected.includes(decal) ? selected.filter((item) => item !== decal) : [...selected, decal] };
+    });
+  }
+
   async function saveProfileRoom() {
+    const savedDraft = { ...customizationDraft };
     if (!homebase?.signedIn) {
-      writeLocalStorage("commonsCircle.customizationDemo.v1", customizationDraft);
-      pushMessage("Profile room customization saved locally. Sign in to save it to your Website Account.");
+      writeLocalStorage("commonsCircle.customizationDemo.v1", savedDraft);
+      pushMessage("Saved locally in this browser. Sign in to save account-backed profile customization.");
       return;
     }
-    const warnings = await saveCustomization(customizationDraft);
-    const visibleMessages = polishedActionMessages("customization", warnings, "Profile room customization saving is not active yet. Your current choices remain available in this browser for now.");
-    visibleMessages.forEach(pushMessage);
-    if (!visibleMessages.length) pushMessage("Profile room customization saved.");
-    await refreshHomebase();
+    const warnings = await saveCustomization(savedDraft);
+    const visibleMessages = polishedActionMessages("customization", warnings, "Saved locally in this browser. Account sync is unavailable until the profile customization table/policies are active.");
+    if (visibleMessages.length) {
+      writeLocalStorage("commonsCircle.customizationDemo.v1", savedDraft);
+      visibleMessages.forEach(pushMessage);
+      setCustomizationDraft(savedDraft);
+      return;
+    }
+    pushMessage("Profile room customization saved to your Website Account.");
+    await refreshHomebase({ preserveCustomization: savedDraft });
   }
 
   async function saveNoticePrefs() {
@@ -182,7 +241,7 @@ export default function CommonsCirclePage() {
   }
 
   return (
-    <div className="page-stack commons-circle-page commons-homebase" style={homeStyle}>
+    <div className={homebaseClasses} style={homeStyle}>
       <PageHero eyebrow="Membership" title="The Commons Circle">
         <p>Membership is not a gate around Elysia. It is a way to help sustain the public commons around her.</p>
         <p>A Commons account helps you participate in the public ecosystem around Elysia: Marketplace, Developer Forge, Living Library, Commune, saved items, stewardship recognition, and public contributions. It does not unlock private local Elysia memory and does not sync private local files, logs, passwords, or credentials by default.</p>
@@ -239,8 +298,9 @@ export default function CommonsCirclePage() {
           <MiniFact label="Unread signals" value={unreadCount} />
           <MiniFact label="Saved shelves" value={(homebase?.savedAddons.length ?? 0) + (homebase?.savedLivingSources.length ?? 0) + (homebase?.sourceCollections.length ?? 0)} />
         </dl>
+        <DecalStrip settings={customizationDraft} />
         <div className="button-row">
-          <a className="button-link button-link--primary" href={publicProfilePath}>View public profile</a>
+          {profile?.username ? <a className="button-link button-link--primary" href={publicProfilePath}>View public profile</a> : <span className="button-link button-link--disabled" aria-disabled="true">Add a username to view public profile</span>}
           <a className="button-link" href="/commons-circle/setup/profile">Edit profile setup</a>
           <a className="button-link" href="#customization-studio">Customize circle</a>
           <a className="button-link" href="#privacy-lanterns">Privacy settings</a>
@@ -296,7 +356,7 @@ export default function CommonsCirclePage() {
       <section className="section-card commons-medallion-wall">
         <p className="eyebrow">Medallion Wall</p>
         <h2>Badges are recognition, not authority</h2>
-        <div className="commons-medallion-grid">{(homebase?.userBadges.length ? homebase.userBadges : plannedBadges.map((badge) => ({ ...badge, earned: badge.badge_key === "free_member", visibility: "public" }))).map((badge) => <article className={badge.earned ? "earned" : "locked"} key={badge.badge_key}><span className="medallion-glyph">{badge.earned ? "✦" : "○"}</span><h3>{badge.name}</h3><p>{badge.description}</p><BadgeRow labels={[badge.rarity, badge.category || badge.badge_type, badge.earned ? "earned" : "planned/locked"]} />{badge.earned && <label className="checkbox-line"><span>Visibility</span><select value={badge.visibility || "public"} onChange={async (event) => { polishedActionMessages("badge-visibility", await updateBadgeVisibility(badge.badge_key, event.target.value as "public" | "private" | "hidden"), "Badge visibility controls are not active yet.").forEach(pushMessage); await refreshHomebase(); }}><option value="public">public</option><option value="private">private</option><option value="hidden">hidden</option></select></label>}</article>)}</div>
+        <div className="commons-medallion-grid">{earnedBadges.map((badge) => <article className={`earned${badge.authority || badge.authority_linked ? " authority-linked" : ""}`} key={badge.badge_key}><BadgeIcon badge={badge} /><h3>{badge.name}</h3><p>{badge.description}</p>{badge.rule_summary && <p className="commons-medallion-note">{badge.rule_summary}</p>}{badge.note && <p className="commons-medallion-note">{badge.note}</p>}<BadgeRow labels={badgeLabels(badge)} />{badge.award_source === "local_fallback" ? <p className="commons-medallion-note">Free Member is shown here because your Commons profile is complete. It will sync to badge storage after the Free Member backfill/RPC is applied.</p> : <label className="checkbox-line"><span>Visibility</span><select value={badge.visibility || "public"} onChange={async (event) => { polishedActionMessages("badge-visibility", await updateBadgeVisibility(badge.badge_key, event.target.value as "public" | "private"), "Badge visibility controls are not active yet.").forEach(pushMessage); await refreshHomebase(); }}><option value="public">public</option><option value="private">private</option></select></label>}</article>)}</div>{!earnedBadges.length && <EmptyState>No badges awarded yet. Free Member appears after your Commons Profile is completed. Badges are recognition, not authority.</EmptyState>}
       </section>
 
       <section className="commons-tier-grid">{membershipTiers.map((tier) => <article className="section-card commons-tier-card" key={tier.name}><p className="eyebrow">{tier.status}</p><h3>{tier.name}</h3><p>{tier.purpose}</p><p><strong>How awarded:</strong> {tier.awarded}</p><p className="boundary-note">{tier.note}</p></article>)}</section>
@@ -304,14 +364,20 @@ export default function CommonsCirclePage() {
       <section className="section-card commons-studio" id="customization-studio">
         <p className="eyebrow">Customization Studio</p>
         <h2>Shape your public profile room</h2>
-        <p>Avatar and banner media are public profile presentation assets. Do not upload receipts, resumes, private screenshots, credentials, or local Elysia material here.</p>
+        <p>Avatar and banner media are public profile presentation assets. They upload immediately when selected. Theme, accent, decal, and layout choices save with this button. Do not upload receipts, resumes, private screenshots, credentials, or local Elysia material here.</p>
         <div className="commons-studio-grid">
-          <label><span>Theme mode</span><select value={customizationDraft.theme_mode} onChange={(event) => setCustomizationDraft({ ...customizationDraft, theme_mode: event.target.value })}>{themeModes.map((theme) => <option key={theme}>{theme}</option>)}</select></label>
-          <label><span>Accent color</span><input type="color" value={customizationDraft.accent_color} onChange={(event) => setCustomizationDraft({ ...customizationDraft, accent_color: event.target.value })} /></label>
-          <label><span>Decal set</span><select value={customizationDraft.decal_set} onChange={(event) => setCustomizationDraft({ ...customizationDraft, decal_set: event.target.value })}>{decalOptions.map((decal) => <option key={decal}>{decal}</option>)}</select></label>
-          <label><span>Profile layout</span><select value={customizationDraft.profile_layout} onChange={(event) => setCustomizationDraft({ ...customizationDraft, profile_layout: event.target.value })}><option>classic_homebase</option><option>compact_archive</option><option>garden_shelves</option></select></label>
-          <label><span>Avatar upload</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleProfileMedia(event.target.files?.[0] ?? null, "avatar")} /></label>
-          <label><span>Banner upload</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleProfileMedia(event.target.files?.[0] ?? null, "banner")} /></label>
+          <div className="commons-studio-controls">
+            <label><span>Theme mode</span><select value={customizationDraft.theme_mode} onChange={(event) => updateCustomizationDraft({ theme_mode: event.target.value })}>{themeModes.map((theme) => <option key={theme} value={theme}>{theme}</option>)}</select></label>
+            <label><span>Accent color</span><input type="color" value={customizationDraft.accent_color} onChange={(event) => updateCustomizationDraft({ accent_color: event.target.value })} /></label>
+            <label><span>Background style</span><select value={customizationDraft.background_style} onChange={(event) => updateCustomizationDraft({ background_style: event.target.value })}>{backgroundStyleOptions.map((style) => <option key={style} value={style}>{style}</option>)}</select></label>
+            <label><span>Decal set</span><select value={customizationDraft.decal_set} onChange={(event) => updateCustomizationDraft({ decal_set: event.target.value })}>{decalOptions.map((decal) => <option key={decal} value={decal}>{decal}</option>)}</select></label>
+            <label><span>Profile layout</span><select value={customizationDraft.profile_layout} onChange={(event) => updateCustomizationDraft({ profile_layout: event.target.value })}><option value="classic_homebase">classic_homebase</option><option value="compact_archive">compact_archive</option><option value="garden_shelves">garden_shelves</option></select></label>
+          </div>
+          <fieldset className="commons-decal-picker"><legend>Selected decals</legend>{decalOptions.filter((decal) => decal !== "none").map((decal) => <label className="checkbox-line" key={decal}><input type="checkbox" checked={(customizationDraft.selected_decals ?? []).includes(decal)} onChange={() => toggleSelectedDecal(decal)} /><span>{formatDecalLabel(decal)}</span></label>)}</fieldset>
+          <div className="commons-media-upload-row">
+            <label><span>Avatar upload</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleProfileMedia(event.target.files?.[0] ?? null, "avatar")} /></label>
+            <label><span>Banner upload</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleProfileMedia(event.target.files?.[0] ?? null, "banner")} /></label>
+          </div>
         </div>
         <div className="button-row"><button className="button-primary" type="button" onClick={() => void saveProfileRoom()}>Save customization</button></div>
       </section>
