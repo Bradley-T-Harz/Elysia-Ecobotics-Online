@@ -3,6 +3,8 @@ import type { CSSProperties } from "react";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
+import { loadCurrentRoleState } from "../../shared/review/reviewClient";
+import type { AppRole } from "../../shared/review/reviewClient";
 import {
   commonsStorageKeys,
   defaultCustomization,
@@ -34,11 +36,21 @@ const membershipTiers = [
   { name: "Founding Steward", purpose: "Early project recognition for meaningful early support of Elysia Ecobotics and the commons around her.", awarded: "Manually assigned by an administrator.", status: "Early recognition", note: "Not pay-to-win power." }
 ];
 
-const futureTables = ["profiles", "membership_records", "membership_badges", "user_badges", "contribution_records", "donation_verifications", "stewardship_organizations", "user_saved_addons", "user_saved_library_sources", "user_saved_posts", "account_links"];
-const futureSupportTables = ["account_privacy_settings", "account_notification_settings", "developer_profiles", "moderator_roles", "admin_review_events", "donation_verification_files"];
 const themeModes = ["deep_grove", "starlit_archive", "solar_meadow", "moonlit_reef", "aether_blue", "high_contrast"];
 const backgroundStyleOptions = ["soft_cyber_garden", "starfield_mantle", "living_archive", "clear_lantern"];
 const decalOptions = ["none", "leaf_glyph", "water_ripple", "star_map", "mushroom_badge", "circuit_vine", "pollinator", "wetland_reed", "moon_crest", "robotic_seed"];
+const adminConsoleLinks = [
+  ["/admin", "Admin dashboard", "Governance overview and safe queue counts."],
+  ["/admin/moderation", "Moderation dashboard", "Reported and flagged public content."],
+  ["/admin/reports", "Reported content queue", "Private reports and review outcomes."],
+  ["/admin/addon-submissions", "Add-on review queue", "Developer Forge submissions and package metadata."],
+  ["/admin/developers", "Developer verification", "Developer profile requests and trust status."],
+  ["/admin/library-sources", "Living Library source review", "Source submissions, provenance, and privacy notes."],
+  ["/admin/work-submissions", "Work With / role review", "Private work, volunteer, and role-interest submissions."],
+  ["/admin/roles", "User role management", "Manual authority assignment and revocation."],
+  ["/admin/audit", "Audit logs", "Internal review and moderation events."]
+] as const;
+const adminAuthorityRoles: AppRole[] = ["administrator", "moderator", "reviewer", "marketplace_reviewer", "source_reviewer", "commune_moderator", "guardian_reviewer"];
 
 function BadgeRow({ labels }: { labels: string[] }) {
   return <div className="commons-badge-row">{labels.filter(Boolean).map((label) => <span key={label}>{label}</span>)}</div>;
@@ -113,6 +125,7 @@ export default function CommonsCirclePage() {
   const [onboardingDone, setOnboardingDone] = useState<OnboardingState>(() => readLocalStorage(commonsStorageKeys.onboarding, { skippedStewardship: false, welcomed: false }));
   const [verificationDrafts, setVerificationDrafts] = useState<StewardshipDraft[]>(() => readLocalStorage(commonsStorageKeys.stewardshipDrafts, []));
   const [contributionRequests, setContributionRequests] = useState<unknown[]>(() => readLocalStorage(commonsStorageKeys.contributionRequests, []));
+  const [roleState, setRoleState] = useState<{ roles: AppRole[]; isAdmin: boolean; signedIn: boolean; warnings: string[] }>({ roles: [], isAdmin: false, signedIn: false, warnings: [] });
 
   const pushMessage = useCallback((message: string) => {
     if (message.trim()) setMessages((current) => [message, ...current].slice(0, 6));
@@ -127,14 +140,16 @@ export default function CommonsCirclePage() {
 
   const refreshHomebase = useCallback(async (options?: { preserveCustomization?: ProfileCustomization }) => {
     refreshLocalCounts();
-    const result = await loadCommonsHomebase();
+    const [result, roles] = await Promise.all([loadCommonsHomebase(), loadCurrentRoleState()]);
     const localCustomization = readLocalStorage<ProfileCustomization | null>("commonsCircle.customizationDemo.v1", null);
     const customizationWarnings = result.warnings.some((warning) => /Profile customization|profile_customization/i.test(warning));
     setHomebase(result);
+    setRoleState({ roles: roles.roles, isAdmin: roles.isAdmin, signedIn: roles.signedIn, warnings: roles.warnings });
     setVisibilityDraft(result.visibility);
     setCustomizationDraft(options?.preserveCustomization ?? (customizationWarnings && localCustomization ? { ...result.customization, ...localCustomization } : result.customization));
     setNotificationDraft(result.notificationPreferences);
     logDiagnostics("homebase", result.warnings);
+    logDiagnostics("role-state", roles.warnings);
   }, [refreshLocalCounts]);
 
   useEffect(() => { void refreshHomebase(); }, [refreshHomebase]);
@@ -169,6 +184,7 @@ export default function CommonsCirclePage() {
     const hasFreeMember = earned.some((badge) => badge.badge_key === "free_member");
     return profile && profileSetupComplete && !hasFreeMember ? [freeMemberFallbackBadge(profile.commons_onboarding_completed_at ?? onboardingDone.completedAt), ...earned] : earned;
   }, [homebase?.userBadges, onboardingDone.completedAt, profile, profileSetupComplete]);
+  const adminEntryAllowed = Boolean(homebase?.signedIn && (profile?.is_admin || roleState.isAdmin || roleState.roles.some((role) => adminAuthorityRoles.includes(role))));
 
   async function saveVisibility() {
     if (!homebase?.signedIn) {
@@ -257,13 +273,14 @@ export default function CommonsCirclePage() {
 
       <section className="two-column commons-account-panels">
         <div className="commons-account-start">
-          <div className="boundary-note"><strong>Start here:</strong> create or sign in to your Website Account first. This is the actual authentication account for Elysia Ecobotics Online.</div>
+          {!homebase?.signedIn && <div className="boundary-note"><strong>Start here:</strong> create or sign in to your Website Account first. This is the actual authentication account for Elysia Ecobotics Online.</div>}
+          {homebase?.signedIn && <div className="boundary-note"><strong>Website Account active.</strong> This public Elysia Ecobotics Online account remains separate from the private local Elysia core. Do not use or reuse a local Elysia password here.</div>}
           <AuthPanel
             onMessage={pushMessage}
             onAuthChanged={refreshHomebase}
             copy={{
               eyebrow: "Website Account",
-              title: "Create or Sign In to Website Account",
+              title: homebase?.signedIn ? "Website Account" : "Create or Sign In to Website Account",
               description: "This is your public Elysia Ecobotics Online account. It is separate from the private local Elysia core. Do not use your local Elysia password here.",
               signedOutText: "No active website session.",
               confirmationPath: "/commons-circle",
@@ -304,8 +321,25 @@ export default function CommonsCirclePage() {
           <a className="button-link" href="/commons-circle/setup/profile">Edit profile setup</a>
           <a className="button-link" href="#customization-studio">Customize circle</a>
           <a className="button-link" href="#privacy-lanterns">Privacy settings</a>
+          {adminEntryAllowed && <a className="button-link" href="#admin-console">Admin Console</a>}
         </div>
       </section>
+
+      {adminEntryAllowed && <section className="section-card commons-admin-console" id="admin-console">
+        <p className="eyebrow">Private Admin Console</p>
+        <h2>Moderation and governance tools</h2>
+        <p>This card is shown only for signed-in accounts with administrator, reviewer, moderator, or domain-review authority. Queue details remain protected by Supabase RLS and each admin route checks access directly.</p>
+        <dl className="mini-facts">
+          <MiniFact label="Admin profile flag" value={profile?.is_admin ? "Yes" : "No"} />
+          <MiniFact label="Role gate" value={roleState.isAdmin ? "Administrator" : roleState.roles.length ? roleState.roles.map((role) => role.replace(/_/g, " ")).join(", ") : "Profile admin flag"} />
+          <MiniFact label="Private queues" value="RLS-gated" />
+          <MiniFact label="Authority source" value="Admin-assigned roles only" />
+        </dl>
+        <div className="commons-admin-grid">
+          {adminConsoleLinks.map(([href, label, description]) => <a className="commons-admin-link" href={href} key={href}><strong>{label}</strong><span>{description}</span></a>)}
+        </div>
+        <p className="boundary-note">Badges, membership tiers, donations, developer visibility, contribution interest, and public profile customization do not grant administrator, moderator, reviewer, guardian, or paid-role authority.</p>
+      </section>}
 
       {shouldPromptSync && <section className="section-card commons-sync-card">
         <p className="eyebrow">Explicit sync available</p>
@@ -356,7 +390,7 @@ export default function CommonsCirclePage() {
       <section className="section-card commons-medallion-wall">
         <p className="eyebrow">Medallion Wall</p>
         <h2>Badges are recognition, not authority</h2>
-        <div className="commons-medallion-grid">{earnedBadges.map((badge) => <article className={`earned${badge.authority || badge.authority_linked ? " authority-linked" : ""}`} key={badge.badge_key}><BadgeIcon badge={badge} /><h3>{badge.name}</h3><p>{badge.description}</p>{badge.rule_summary && <p className="commons-medallion-note">{badge.rule_summary}</p>}{badge.note && <p className="commons-medallion-note">{badge.note}</p>}<BadgeRow labels={badgeLabels(badge)} />{badge.award_source === "local_fallback" ? <p className="commons-medallion-note">Free Member is shown here because your Commons profile is complete. It will sync to badge storage after the Free Member backfill/RPC is applied.</p> : <label className="checkbox-line"><span>Visibility</span><select value={badge.visibility || "public"} onChange={async (event) => { polishedActionMessages("badge-visibility", await updateBadgeVisibility(badge.badge_key, event.target.value as "public" | "private"), "Badge visibility controls are not active yet.").forEach(pushMessage); await refreshHomebase(); }}><option value="public">public</option><option value="private">private</option></select></label>}</article>)}</div>{!earnedBadges.length && <EmptyState>No badges awarded yet. Free Member appears after your Commons Profile is completed. Badges are recognition, not authority.</EmptyState>}
+        <div className="commons-medallion-grid">{earnedBadges.map((badge) => <article className={`earned${badge.authority || badge.authority_linked ? " authority-linked" : ""}`} key={badge.badge_key}><BadgeIcon badge={badge} /><h3>{badge.name}</h3><p>{badge.description}</p>{badge.rule_summary && <p className="commons-medallion-note">{badge.rule_summary}</p>}{badge.note && <p className="commons-medallion-note">{badge.note}</p>}<BadgeRow labels={badgeLabels(badge)} />{badge.award_source === "local_fallback" ? <p className="commons-medallion-note">Free Member is shown because your Commons Profile is complete. Live badge storage will record it after the Free Member migration/RPC is active.</p> : <label className="checkbox-line"><span>Visibility</span><select value={badge.visibility || "public"} onChange={async (event) => { polishedActionMessages("badge-visibility", await updateBadgeVisibility(badge.badge_key, event.target.value as "public" | "private"), "Badge visibility controls are not active yet.").forEach(pushMessage); await refreshHomebase(); }}><option value="public">public</option><option value="private">private</option></select></label>}</article>)}</div>{!earnedBadges.length && <EmptyState>No badges awarded yet. Free Member appears after your Commons Profile is completed. Badges are recognition, not authority.</EmptyState>}
       </section>
 
       <section className="commons-tier-grid">{membershipTiers.map((tier) => <article className="section-card commons-tier-card" key={tier.name}><p className="eyebrow">{tier.status}</p><h3>{tier.name}</h3><p>{tier.purpose}</p><p><strong>How awarded:</strong> {tier.awarded}</p><p className="boundary-note">{tier.note}</p></article>)}</section>
@@ -404,10 +438,10 @@ export default function CommonsCirclePage() {
         </article>
       </section>
 
-      <section className="section-card commons-settings-grid">
-        <article><p className="eyebrow">Future backend roadmap</p><h2>Planned schema areas</h2><BadgeRow labels={futureTables} /><p>These are planned/future backend tables or schema areas. They are not all live until Supabase schema, RLS, storage policies, admin roles, and review tools are built.</p></article>
-        <article><p className="eyebrow">Later support tables</p><h2>Possible account support</h2><BadgeRow labels={futureSupportTables} /></article>
-      </section>
+      {adminEntryAllowed && <section className="section-card commons-settings-grid">
+        <article><p className="eyebrow">Admin-only backend status</p><h2>Live account systems</h2><BadgeRow labels={["profiles", "user_roles", "review_items", "content_reports", "admin_audit_log", "saved_shelves", "badge_credits"]} /><p>These systems are surfaced as private admin/reviewer tools where migrations and RLS are active. Missing tables show clean admin-only setup messages inside the relevant queue.</p></article>
+        <article><p className="eyebrow">Visibility states</p><h2>Moderation lifecycle</h2><BadgeRow labels={["draft", "submitted", "published", "flagged", "hidden", "removed", "archived", "revoked"]} /><p>Public content should only be visible when intentionally published. Private reports, notes, drafts, hidden/removed content, resumes/CVs, receipts, and audit logs stay RLS-gated.</p></article>
+      </section>}
     </div>
   );
 }

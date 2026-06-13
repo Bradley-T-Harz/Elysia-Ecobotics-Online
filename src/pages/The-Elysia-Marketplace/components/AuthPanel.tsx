@@ -120,11 +120,13 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
         <span>{session?.user.email ?? (hasSupabaseConfig ? (copy?.signedOutText ?? "No active Marketplace session.") : "Remote auth disabled until env vars are configured.")}</span>
       </div>
       {localStatus && <p className="inline-status">{localStatus}</p>}
-      <label><span>Email</span><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="builder@example.com" autoComplete="email" /></label>
-      <label><span>Password</span><input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" /></label>
+      {!session && <>
+        <label><span>Email</span><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="builder@example.com" autoComplete="email" /></label>
+        <label><span>Password</span><input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" /></label>
+      </>}
       <div className="button-row">
-        <button type="button" disabled={busy} onClick={signUp}>{busy ? "Working..." : "Sign up"}</button>
-        <button type="button" disabled={busy} onClick={signIn}>{busy ? "Working..." : "Sign in"}</button>
+        {!session && <button type="button" disabled={busy} onClick={signUp}>{busy ? "Working..." : "Sign up"}</button>}
+        {!session && <button type="button" disabled={busy} onClick={signIn}>{busy ? "Working..." : "Sign in"}</button>}
         <button type="button" disabled={busy || !session} onClick={signOut}>{busy ? "Working..." : "Sign out"}</button>
       </div>
       <p className="boundary-note">{copy?.confirmationCopy ?? "If Supabase email confirmation is enabled, open the confirmation link to return to /account; the session should appear after Supabase completes the redirect."}</p>

@@ -60,6 +60,13 @@ const domainRoles: Record<ReviewDomain, AppRole[]> = {
   marketplace: ["administrator", "marketplace_reviewer", "guardian_reviewer"]
 };
 
+function friendlyReviewWarning(message: string) {
+  if (import.meta.env.DEV) console.warn("[review]", message);
+  if (/schema cache|Could not find the table|does not exist/i.test(message)) return "Backend table/policy not active yet.";
+  if (/permission denied|row-level security|RLS|violates row-level security/i.test(message)) return "Your account does not have access to this private review area.";
+  return "This private review area is temporarily unavailable.";
+}
+
 export function canReviewDomain(roles: AppRole[], domain: ReviewDomain) {
   return domainRoles[domain].some((role) => roles.includes(role));
 }
@@ -71,11 +78,11 @@ export async function loadCurrentRoleState(): Promise<CurrentRoleState> {
 
   const warnings: string[] = [];
   const { data: roleRows, error: roleError } = await supabase.from("user_roles").select("role").eq("user_id", auth.user.id).is("revoked_at", null);
-  if (roleError) warnings.push(roleError.message);
+  if (roleError) warnings.push(friendlyReviewWarning(roleError.message));
   const roles = ((roleRows ?? []) as { role: AppRole }[]).map((row) => row.role);
 
   const { data: profile, error: profileError } = await supabase.from("profiles").select("is_admin").eq("id", auth.user.id).maybeSingle();
-  if (profileError) warnings.push(profileError.message);
+  if (profileError) warnings.push(friendlyReviewWarning(profileError.message));
   const isAdmin = roles.includes("administrator") || Boolean((profile as { is_admin?: boolean } | null)?.is_admin);
   return { signedIn: true, userId: auth.user.id, roles: isAdmin && !roles.includes("administrator") ? ["administrator", ...roles] : roles, isAdmin, warnings };
 }
@@ -115,7 +122,7 @@ export async function loadReviewItems(domain?: ReviewDomain): Promise<{ items: R
   let query = supabase.from("review_items").select("*").order("submitted_at", { ascending: false });
   if (domain) query = query.eq("domain", domain);
   const { data, error } = await query;
-  return { items: (data ?? []) as ReviewItem[], warnings: error ? [error.message] : [] };
+  return { items: (data ?? []) as ReviewItem[], warnings: error ? [friendlyReviewWarning(error.message)] : [] };
 }
 
 export async function loadReviewEvents(reviewItemId?: string): Promise<{ events: ReviewEvent[]; warnings: string[] }> {
@@ -123,7 +130,7 @@ export async function loadReviewEvents(reviewItemId?: string): Promise<{ events:
   let query = supabase.from("review_events").select("*").order("created_at", { ascending: false }).limit(100);
   if (reviewItemId) query = query.eq("review_item_id", reviewItemId);
   const { data, error } = await query;
-  return { events: (data ?? []) as ReviewEvent[], warnings: error ? [error.message] : [] };
+  return { events: (data ?? []) as ReviewEvent[], warnings: error ? [friendlyReviewWarning(error.message)] : [] };
 }
 
 function sourceStatusTable(sourceTable: string) {
@@ -142,12 +149,12 @@ export async function updateReviewStatus(item: ReviewItem, nextStatus: ReviewSta
     reviewed_at: reviewed ? new Date().toISOString() : item.reviewed_at ?? null,
     reviewed_by: reviewed ? auth.user.id : item.reviewed_by ?? null
   }).eq("id", item.id);
-  if (itemError) return { ok: false, warning: itemError.message };
+  if (itemError) return { ok: false, warning: friendlyReviewWarning(itemError.message) };
 
   const table = sourceStatusTable(item.source_table);
   if (table) {
     const { error: sourceError } = await supabase.from(table).update({ status: nextStatus, updated_at: new Date().toISOString() }).eq("id", item.source_id);
-    if (sourceError) return { ok: false, warning: `Review item updated, but source status failed: ${sourceError.message}` };
+    if (sourceError) return { ok: false, warning: `Review item updated, but source status failed: ${friendlyReviewWarning(sourceError.message)}` };
   }
 
   const { error: eventError } = await supabase.from("review_events").insert({
@@ -159,7 +166,7 @@ export async function updateReviewStatus(item: ReviewItem, nextStatus: ReviewSta
     note: note || null,
     metadata: { visibility: "internal" }
   });
-  if (eventError) return { ok: false, warning: `Status changed, but audit event failed: ${eventError.message}` };
+  if (eventError) return { ok: false, warning: `Status changed, but audit event failed: ${friendlyReviewWarning(eventError.message)}` };
   return { ok: true };
 }
 
@@ -168,7 +175,7 @@ export async function assignReviewItemToMe(item: ReviewItem): Promise<{ ok: bool
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return { ok: false, warning: "Sign in with a reviewer account first." };
   const { error } = await supabase.from("review_items").update({ assigned_to: auth.user.id, updated_at: new Date().toISOString() }).eq("id", item.id);
-  if (error) return { ok: false, warning: error.message };
+  if (error) return { ok: false, warning: friendlyReviewWarning(error.message) };
   await supabase.from("review_events").insert({ review_item_id: item.id, actor_id: auth.user.id, event_type: "assigned", metadata: { visibility: "internal" } });
   return { ok: true };
 }
@@ -176,7 +183,7 @@ export async function assignReviewItemToMe(item: ReviewItem): Promise<{ ok: bool
 export async function loadUserRoles(): Promise<{ rows: { id: string; user_id: string; role: AppRole; granted_at: string; revoked_at: string | null; reason: string | null }[]; warnings: string[] }> {
   if (!hasSupabaseConfig || !supabase) return { rows: [], warnings: [supabaseNotConfiguredMessage] };
   const { data, error } = await supabase.from("user_roles").select("id,user_id,role,granted_at,revoked_at,reason").order("granted_at", { ascending: false }).limit(200);
-  return { rows: (data ?? []) as { id: string; user_id: string; role: AppRole; granted_at: string; revoked_at: string | null; reason: string | null }[], warnings: error ? [error.message] : [] };
+  return { rows: (data ?? []) as { id: string; user_id: string; role: AppRole; granted_at: string; revoked_at: string | null; reason: string | null }[], warnings: error ? [friendlyReviewWarning(error.message)] : [] };
 }
 
 export async function grantRole(userId: string, role: AppRole, reason: string): Promise<{ ok: boolean; warning?: string }> {
@@ -185,7 +192,7 @@ export async function grantRole(userId: string, role: AppRole, reason: string): 
   if (!auth.user) return { ok: false, warning: "Sign in as administrator first." };
   if (auth.user.id === userId) return { ok: false, warning: "Role self-assignment is not allowed from this UI." };
   const { error } = await supabase.from("user_roles").insert({ user_id: userId, role, granted_by: auth.user.id, reason: reason || null });
-  return { ok: !error, warning: error?.message };
+  return { ok: !error, warning: error ? friendlyReviewWarning(error.message) : undefined };
 }
 
 export async function revokeRole(roleRowId: string, reason: string): Promise<{ ok: boolean; warning?: string }> {
@@ -193,5 +200,5 @@ export async function revokeRole(roleRowId: string, reason: string): Promise<{ o
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return { ok: false, warning: "Sign in as administrator first." };
   const { error } = await supabase.from("user_roles").update({ revoked_at: new Date().toISOString(), revoked_by: auth.user.id, reason: reason || null }).eq("id", roleRowId);
-  return { ok: !error, warning: error?.message };
+  return { ok: !error, warning: error ? friendlyReviewWarning(error.message) : undefined };
 }
