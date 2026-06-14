@@ -40,6 +40,11 @@ for (const category of ["general", "troubleshooting", "repositories", "living-li
 assert(page.includes("<pre><code>"), "Code snippets are not displayed as inert pre/code text.");
 assert(page.includes("The public website does not execute code."), "Code execution boundary copy missing.");
 assert(page.includes("Live chat is prepared, not launched."), "Realtime foundation warning missing.");
+assert(page.includes("Canonical account-backed paths"), "Commune canonical table path status copy missing.");
+assert(page.includes("Report comment"), "Commune comment report action missing.");
+assert(page.includes("Copy snippet"), "Commune inert code snippet copy action missing.");
+assert(page.includes("metadata for review only"), "Commune sandbox metadata-only acknowledgement missing.");
+assert(page.includes("FoundationStatusPanel"), "Commune foundation status panel missing.");
 assert(safety.includes("blockedCommuneUploadExtensions"), "Media upload blocklist missing.");
 assert(migration.includes("commune_realtime_messages"), "Realtime foundation table missing.");
 assert(migration.includes("commune_sandbox_reviews"), "Sandbox review foundation table missing.");

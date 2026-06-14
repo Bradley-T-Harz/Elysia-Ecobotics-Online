@@ -86,16 +86,19 @@ export const defaultPermissionCatalog: PermissionDefinition[] = [
 ];
 
 const secretPatterns = [
-  { code: "secret_api_key", pattern: /\b(sk-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9_]{12,}|github_pat_[A-Za-z0-9_]{12,})\b/i, label: "secret-looking API token" },
+  { code: "secret_api_key", pattern: /\b(sk-[A-Za-z0-9_-]{12,}|ghp_[A-Za-z0-9_]{12,}|github_pat_[A-Za-z0-9_]{12,}|AWS_ACCESS_KEY_ID|SUPABASE_SERVICE_ROLE|service_role)\b/i, label: "secret-looking API token or service-role key" },
   { code: "secret_private_key", pattern: /BEGIN [A-Z ]*PRIVATE KEY/i, label: "private key material" },
   { code: "secret_env", pattern: /(^|[\/\\])\.env(\b|$)/i, label: ".env file reference" },
-  { code: "secret_words", pattern: /\b(password|credential|secret|token|vault)\b/i, label: "credential-related wording" }
+  { code: "secret_words", pattern: /\b(API_KEY|SECRET|TOKEN|PASSWORD|password|credential|credentials|secret|token|vault)\b/i, label: "credential-related wording" }
 ];
 const localPathPattern = /(^|[\s"'=:])((\/home\/|\/Users\/|C:\\|[A-Z]:\\|~\/)[^\s"']*)/i;
 const localhostPattern = /https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?/i;
-const authorityPattern = /\b(admin|administrator|official partner|endorsed by elysia|guaranteed safe|auto[- ]?approved|trusted reviewer)\b/i;
+const authorityPattern = /\b(admin|administrator|official|official partner|trusted|approved|endorsed by elysia|guaranteed safe|auto[- ]?approved|trusted reviewer)\b/i;
 const semverPattern = /^\d+\.\d+\.\d+([+-][A-Za-z0-9.-]+)?$/;
 const addonIdPattern = /^[a-z0-9][a-z0-9_.-]{2,80}\.[a-z0-9][a-z0-9_-]{1,80}$/;
+const reservedNamePattern = /\b(elysia|elysia ecobotics|ecosyneva|ecosyneva commons)\b/i;
+const dangerousShellPattern = /\b(postinstall|preinstall|install script|shell|curl\s|wget\s|bash\s|powershell|cmd\.exe|sudo\s|chmod\s|rm\s+-rf|scp\s|ssh\s|npm\s+install|pnpm\s+install|yarn\s+install)\b/i;
+const broadFilesystemPattern = /\b(read all files|write all files|whole home directory|entire disk|arbitrary filesystem|all local files|recursive home)\b/i;
 
 function add(results: ForgeValidationResult[], severity: ValidationSeverity, code: string, message: string, field_path?: string, fix_suggestion?: string) {
   results.push({ severity, code, message, field_path, fix_suggestion });
@@ -109,6 +112,10 @@ function validUrl(value: string | undefined | null) {
   } catch {
     return false;
   }
+}
+
+function isLocalhostUrl(value: string | undefined | null) {
+  return Boolean(value && localhostPattern.test(value));
 }
 
 export function parseManifestText(text: string): { manifest: ForgeManifest | null; results: ForgeValidationResult[] } {
@@ -134,6 +141,10 @@ export function validateManifest(input: string | ForgeManifest, catalog: Permiss
   if (manifest.version && !semverPattern.test(manifest.version)) add(results, "error", "invalid_version", "version must be semantic version format such as 0.1.0.", "version");
   if (!manifest.author?.name) add(results, "error", "missing_author", "author.name is required.", "author.name");
   if (manifest.author?.url && !validUrl(manifest.author.url)) add(results, "warning", "invalid_author_url", "author.url is not a valid HTTP(S) URL.", "author.url");
+  for (const [field, value] of Object.entries({ homepage_url: manifest.homepage_url, source_url: manifest.source_url, support_url: manifest.support_url })) {
+    if (typeof value === "string" && !validUrl(value)) add(results, "warning", `invalid_${field}`, `${field} is not a valid HTTP(S) URL.`, field);
+    if (typeof value === "string" && isLocalhostUrl(value)) add(results, "error", `localhost_${field}`, `${field} cannot be a localhost-only URL in a public add-on listing.`, field, "Use a public documentation, source, or support URL.");
+  }
   if (!Array.isArray(manifest.permissions)) add(results, "error", "permissions_not_array", "permissions must be an array.", "permissions");
   if (!manifest.compatibility?.elysia_min_version) add(results, "error", "missing_elysia_min", "compatibility.elysia_min_version is required.", "compatibility.elysia_min_version");
   if (!manifest.compatibility?.addon_api_version) add(results, "error", "missing_addon_api", "compatibility.addon_api_version is required.", "compatibility.addon_api_version");
@@ -154,7 +165,10 @@ export function validateManifest(input: string | ForgeManifest, catalog: Permiss
   for (const secret of secretPatterns) if (secret.pattern.test(text)) add(results, "error", secret.code, `Manifest appears to include ${secret.label}.`, undefined, "Remove secrets and private material from the manifest.");
   if (localPathPattern.test(text)) add(results, "error", "local_path", "Manifest appears to include an absolute local file path.", undefined, "Use relative package paths or user-selected local scopes only.");
   if (localhostPattern.test(text)) add(results, "warning", "localhost_url", "Manifest includes a localhost/private URL that is not suitable for a public listing.");
+  if (reservedNamePattern.test(String(manifest.name ?? "")) || reservedNamePattern.test(String(manifest.addon_id ?? ""))) add(results, "warning", "reserved_name", "Add-on name or id uses Elysia/EcoSyneva reserved wording. Reviewers must confirm this is authorized.", "name", "Use a distinct developer or project name unless you have administrator approval.");
   if (authorityPattern.test(text)) add(results, "warning", "authority_claim", "Manifest language may imply authority, endorsement, or guaranteed safety.", undefined, "Use careful public wording and avoid authority claims.");
+  if (broadFilesystemPattern.test(text)) add(results, "error", "broad_filesystem_claim", "Manifest language suggests broad filesystem access, which is not allowed for public Forge submissions.", undefined, "Replace broad access with explicit user-selected/project-scoped paths.");
+  if (manifest.runtime?.requires_network && (manifest.security?.network_domains ?? []).some((domain) => /\*|all domains|any domain|0\.0\.0\.0/i.test(domain))) add(results, "error", "undeclared_or_broad_network", "Network access must list specific declared domains, not wildcard/all-domain scopes.", "security.network_domains");
   if (!manifest.source_url) add(results, "info", "source_url_missing", "Consider adding a source URL for reviewer context.", "source_url");
   if (!manifest.support_url) add(results, "info", "support_url_missing", "Consider adding a support URL for users.", "support_url");
 
@@ -167,7 +181,9 @@ export function staticSafetyScan(input: StaticScanInput): ForgeValidationResult[
   for (const secret of secretPatterns) if (secret.pattern.test(text)) add(results, "error", secret.code, `Static scan found ${secret.label}.`);
   if (localPathPattern.test(text)) add(results, "error", "local_path", "Static scan found an absolute local path.");
   if (localhostPattern.test(text)) add(results, "warning", "localhost_url", "Static scan found a localhost/private URL.");
-  if (/\b(postinstall|preinstall|install script|shell|curl\s|wget\s|bash\s|powershell|cmd\.exe)\b/i.test(text)) add(results, "warning", "script_like_text", "Static scan found script or shell-like wording. The website will not execute it.");
+  if (dangerousShellPattern.test(text)) add(results, "warning", "script_like_text", "Static scan found script, package-install, or shell-like wording. The website will not execute it.");
+  if (broadFilesystemPattern.test(text)) add(results, "error", "broad_filesystem_claim", "Static scan found broad filesystem permission language.");
+  if (/\b(official|trusted|approved|guaranteed safe|endorsed)\b/i.test(text)) add(results, "warning", "misleading_authority_claim", "Static scan found wording that may imply review, trust, or official authority before approval.");
   if (/\.(exe|dll|dylib|so|sh|bat|cmd|ps1|app)$/i.test(input.fileName ?? "")) add(results, "error", "dangerous_extension", "Package file name uses an executable/script extension.");
   if ((input.fileSize ?? 0) > 50 * 1024 * 1024) add(results, "error", "package_too_large", "Package metadata exceeds the 50 MB Developer Forge intake limit.");
   if (!results.length) add(results, "info", "static_scan_initial_pass", "Static scan passed initial checks. This does not guarantee safety; local Elysia still verifies permissions before installation.");

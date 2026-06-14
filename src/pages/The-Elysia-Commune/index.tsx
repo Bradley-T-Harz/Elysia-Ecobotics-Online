@@ -250,21 +250,6 @@ const repoWarnings = [
   "Needs review"
 ];
 
-const futureTables = [
-  "commune_categories",
-  "commune_posts",
-  "commune_post_types",
-  "commune_comments",
-  "commune_media",
-  "commune_threads",
-  "commune_chat_messages",
-  "repo_showcases",
-  "repo_showcase_files",
-  "code_snippets",
-  "sandbox_runs",
-  "moderation_reports"
-];
-
 const futureSupportTables = [
   "commune_post_saves",
   "commune_thread_follows",
@@ -782,6 +767,7 @@ function RepositoryShowcaseForm({ localDrafts }: { localDrafts: ReturnType<typeo
 
 function SandboxDraftPanel({ localDrafts }: { localDrafts: ReturnType<typeof useLocalDraftState> }) {
   const [form, setForm] = useState({ title: "", relatedUrl: "", codePurpose: "", expectedCommand: "", dependencies: "", networkNeeded: "No", fileAccessNeeded: "No", estimatedRuntime: "", whySandbox: "", riskNotes: "" });
+  const [acknowledged, setAcknowledged] = useState(false);
   const [message, setMessage] = useState("Sandbox requests are not execution permission. Future execution requires isolated infrastructure, explicit approval, resource limits, no secrets, no private network, no host mounts, logs, and kill controls.");
 
   function draft(): SandboxRequestDraft {
@@ -795,6 +781,10 @@ function SandboxDraftPanel({ localDrafts }: { localDrafts: ReturnType<typeof use
   }
 
   async function submit() {
+    if (!acknowledged) {
+      setMessage("Acknowledge that sandbox requests are metadata-only and not execution permission before submitting.");
+      return;
+    }
     const result = await submitSandboxReview({ requestTitle: form.title, repositoryUrl: form.relatedUrl, scope: form.whySandbox, riskNotes: form.riskNotes, permissions: form.dependencies.split(/[,\n]/).map((item) => item.trim()).filter(Boolean) });
     if (result.ok) setMessage(result.message);
     else if (isBackendDiagnostic(result.message)) { saveLocal(); setMessage("Saved locally in this browser. Sandbox review queue is not active yet."); }
@@ -817,6 +807,7 @@ function SandboxDraftPanel({ localDrafts }: { localDrafts: ReturnType<typeof use
       <label className="wide-field"><span>Why sandbox is needed</span><textarea value={form.whySandbox} onChange={(event) => setForm({ ...form, whySandbox: event.target.value })} rows={4} /></label>
       <label className="wide-field"><span>Risk notes</span><textarea value={form.riskNotes} onChange={(event) => setForm({ ...form, riskNotes: event.target.value })} rows={4} /></label>
     </div>
+    <label className="checkbox-line"><input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} /><span>I understand this is metadata for review only. The website will not execute code, install dependencies, clone repositories, or grant local permissions.</span></label>
     <div className="button-row"><button className="button-primary" type="button" onClick={() => void submit()}>Submit sandbox review request</button><button type="button" onClick={saveLocal}>Save sandbox request draft locally</button><button type="button" onClick={() => downloadText(`${slug(form.title)}-sandbox-request.md`, sandboxMarkdown(draft()), "text/markdown")}>Export Markdown</button><button type="button" onClick={() => downloadText(`${slug(form.title)}-sandbox-request.json`, JSON.stringify(draft(), null, 2), "application/json")}>Export JSON</button><button type="button" onClick={() => copyText(sandboxMarkdown(draft()), setMessage)}>Copy request Markdown</button></div>
     <p className="message">{message}</p>
   </section>;
@@ -841,27 +832,27 @@ function LocalDraftStudio({ localDrafts, filters }: { localDrafts: ReturnType<ty
   </section>;
 }
 
-function FutureBackendPanel() {
+function FoundationStatusPanel() {
   return <>
     <section className="section-card commune-info-grid">
       <article>
-        <p className="eyebrow">Local mode now</p>
-        <h2>What works without a backend</h2>
+        <p className="eyebrow">Local mode remains available</p>
+        <h2>What works even without account tables</h2>
         <ul><li>Create post drafts.</li><li>Save post requests locally.</li><li>Create repository showcase drafts.</li><li>Request code sandbox as local draft.</li><li>Export drafts as Markdown/JSON.</li></ul>
       </article>
       <article>
-        <p className="eyebrow">Future account mode</p>
-        <h2>Progressive enhancement</h2>
+        <p className="eyebrow">Live foundation status</p>
+        <h2>Account-backed mode when migrations are active</h2>
         <ul><li>Public posts after moderation.</li><li>Comments, saved posts, follows, uploads, and troubleshooting rooms.</li><li>Repository showcases and sandbox review requests.</li><li>Supabase tables, RLS policies, moderator/admin roles, moderation queue, abuse controls, upload policies, and audit logs.</li></ul>
       </article>
     </section>
     <section className="section-card commune-info-grid">
-      <article><p className="eyebrow">Future backend roadmap</p><h2>Planned tables</h2><div className="commune-badge-row">{futureTables.map((table) => <span key={table}>{table}</span>)}</div><p>These are planned/future backend tables. They are not live until Supabase schema, RLS, moderation, and abuse controls are built.</p></article>
-      <article><p className="eyebrow">Later support tables</p><h2>Possible support structures</h2><div className="commune-badge-row">{futureSupportTables.map((table) => <span key={table}>{table}</span>)}</div></article>
+      <article><p className="eyebrow">Canonical account-backed paths</p><h2>Tables this page writes first</h2><div className="commune-badge-row">{["commune_posts", "commune_comments", "commune_threads", "user_saved_commune_posts", "user_followed_commune_threads", "commune_repository_showcases", "commune_sandbox_review_requests", "commune_reports", "commune_media"].map((table) => <span key={table}>{table}</span>)}</div><p>Older compatibility tables are left in place for existing data and admin queues, but new page flows prefer these canonical paths where possible.</p></article>
+      <article><p className="eyebrow">Prepared support structures</p><h2>Review and moderation foundations</h2><div className="commune-badge-row">{futureSupportTables.map((table) => <span key={table}>{table}</span>)}</div></article>
     </section>
     <section className="section-card commune-info-grid" id="commune-moderation-doctrine">
-      <article><p className="eyebrow">Moderation Doctrine</p><h2>Future moderation must handle</h2><p>Spam, harassment, malware, secret leakage, private data exposure, copyright violations, unsafe code, scams/job fraud, impersonation, off-topic floods, AI-generated spam, doxxing, and sensitive ecological location exposure.</p><h3>Future actions</h3><StatusBadges labels={["report", "hide", "lock thread", "remove post", "request redaction", "mark official", "mark community", "mark unreviewed", "block upload", "security hold", "admin review"]} /><h3>Trust labels</h3><StatusBadges labels={["Official", "Community", "Unreviewed", "Needs redaction", "Security hold", "Resolved", "Archived", "Blocked"]} /></article>
-      <article><p className="eyebrow">Media, chat, jobs, and official notices</p><h2>Boundaries for future rooms</h2><p><strong>Media uploads:</strong> not public by default. Future public display requires file type limits, size limits, moderation, attribution/copyright prompts, malware scanning where possible, private-data warnings, storage policies, and abuse controls.</p><p><strong>Collaborative rooms and chat:</strong> planned, not live. Future rooms need moderation, rate limits, reporting, blocking, room roles, invite controls, retention policy, and no private Elysia memory sharing by default.</p><p><strong>Job posts:</strong> future job posts require clear organization/contact, clear role type, clear paid/volunteer status, pay/rate or honest explanation if unpaid, location/remote status, no misleading roles, no sensitive personal data requests in public comments, and scam/moderator review.</p><p><strong>Official Updates:</strong> restricted to authorized Elysia Ecobotics administrators later. Community users should not impersonate official release, security, or governance notices.</p><h3>Code/repo labels</h3><StatusBadges labels={["No code execution", "Snippet only", "Repo showcase only", "Manifest present", "Manifest not reviewed", "License unclear", "Sandbox required", "Security review needed", "Blocked"]} /></article>
+      <article><p className="eyebrow">Moderation Doctrine</p><h2>Moderation must handle</h2><p>Spam, harassment, malware, secret leakage, private data exposure, copyright violations, unsafe code, scams/job fraud, impersonation, off-topic floods, AI-generated spam, doxxing, and sensitive ecological location exposure.</p><h3>Available actions/foundations</h3><StatusBadges labels={["report", "hide", "lock thread", "remove post", "request redaction", "mark official", "mark community", "mark unreviewed", "block upload", "security hold", "admin review"]} /><h3>Trust labels</h3><StatusBadges labels={["Official", "Community", "Unreviewed", "Needs redaction", "Security hold", "Resolved", "Archived", "Blocked"]} /></article>
+      <article><p className="eyebrow">Media, chat, jobs, and official notices</p><h2>Boundaries for public rooms</h2><p><strong>Media uploads:</strong> not public by default. Public display requires file type limits, size limits, moderation, attribution/copyright prompts, malware scanning where possible, private-data warnings, storage policies, and abuse controls.</p><p><strong>Collaborative rooms and chat:</strong> prepared, not launched. Public write access needs moderation, rate limits, reporting, blocking, room roles, invite controls, retention policy, and no private Elysia memory sharing by default.</p><p><strong>Job posts:</strong> require clear organization/contact, clear role type, clear paid/volunteer status, pay/rate or honest explanation if unpaid, location/remote status, no misleading roles, no sensitive personal data requests in public comments, and scam/moderator review.</p><p><strong>Official Updates:</strong> restricted to authorized Elysia Ecobotics administrators. Community users must not impersonate official release, security, or governance notices.</p><h3>Code/repo labels</h3><StatusBadges labels={["No code execution", "Snippet only", "Repo showcase only", "Manifest present", "Manifest not reviewed", "License unclear", "Sandbox required", "Security review needed", "Blocked"]} /></article>
     </section>
   </>;
 }
@@ -880,8 +871,9 @@ function PostDetail({ postId }: { postId: string }) {
   async function markRead() { if (!thread) return; const result = await markThreadRead(thread.id); setMessage(cleanCommuneMessage(result.message, "Thread read-state is not active yet.")); await refresh(); }
   async function submitReply() { if (!thread) return setMessage("No thread is available for this post yet."); const result = await submitComment({ postId, threadId: thread.id, body: comment }); setMessage(cleanCommuneMessage(result.message, "Comment saved locally is not available here yet. Backend moderation is being prepared.")); setComment(""); await refresh(); }
   async function reportPost() { const result = await reportCommuneContent({ postId, reportType: report.type, reason: report.reason }); setMessage(cleanCommuneMessage(result.message, "Report routing is being prepared. If urgent, use another trusted contact path.")); setReport({ ...report, reason: "" }); }
+  async function reportComment(commentId: string) { const result = await reportCommuneContent({ commentId, reportType: report.type, reason: report.reason || "Reported from post detail comment list." }); setMessage(cleanCommuneMessage(result.message, "Comment report routing is being prepared.")); }
   if (!post) return <section className="section-card"><h2>Post not found</h2><p>This post is not public, does not exist, or is still awaiting moderation.</p><p className="boundary-note">Account-backed posts may also be unavailable while Commune backend tables are being prepared.</p><Link className="button-link" to="/commune">Back to Commune</Link></section>;
-  return <><section className="section-card commune-post-detail"><p className="eyebrow">{post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>By {authorLink(post.author_username)}</p><StatusBadges labels={[post.status, post.visibility]} /><p>{post.body}</p><div className="tag-row">{(post.tags ?? []).map((tag) => <span key={tag}>{tag}</span>)}</div><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div></section>{snippets.length > 0 && <section className="section-card"><p className="eyebrow">Code snippets</p><h2>Inert display only</h2>{snippets.map((snippet) => <article className="commune-code-preview" key={snippet.id}><div className="addon-card__topline"><strong>{inertCodeSnippetLabel(snippet.language ?? "")}</strong><span>{snippet.file_name ?? "snippet"}</span></div><pre><code>{snippet.code_text}</code></pre><p className="boundary-note">Code is shown for discussion only. Do not run code you do not trust. The website did not execute this snippet.</p></article>)}</section>}<section className="section-card"><p className="eyebrow">Comments</p><h2>Replies after moderation</h2>{state.comments.map((item) => <article className="commune-preview-card" key={item.id}><p>{item.body}</p><p>By {authorLink(item.author_username)} · {item.status}</p></article>)}{!state.comments.length && <p>Moderated comments will appear here once the backend tables are active and replies are approved.</p>}<label><span>Reply</span><textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><button type="button" onClick={() => void submitReply()}>Submit comment for moderation</button></section><section className="section-card"><p className="eyebrow">Report</p><h2>Report this post</h2><p>Reports are reviewed by moderators/administrators. Reporting does not automatically remove content unless urgent automated controls are later added.</p><label><span>Report type</span><select value={report.type} onChange={(event) => setReport({ ...report, type: event.target.value })}>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span>Reason</span><textarea rows={3} value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value })} /></label><button type="button" onClick={() => void reportPost()}>Send report</button><p className="message">{message}</p></section></>;
+  return <><section className="section-card commune-post-detail"><p className="eyebrow">{post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>By {authorLink(post.author_username)}</p><StatusBadges labels={[post.status, post.visibility]} /><p>{post.body}</p><div className="tag-row">{(post.tags ?? []).map((tag) => <span key={tag}>{tag}</span>)}</div><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div></section>{snippets.length > 0 && <section className="section-card"><p className="eyebrow">Code snippets</p><h2>Inert display only</h2>{snippets.map((snippet) => <article className="commune-code-preview" key={snippet.id}><div className="addon-card__topline"><strong>{inertCodeSnippetLabel(snippet.language ?? "")}</strong><span>{snippet.file_name ?? "snippet"}</span></div><pre><code>{snippet.code_text}</code></pre><div className="button-row"><button type="button" onClick={() => copyText(snippet.code_text, setMessage)}>Copy snippet</button></div><p className="boundary-note">Code is shown for discussion only. Do not run code you do not trust. The website did not execute this snippet.</p></article>)}</section>}<section className="section-card"><p className="eyebrow">Comments</p><h2>Replies after moderation</h2>{state.comments.map((item) => <article className="commune-preview-card" key={item.id}><p>{item.body}</p><p>By {authorLink(item.author_username)} · {item.status}</p><button type="button" onClick={() => void reportComment(item.id)}>Report comment</button></article>)}{!state.comments.length && <p>Moderated comments will appear here once the backend tables are active and replies are approved.</p>}<label><span>Reply</span><textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><button type="button" onClick={() => void submitReply()}>Submit comment for moderation</button></section><section className="section-card"><p className="eyebrow">Report</p><h2>Report this post</h2><p>Reports are reviewed by moderators/administrators. Reporting does not automatically remove content unless urgent automated controls are later added.</p><label><span>Report type</span><select value={report.type} onChange={(event) => setReport({ ...report, type: event.target.value })}>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span>Reason</span><textarea rows={3} value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value })} /></label><button type="button" onClick={() => void reportPost()}>Send report</button><p className="message">{message}</p></section></>;
 }
 
 function ModerationPanel() {
@@ -972,7 +964,7 @@ export default function CommunePage() {
       <RealtimeFoundationPanel />
       <CodeExecutionBoundaryPanel />
       <LocalDraftStudio localDrafts={localDrafts} filters={filters} />
-      <FutureBackendPanel />
+      <FoundationStatusPanel />
     </>}
   </div>;
 }

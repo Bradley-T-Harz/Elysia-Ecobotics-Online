@@ -21,6 +21,7 @@ function allowHit(file, line, checkName) {
   const normalized = file.replaceAll(path.sep, "/");
   if (normalized.endsWith("scripts/securitySmokeTest.mjs")) return true;
   if (normalized.endsWith("src/pages/The-Elysia-Commune/communeSafety.ts") && /pattern|blocked|scanner|scan|blocks/i.test(line)) return true;
+  if (normalized.endsWith("src/pages/The-Developer-Forge/developerForgeValidator.ts") && /pattern|blocked|scanner|scan|Static scan|secret-looking|dangerousShellPattern/i.test(line)) return true;
   if (normalized.includes("docs/commune/secret-upload-warning-policy.md") && /flag|scanner|warning|policy|`/.test(line)) return true;
   if (checkName === "package hook execution" && /blocked|scan|scanner|policy|documentation|does not execute|will not execute/i.test(line)) return true;
   if (["runtime eval", "Function constructor", "process exec", "process spawn", "Node child process"].includes(checkName) && /pattern|grep|scan|scanner|does not execute|will not execute/i.test(line)) return true;

@@ -353,10 +353,34 @@ export async function submitDraftForReview(draft: AddonDraft, termsAccepted: boo
   if (!termsAccepted) return ["Accept the Developer Forge submission terms before submitting."];
   const { manifest, results } = validateManifest(draft.manifest_json, catalog);
   if (!manifest || results.some((result) => result.severity === "error")) return ["Fix blocking manifest errors before submitting for Marketplace review."];
+  const compatibility = checkCompatibility(manifest);
+  if (compatibility.status === "incompatible") return ["Resolve incompatible manifest/runtime settings before submitting for Marketplace review."];
   if (!draft.license || !draft.version || !draft.short_summary) return ["Draft needs version, license, and summary before submission."];
   if (draft.id.startsWith("local-")) return ["Create an account-backed draft before submitting for Marketplace review."];
   const { userId, warning } = await currentUserId();
   if (!userId || !supabase) return [warning ?? supabaseNotConfiguredMessage];
+  const { data: profile, error: profileError } = await supabase.from("developer_profiles").select("id,status").eq("user_id", userId).maybeSingle();
+  if (profileError) return [friendly("Developer profile", profileError.message)];
+  const profileStatus = (profile as { status?: string } | null)?.status;
+  if (!profileStatus) return ["Create or request a Developer Forge profile before submitting add-ons for review."];
+  if (["suspended", "revoked"].includes(profileStatus)) return ["This developer profile cannot submit add-ons while suspended or revoked."];
+  const requiredPermissions = manifest.permissions ?? [];
+  if (requiredPermissions.length) {
+    const { data: permissionRows, error: permissionError } = await supabase.from("addon_draft_permissions").select("permission_key,reason,risk_acknowledged").eq("addon_draft_id", draft.id);
+    if (permissionError) return [friendly("Draft permissions", permissionError.message)];
+    const permissionMap = new Map(((permissionRows ?? []) as DraftPermission[]).map((row) => [row.permission_key, row]));
+    const missingReasons = requiredPermissions.filter((permission) => {
+      const row = permissionMap.get(permission);
+      return !row?.reason?.trim() || (catalog.find((item) => item.permission_key === permission)?.risk_level !== "low" && row.risk_acknowledged !== true);
+    });
+    if (missingReasons.length) return [`Save permission reasons and risk acknowledgements before submitting: ${missingReasons.join(", ")}.`];
+  }
+  if (["local_worker", "connector"].includes(manifest.runtime?.kind ?? "")) {
+    const { data: packages, error: packageError } = await supabase.from("addon_packages").select("id,scan_status").eq("addon_draft_id", draft.id).order("created_at", { ascending: false }).limit(1);
+    if (packageError) return [friendly("Package metadata", packageError.message)];
+    if (!packages?.length) return ["Prepare package metadata/static scan before submitting local worker or connector add-ons."];
+    if ((packages[0] as AddonPackageRow).scan_status === "blocked") return ["Package static scan is blocked. Remove the flagged material before submitting."];
+  }
   const { data: submission, error: submissionError } = await supabase.from("addon_submissions").insert({ addon_draft_id: draft.id, submitted_by: userId, status: "pending", review_summary: draft.short_summary }).select("*").single();
   if (submissionError) return [friendly("Add-on submission", submissionError.message)];
   const submissionId = (submission as AddonSubmission).id;

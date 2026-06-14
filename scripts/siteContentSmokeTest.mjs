@@ -18,6 +18,7 @@ const commons = await read("src/pages/The-Commons-Circle/index.tsx");
 const publicProfile = await read("src/pages/Public-Commons-Profile/index.tsx");
 const commune = await read("src/pages/The-Elysia-Commune/index.tsx");
 const forgeValidator = await read("src/pages/The-Developer-Forge/developerForgeValidator.ts");
+const forgeTemplates = await read("src/pages/The-Developer-Forge/developerForgeTemplates.ts");
 
 const expectedNav = ["Home", "Archive", "Marketplace", "Products", "Lab", "Developer Forge", "Living Library", "Commune", "Work With", "Commons Circle", "Story", "About", "Mission", "Legal"];
 let cursor = -1;
@@ -41,5 +42,10 @@ assert(commune.includes("Code executes nowhere by default") || commune.includes(
 for (const blocked of ["vault_access", "credential_access", "private_memory_access", "silent_shell_execution", "read_all_files", "write_arbitrary_files"]) {
   assert(forgeValidator.includes(blocked), `Developer Forge blocked permission missing: ${blocked}`);
 }
+for (const scannerTerm of ["SUPABASE_SERVICE_ROLE", "AWS_ACCESS_KEY_ID", "reserved_name", "broad_filesystem_claim", "dangerousShellPattern"]) {
+  assert(forgeValidator.includes(scannerTerm), `Developer Forge scanner coverage missing: ${scannerTerm}`);
+}
+assert(forgeTemplates.includes("buildTemplatePackage"), "Developer Forge inert template package export missing.");
+assert(forgeTemplates.includes("checksums.json"), "Developer Forge template package checksum manifest missing.");
 
 console.log("Site content smoke test ok.");

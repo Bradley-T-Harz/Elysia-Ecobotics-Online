@@ -18,3 +18,5 @@ Blocked:
 - local Elysia logs, vault files, resumes, receipts, private screenshots, and identity documents
 
 The website must not create public URLs for pending/private media.
+
+If storage upload succeeds but metadata insert fails, the frontend should attempt to remove the private storage object and report a clean failure. Canonical media metadata is stored in `commune_media`; legacy upload records are compatibility-only and should not be the public visibility source.
