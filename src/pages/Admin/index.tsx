@@ -3,6 +3,17 @@ import { Link, useLocation } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
 import {
+  hideRealtimeMessage,
+  listRealtimeReports,
+  removeRealtimeMessage,
+  updateRealtimeReportStatus,
+  updateRoomPostingMode,
+  updateRoomSlowMode,
+  type RealtimePostingMode,
+  type RealtimeReport,
+  type RealtimeRoom
+} from "../The-Elysia-Commune/communeRealtimeApi";
+import {
   type AddonSubmissionReview,
   type ContentReport,
   type DeveloperProfileReview,
@@ -18,6 +29,8 @@ import {
   loadDeveloperProfiles,
   loadLibrarySourceSubmissions,
   loadWorkRoleSubmissions,
+  publishAddonSubmission,
+  revokeMarketplacePublication,
   updateAddonSubmission,
   updateContentReport,
   updateDeveloperProfileStatus,
@@ -196,6 +209,44 @@ function ReportActions({ report, onChanged }: { report: ContentReport; onChanged
   return <div className="review-actions"><label><span>Report status</span><select value={status} onChange={(event) => setStatus(event.target.value as ReportStatus)}>{["submitted", "under_review", "action_taken", "dismissed", "archived"].map((item) => <option key={item} value={item}>{item.replace(/_/g, " ")}</option>)}</select></label><label><span>Internal reviewer note</span><input value={note} onChange={(event) => setNote(event.target.value)} /></label><button type="button" onClick={async () => onChanged(await updateContentReport(report.id, status, note))}>Update report</button></div>;
 }
 
+function RealtimeChatModerationPanel() {
+  const [reports, setReports] = useState<RealtimeReport[]>([]);
+  const [rooms, setRooms] = useState<RealtimeRoom[]>([]);
+  const [messages, setMessages] = useState<string[]>([]);
+  const [note, setNote] = useState("Realtime chat moderation action.");
+  const [roomSettings, setRoomSettings] = useState<Record<string, { mode: RealtimePostingMode; slow: string }>>({});
+  const refresh = useCallback(async () => {
+    const result = await listRealtimeReports();
+    setReports(result.reports);
+    setRooms(result.rooms);
+    setMessages(result.warnings);
+    const settings: Record<string, { mode: RealtimePostingMode; slow: string }> = {};
+    for (const room of result.rooms) settings[room.id] = { mode: room.posting_mode, slow: String(room.slow_mode_seconds) };
+    setRoomSettings(settings);
+  }, []);
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  async function moderate(report: RealtimeReport, action: "hide" | "remove" | "dismiss" | "action_taken") {
+    let message = "Report updated.";
+    if (action === "hide" && report.message) message = (await hideRealtimeMessage(report.message.id, note)).message;
+    if (action === "remove" && report.message) message = (await removeRealtimeMessage(report.message.id, note)).message;
+    if (action === "dismiss") message = (await updateRealtimeReportStatus(report.id, "dismissed", note)).message;
+    if (action === "action_taken") message = (await updateRealtimeReportStatus(report.id, "action_taken", note)).message;
+    setMessages([message]);
+    await refresh();
+  }
+
+  async function saveRoom(room: RealtimeRoom) {
+    const settings = roomSettings[room.id] ?? { mode: room.posting_mode, slow: String(room.slow_mode_seconds) };
+    const slow = await updateRoomSlowMode(room.id, Number(settings.slow));
+    const mode = await updateRoomPostingMode(room.id, settings.mode);
+    setMessages([slow.message, mode.message]);
+    await refresh();
+  }
+
+  return <section className="section-card"><p className="eyebrow">Commune realtime moderation</p><h2>Reported chat messages</h2><p className="boundary-note">Realtime reports are private moderation records. Hidden and removed messages must not be visible publicly. Chat stays plain text only: no DMs, no file uploads, no code execution.</p><QueueMessages messages={messages} /><label><span>Private reviewer note</span><input value={note} onChange={(event) => setNote(event.target.value)} /></label><div className="two-column"><div>{!reports.length && <p>No pending realtime chat reports.</p>}{reports.map((report) => <article className="review-list-item admin-detail-card" key={report.id}><strong>{report.room?.title ?? "Realtime room"}: {report.reason.replace(/_/g, " ")}</strong><StatusBadge status={report.report_status} /><span>{report.created_at}</span><p>{report.detail ?? "No additional detail supplied."}</p><p className="boundary-note">Message status: {report.message?.visibility_state ?? "message unavailable"}</p>{report.message && <pre className="admin-json-preview">{report.message.body_plain ?? report.message.body}</pre>}<div className="button-row"><button type="button" disabled={!report.message} onClick={() => void moderate(report, "hide")}>Hide message</button><button type="button" disabled={!report.message} onClick={() => void moderate(report, "remove")}>Remove message</button><button type="button" onClick={() => void moderate(report, "action_taken")}>Mark action taken</button><button type="button" onClick={() => void moderate(report, "dismiss")}>Dismiss report</button></div></article>)}</div><div><h3>Room controls</h3>{!rooms.length && <p className="boundary-note">Realtime rooms are not active until the latest migration and RLS policies are applied.</p>}{rooms.map((room) => { const settings = roomSettings[room.id] ?? { mode: room.posting_mode, slow: String(room.slow_mode_seconds) }; return <article className="review-list-item" key={room.id}><strong>{room.title}</strong><span>{room.slug}</span><label><span>Posting mode</span><select value={settings.mode} onChange={(event) => setRoomSettings((current) => ({ ...current, [room.id]: { ...settings, mode: event.target.value as RealtimePostingMode } }))}>{["open_signed_in", "members_only", "read_only", "moderated", "disabled"].map((mode) => <option key={mode} value={mode}>{mode.replace(/_/g, " ")}</option>)}</select></label><label><span>Slow mode seconds</span><input type="number" min="0" max="3600" value={settings.slow} onChange={(event) => setRoomSettings((current) => ({ ...current, [room.id]: { ...settings, slow: event.target.value } }))} /></label><button type="button" onClick={() => void saveRoom(room)}>Save room controls</button></article>; })}</div></div></section>;
+}
+
 function ReportsPage() {
   const gate = useRoleGate();
   const [rows, setRows] = useState<ContentReport[]>([]);
@@ -203,7 +254,7 @@ function ReportsPage() {
   const refresh = useCallback(async () => { const result = await loadContentReports(); setRows(result.rows); setMessages(result.warnings); }, []);
   useEffect(() => { if (gate.allowed) void refresh(); }, [gate.allowed, refresh]);
   if (!gate.allowed) return <Unauthorized warnings={gate.warnings} />;
-  return <div className="page-stack admin-page"><PageHero eyebrow="Admin moderation" title="Reported Content"><p>Reports are private moderation records. Reporting does not automatically remove public content; reviewers decide the outcome.</p></PageHero><AdminNav /><QueueMessages messages={messages} /><section className="section-card"><h2>{rows.length} report{rows.length === 1 ? "" : "s"}</h2>{!rows.length && <p>No pending items.</p>}{rows.map((report) => <article className="review-list-item admin-detail-card" key={report.id}><strong>{report.target_type}: {report.target_id}</strong><StatusBadge status={report.status} /><span>{report.created_at}</span><p><strong>Reason:</strong> {report.reason}</p>{report.details && <p>{report.details}</p>}<ReportActions report={report} onChanged={(message) => { setMessages([message]); void refresh(); }} /></article>)}</section></div>;
+  return <div className="page-stack admin-page"><PageHero eyebrow="Admin moderation" title="Reported Content"><p>Reports are private moderation records. Reporting does not automatically remove public content; reviewers decide the outcome.</p></PageHero><AdminNav /><QueueMessages messages={messages} /><section className="section-card"><h2>{rows.length} report{rows.length === 1 ? "" : "s"}</h2>{!rows.length && <p>No pending items.</p>}{rows.map((report) => <article className="review-list-item admin-detail-card" key={report.id}><strong>{report.target_type}: {report.target_id}</strong><StatusBadge status={report.status} /><span>{report.created_at}</span><p><strong>Reason:</strong> {report.reason}</p>{report.details && <p>{report.details}</p>}<ReportActions report={report} onChanged={(message) => { setMessages([message]); void refresh(); }} /></article>)}</section><RealtimeChatModerationPanel /></div>;
 }
 
 function DeveloperActions({ profile, onChanged }: { profile: DeveloperProfileReview; onChanged: (message: string) => void }) {
@@ -224,8 +275,49 @@ function DevelopersPage() {
 
 function AddonSubmissionActions({ submission, onChanged }: { submission: AddonSubmissionReview; onChanged: (message: string) => void }) {
   const [status, setStatus] = useState(submission.status);
-  const [note, setNote] = useState(submission.reviewer_note ?? "");
-  return <div className="review-actions"><label><span>Submission status</span><select value={status} onChange={(event) => setStatus(event.target.value)}>{["pending", "changes_requested", "approved", "rejected", "security_hold", "withdrawn", "published"].map((item) => <option key={item} value={item}>{item.replace(/_/g, " ")}</option>)}</select></label><label><span>Private reviewer note</span><input value={note} onChange={(event) => setNote(event.target.value)} /></label><button type="button" onClick={async () => onChanged(await updateAddonSubmission(submission.id, status, note))}>Update add-on submission</button></div>;
+  const [developerFeedback, setDeveloperFeedback] = useState(submission.reviewer_feedback ?? "");
+  const [privateNote, setPrivateNote] = useState("");
+  const [publishing, setPublishing] = useState(false);
+  const [revocation, setRevocation] = useState({ reason: "security_issue", publicNotice: "", severity: "warning", privateNote: "", versionId: "" });
+  const listing = submission.listing;
+  const latestVersion = submission.versions?.find((version) => !version.revoked_at) ?? submission.versions?.[0] ?? null;
+  const canPublish = submission.status === "approved" || submission.status === "published";
+
+  async function publish() {
+    setPublishing(true);
+    const message = await publishAddonSubmission(submission.id, privateNote);
+    setPublishing(false);
+    onChanged(message);
+  }
+
+  async function revoke(versionId?: string | null) {
+    if (!listing) return onChanged("Publish this add-on before revoking a Marketplace listing or version.");
+    const message = await revokeMarketplacePublication({ listingId: listing.id, versionId, reason: revocation.reason, publicNotice: revocation.publicNotice, severity: revocation.severity, privateNote: revocation.privateNote });
+    onChanged(message);
+  }
+
+  return <div className="review-actions admin-marketplace-actions">
+    <label><span>Submission status</span><select value={status} onChange={(event) => setStatus(event.target.value)}>{["pending", "changes_requested", "approved", "rejected", "security_hold", "withdrawn", "published"].map((item) => <option key={item} value={item}>{item.replace(/_/g, " ")}</option>)}</select></label>
+    <label><span>Developer-facing feedback</span><input value={developerFeedback} onChange={(event) => setDeveloperFeedback(event.target.value)} placeholder="Visible to submitter" /></label>
+    <label><span>Private reviewer note</span><input value={privateNote} onChange={(event) => setPrivateNote(event.target.value)} placeholder="Internal only; never public" /></label>
+    <div className="button-row"><button type="button" onClick={async () => onChanged(await updateAddonSubmission(submission.id, status, developerFeedback, privateNote))}>Update review state</button><button type="button" className="button-primary" disabled={!canPublish || publishing} onClick={() => void publish()}>{publishing ? "Publishing..." : "Publish approved version"}</button></div>
+    <p className="boundary-note">Approval and publication are separate reviewer actions. Publishing creates a Marketplace catalog listing only; it does not install, enable, execute, sign, or trust the package locally.</p>
+    <details className="admin-revoke-panel"><summary>Revoke listing/version</summary><div className="forge-form-grid"><label><span>Reason</span><select value={revocation.reason} onChange={(event) => setRevocation({ ...revocation, reason: event.target.value })}>{["security_issue", "malware_or_suspicious", "license_issue", "false_claims", "broken_package", "policy_violation", "developer_request", "compatibility_break", "other"].map((item) => <option key={item} value={item}>{item.replace(/_/g, " ")}</option>)}</select></label><label><span>Severity</span><select value={revocation.severity} onChange={(event) => setRevocation({ ...revocation, severity: event.target.value })}>{["info", "warning", "high", "critical"].map((item) => <option key={item} value={item}>{item}</option>)}</select></label><label className="wide-field"><span>Public notice</span><input value={revocation.publicNotice} onChange={(event) => setRevocation({ ...revocation, publicNotice: event.target.value })} placeholder="Public revocation notice, no private reviewer notes" /></label><label className="wide-field"><span>Private revocation note</span><input value={revocation.privateNote} onChange={(event) => setRevocation({ ...revocation, privateNote: event.target.value })} placeholder="Internal evidence pointer or reviewer note" /></label></div><div className="button-row"><button type="button" disabled={!listing} onClick={() => void revoke(null)}>Revoke listing</button><button type="button" disabled={!listing || !latestVersion} onClick={() => void revoke(latestVersion?.id)}>Revoke current version</button></div></details>
+  </div>;
+}
+
+function PackageFacts({ pkg }: { pkg: NonNullable<AddonSubmissionReview["packages"]>[number] }) {
+  const fileName = pkg.file_name ?? pkg.original_filename ?? "unnamed package";
+  const fileSize = pkg.file_size ?? pkg.file_size_bytes;
+  const inspection = pkg.archive_inspection_json && Object.keys(pkg.archive_inspection_json).length ? pkg.archive_inspection_json as NonNullable<typeof pkg.archive_inspection_json> : null;
+  const manifestSummary = inspection?.manifest_summary as { addon_id?: string } | undefined;
+  const fileInventory = Array.isArray(inspection?.file_inventory) ? inspection.file_inventory.slice(0, 20) : [];
+  return <article className="review-list-item admin-package-card"><strong>{fileName}</strong><dl className="mini-facts"><div><dt>Size</dt><dd>{fileSize ? `${fileSize} bytes` : "unknown"}</dd></div><div><dt>SHA-256</dt><dd>{pkg.sha256 ?? "missing"}</dd></div><div><dt>Scan</dt><dd>{pkg.scan_status ?? "not scanned"}</dd></div><div><dt>Signature</dt><dd>{pkg.signature_status ?? "unsigned"}</dd></div><div><dt>Storage</dt><dd>{pkg.storage_path ? "private package path recorded" : "no storage path"}</dd></div></dl>{pkg.scan_summary && <p>{pkg.scan_summary}</p>}{inspection && <details><summary>Archive inspection result</summary><dl className="mini-facts"><div><dt>Status</dt><dd>{String(inspection.status ?? "unknown")}</dd></div><div><dt>Risk</dt><dd>{String(inspection.risk_level ?? "unknown")}</dd></div><div><dt>Files</dt><dd>{Array.isArray(inspection.file_inventory) ? inspection.file_inventory.length : 0}</dd></div><div><dt>Manifest</dt><dd>{manifestSummary?.addon_id ?? "not available"}</dd></div></dl><p>{String(inspection.summary ?? "Archive inspection summary unavailable.")}</p>{fileInventory.length > 0 && <ul>{fileInventory.map((file) => <li key={file.path}>{file.path} · {file.size ?? 0} bytes</li>)}</ul>}{Array.isArray(inspection.errors) && inspection.errors.length > 0 && <p className="message">Blocking archive issues: {inspection.errors.length}</p>}{Array.isArray(inspection.warnings) && inspection.warnings.length > 0 && <p className="boundary-note">Archive warnings: {inspection.warnings.length}</p>}</details>}<p className="boundary-note">Review metadata only. The website does not execute package code, package scripts, build hooks, dependencies, or shell commands. Static/archive inspection does not prove safety.</p></article>;
+}
+
+function MarketplacePublicationPanel({ submission }: { submission: AddonSubmissionReview }) {
+  const listing = submission.listing;
+  return <details open={Boolean(listing)}><summary>Marketplace publication status</summary>{listing ? <div><dl className="mini-facts"><div><dt>Listing</dt><dd>{listing.slug}</dd></div><div><dt>Status</dt><dd><StatusBadge status={listing.listing_status} /></dd></div><div><dt>Current version</dt><dd>{listing.current_version ?? "none"}</dd></div><div><dt>Published</dt><dd>{listing.published_at ?? "not published"}</dd></div><div><dt>Revoked</dt><dd>{listing.revoked_at ? `${listing.revoked_at}: ${listing.revocation_reason ?? "no reason"}` : "no"}</dd></div></dl>{submission.versions?.map((version) => <article className="review-list-item" key={version.id}><strong>Version {version.version}</strong><StatusBadge status={version.review_status ?? "unknown"} /><span>{version.signature_status}</span><span>{version.revoked_at ? `Revoked: ${version.revocation_reason ?? "no reason"}` : "Install intent eligible if listing is published and not revoked"}</span></article>)}{submission.publicationEvents?.length ? <details><summary>Private publication event trail</summary>{submission.publicationEvents.map((event) => <article className="review-list-item" key={event.id}><strong>{event.action}</strong><span>{event.created_at}</span><p>{event.note ?? "No private note."}</p></article>)}</details> : <p className="boundary-note">No publication events recorded yet.</p>}</div> : <p className="boundary-note">No Marketplace listing has been published from this submission yet.</p>}</details>;
 }
 
 function AddonSubmissionsPage() {
@@ -235,7 +327,7 @@ function AddonSubmissionsPage() {
   const refresh = useCallback(async () => { const result = await loadAddonSubmissions(); setRows(result.rows); setMessages(result.warnings); }, []);
   useEffect(() => { if (gate.allowed) void refresh(); }, [gate.allowed, refresh]);
   if (!gate.allowed) return <Unauthorized warnings={gate.warnings} />;
-  return <div className="page-stack admin-page"><PageHero eyebrow="Admin review" title="Developer Forge Add-on Submissions"><p>Reviewers may inspect manifests, validation status, permission requests, private package metadata, and scan summaries. Approval does not install anything locally.</p></PageHero><AdminNav /><QueueMessages messages={messages} /><section className="section-card"><h2>{rows.length} add-on submission{rows.length === 1 ? "" : "s"}</h2>{!rows.length && <p>No pending items.</p>}{rows.map((submission) => <article className="review-list-item admin-detail-card" key={submission.id}><strong>{submission.draft?.addon_name ?? submission.id}</strong><StatusBadge status={submission.status} /><p>{submission.review_summary}</p><dl className="mini-facts"><div><dt>Slug</dt><dd>{submission.draft?.addon_slug ?? "unknown"}</dd></div><div><dt>Version</dt><dd>{submission.draft?.version ?? "unknown"}</dd></div><div><dt>Validation</dt><dd>{submission.draft?.validation_status ?? "not available"}</dd></div><div><dt>Packages</dt><dd>{submission.packages?.length ?? 0} private file metadata row(s)</dd></div></dl><details><summary>Manifest preview</summary><pre className="admin-json-preview">{JSON.stringify(submission.draft?.manifest_json ?? {}, null, 2)}</pre></details>{submission.packages?.map((pkg) => <p className="boundary-note" key={pkg.id}>{pkg.original_filename} · {pkg.sha256 ?? "no hash"} · {pkg.scan_status ?? "not scanned"} · {pkg.scan_summary ?? "No scan summary"}</p>)}<AddonSubmissionActions submission={submission} onChanged={(message) => { setMessages([message]); void refresh(); }} /></article>)}</section></div>;
+  return <div className="page-stack admin-page"><PageHero eyebrow="Admin review" title="Developer Forge Add-on Submissions"><p>Reviewers may inspect manifests, validation status, permission requests, private package metadata, and scan summaries. Approval does not install anything locally.</p></PageHero><AdminNav /><QueueMessages messages={messages} /><section className="section-card"><h2>{rows.length} add-on submission{rows.length === 1 ? "" : "s"}</h2>{!rows.length && <p>No pending items.</p>}{rows.map((submission) => <article className="review-list-item admin-detail-card admin-addon-inspection" key={submission.id}><div className="addon-card__topline"><strong>{submission.draft?.addon_name ?? submission.id}</strong><StatusBadge status={submission.status} /></div><p>{submission.review_summary ?? submission.draft?.short_summary ?? "No summary supplied."}</p><dl className="mini-facts"><div><dt>Slug</dt><dd>{submission.draft?.addon_slug ?? "unknown"}</dd></div><div><dt>Version</dt><dd>{submission.draft?.version ?? "unknown"}</dd></div><div><dt>Developer</dt><dd>{submission.developer?.display_name ?? submission.submitted_by}</dd></div><div><dt>Validation</dt><dd>{submission.draft?.validation_status ?? "not available"}</dd></div><div><dt>Risk</dt><dd>{submission.draft?.risk_level ?? "unknown"}</dd></div><div><dt>Packages</dt><dd>{submission.packages?.length ?? 0} private metadata row(s)</dd></div></dl><details><summary>Manifest JSON</summary><pre className="admin-json-preview">{JSON.stringify(submission.draft?.manifest_json ?? {}, null, 2)}</pre></details><details><summary>Permissions and risk reasons</summary>{submission.permissions?.length ? submission.permissions.map((permission) => <article className="review-list-item" key={permission.id}><strong>{permission.permission_key}</strong><span>{permission.risk_acknowledged ? "risk acknowledged" : "risk not acknowledged"}</span><p>{permission.reason ?? "No developer reason supplied."}</p><pre className="admin-json-preview">{JSON.stringify(permission.scope_json ?? {}, null, 2)}</pre></article>) : <p className="boundary-note">No permission declarations recorded.</p>}</details><details><summary>Validation and compatibility</summary>{submission.validationResults?.length ? submission.validationResults.map((result) => <article className="review-list-item" key={result.id}><strong>{result.severity}: {result.code}</strong><p>{result.message}</p><span>{result.field_path ?? "manifest"}</span></article>) : <p className="boundary-note">No validation rows recorded.</p>}{submission.compatibilityResults?.length ? submission.compatibilityResults.map((result) => <article className="review-list-item" key={result.id}><strong>{result.status}</strong><span>{result.elysia_version ?? "unknown Elysia version"}</span><p>{[...(result.warnings ?? []), ...(result.errors ?? [])].join(" · ") || "No compatibility details recorded."}</p></article>) : <p className="boundary-note">No compatibility rows recorded.</p>}</details><details open><summary>Private package inspection</summary>{submission.packages?.length ? submission.packages.map((pkg) => <PackageFacts pkg={pkg} key={pkg.id} />) : <p className="boundary-note">No private package metadata has been uploaded for this submission.</p>}</details><details><summary>Marketplace preview</summary><article className="addon-card"><div className="addon-card__topline"><strong>{submission.draft?.addon_name ?? "Untitled add-on"}</strong><span>{submission.draft?.version ?? "0.1.0"}</span></div><p>{submission.draft?.short_summary ?? "No summary supplied."}</p><dl className="mini-facts"><div><dt>Category</dt><dd>{submission.draft?.category ?? "uncategorized"}</dd></div><div><dt>License</dt><dd>{submission.draft?.license ?? "missing"}</dd></div><div><dt>Permissions</dt><dd>{submission.draft?.permission_summary ?? "No summary"}</dd></div><div><dt>Signature</dt><dd>{submission.packages?.[0]?.signature_status ?? "unsigned"}</dd></div></dl><p className="boundary-note">Preview only. Static scan does not prove safety. Marketplace publication still creates only a catalog entry and install intent surface.</p></article></details><MarketplacePublicationPanel submission={submission} /><AddonSubmissionActions submission={submission} onChanged={(message) => { setMessages([message]); void refresh(); }} /></article>)}</section></div>;
 }
 
 function VisibilityActions({ id, initialStatus, initialNote, onSave, onChanged }: { id: string; initialStatus: VisibilityState; initialNote?: string | null; onSave: (id: string, status: VisibilityState, note: string) => Promise<string>; onChanged: (message: string) => void }) {

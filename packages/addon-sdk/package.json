@@ -1,0 +1,7 @@
+{
+  "name": "@elysia-ecobotics/addon-sdk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local inert SDK helpers for Elysia Ecobotics add-on manifests, packages, and archive inspection."
+}

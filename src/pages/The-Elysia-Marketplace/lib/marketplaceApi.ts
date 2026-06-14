@@ -70,6 +70,38 @@ type AddonRow = {
   addon_versions?: { manifest?: AddonManifest; review_status?: string; published_at?: string | null }[] | null;
 };
 
+type MarketplaceVersionRow = {
+  id: string;
+  version: string;
+  manifest_json?: Record<string, unknown> | AddonManifest | null;
+  package_sha256?: string | null;
+  signature_status?: string | null;
+  compatibility_status?: string | null;
+  review_status?: string | null;
+  published_at?: string | null;
+  revoked_at?: string | null;
+  revocation_reason?: string | null;
+};
+
+type MarketplaceListingRow = {
+  id: string;
+  addon_id: string;
+  name: string;
+  slug: string;
+  summary?: string | null;
+  description?: string | null;
+  category?: string | null;
+  tags?: string[] | null;
+  current_version?: string | null;
+  listing_status?: string | null;
+  risk_level?: string | null;
+  permission_summary?: string | null;
+  compatibility_summary?: string | null;
+  revoked_at?: string | null;
+  revocation_reason?: string | null;
+  marketplace_addon_versions?: MarketplaceVersionRow[] | null;
+};
+
 function rowToManifest(row: AddonRow): AddonManifest {
   const approvedVersion = row.addon_versions?.find((version) => version.review_status === "approved" && version.manifest)?.manifest;
   if (approvedVersion) return approvedVersion;
@@ -138,6 +170,58 @@ function rowToManifest(row: AddonRow): AddonManifest {
   };
 }
 
+function liveListingToManifest(row: MarketplaceListingRow): AddonManifest {
+  const version = row.marketplace_addon_versions?.find((item) => item.review_status === "published" && !item.revoked_at)
+    ?? row.marketplace_addon_versions?.find((item) => item.review_status === "approved" && !item.revoked_at)
+    ?? row.marketplace_addon_versions?.find((item) => !item.revoked_at);
+  const manifest = (version?.manifest_json ?? {}) as Partial<AddonManifest> & { runtime?: { kind?: string }; publisher?: string };
+  const networkAccess = Boolean(manifest.network_access);
+  const status = row.revoked_at || version?.revoked_at ? "revoked" : "approved";
+  return {
+    schema_version: manifest.schema_version ?? "1.0",
+    id: row.slug || row.addon_id,
+    name: row.name || manifest.name || row.slug,
+    publisher: manifest.publisher || "Reviewed Marketplace publisher",
+    version: version?.version || row.current_version || manifest.version || "0.1.0",
+    category: (row.category || manifest.category || "Developer Tools") as AddonCategory,
+    summary: row.summary || manifest.summary || "Reviewed Marketplace add-on.",
+    description: row.description || manifest.description || row.summary || "Reviewed Marketplace listing published by an authorized reviewer.",
+    trust_tier: row.risk_level === "high" || row.risk_level === "critical" ? "reviewed" : "reviewed",
+    local_only: manifest.local_only ?? !networkAccess,
+    network_access: manifest.network_access ?? networkAccess,
+    dependencies: manifest.dependencies ?? [],
+    actions: manifest.actions ?? [{
+      action_key: "local_review_required",
+      action_label: "Review in Local Elysia before install",
+      action_kind: "manual_instruction",
+      allowed: true,
+      risk_level: row.risk_level === "high" || row.risk_level === "critical" ? "high" : "moderate",
+      requires_local_operator_password: true,
+      network_access: networkAccess,
+      notes: ["Marketplace publication is not installation.", "Local Elysia remains final installer and permission authority."]
+    }],
+    security: manifest.security ?? {
+      operator_only: true,
+      model_accessible: false,
+      chat_accessible: false,
+      memory_promotion_allowed: false,
+      outward_sharing_allowed: networkAccess,
+      local_file_access: "none",
+      outward_sharing_risk: networkAccess ? "Network access must be reviewed locally before install." : undefined
+    },
+    tags: row.tags?.length ? row.tags : [row.category ?? "Marketplace", row.risk_level ?? "reviewed"].filter(Boolean) as string[],
+    homepage_url: manifest.homepage_url,
+    source_url: manifest.source_url,
+    license: manifest.license,
+    status,
+    marketplace_listing_id: row.id,
+    marketplace_addon_version_id: version?.id,
+    signature_status: version?.signature_status ?? "unsigned",
+    package_sha256: version?.package_sha256 ?? undefined,
+    revocation_reason: row.revocation_reason ?? version?.revocation_reason ?? undefined
+  };
+}
+
 function submissionFromVersion(row: { id: string; manifest?: AddonManifest | null; review_status: AddonSubmission["review_status"]; review_notes?: string | null }): AddonSubmission {
   const manifest = row.manifest ?? null;
   return {
@@ -192,6 +276,24 @@ async function ensureMarketplaceProfileForUser(user: { id: string; email?: strin
 export async function loadPublishedAddons(): Promise<MarketplaceApiResult<AddonManifest[]>> {
   if (!hasSupabaseConfig || !supabase) return demo(seedAddons);
 
+  const { data: liveData, error: liveError } = await supabase
+    .from("marketplace_listings")
+    .select("id,addon_id,name,slug,summary,description,category,tags,current_version,listing_status,risk_level,permission_summary,compatibility_summary,revoked_at,revocation_reason,marketplace_addon_versions(id,version,manifest_json,package_sha256,signature_status,compatibility_status,review_status,published_at,revoked_at,revocation_reason)")
+    .eq("listing_status", "published")
+    .is("revoked_at", null)
+    .order("name", { ascending: true });
+
+  if (!liveError && (liveData?.length ?? 0) > 0) {
+    const liveAddons = ((liveData ?? []) as MarketplaceListingRow[]).map(liveListingToManifest);
+    const liveIds = new Set(liveAddons.map((addon) => addon.id));
+    return configuredResult([...liveAddons, ...seedAddons.filter((addon) => !liveIds.has(addon.id))], {
+      sourceState: "supabase_connected",
+      statusMessage: `Supabase is connected and returned ${liveAddons.length} reviewed Marketplace listing${liveAddons.length === 1 ? "" : "s"}.`,
+      seedFallbackActive: true,
+      warnings: ["Live reviewed listings are shown first. Local seed catalog entries remain as examples until replaced by published listings."]
+    });
+  }
+
   const { data, error } = await supabase
     .from("addons")
     .select("*, addon_versions(manifest, review_status, published_at)")
@@ -199,7 +301,8 @@ export async function loadPublishedAddons(): Promise<MarketplaceApiResult<AddonM
     .order("name", { ascending: true });
 
   if (error) {
-    const message = `Supabase is configured, but the approved add-on query failed: ${error.message}. Showing local seed catalog.`;
+    const liveMessage = liveError ? ` Live reviewed listing query also failed: ${liveError.message}.` : "";
+    const message = `Supabase is configured, but the approved add-on query failed: ${error.message}.${liveMessage} Showing local seed catalog.`;
     return configuredResult(seedAddons, {
       sourceState: "supabase_query_failed",
       statusMessage: message,

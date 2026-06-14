@@ -15,6 +15,8 @@ const app = await read("src/App.tsx");
 const page = await read("src/pages/The-Elysia-Commune/index.tsx");
 const safety = await read("src/pages/The-Elysia-Commune/communeSafety.ts");
 const migration = await read("supabase/migrations/2026_06_12_commune_full_system.sql");
+const realtimeMigration = await read("supabase/migrations/2026_06_14_commune_realtime_chat_moderation.sql");
+const realtimeApi = await read("src/pages/The-Elysia-Commune/communeRealtimeApi.ts");
 
 for (const route of ["/commune", "commune/new", "commune/repository-showcase", "commune/troubleshooting", "commune/sandbox-review", "commune/realtime", "commune/moderation"]) {
   assert(app.includes(route.replace(/^\//, "")) || app.includes(route), `Missing Commune route: ${route}`);
@@ -39,7 +41,14 @@ for (const category of ["general", "troubleshooting", "repositories", "living-li
 
 assert(page.includes("<pre><code>"), "Code snippets are not displayed as inert pre/code text.");
 assert(page.includes("The public website does not execute code."), "Code execution boundary copy missing.");
-assert(page.includes("Live chat is prepared, not launched."), "Realtime foundation warning missing.");
+assert(page.includes("Governed live chat rooms"), "Governed realtime chat panel missing.");
+assert(page.includes("Realtime Commune messages are cloud-hosted public/community data."), "Realtime public/community data warning missing.");
+assert(page.includes("no private DMs"), "Realtime no-DM copy missing.");
+assert(page.includes("no file uploads"), "Realtime no-file-upload copy missing.");
+assert(page.includes("no code execution"), "Realtime no-code-execution copy missing.");
+assert(page.includes("Report message"), "Realtime message report UI missing.");
+assert(page.includes("Send message"), "Realtime composer send action missing.");
+assert(!page.includes("dangerouslySetInnerHTML"), "Commune page must not render chat/code with dangerouslySetInnerHTML.");
 assert(page.includes("Canonical account-backed paths"), "Commune canonical table path status copy missing.");
 assert(page.includes("Report comment"), "Commune comment report action missing.");
 assert(page.includes("Copy snippet"), "Commune inert code snippet copy action missing.");
@@ -47,6 +56,13 @@ assert(page.includes("metadata for review only"), "Commune sandbox metadata-only
 assert(page.includes("FoundationStatusPanel"), "Commune foundation status panel missing.");
 assert(safety.includes("blockedCommuneUploadExtensions"), "Media upload blocklist missing.");
 assert(migration.includes("commune_realtime_messages"), "Realtime foundation table missing.");
+assert(realtimeMigration.includes("commune_realtime_rooms"), "Realtime rooms table missing.");
+assert(realtimeMigration.includes("commune_realtime_reports"), "Realtime reports table missing.");
+assert(realtimeMigration.includes("commune_room_moderation_events"), "Realtime moderation events table missing.");
+assert(realtimeMigration.includes("can_post_commune_realtime_message"), "Realtime slow-mode/posting policy function missing.");
+assert(realtimeApi.includes("validateChatMessageInput"), "Realtime chat input validator missing.");
+assert(realtimeApi.includes("subscribeToRoomMessages"), "Realtime subscription helper missing.");
+assert(realtimeApi.includes("hideRealtimeMessage") && realtimeApi.includes("removeRealtimeMessage"), "Realtime moderation helpers missing.");
 assert(migration.includes("commune_sandbox_reviews"), "Sandbox review foundation table missing.");
 assert(migration.includes("commune_code_snippets"), "Code snippet table missing.");
 assert(migration.includes("commune_reports"), "Commune reports table missing.");

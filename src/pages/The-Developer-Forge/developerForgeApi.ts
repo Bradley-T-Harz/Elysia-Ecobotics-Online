@@ -2,6 +2,7 @@
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
 import { checkCompatibility, defaultPermissionCatalog, staticSafetyScan, validateManifest, validationStatus } from "./developerForgeValidator";
 import type { ForgeManifest, ForgeValidationResult, PermissionDefinition } from "./developerForgeValidator";
+import { inspectArchiveFile, type BrowserArchiveInspectionResult } from "../../shared/addons/browserArchiveInspector";
 
 export type DeveloperProfile = {
   id?: string;
@@ -64,6 +65,8 @@ export type AddonPackageRow = {
   file_size?: number | null;
   sha256?: string | null;
   scan_status?: string | null;
+  scan_summary?: string | null;
+  archive_inspection_json?: BrowserArchiveInspectionResult | Record<string, unknown> | null;
   signature_status?: string | null;
   created_at?: string | null;
 };
@@ -322,6 +325,18 @@ function safeFileName(name: string) {
 export async function uploadPackageMetadata(draft: AddonDraft, file: File): Promise<{ packageRow: AddonPackageRow | null; scan: ForgeValidationResult[]; warnings: string[] }> {
   const sha256 = await calculateBrowserSha256(file);
   const scan = staticSafetyScan({ fileName: file.name, fileSize: file.size, manifestText: JSON.stringify(draft.manifest_json) });
+  let archiveInspection: BrowserArchiveInspectionResult | null = null;
+  if (/\.(elysia-addon|zip)$/i.test(file.name)) {
+    try {
+      archiveInspection = await inspectArchiveFile(file);
+      scan.push(...archiveInspection.errors.map((item) => ({ severity: "error" as const, code: `archive_${item.code}`, message: item.message, field_path: item.path, fix_suggestion: item.suggestion })));
+      scan.push(...archiveInspection.warnings.map((item) => ({ severity: "warning" as const, code: `archive_${item.code}`, message: item.message, field_path: item.path, fix_suggestion: item.suggestion })));
+      scan.push({ severity: archiveInspection.status === "pass" ? "info" : archiveInspection.status === "warning" ? "warning" : "error", code: "archive_inspection_summary", message: archiveInspection.summary });
+    } catch (error) {
+      if (import.meta.env.DEV) console.warn("[developer forge archive inspection]", error);
+      scan.push({ severity: "warning", code: "archive_inspection_unavailable", message: "Archive inspection could not complete in this browser. Reviewers should inspect with the local CLI." });
+    }
+  }
   const scanStatus = scan.some((item) => item.severity === "error") ? "blocked" : scan.some((item) => item.severity === "warning") ? "warning" : "passed";
   if (draft.id.startsWith("local-")) return { packageRow: null, scan, warnings: ["Package scan ran locally. Sign in and save an account-backed draft before uploading private package metadata."] };
   const { userId, warning } = await currentUserId();
@@ -330,7 +345,8 @@ export async function uploadPackageMetadata(draft: AddonDraft, file: File): Prom
   let storedPath: string | null = null;
   const upload = await supabase.storage.from("addon-packages").upload(storagePath, file, { upsert: false, contentType: file.type || "application/octet-stream" });
   if (upload.error) logDetail("Package private upload", upload.error.message); else storedPath = storagePath;
-  const { data, error } = await supabase.from("addon_packages").insert({ addon_draft_id: draft.id, version: draft.version, storage_path: storedPath, file_name: file.name, file_size: file.size, sha256, scan_status: scanStatus, signature_status: "unsigned" }).select("*").single();
+  const scanSummary = archiveInspection ? `${archiveInspection.summary} Risk: ${archiveInspection.risk_level}. Files inspected: ${archiveInspection.file_inventory.length}.` : scan.map((item) => `${item.severity}: ${item.code}`).join("; ").slice(0, 500);
+  const { data, error } = await supabase.from("addon_packages").insert({ addon_draft_id: draft.id, version: draft.version, storage_path: storedPath, file_name: file.name, file_size: file.size, sha256, scan_status: scanStatus, scan_summary: scanSummary || null, archive_inspection_json: archiveInspection ?? {}, signature_status: "unsigned" }).select("*").single();
   if (error) return { packageRow: null, scan, warnings: [friendly("Package metadata", error.message)] };
   await supabase.from("addon_drafts").update({ package_status: storedPath ? "uploaded" : "metadata_only", updated_at: new Date().toISOString() }).eq("id", draft.id).eq("owner_user_id", userId);
   await supabase.from("addon_audit_log").insert({ actor_user_id: userId, target_type: "addon_draft", target_id: draft.id, action: "package_scanned", metadata: { scanStatus, privateUploadStored: Boolean(storedPath) } });

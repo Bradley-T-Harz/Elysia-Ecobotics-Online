@@ -50,6 +50,12 @@ async function sha256Hex(value: string): Promise<string> {
   return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+function blockedByManifest(addon: AddonManifest) {
+  if (["revoked", "security_hold", "deprecated", "rejected"].includes(addon.status ?? "")) return true;
+  if (["blocked", "deprecated"].includes(addon.trust_tier)) return true;
+  return false;
+}
+
 export async function prepareLocalInstallIntent(addon: AddonManifest): Promise<MarketplaceApiResult<InstallIntentResult>> {
   if (!hasSupabaseConfig || !supabase) {
     return demo(
@@ -71,6 +77,39 @@ export async function prepareLocalInstallIntent(addon: AddonManifest): Promise<M
     }, ["Sign in to save add-ons or create local install intents."]);
   }
 
+  if (blockedByManifest(addon)) {
+    return configured({
+      created: false,
+      opened: false,
+      message: "This add-on is not install-intent eligible because it is blocked, revoked, deprecated, rejected, or under security hold. Local Elysia cannot be asked to install it from the website."
+    }, ["Install intent blocked by Marketplace status."]);
+  }
+
+  const { data: listingRows, error: listingError } = await supabase
+    .from("marketplace_listings")
+    .select("id,slug,name,listing_status,revoked_at,marketplace_addon_versions(id,version,review_status,revoked_at)")
+    .eq("slug", addon.id)
+    .limit(1);
+
+  const listingRow = Array.isArray(listingRows) ? listingRows[0] as { id: string; name?: string; listing_status?: string; revoked_at?: string | null; marketplace_addon_versions?: Array<{ id: string; version: string; review_status?: string; revoked_at?: string | null }> } | undefined : undefined;
+  const liveVersion = listingRow?.marketplace_addon_versions?.find((version) => version.version === addon.version && !version.revoked_at && ["published", "approved"].includes(version.review_status ?? ""))
+    ?? listingRow?.marketplace_addon_versions?.find((version) => !version.revoked_at && ["published", "approved"].includes(version.review_status ?? ""));
+
+  if (listingRow) {
+    if (listingRow.listing_status !== "published" || listingRow.revoked_at || !liveVersion) {
+      return configured({ created: false, opened: false, message: "This Marketplace listing or version is not published and non-revoked, so the website will not create an install intent." }, ["Install intent blocked by Marketplace publication/revocation status."]);
+    }
+    const { data: revocations, error: revocationError } = await supabase
+      .from("marketplace_revocations")
+      .select("id")
+      .eq("listing_id", listingRow.id)
+      .eq("is_active", true)
+      .limit(1);
+    if (!revocationError && (revocations?.length ?? 0) > 0) {
+      return configured({ created: false, opened: false, message: "This Marketplace listing has an active revocation notice, so install intents are blocked." }, ["Install intent blocked by active revocation."]);
+    }
+  }
+
   const { data: addonRows, error: addonError } = await supabase
     .from("addons")
     .select("id, slug, name, addon_versions(id, version, review_status)")
@@ -89,10 +128,12 @@ export async function prepareLocalInstallIntent(addon: AddonManifest): Promise<M
     .from("marketplace_install_intents")
     .insert({
       user_id: auth.user.id,
+      listing_id: listingRow?.id ?? null,
+      marketplace_addon_version_id: liveVersion?.id ?? null,
       addon_id: addonRow?.id ?? null,
       addon_version_id: versionRow?.id ?? null,
       addon_slug: addon.id,
-      addon_name: addonRow?.name ?? addon.name,
+      addon_name: listingRow?.name ?? addonRow?.name ?? addon.name,
       nonce_hash: nonceHash,
       expires_at: expiresAt,
       status: "created"
@@ -127,4 +168,3 @@ export async function prepareLocalInstallIntent(addon: AddonManifest): Promise<M
     message: `Install intent created. Local Elysia must review and approve this install. The website cannot install or enable add-ons. If your browser does not open Elysia, use this link manually: ${deepLink}`
   }, addonError ? [`Catalog UUID lookup warning: ${addonError.message}; saved install intent used slug/name fallback.`] : []);
 }
-

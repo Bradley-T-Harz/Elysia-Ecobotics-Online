@@ -29,6 +29,22 @@ import {
   type CommuneThread
 } from "./communeAccountApi";
 import { communeFallbackCategories, inertCodeSnippetLabel, scanCommuneTextForSecrets, validateCommuneMediaFile } from "./communeSafety";
+import {
+  detectSecretLikeChatText,
+  hideRealtimeMessage,
+  listRecentMessages,
+  listRealtimeRooms,
+  loadRealtimeAccountState,
+  realtimeReportReasons,
+  removeRealtimeMessage,
+  reportRealtimeMessage,
+  sendRealtimeMessage,
+  subscribeToRoomMessages,
+  validateChatMessageInput,
+  type RealtimeConnectionStatus,
+  type RealtimeMessage,
+  type RealtimeRoom
+} from "./communeRealtimeApi";
 
 type CommuneStatus =
   | "draft_local"
@@ -892,12 +908,117 @@ function ModerationPanel() {
 }
 
 function RealtimeFoundationPanel() {
-  return <section className="section-card commune-realtime-card">
-    <p className="eyebrow">Realtime foundation</p>
-    <h2>Live chat is prepared, not launched.</h2>
-    <p>Realtime community rooms need moderation, rate limits, report tools, retention rules, and private-data warnings before public write access is treated as safe.</p>
-    <StatusBadges labels={["plain text only", "no private DMs", "no file uploads", "reportable", "moderation required", "rate limits required"]} />
-    <p className="boundary-note">The `commune_realtime_messages` table foundation is private-safe by RLS, but this page intentionally presents it as future infrastructure until moderation/rate limits are fully configured.</p>
+  const [rooms, setRooms] = useState<RealtimeRoom[]>([]);
+  const [activeRoomId, setActiveRoomId] = useState<string | null>(null);
+  const [messages, setMessages] = useState<RealtimeMessage[]>([]);
+  const [account, setAccount] = useState({ signedIn: false, isModerator: false });
+  const [connection, setConnection] = useState<RealtimeConnectionStatus>("loading");
+  const [notice, setNotice] = useState("Realtime chat is loading. If Supabase Realtime is unavailable, manual refresh remains available.");
+  const [draft, setDraft] = useState("");
+  const [reportForms, setReportForms] = useState<Record<string, { reason: string; detail: string }>>({});
+  const [moderationReason, setModerationReason] = useState("Moderation action from Commune realtime chat.");
+  const [lastSentAt, setLastSentAt] = useState<Record<string, number>>({});
+  const [now, setNow] = useState(Date.now());
+  const activeRoom = rooms.find((room) => room.id === activeRoomId) ?? rooms[0] ?? null;
+  const validation = validateChatMessageInput(draft);
+  const secretWarnings = draft.trim() ? detectSecretLikeChatText(draft) : [];
+  const slowModeSeconds = activeRoom?.slow_mode_seconds ?? 0;
+  const remainingSeconds = activeRoom ? Math.max(0, Math.ceil(((lastSentAt[activeRoom.id] ?? 0) + slowModeSeconds * 1000 - now) / 1000)) : 0;
+
+  const refreshRooms = useCallback(async () => {
+    const [roomResult, accountResult] = await Promise.all([listRealtimeRooms(), loadRealtimeAccountState()]);
+    logCommuneDiagnostics("realtime-rooms", [...roomResult.warnings, ...accountResult.warnings]);
+    setRooms(roomResult.rooms);
+    setAccount({ signedIn: accountResult.signedIn, isModerator: accountResult.isModerator });
+    setConnection(roomResult.warnings.length ? "backend inactive" : "manual refresh mode");
+    setNotice(roomResult.warnings.length ? "Realtime chat tables are not active yet. Forum posts, local drafts, and sandbox requests remain available." : "Choose a room. Messages are public/community cloud data and plain text only.");
+    setActiveRoomId((current) => current && roomResult.rooms.some((room) => room.id === current) ? current : roomResult.rooms[0]?.id ?? null);
+  }, []);
+
+  const refreshMessages = useCallback(async (roomId: string) => {
+    const result = await listRecentMessages(roomId);
+    logCommuneDiagnostics("realtime-messages", result.warnings);
+    setMessages(result.messages);
+    if (result.warnings.length) setNotice("Messages are in manual refresh mode until realtime tables/policies are active for this session.");
+  }, []);
+
+  useEffect(() => { void refreshRooms(); }, [refreshRooms]);
+  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer); }, []);
+  useEffect(() => { if (activeRoom) void refreshMessages(activeRoom.id); else setMessages([]); }, [activeRoom?.id, refreshMessages]);
+  useEffect(() => {
+    if (!activeRoom) return undefined;
+    const subscription = subscribeToRoomMessages(activeRoom.id, {
+      onInsert: (message) => setMessages((current) => current.some((item) => item.id === message.id) ? current : [...current, message]),
+      onStatus: setConnection,
+      onError: setNotice
+    });
+    return () => subscription.unsubscribe();
+  }, [activeRoom?.id]);
+
+  async function send() {
+    if (!activeRoom) return;
+    if (remainingSeconds > 0) return setNotice(`Slow mode is active. Wait ${remainingSeconds} more second${remainingSeconds === 1 ? "" : "s"}.`);
+    const result = await sendRealtimeMessage(activeRoom, draft);
+    setNotice(cleanCommuneMessage(result.message, "Realtime chat is not active for this session yet."));
+    if (result.ok) {
+      setDraft("");
+      setLastSentAt((current) => ({ ...current, [activeRoom.id]: Date.now() }));
+      if (result.row) setMessages((current) => current.some((item) => item.id === result.row?.id) ? current : [...current, result.row as RealtimeMessage]);
+      await refreshMessages(activeRoom.id);
+    }
+  }
+
+  async function report(message: RealtimeMessage) {
+    const form = reportForms[message.id] ?? { reason: realtimeReportReasons[0], detail: "" };
+    const result = await reportRealtimeMessage(message, form.reason, form.detail);
+    setNotice(cleanCommuneMessage(result.message, "Realtime report routing is not active yet."));
+    if (result.ok) setReportForms((current) => ({ ...current, [message.id]: { reason: realtimeReportReasons[0], detail: "" } }));
+  }
+
+  async function moderate(message: RealtimeMessage, action: "hide" | "remove") {
+    const result = action === "hide" ? await hideRealtimeMessage(message.id, moderationReason) : await removeRealtimeMessage(message.id, moderationReason);
+    setNotice(cleanCommuneMessage(result.message, "Realtime moderation is not active for this session yet."));
+    if (result.ok && activeRoom) await refreshMessages(activeRoom.id);
+  }
+
+  return <section className="section-card commune-realtime-card" id="commune-realtime-chat">
+    <div className="section-heading section-heading--inline">
+      <div><p className="eyebrow">Realtime foundation</p><h2>Governed live chat rooms</h2><p>Realtime Commune messages are cloud-hosted public/community data. Do not post credentials, private local Elysia logs, private files, personal sensitive material, vault data, or secrets.</p></div>
+      <button type="button" onClick={() => activeRoom ? void refreshMessages(activeRoom.id) : void refreshRooms()}>Refresh</button>
+    </div>
+    <StatusBadges labels={["signed-in posting", "plain text only", "no private DMs", "no file uploads", "no code execution", "reportable", "slow mode"]} />
+    <div className="commune-chat-layout">
+      <aside className="commune-chat-rooms" aria-label="Commune realtime rooms">
+        <h3>Rooms</h3>
+        {!rooms.length && <p className="commune-empty-state">Realtime rooms will appear here when the Supabase migration and policies are active.</p>}
+        {rooms.map((room) => <button type="button" className={activeRoom?.id === room.id ? "commune-room-button commune-room-button--active" : "commune-room-button"} key={room.id} onClick={() => setActiveRoomId(room.id)}><strong>{room.title}</strong><span>{room.posting_mode.replace(/_/g, " ")} · {room.slow_mode_seconds}s slow mode</span></button>)}
+      </aside>
+      <div className="commune-chat-panel">
+        <div className="commune-chat-header"><div><h3>{activeRoom?.title ?? "Realtime rooms not active yet"}</h3><p>{activeRoom?.description ?? "Account-backed realtime chat remains safely inactive until tables and RLS are applied."}</p></div><span className="review-status">{connection}</span></div>
+        <p className="boundary-note">No private DMs, no chat file uploads, no HTML rendering, and no execution. Code snippets in chat are text only and are not run by the website.</p>
+        <div className="commune-chat-messages" aria-live="polite">
+          {!messages.length && <p className="commune-empty-state">No published messages in this room yet.</p>}
+          {messages.map((message) => {
+            const form = reportForms[message.id] ?? { reason: realtimeReportReasons[0], detail: "" };
+            return <article className="commune-chat-message" key={message.id}>
+              <div className="addon-card__topline"><strong>{message.author_username ? `@${message.author_username}` : "Community member"}</strong><span>{new Date(message.created_at).toLocaleString()}</span></div>
+              <p className="commune-chat-body">{message.body_plain ?? message.body}</p>
+              <details><summary>Report message</summary><label><span>Reason</span><select value={form.reason} onChange={(event) => setReportForms((current) => ({ ...current, [message.id]: { ...form, reason: event.target.value } }))}>{realtimeReportReasons.map((reason) => <option key={reason} value={reason}>{reason.replace(/_/g, " ")}</option>)}</select></label><label><span>Optional detail</span><input value={form.detail} onChange={(event) => setReportForms((current) => ({ ...current, [message.id]: { ...form, detail: event.target.value } }))} placeholder="Private to moderators" /></label><button type="button" onClick={() => void report(message)}>Send private report</button></details>
+              {account.isModerator && <div className="commune-moderator-controls"><button type="button" onClick={() => void moderate(message, "hide")}>Hide</button><button type="button" onClick={() => void moderate(message, "remove")}>Remove</button></div>}
+            </article>;
+          })}
+        </div>
+        {account.isModerator && <label><span>Moderator reason</span><input value={moderationReason} onChange={(event) => setModerationReason(event.target.value)} /></label>}
+        <div className="commune-chat-composer">
+          <label><span>Plain-text message</span><textarea rows={4} value={draft} maxLength={2000} disabled={!account.signedIn || !activeRoom} onChange={(event) => setDraft(event.target.value)} placeholder={account.signedIn ? "Write safe-to-share public/community text..." : "Sign in to post."} /></label>
+          <div className="addon-card__topline"><span>{draft.length}/2000</span><span>{activeRoom ? `${remainingSeconds > 0 ? `${remainingSeconds}s remaining` : `${slowModeSeconds}s slow mode`}` : "No active room"}</span></div>
+          {secretWarnings.length > 0 && <p className="message">Remove possible secret/private material before sending: {secretWarnings.join(", ")}.</p>}
+          <div className="button-row"><button className="button-primary" type="button" disabled={!account.signedIn || !activeRoom || !validation.ok || remainingSeconds > 0} onClick={() => void send()}>Send message</button><button type="button" onClick={() => setDraft("")}>Clear</button></div>
+          {!account.signedIn && <p className="boundary-note">Signed-in users only may post. Everyone sees only published messages allowed by RLS.</p>}
+        </div>
+      </div>
+    </div>
+    <p className="message">{notice}</p>
   </section>;
 }
 

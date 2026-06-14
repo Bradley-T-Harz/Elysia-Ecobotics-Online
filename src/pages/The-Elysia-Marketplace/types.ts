@@ -25,7 +25,8 @@ export type AddonStatus =
   | "approved"
   | "rejected"
   | "deprecated"
-  | "security_hold";
+  | "security_hold"
+  | "revoked";
 
 export type ActionKind =
   | "python_package_install"
@@ -95,6 +96,11 @@ export type AddonManifest = {
   source_url?: string;
   license?: string;
   status?: AddonStatus;
+  marketplace_listing_id?: string;
+  marketplace_addon_version_id?: string;
+  signature_status?: "unsigned" | "pending" | "signed" | "signature_failed" | string;
+  package_sha256?: string;
+  revocation_reason?: string;
 };
 
 export type CatalogFilters = {
