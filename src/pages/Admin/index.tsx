@@ -3,6 +3,15 @@ import { Link, useLocation } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
 import {
+  hideAnnotation,
+  hideCodeDocument,
+  listCodeReports,
+  removeAnnotation,
+  removeCodeDocument,
+  updateCodeReportStatus,
+  type CodeReport
+} from "../The-Elysia-Commune/communeCodeReviewApi";
+import {
   hideRealtimeMessage,
   listRealtimeReports,
   removeRealtimeMessage,
@@ -13,6 +22,14 @@ import {
   type RealtimeReport,
   type RealtimeRoom
 } from "../The-Elysia-Commune/communeRealtimeApi";
+import {
+  buildLocalHandoffBundle,
+  listSandboxRequestsForReview,
+  reviewSandboxRequest,
+  validateSandboxRequestInput,
+  type SandboxRequestAction
+} from "../The-Elysia-Commune/communeSandboxHandoffApi";
+import { type SandboxRequestRecord } from "../../shared/sandbox/sandboxHandoffTypes";
 import {
   type AddonSubmissionReview,
   type ContentReport,
@@ -92,6 +109,10 @@ function StatusBadge({ status }: { status: string }) {
 
 function RoleBadge({ role }: { role: string }) {
   return <span className="trust-badge">{role.replace(/_/g, " ")}</span>;
+}
+
+function AdminChipRow({ labels }: { labels: string[] }) {
+  return <div className="commons-badge-row">{labels.map((label) => <span key={label}>{label.replace(/_/g, " ")}</span>)}</div>;
 }
 
 function AdminNav() {
@@ -247,6 +268,49 @@ function RealtimeChatModerationPanel() {
   return <section className="section-card"><p className="eyebrow">Commune realtime moderation</p><h2>Reported chat messages</h2><p className="boundary-note">Realtime reports are private moderation records. Hidden and removed messages must not be visible publicly. Chat stays plain text only: no DMs, no file uploads, no code execution.</p><QueueMessages messages={messages} /><label><span>Private reviewer note</span><input value={note} onChange={(event) => setNote(event.target.value)} /></label><div className="two-column"><div>{!reports.length && <p>No pending realtime chat reports.</p>}{reports.map((report) => <article className="review-list-item admin-detail-card" key={report.id}><strong>{report.room?.title ?? "Realtime room"}: {report.reason.replace(/_/g, " ")}</strong><StatusBadge status={report.report_status} /><span>{report.created_at}</span><p>{report.detail ?? "No additional detail supplied."}</p><p className="boundary-note">Message status: {report.message?.visibility_state ?? "message unavailable"}</p>{report.message && <pre className="admin-json-preview">{report.message.body_plain ?? report.message.body}</pre>}<div className="button-row"><button type="button" disabled={!report.message} onClick={() => void moderate(report, "hide")}>Hide message</button><button type="button" disabled={!report.message} onClick={() => void moderate(report, "remove")}>Remove message</button><button type="button" onClick={() => void moderate(report, "action_taken")}>Mark action taken</button><button type="button" onClick={() => void moderate(report, "dismiss")}>Dismiss report</button></div></article>)}</div><div><h3>Room controls</h3>{!rooms.length && <p className="boundary-note">Realtime rooms are not active until the latest migration and RLS policies are applied.</p>}{rooms.map((room) => { const settings = roomSettings[room.id] ?? { mode: room.posting_mode, slow: String(room.slow_mode_seconds) }; return <article className="review-list-item" key={room.id}><strong>{room.title}</strong><span>{room.slug}</span><label><span>Posting mode</span><select value={settings.mode} onChange={(event) => setRoomSettings((current) => ({ ...current, [room.id]: { ...settings, mode: event.target.value as RealtimePostingMode } }))}>{["open_signed_in", "members_only", "read_only", "moderated", "disabled"].map((mode) => <option key={mode} value={mode}>{mode.replace(/_/g, " ")}</option>)}</select></label><label><span>Slow mode seconds</span><input type="number" min="0" max="3600" value={settings.slow} onChange={(event) => setRoomSettings((current) => ({ ...current, [room.id]: { ...settings, slow: event.target.value } }))} /></label><button type="button" onClick={() => void saveRoom(room)}>Save room controls</button></article>; })}</div></div></section>;
 }
 
+function CodeReviewModerationPanel() {
+  const [reports, setReports] = useState<CodeReport[]>([]);
+  const [messages, setMessages] = useState<string[]>([]);
+  const [note, setNote] = useState("Code review moderation action.");
+  const refresh = useCallback(async () => { const result = await listCodeReports(); setReports(result.reports); setMessages(result.warnings); }, []);
+  useEffect(() => { void refresh(); }, [refresh]);
+  async function moderate(report: CodeReport, action: "hide" | "remove" | "dismiss" | "action_taken") {
+    let message = "Report updated.";
+    if (action === "hide" && report.document_id) message = (await hideCodeDocument(report.document_id, note)).message;
+    if (action === "remove" && report.document_id) message = (await removeCodeDocument(report.document_id, note)).message;
+    if (action === "hide" && report.annotation_id) message = (await hideAnnotation(report.annotation_id, note)).message;
+    if (action === "remove" && report.annotation_id) message = (await removeAnnotation(report.annotation_id, note)).message;
+    if (action === "dismiss") message = (await updateCodeReportStatus(report.id, "dismissed", note)).message;
+    if (action === "action_taken") message = (await updateCodeReportStatus(report.id, "action_taken", note)).message;
+    setMessages([message]);
+    await refresh();
+  }
+  return <section className="section-card"><p className="eyebrow">Commune code review moderation</p><h2>Reported code documents and annotations</h2><p className="boundary-note">Code review reports are private moderation records. Documents are text for review only: no run button, terminal, repository clone, dependency install, or local Elysia access.</p><QueueMessages messages={messages} /><label><span>Private reviewer note</span><input value={note} onChange={(event) => setNote(event.target.value)} /></label>{!reports.length && <p>No pending code review reports.</p>}{reports.map((report) => { const label = report.document?.title ?? (report.annotation ? "Code annotation" : "Code review item"); return <article className="review-list-item admin-detail-card" key={report.id}><strong>{label}: {report.reason.replace(/_/g, " ")}</strong><StatusBadge status={report.report_status} /><span>{report.created_at}</span><p>{report.detail ?? "No additional detail supplied."}</p>{report.document && <><p className="boundary-note">Document status: {report.document.visibility_state} · {report.document.review_status}</p><pre className="admin-json-preview">{report.document.current_text}</pre></>}{report.annotation && <><p className="boundary-note">Annotation lines {report.annotation.line_start}-{report.annotation.line_end} · {report.annotation.visibility_state}</p><pre className="admin-json-preview">{report.annotation.comment}</pre></>}<div className="button-row"><button type="button" disabled={!report.document_id && !report.annotation_id} onClick={() => void moderate(report, "hide")}>Hide target</button><button type="button" disabled={!report.document_id && !report.annotation_id} onClick={() => void moderate(report, "remove")}>Remove target</button><button type="button" onClick={() => void moderate(report, "action_taken")}>Mark action taken</button><button type="button" onClick={() => void moderate(report, "dismiss")}>Dismiss report</button></div></article>; })}</section>;
+}
+
+function SandboxHandoffReviewPanel() {
+  const [requests, setRequests] = useState<SandboxRequestRecord[]>([]);
+  const [messages, setMessages] = useState<string[]>([]);
+  const [feedback, setFeedback] = useState("Reviewer feedback for Local Elysia handoff readiness.");
+  const [privateNote, setPrivateNote] = useState("Private reviewer note. Do not export this to handoff bundles.");
+  const [preview, setPreview] = useState("");
+  const refresh = useCallback(async () => { const result = await listSandboxRequestsForReview(); setRequests(result.requests); setMessages(result.warnings); }, []);
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  async function run(request: SandboxRequestRecord, action: SandboxRequestAction) {
+    const result = await reviewSandboxRequest(request.id, action, feedback, privateNote);
+    setMessages([result.message]);
+    await refresh();
+  }
+
+  async function previewBundle(request: SandboxRequestRecord) {
+    const result = await buildLocalHandoffBundle(request);
+    setPreview(result.ok ? result.json : result.message);
+  }
+
+  return <section className="section-card"><p className="eyebrow">Sandbox handoff review</p><h2>Local Elysia handoff requests</h2><p className="boundary-note">Reviewer approval here prepares metadata export only. It is not execution approval, does not call Local Elysia, and must not include private reviewer notes in handoff bundles.</p><QueueMessages messages={messages} /><div className="commune-form-grid"><label><span>Developer-facing feedback</span><input value={feedback} onChange={(event) => setFeedback(event.target.value)} /></label><label><span>Private reviewer note</span><input value={privateNote} onChange={(event) => setPrivateNote(event.target.value)} /></label></div>{!requests.length && <p>No pending sandbox handoff requests.</p>}{requests.map((request) => { const validation = validateSandboxRequestInput(request); return <article className="review-list-item admin-detail-card" key={request.id}><strong>{request.title}</strong><StatusBadge status={request.request_status} /><StatusBadge status={request.review_status} /><AdminChipRow labels={[`risk: ${validation.risk_level}`, request.handoff_status, request.source_type]} /><dl className="mini-facts"><div><dt>Source</dt><dd>{request.source_id ?? request.code_document_id ?? "manual"}</dd></div><div><dt>Language</dt><dd>{request.language ?? "unspecified"}</dd></div><div><dt>Expected command</dt><dd>{request.expected_command ?? "none"}</dd></div><div><dt>Dependencies</dt><dd>{request.declared_dependencies?.join(", ") || "none"}</dd></div><div><dt>Network</dt><dd>{request.declared_network_policy} {request.declared_network_domains?.join(", ")}</dd></div><div><dt>Filesystem</dt><dd>{request.declared_filesystem_policy} {request.declared_file_scopes?.join(", ")}</dd></div></dl><p>{request.summary ?? request.risk_notes ?? "No summary supplied."}</p><p className="boundary-note">Acknowledgements: no execution {String(request.user_acknowledged_no_execution)} · no secrets {String(request.user_acknowledged_no_secrets)} · Local Elysia final authority {String(request.user_acknowledged_local_elysia_final_authority)}</p>{validation.errors.map((item) => <p className="message" key={item.code}>{item.message}</p>)}{validation.warnings.map((item) => <p className="boundary-note" key={item.code}>{item.message}</p>)}{request.code_text && <pre className="admin-json-preview">{request.code_text}</pre>}<div className="button-row"><button type="button" onClick={() => void run(request, "request_changes")}>Request changes</button><button type="button" disabled={!validation.ok} onClick={() => void run(request, "approve_for_local_handoff")}>Approve for local handoff</button><button type="button" onClick={() => void run(request, "reject")}>Reject</button><button type="button" onClick={() => void run(request, "security_hold")}>Security hold</button><button type="button" onClick={() => void run(request, "revoke_handoff")}>Revoke handoff</button><button type="button" onClick={() => void run(request, "archive")}>Archive</button><button type="button" disabled={request.request_status !== "approved_for_local_handoff" || request.review_status !== "approved"} onClick={() => void previewBundle(request)}>Preview export bundle</button></div></article>; })}{preview && <pre className="admin-json-preview">{preview}</pre>}</section>;
+}
+
 function ReportsPage() {
   const gate = useRoleGate();
   const [rows, setRows] = useState<ContentReport[]>([]);
@@ -254,7 +318,7 @@ function ReportsPage() {
   const refresh = useCallback(async () => { const result = await loadContentReports(); setRows(result.rows); setMessages(result.warnings); }, []);
   useEffect(() => { if (gate.allowed) void refresh(); }, [gate.allowed, refresh]);
   if (!gate.allowed) return <Unauthorized warnings={gate.warnings} />;
-  return <div className="page-stack admin-page"><PageHero eyebrow="Admin moderation" title="Reported Content"><p>Reports are private moderation records. Reporting does not automatically remove public content; reviewers decide the outcome.</p></PageHero><AdminNav /><QueueMessages messages={messages} /><section className="section-card"><h2>{rows.length} report{rows.length === 1 ? "" : "s"}</h2>{!rows.length && <p>No pending items.</p>}{rows.map((report) => <article className="review-list-item admin-detail-card" key={report.id}><strong>{report.target_type}: {report.target_id}</strong><StatusBadge status={report.status} /><span>{report.created_at}</span><p><strong>Reason:</strong> {report.reason}</p>{report.details && <p>{report.details}</p>}<ReportActions report={report} onChanged={(message) => { setMessages([message]); void refresh(); }} /></article>)}</section><RealtimeChatModerationPanel /></div>;
+  return <div className="page-stack admin-page"><PageHero eyebrow="Admin moderation" title="Reported Content"><p>Reports are private moderation records. Reporting does not automatically remove public content; reviewers decide the outcome.</p></PageHero><AdminNav /><QueueMessages messages={messages} /><section className="section-card"><h2>{rows.length} report{rows.length === 1 ? "" : "s"}</h2>{!rows.length && <p>No pending items.</p>}{rows.map((report) => <article className="review-list-item admin-detail-card" key={report.id}><strong>{report.target_type}: {report.target_id}</strong><StatusBadge status={report.status} /><span>{report.created_at}</span><p><strong>Reason:</strong> {report.reason}</p>{report.details && <p>{report.details}</p>}<ReportActions report={report} onChanged={(message) => { setMessages([message]); void refresh(); }} /></article>)}</section><SandboxHandoffReviewPanel /><CodeReviewModerationPanel /><RealtimeChatModerationPanel /></div>;
 }
 
 function DeveloperActions({ profile, onChanged }: { profile: DeveloperProfileReview; onChanged: (message: string) => void }) {

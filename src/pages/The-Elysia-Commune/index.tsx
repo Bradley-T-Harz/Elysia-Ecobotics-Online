@@ -30,6 +30,37 @@ import {
 } from "./communeAccountApi";
 import { communeFallbackCategories, inertCodeSnippetLabel, scanCommuneTextForSecrets, validateCommuneMediaFile } from "./communeSafety";
 import {
+  acquireEditLock,
+  archiveCodeDocument,
+  codeReviewLanguages,
+  codeReviewReportReasons,
+  createAnnotation,
+  createCodeDocument,
+  createDocumentVersion,
+  detectSecretLikeCodeText,
+  hideAnnotation,
+  hideCodeDocument,
+  listAnnotations,
+  listDocumentVersions,
+  listMyCodeDocuments,
+  listPublishedCodeDocuments,
+  loadCodeReviewAccount,
+  publishCodeDocument,
+  releaseEditLock,
+  removeAnnotation,
+  removeCodeDocument,
+  reportCodeAnnotation,
+  reportCodeDocument,
+  resolveAnnotation,
+  splitCodeIntoLines,
+  submitCodeDocumentForReview,
+  updateCodeDocument,
+  type CodeAnnotation,
+  type CodeDocument,
+  type CodeDocumentVersion,
+  type CodeSession
+} from "./communeCodeReviewApi";
+import {
   detectSecretLikeChatText,
   hideRealtimeMessage,
   listRecentMessages,
@@ -45,6 +76,20 @@ import {
   type RealtimeMessage,
   type RealtimeRoom
 } from "./communeRealtimeApi";
+import {
+  buildLocalHandoffBundle,
+  createSandboxRequestDraft,
+  detectSecretLikeSandboxText,
+  exportLocalHandoffBundle,
+  listMySandboxRequests,
+  sanitizeDeclaredDomains,
+  sanitizeDeclaredFileScopes,
+  submitSandboxRequest,
+  updateSandboxRequestDraft,
+  validateSandboxRequestInput,
+  type SandboxHandoffExport
+} from "./communeSandboxHandoffApi";
+import { type SandboxRequestInput, type SandboxRequestRecord } from "../../shared/sandbox/sandboxHandoffTypes";
 
 type CommuneStatus =
   | "draft_local"
@@ -269,6 +314,9 @@ const repoWarnings = [
 const futureSupportTables = [
   "commune_post_saves",
   "commune_thread_follows",
+  "commune_code_documents",
+  "commune_code_document_versions",
+  "commune_code_annotations",
   "commune_reactions",
   "commune_profiles",
   "commune_room_memberships",
@@ -509,7 +557,7 @@ function CommuneLobby() {
       <p>The Commune is where Elysia Ecobotics members can gather around public updates, troubleshooting, research notes, repository showcases, add-on ideas, and ecological/technical work. Everything here should be safe to make public. Redact first. Code executes nowhere by default.</p>
     </div>
     <CommuneActionNav activeKind="" />
-    <div className="commune-action-row"><a className="button-link" href="#commune-rooms">Browse rooms</a><a className="button-link" href="#commune-local-drafts">View local drafts</a></div>
+    <div className="commune-action-row"><a className="button-link" href="#commune-rooms">Browse rooms</a><a className="button-link" href="#commune-code-review">Code review desk</a><a className="button-link" href="#commune-local-drafts">View local drafts</a></div>
   </section>;
 }
 
@@ -782,12 +830,71 @@ function RepositoryShowcaseForm({ localDrafts }: { localDrafts: ReturnType<typeo
 }
 
 function SandboxDraftPanel({ localDrafts }: { localDrafts: ReturnType<typeof useLocalDraftState> }) {
-  const [form, setForm] = useState({ title: "", relatedUrl: "", codePurpose: "", expectedCommand: "", dependencies: "", networkNeeded: "No", fileAccessNeeded: "No", estimatedRuntime: "", whySandbox: "", riskNotes: "" });
-  const [acknowledged, setAcknowledged] = useState(false);
-  const [message, setMessage] = useState("Sandbox requests are not execution permission. Future execution requires isolated infrastructure, explicit approval, resource limits, no secrets, no private network, no host mounts, logs, and kill controls.");
+  const prefill = useMemo(() => readStorage<Partial<SandboxRequestInput> | null>("commune.sandboxHandoffPrefill.v1", null), []);
+  const [form, setForm] = useState({
+    title: prefill?.title ?? "",
+    relatedUrl: "",
+    sourceType: prefill?.source_type ?? "manual",
+    sourceId: prefill?.source_id ?? prefill?.code_document_id ?? "",
+    language: prefill?.language ?? "text",
+    codePurpose: prefill?.summary ?? "",
+    codeText: prefill?.code_text ?? "",
+    expectedCommand: prefill?.expected_command ?? "",
+    dependencies: (prefill?.declared_dependencies ?? []).join("\n"),
+    networkPolicy: prefill?.declared_network_policy ?? "disabled",
+    networkDomains: (prefill?.declared_network_domains ?? []).join("\n"),
+    filesystemPolicy: prefill?.declared_filesystem_policy ?? "none",
+    fileScopes: (prefill?.declared_file_scopes ?? []).join("\n"),
+    cpuLimit: prefill?.requested_cpu_limit ?? "low",
+    memoryLimit: prefill?.requested_memory_limit ?? "256 MB",
+    timeoutSeconds: String(prefill?.requested_timeout_seconds ?? 10),
+    whySandbox: "",
+    riskNotes: prefill?.risk_notes ?? ""
+  });
+  const [acknowledgements, setAcknowledgements] = useState({ noExecution: Boolean(prefill?.user_acknowledged_no_execution), noSecrets: Boolean(prefill?.user_acknowledged_no_secrets), localAuthority: Boolean(prefill?.user_acknowledged_local_elysia_final_authority) });
+  const [message, setMessage] = useState("Sandbox requests are metadata only. Reviewer approval can prepare a local handoff bundle, but Local Elysia must revalidate and ask explicit approval before anything runs.");
+  const [requests, setRequests] = useState<SandboxRequestRecord[]>([]);
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+  const [handoff, setHandoff] = useState<SandboxHandoffExport | null>(null);
+  const [bundlePreview, setBundlePreview] = useState("");
+
+  const input = useMemo<SandboxRequestInput>(() => ({
+    source_type: form.sourceType as SandboxRequestInput["source_type"],
+    source_id: form.sourceId || null,
+    title: form.title,
+    summary: form.codePurpose || form.whySandbox || null,
+    language: form.language,
+    code_text: form.codeText || null,
+    code_document_id: form.sourceType === "commune_code_document" ? form.sourceId || null : null,
+    expected_command: form.expectedCommand,
+    declared_dependencies: form.dependencies.split(/[\n,]/).map((item) => item.trim()).filter(Boolean),
+    declared_network_policy: form.networkPolicy as SandboxRequestInput["declared_network_policy"],
+    declared_network_domains: sanitizeDeclaredDomains(form.networkDomains),
+    declared_filesystem_policy: form.filesystemPolicy as SandboxRequestInput["declared_filesystem_policy"],
+    declared_file_scopes: sanitizeDeclaredFileScopes(form.fileScopes),
+    requested_cpu_limit: form.cpuLimit,
+    requested_memory_limit: form.memoryLimit,
+    requested_timeout_seconds: Number(form.timeoutSeconds) || null,
+    risk_notes: [form.whySandbox, form.riskNotes].filter(Boolean).join("\n\n"),
+    user_acknowledged_no_execution: acknowledgements.noExecution,
+    user_acknowledged_no_secrets: acknowledgements.noSecrets,
+    user_acknowledged_local_elysia_final_authority: acknowledgements.localAuthority
+  }), [form, acknowledgements]);
+  const validation = useMemo(() => validateSandboxRequestInput(input), [input]);
+  const secretWarnings = useMemo(() => detectSecretLikeSandboxText([form.title, form.relatedUrl, form.codePurpose, form.codeText, form.expectedCommand, form.dependencies, form.networkDomains, form.fileScopes, form.whySandbox, form.riskNotes].join("\n")), [form]);
+  const selectedRequest = requests.find((request) => request.id === selectedRequestId) ?? null;
+
+  const refreshRequests = useCallback(async () => {
+    const result = await listMySandboxRequests();
+    logCommuneDiagnostics("sandbox-handoff-requests", result.warnings);
+    setRequests(result.requests);
+  }, []);
+
+  useEffect(() => { void refreshRequests(); }, [refreshRequests]);
+  useEffect(() => { if (prefill) window.localStorage.removeItem("commune.sandboxHandoffPrefill.v1"); }, [prefill]);
 
   function draft(): SandboxRequestDraft {
-    return { ...form, id: `sandbox-${Date.now()}`, createdAt: new Date().toISOString() };
+    return { id: `sandbox-${Date.now()}`, title: form.title, relatedUrl: form.relatedUrl, codePurpose: form.codePurpose, expectedCommand: form.expectedCommand, dependencies: form.dependencies, networkNeeded: form.networkPolicy === "disabled" ? "No" : "Yes", fileAccessNeeded: form.filesystemPolicy === "none" ? "No" : "Yes", estimatedRuntime: `${form.timeoutSeconds}s / ${form.cpuLimit} / ${form.memoryLimit}`, whySandbox: form.whySandbox, riskNotes: form.riskNotes, createdAt: new Date().toISOString() };
   }
 
   function saveLocal() {
@@ -796,35 +903,75 @@ function SandboxDraftPanel({ localDrafts }: { localDrafts: ReturnType<typeof use
     setMessage("Sandbox request draft saved locally. No code was executed and no permission was granted.");
   }
 
-  async function submit() {
-    if (!acknowledged) {
-      setMessage("Acknowledge that sandbox requests are metadata-only and not execution permission before submitting.");
+  function summaryMarkdown() {
+    return [`# ${form.title || "Sandbox request"}`, "", "This is metadata for review only. The website did not execute code, install dependencies, clone repositories, call Local Elysia, or grant local permissions.", "", `- Source type: ${form.sourceType}`, `- Source id/link: ${form.sourceId || form.relatedUrl || "none"}`, `- Language: ${form.language}`, `- Expected command, metadata only: ${form.expectedCommand || "none"}`, `- Dependencies, names only: ${input.declared_dependencies?.join(", ") || "none"}`, `- Network policy: ${form.networkPolicy}`, `- Network domains: ${input.declared_network_domains?.join(", ") || "none"}`, `- Filesystem policy: ${form.filesystemPolicy}`, `- File scopes: ${input.declared_file_scopes?.join(", ") || "none"}`, `- Requested limits: ${form.cpuLimit}, ${form.memoryLimit}, ${form.timeoutSeconds}s`, "", "## Purpose", form.codePurpose || "Not supplied.", "", "## Risk notes", [form.whySandbox, form.riskNotes].filter(Boolean).join("\n\n") || "Not supplied.", "", "Local Elysia remains the final runtime/sandbox authority and must revalidate before any future execution."].join("\n");
+  }
+
+  async function saveAccountDraft() {
+    const result = selectedRequest && ["draft", "changes_requested"].includes(selectedRequest.request_status) ? await updateSandboxRequestDraft(selectedRequest.id, input) : await createSandboxRequestDraft(input);
+    setMessage(result.message);
+    if (result.request) setSelectedRequestId(result.request.id);
+    await refreshRequests();
+  }
+
+  async function submitAccountRequest() {
+    if (!validation.ok) {
+      setMessage(`Fix validation errors before submitting: ${validation.errors.map((item) => item.message).join(" ")}`);
       return;
     }
-    const result = await submitSandboxReview({ requestTitle: form.title, repositoryUrl: form.relatedUrl, scope: form.whySandbox, riskNotes: form.riskNotes, permissions: form.dependencies.split(/[,\n]/).map((item) => item.trim()).filter(Boolean) });
-    if (result.ok) setMessage(result.message);
-    else if (isBackendDiagnostic(result.message)) { saveLocal(); setMessage("Saved locally in this browser. Sandbox review queue is not active yet."); }
-    else setMessage(result.message);
+    const draftResult = selectedRequestId ? await updateSandboxRequestDraft(selectedRequestId, input) : await createSandboxRequestDraft(input);
+    if (!draftResult.ok || !draftResult.request) {
+      if (isBackendDiagnostic(draftResult.message)) { saveLocal(); setMessage("Saved locally in this browser. Sandbox handoff review storage is not active yet."); }
+      else setMessage(draftResult.message);
+      return;
+    }
+    const submitResult = await submitSandboxRequest(draftResult.request.id);
+    setMessage(submitResult.message);
+    setSelectedRequestId(draftResult.request.id);
+    await refreshRequests();
+  }
+
+  async function previewOrExport(request: SandboxRequestRecord, mode: "preview" | "export") {
+    const prepared = mode === "preview" ? await buildLocalHandoffBundle(request).then((result) => result.ok ? { filename: `${slug(request.title)}.elysia-sandbox-request.json`, checksum: result.checksum, json: result.json, bundle: result.bundle, message: "Handoff preview built. This is metadata only; it is not execution approval." } : result) : await exportLocalHandoffBundle(request).then((result) => result.ok && result.export ? { ...result.export, message: result.message } : result);
+    if (!("json" in prepared)) { setMessage(prepared.message); return; }
+    setHandoff(prepared);
+    setBundlePreview(prepared.json);
+    setMessage(prepared.message);
+    if (mode === "export") downloadText(prepared.filename, prepared.json, "application/json");
   }
 
   return <section className="section-card commune-sandbox-card" id="commune-sandbox-review">
     <p className="eyebrow">Sandbox Request Draft</p>
-    <h2>Request review for future isolated execution.</h2>
-    <p className="boundary-note">Sandbox requests are not execution permission. Future execution requires isolated infrastructure, explicit approval, resource limits, no secrets, no private network, no host mounts, logs, and kill controls.</p>
+    <h2>Prepare a Local Elysia handoff request.</h2>
+    <p className="boundary-note">Sandbox requests are metadata only. The website does not execute code, install dependencies, clone repositories, open a terminal, call Local Elysia, or grant local permissions. Approved requests can export a JSON bundle for later Local Elysia import and revalidation.</p>
     <div className="commune-form-grid">
       <label><span>Request title</span><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
-      <label><span>Related post/repo URL</span><input value={form.relatedUrl} onChange={(event) => setForm({ ...form, relatedUrl: event.target.value })} /></label>
-      <label><span>Expected command</span><input value={form.expectedCommand} onChange={(event) => setForm({ ...form, expectedCommand: event.target.value })} /></label>
-      <label><span>Dependencies / declared permissions</span><input value={form.dependencies} onChange={(event) => setForm({ ...form, dependencies: event.target.value })} /></label>
-      <label><span>Network needed?</span><select value={form.networkNeeded} onChange={(event) => setForm({ ...form, networkNeeded: event.target.value })}><option>No</option><option>Yes</option></select></label>
-      <label><span>File access needed?</span><select value={form.fileAccessNeeded} onChange={(event) => setForm({ ...form, fileAccessNeeded: event.target.value })}><option>No</option><option>Yes</option></select></label>
-      <label><span>Estimated runtime</span><input value={form.estimatedRuntime} onChange={(event) => setForm({ ...form, estimatedRuntime: event.target.value })} /></label>
+      <label><span>Source type</span><select value={form.sourceType} onChange={(event) => setForm({ ...form, sourceType: event.target.value as typeof form.sourceType })}>{["manual", "commune_code_document", "commune_post", "developer_forge_addon", "marketplace_addon_version", "other"].map((value) => <option key={value} value={value}>{value.replace(/_/g, " ")}</option>)}</select></label>
+      <label><span>Source id/link, optional</span><input value={form.sourceId || form.relatedUrl} onChange={(event) => setForm({ ...form, sourceId: event.target.value, relatedUrl: event.target.value })} /></label>
+      <label><span>Language</span><input value={form.language} onChange={(event) => setForm({ ...form, language: event.target.value })} /></label>
+      <label><span>Expected command, metadata only</span><input value={form.expectedCommand} onChange={(event) => setForm({ ...form, expectedCommand: event.target.value })} placeholder="Example: python main.py" /></label>
+      <label><span>Dependencies, names only</span><input value={form.dependencies} onChange={(event) => setForm({ ...form, dependencies: event.target.value })} placeholder="numpy, requests" /></label>
+      <label><span>Network policy</span><select value={form.networkPolicy} onChange={(event) => setForm({ ...form, networkPolicy: event.target.value as typeof form.networkPolicy })}><option value="disabled">disabled</option><option value="declared_domains_only">declared domains only</option><option value="future_review_required">future review required</option></select></label>
+      <label><span>Declared domains</span><input value={form.networkDomains} onChange={(event) => setForm({ ...form, networkDomains: event.target.value })} /></label>
+      <label><span>Filesystem policy</span><select value={form.filesystemPolicy} onChange={(event) => setForm({ ...form, filesystemPolicy: event.target.value as typeof form.filesystemPolicy })}><option value="none">none</option><option value="temporary_workspace_only">temporary workspace only</option><option value="declared_read_only_inputs">declared read-only inputs</option><option value="future_review_required">future review required</option></select></label>
+      <label><span>Declared file scopes</span><input value={form.fileScopes} onChange={(event) => setForm({ ...form, fileScopes: event.target.value })} placeholder="uploaded sample.csv" /></label>
+      <label><span>Requested CPU</span><input value={form.cpuLimit} onChange={(event) => setForm({ ...form, cpuLimit: event.target.value })} /></label>
+      <label><span>Requested memory</span><input value={form.memoryLimit} onChange={(event) => setForm({ ...form, memoryLimit: event.target.value })} /></label>
+      <label><span>Timeout seconds</span><input type="number" min="1" max="300" value={form.timeoutSeconds} onChange={(event) => setForm({ ...form, timeoutSeconds: event.target.value })} /></label>
       <label className="wide-field"><span>Code purpose</span><textarea value={form.codePurpose} onChange={(event) => setForm({ ...form, codePurpose: event.target.value })} rows={4} /></label>
+      <label className="wide-field"><span>Code text or linked code summary, optional</span><textarea value={form.codeText} onChange={(event) => setForm({ ...form, codeText: event.target.value })} rows={6} placeholder="Paste only content you intentionally want in a review/export bundle. Do not include secrets." /></label>
       <label className="wide-field"><span>Why sandbox is needed</span><textarea value={form.whySandbox} onChange={(event) => setForm({ ...form, whySandbox: event.target.value })} rows={4} /></label>
       <label className="wide-field"><span>Risk notes</span><textarea value={form.riskNotes} onChange={(event) => setForm({ ...form, riskNotes: event.target.value })} rows={4} /></label>
     </div>
-    <label className="checkbox-line"><input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} /><span>I understand this is metadata for review only. The website will not execute code, install dependencies, clone repositories, or grant local permissions.</span></label>
-    <div className="button-row"><button className="button-primary" type="button" onClick={() => void submit()}>Submit sandbox review request</button><button type="button" onClick={saveLocal}>Save sandbox request draft locally</button><button type="button" onClick={() => downloadText(`${slug(form.title)}-sandbox-request.md`, sandboxMarkdown(draft()), "text/markdown")}>Export Markdown</button><button type="button" onClick={() => downloadText(`${slug(form.title)}-sandbox-request.json`, JSON.stringify(draft(), null, 2), "application/json")}>Export JSON</button><button type="button" onClick={() => copyText(sandboxMarkdown(draft()), setMessage)}>Copy request Markdown</button></div>
+    <div className="commune-checklist commune-warning-checks">
+      <label className="checkbox-line"><input type="checkbox" checked={acknowledgements.noExecution} onChange={(event) => setAcknowledgements({ ...acknowledgements, noExecution: event.target.checked })} /><span>I understand the website will not execute this, install dependencies, clone repositories, or call Local Elysia.</span></label>
+      <label className="checkbox-line"><input type="checkbox" checked={acknowledgements.noSecrets} onChange={(event) => setAcknowledgements({ ...acknowledgements, noSecrets: event.target.checked })} /><span>I confirm I am not including secrets, credentials, private local Elysia logs, vault data, or private files.</span></label>
+      <label className="checkbox-line"><input type="checkbox" checked={acknowledgements.localAuthority} onChange={(event) => setAcknowledgements({ ...acknowledgements, localAuthority: event.target.checked })} /><span>I understand Local Elysia must revalidate and ask explicit local approval before any future execution.</span></label>
+    </div>
+    {secretWarnings.length > 0 && <WarningCallout title="Secret/private material warning"><p>Remove before saving or submitting: {secretWarnings.join(", ")}.</p></WarningCallout>}
+    <section className="commune-report-panel"><h3>Validation</h3><StatusBadges labels={[`risk: ${validation.risk_level}`, validation.ok ? "ready to submit" : "blocked until fixed", "network disabled by default", "filesystem isolated by default"]} />{validation.errors.map((item) => <p className="message" key={item.code}>{item.message}</p>)}{validation.warnings.map((item) => <p className="boundary-note" key={item.code}>{item.message}</p>)}{validation.info.map((item) => <p className="boundary-note" key={item.code}>{item.message}</p>)}</section>
+    <div className="button-row"><button className="button-primary" type="button" onClick={() => void submitAccountRequest()}>Submit for review</button><button type="button" onClick={() => void saveAccountDraft()}>Save account draft</button><button type="button" onClick={saveLocal}>Save local draft</button><button type="button" onClick={() => setMessage(validation.ok ? "Validation passed for metadata review. This does not prove safety or grant execution permission." : `Validation blocked: ${validation.errors.map((item) => item.message).join(" ")}`)}>Validate request</button><button type="button" onClick={() => downloadText(`${slug(form.title)}-sandbox-request.md`, summaryMarkdown(), "text/markdown")}>Export Markdown</button><button type="button" onClick={() => downloadText(`${slug(form.title)}-sandbox-request.json`, JSON.stringify(input, null, 2), "application/json")}>Export request JSON</button><button type="button" onClick={() => copyText(summaryMarkdown(), setMessage)}>Copy request summary</button></div>
+    <section className="commune-info-grid"><article><h3>My sandbox requests</h3>{!requests.length && <p className="commune-empty-state">No account-backed sandbox requests yet. Local drafts remain available above.</p>}{requests.map((request) => <article className="review-list-item" key={request.id}><strong>{request.title}</strong><StatusBadges labels={[request.request_status, request.review_status, request.handoff_status]} /><p>{request.reviewer_public_feedback ?? "No reviewer feedback yet."}</p><div className="button-row"><button type="button" onClick={() => setSelectedRequestId(request.id)}>Select</button><button type="button" disabled={request.request_status !== "approved_for_local_handoff" || request.review_status !== "approved"} onClick={() => void previewOrExport(request, "preview")}>Preview handoff</button><button type="button" disabled={request.request_status !== "approved_for_local_handoff" || request.review_status !== "approved"} onClick={() => void previewOrExport(request, "export")}>Export for Local Elysia</button></div></article>)}</article><article><h3>Local handoff panel</h3><p className="boundary-note">Export appears only for requests approved for local handoff. This is not an execution result. Local Elysia must revalidate, isolate, and ask explicit approval before running anything.</p>{handoff && <><p><strong>{handoff.filename}</strong></p><p className="boundary-note">SHA-256: {handoff.checksum}</p><div className="button-row"><button type="button" onClick={() => copyText(handoff.json, setMessage)}>Copy handoff JSON</button><button type="button" onClick={() => downloadText(handoff.filename, handoff.json, "application/json")}>Download handoff JSON</button></div></>}{bundlePreview && <pre className="admin-json-preview">{bundlePreview}</pre>}</article></section>
     <p className="message">{message}</p>
   </section>;
 }
@@ -905,6 +1052,151 @@ function ModerationPanel() {
   useEffect(() => { void refresh(); }, [refresh]);
   async function act(item: CommuneModerationItem, action: "approve" | "reject" | "hide" | "archive" | "needs_information" | "escalate") { const result = await moderateCommuneItem(item, action, reason); setMessage(cleanCommuneMessage(result.message, "Moderation action could not be completed because the backend queue is not active yet.")); await refresh(); }
   return <section className="section-card"><p className="eyebrow">Role-gated moderation</p><h2>Commune moderation queue</h2><p className="boundary-note">Normal users cannot access RLS-protected pending posts, comments, uploads, reports, or moderation events.</p><label><span>Moderation note</span><input value={reason} onChange={(event) => setReason(event.target.value)} /></label><div className="commune-draft-grid">{items.map((item) => <article key={`${item.kind}-${item.id}`}><h3>{item.title}</h3><StatusBadges labels={[item.kind, item.status]} /><p>{item.summary}</p><div className="button-row"><button onClick={() => void act(item, "approve")}>Approve/publish</button><button onClick={() => void act(item, "needs_information")}>Needs info</button><button onClick={() => void act(item, "reject")}>Reject/remove</button><button onClick={() => void act(item, "hide")}>Hide</button><button onClick={() => void act(item, "archive")}>Archive</button><button onClick={() => void act(item, "escalate")}>Escalate</button></div></article>)}</div>{!items.length && <p>Moderation items will appear here for authorized roles when account-backed Commune tables are active.</p>}<p className="message">{message}</p></section>;
+}
+
+function CollaborativeCodeReviewPanel() {
+  const [published, setPublished] = useState<CodeDocument[]>([]);
+  const [mine, setMine] = useState<CodeDocument[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [versions, setVersions] = useState<CodeDocumentVersion[]>([]);
+  const [annotations, setAnnotations] = useState<CodeAnnotation[]>([]);
+  const [session, setSession] = useState<CodeSession | null>(null);
+  const [account, setAccount] = useState({ signedIn: false, userId: null as string | null, isModerator: false });
+  const [message, setMessage] = useState("Collaborative code review is text for discussion only. It does not run, install, clone, or access local files.");
+  const [form, setForm] = useState({ title: "", language: "text", fileName: "review.txt", summary: "", text: "" });
+  const [snapshotSummary, setSnapshotSummary] = useState("Manual review snapshot");
+  const [annotation, setAnnotation] = useState({ lineStart: 1, lineEnd: 1, comment: "" });
+  const [report, setReport] = useState({ reason: codeReviewReportReasons[0], detail: "" });
+  const [moderationReason, setModerationReason] = useState("Code review moderation action.");
+  const documents = useMemo(() => [...mine, ...published.filter((doc) => !mine.some((owned) => owned.id === doc.id))], [mine, published]);
+  const selected = selectedId ? documents.find((document) => document.id === selectedId) ?? null : null;
+  const lines = splitCodeIntoLines(form.text);
+  const secretWarnings = detectSecretLikeCodeText([form.title, form.fileName, form.summary, form.text].join("\n"));
+  const canEditSelected = account.signedIn && (!selected || selected.owner_user_id === account.userId || account.isModerator);
+
+  const refreshDocuments = useCallback(async () => {
+    const [publicDocs, myDocs, accountState] = await Promise.all([listPublishedCodeDocuments(), listMyCodeDocuments(), loadCodeReviewAccount()]);
+    logCommuneDiagnostics("code-review", [...publicDocs.warnings, ...myDocs.warnings, ...accountState.warnings]);
+    setPublished(publicDocs.documents);
+    setMine(myDocs.documents);
+    setAccount({ signedIn: accountState.signedIn, userId: accountState.userId, isModerator: accountState.isModerator });
+    if (publicDocs.warnings.length || myDocs.warnings.length) setMessage("Collaborative code review tables are not active yet. You can still use local code snippets, post drafts, and sandbox request drafts.");
+  }, []);
+
+  const refreshSelected = useCallback(async (documentId: string) => {
+    const [versionResult, annotationResult, sessionResult] = await Promise.all([listDocumentVersions(documentId), listAnnotations(documentId), import("./communeCodeReviewApi").then((api) => api.getCodeSession(documentId))]);
+    logCommuneDiagnostics("code-review-detail", [...versionResult.warnings, ...annotationResult.warnings, ...sessionResult.warnings]);
+    setVersions(versionResult.versions);
+    setAnnotations(annotationResult.annotations);
+    setSession(sessionResult.session);
+  }, []);
+
+  useEffect(() => { void refreshDocuments(); }, [refreshDocuments]);
+  useEffect(() => {
+    if (!selected) return;
+    setSelectedId(selected.id);
+    setForm({ title: selected.title, language: selected.language, fileName: selected.file_name ?? "", summary: selected.summary ?? "", text: selected.current_text });
+    void refreshSelected(selected.id);
+  }, [selected?.id, refreshSelected]);
+
+  async function saveDocument() {
+    const result = selected && canEditSelected ? await updateCodeDocument(selected.id, form) : await createCodeDocument(form);
+    setMessage(cleanCommuneMessage(result.message, "Collaborative code review storage is not active yet."));
+    if (result.document) setSelectedId(result.document.id);
+    await refreshDocuments();
+  }
+
+  async function snapshot() {
+    if (!selected) return setMessage("Save or choose a document before creating a snapshot.");
+    const result = await createDocumentVersion(selected.id, form.text, snapshotSummary);
+    setMessage(cleanCommuneMessage(result.message, "Version storage is not active yet."));
+    await refreshSelected(selected.id);
+  }
+
+  async function submitReview() {
+    if (!selected) return setMessage("Save or choose a document before submitting it.");
+    const result = await submitCodeDocumentForReview(selected.id);
+    setMessage(cleanCommuneMessage(result.message, "Code review submission backend is not active yet."));
+    await refreshDocuments();
+  }
+
+  async function publishOrModerate(action: "publish" | "archive" | "hide" | "remove") {
+    if (!selected) return;
+    const result = action === "publish" ? await publishCodeDocument(selected.id, moderationReason) : action === "archive" ? await archiveCodeDocument(selected.id, moderationReason) : action === "hide" ? await hideCodeDocument(selected.id, moderationReason) : await removeCodeDocument(selected.id, moderationReason);
+    setMessage(cleanCommuneMessage(result.message, "Code review moderation backend is not active yet."));
+    await refreshDocuments();
+  }
+
+  async function addAnnotation() {
+    if (!selected) return setMessage("Choose a document before annotating.");
+    const result = await createAnnotation(selected.id, annotation.lineStart, annotation.lineEnd, annotation.comment);
+    setMessage(cleanCommuneMessage(result.message, "Annotation storage is not active yet."));
+    if (result.ok) setAnnotation({ lineStart: 1, lineEnd: 1, comment: "" });
+    await refreshSelected(selected.id);
+  }
+
+  async function annotationAction(item: CodeAnnotation, action: "resolve" | "hide" | "remove" | "report") {
+    const result = action === "resolve" ? await resolveAnnotation(item.id) : action === "hide" ? await hideAnnotation(item.id, moderationReason) : action === "remove" ? await removeAnnotation(item.id, moderationReason) : await reportCodeAnnotation(item.id, report.reason, report.detail);
+    setMessage(cleanCommuneMessage(result.message, "Annotation action backend is not active yet."));
+    if (selected) await refreshSelected(selected.id);
+  }
+
+  async function reportDocument() {
+    if (!selected) return;
+    const result = await reportCodeDocument(selected.id, report.reason, report.detail);
+    setMessage(cleanCommuneMessage(result.message, "Code review report backend is not active yet."));
+  }
+
+  async function lock(action: "acquire" | "release") {
+    if (!selected) return;
+    const result = action === "acquire" ? await acquireEditLock(selected.id) : await releaseEditLock(selected.id);
+    setMessage(cleanCommuneMessage(result.message, "Edit-lock backend is not active yet."));
+    await refreshSelected(selected.id);
+  }
+
+  function prepareSandboxFromSelected() {
+    if (!selected) return;
+    writeStorage<Partial<SandboxRequestInput>>("commune.sandboxHandoffPrefill.v1", {
+      source_type: "commune_code_document",
+      source_id: selected.id,
+      code_document_id: selected.id,
+      title: `Sandbox review: ${selected.title}`,
+      summary: selected.summary ?? "Collaborative code review document prepared for metadata-only sandbox review.",
+      language: selected.language,
+      code_text: selected.current_text,
+      declared_network_policy: "disabled",
+      declared_filesystem_policy: "temporary_workspace_only",
+      requested_cpu_limit: "low",
+      requested_memory_limit: "256 MB",
+      requested_timeout_seconds: 10,
+      risk_notes: "Prepared from a Commune code review document. Website did not execute, install, clone, or call Local Elysia.",
+      user_acknowledged_no_execution: false,
+      user_acknowledged_no_secrets: false,
+      user_acknowledged_local_elysia_final_authority: false
+    });
+  }
+
+  return <section className="section-card commune-code-review-card" id="commune-code-review">
+    <div className="section-heading section-heading--inline"><div><p className="eyebrow">Collaborative Code Review</p><h2>Shared code documents for review, not execution</h2><p>Code here is text for discussion and review only. It is not executed, installed, cloned, fetched, or run by the website.</p></div><button type="button" onClick={() => void refreshDocuments()}>Refresh</button></div>
+    <StatusBadges labels={["text review only", "manual snapshots", "line annotations", "simple edit lock", "reportable", "no terminal", "no run button"]} />
+    <p className="boundary-note">Do not paste credentials, private local Elysia logs, private files, vault data, tokens, or secrets. Code review documents are cloud-hosted community data. Local Elysia remains final runtime/sandbox authority.</p>
+    <div className="commune-code-review-layout">
+      <aside className="commune-code-doc-list"><h3>Documents</h3>{!documents.length && <p className="commune-empty-state">No code review documents yet.</p>}{documents.map((document) => <button type="button" className={selected?.id === document.id ? "commune-room-button commune-room-button--active" : "commune-room-button"} key={document.id} onClick={() => setSelectedId(document.id)}><strong>{document.title}</strong><span>{document.language} · {document.visibility_state} · {new Date(document.updated_at).toLocaleDateString()}</span></button>)}<button type="button" onClick={() => { setSelectedId(null); setForm({ title: "", language: "text", fileName: "review.txt", summary: "", text: "" }); setVersions([]); setAnnotations([]); setSession(null); }}>New document</button></aside>
+      <div className="commune-code-workbench">
+        <div className="commune-form-grid"><label><span>Title</span><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label><label><span>Language</span><select value={form.language} onChange={(event) => setForm({ ...form, language: event.target.value })}>{codeReviewLanguages.map((language) => <option key={language} value={language}>{language}</option>)}</select></label><label><span>Filename</span><input value={form.fileName} onChange={(event) => setForm({ ...form, fileName: event.target.value })} /></label><label><span>Summary</span><input value={form.summary} onChange={(event) => setForm({ ...form, summary: event.target.value })} /></label><label className="wide-field"><span>Code text</span><textarea rows={12} maxLength={100000} value={form.text} onChange={(event) => setForm({ ...form, text: event.target.value })} placeholder="Paste review text only. The website will not execute it." /></label></div>
+        <div className="addon-card__topline"><span>{form.text.length.toLocaleString()}/100,000 characters</span><span>{session?.active_editor_user_id ? `edit lock held until ${session.edit_lock_expires_at ? new Date(session.edit_lock_expires_at).toLocaleTimeString() : "unknown"}` : "no active edit lock"}</span></div>
+        {secretWarnings.length > 0 && <WarningCallout title="Secret warning"><p>Review before saving. Flags: {secretWarnings.join(", ")}. Obvious keys/private material are blocked by the save validator.</p></WarningCallout>}
+        <div className="button-row"><button className="button-primary" type="button" disabled={!account.signedIn} onClick={() => void saveDocument()}>{selected ? "Save document" : "Create document"}</button><button type="button" disabled={!selected} onClick={() => void submitReview()}>Submit for review</button><button type="button" disabled={!selected} onClick={() => void snapshot()}>Create version snapshot</button><button type="button" disabled={!selected} onClick={() => void lock("acquire")}>Acquire edit lock</button><button type="button" disabled={!selected} onClick={() => void lock("release")}>Release edit lock</button></div>
+        <label><span>Snapshot summary</span><input value={snapshotSummary} onChange={(event) => setSnapshotSummary(event.target.value)} /></label>
+        {account.isModerator && <div className="commune-moderator-controls"><label><span>Moderation reason</span><input value={moderationReason} onChange={(event) => setModerationReason(event.target.value)} /></label><button type="button" disabled={!selected} onClick={() => void publishOrModerate("publish")}>Publish</button><button type="button" disabled={!selected} onClick={() => void publishOrModerate("archive")}>Archive</button><button type="button" disabled={!selected} onClick={() => void publishOrModerate("hide")}>Hide</button><button type="button" disabled={!selected} onClick={() => void publishOrModerate("remove")}>Remove</button></div>}
+        <section className="commune-code-preview"><div className="addon-card__topline"><strong>{form.language}</strong><span>{form.fileName || "untitled"}</span></div><pre><code>{lines.map((line, index) => `${String(index + 1).padStart(4, " ")}  ${line}`).join("\n")}</code></pre><div className="button-row"><button type="button" onClick={() => void copyText(form.text, setMessage)}>Copy code text</button><button type="button" onClick={() => downloadText(`${slug(form.title || "code-review")}.txt`, form.text, "text/plain")}>Export text</button><Link className="button-link" to="/commune/new">Create Commune code post from this document</Link><Link className="button-link" to="/commune/sandbox-review" onClick={prepareSandboxFromSelected}>Prepare sandbox review request</Link></div><p className="boundary-note">The links above create metadata/posting paths only. They do not execute code or grant sandbox permission.</p></section>
+        <section className="commune-info-grid"><article><h3>Manual snapshots</h3>{!versions.length && <p>No snapshots yet.</p>}{versions.map((version) => <details key={version.id}><summary>v{version.version_number}: {version.change_summary ?? "Snapshot"}</summary><p>{new Date(version.created_at).toLocaleString()}</p><pre className="admin-json-preview">{version.snapshot_text}</pre><button type="button" onClick={() => void copyText(version.snapshot_text, setMessage)}>Copy snapshot</button></details>)}</article><article><h3>Line annotations</h3><div className="commune-form-grid"><label><span>Line start</span><input type="number" min="1" value={annotation.lineStart} onChange={(event) => setAnnotation({ ...annotation, lineStart: Number(event.target.value) })} /></label><label><span>Line end</span><input type="number" min="1" value={annotation.lineEnd} onChange={(event) => setAnnotation({ ...annotation, lineEnd: Number(event.target.value) })} /></label><label className="wide-field"><span>Comment</span><input value={annotation.comment} onChange={(event) => setAnnotation({ ...annotation, comment: event.target.value })} /></label></div><button type="button" disabled={!selected || !account.signedIn} onClick={() => void addAnnotation()}>Add annotation</button>{annotations.map((item) => <article className="review-list-item" key={item.id}><strong>Lines {item.line_start}-{item.line_end}</strong><StatusBadges labels={[item.annotation_status, item.visibility_state]} /><p>{item.comment}</p><div className="button-row"><button type="button" onClick={() => void annotationAction(item, "resolve")}>Resolve</button><button type="button" onClick={() => void annotationAction(item, "report")}>Report annotation</button>{account.isModerator && <><button type="button" onClick={() => void annotationAction(item, "hide")}>Hide</button><button type="button" onClick={() => void annotationAction(item, "remove")}>Remove</button></>}</div></article>)}</article></section>
+        <section className="commune-report-panel"><h3>Report document</h3><p>Reports are private to moderators/admins. Reporting does not automatically remove content.</p><label><span>Reason</span><select value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value as typeof codeReviewReportReasons[number] })}>{codeReviewReportReasons.map((reason) => <option key={reason} value={reason}>{reason.replace(/_/g, " ")}</option>)}</select></label><label><span>Detail</span><input value={report.detail} onChange={(event) => setReport({ ...report, detail: event.target.value })} /></label><button type="button" disabled={!selected || !account.signedIn} onClick={() => void reportDocument()}>Report code document</button></section>
+      </div>
+    </div>
+    <p className="message">{message}</p>
+    {!account.signedIn && <p className="boundary-note">Sign in to create documents, save snapshots, annotate lines, or report code review content.</p>}
+  </section>;
 }
 
 function RealtimeFoundationPanel() {
@@ -1082,6 +1374,7 @@ export default function CommunePage() {
       <PostComposer defaultRoomId={selectedRoom?.id} localDrafts={localDrafts} categories={categories} onRefresh={refresh} />
       <RepositoryShowcaseForm localDrafts={localDrafts} />
       <SandboxDraftPanel localDrafts={localDrafts} />
+      <CollaborativeCodeReviewPanel />
       <RealtimeFoundationPanel />
       <CodeExecutionBoundaryPanel />
       <LocalDraftStudio localDrafts={localDrafts} filters={filters} />

@@ -3221,3 +3221,309 @@ exception
   when duplicate_object then null;
   when undefined_object then null;
 end $$;
+-- Pass 4: collaborative code review foundation.
+-- Documents are text for review only. The website does not execute code.
+
+create table if not exists public.commune_code_documents (
+  id uuid primary key default gen_random_uuid(),
+  owner_user_id uuid not null references auth.users(id) on delete cascade,
+  title text not null,
+  slug text unique,
+  language text not null default 'text',
+  file_name text,
+  current_text text not null default '',
+  summary text,
+  visibility_state text not null default 'draft',
+  review_status text not null default 'draft',
+  linked_commune_post_id uuid references public.commune_posts(id) on delete set null,
+  linked_sandbox_request_id uuid references public.commune_sandbox_review_requests(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  published_at timestamptz,
+  archived_at timestamptz,
+  hidden_at timestamptz,
+  removed_at timestamptz,
+  moderation_reason text,
+  constraint commune_code_documents_visibility_check check (visibility_state in ('draft','submitted','published','flagged','hidden','removed','archived')),
+  constraint commune_code_documents_review_status_check check (review_status in ('draft','open_for_review','changes_requested','resolved','archived','security_hold')),
+  constraint commune_code_documents_title_check check (char_length(trim(title)) > 0),
+  constraint commune_code_documents_text_check check (char_length(current_text) <= 100000),
+  constraint commune_code_documents_filename_check check (file_name is null or (file_name !~ '(\.\.|/|\\)' and file_name !~* '^[A-Z]:'))
+);
+
+create index if not exists commune_code_documents_owner_idx on public.commune_code_documents(owner_user_id, updated_at desc);
+create index if not exists commune_code_documents_visibility_idx on public.commune_code_documents(visibility_state, updated_at desc);
+
+create table if not exists public.commune_code_document_versions (
+  id uuid primary key default gen_random_uuid(),
+  document_id uuid not null references public.commune_code_documents(id) on delete cascade,
+  created_by uuid references auth.users(id) on delete set null,
+  snapshot_text text not null,
+  change_summary text,
+  version_number integer not null default 1,
+  created_at timestamptz not null default now(),
+  constraint commune_code_document_versions_text_check check (char_length(snapshot_text) <= 100000),
+  unique(document_id, version_number)
+);
+
+create index if not exists commune_code_document_versions_document_idx on public.commune_code_document_versions(document_id, version_number desc);
+
+create table if not exists public.commune_code_annotations (
+  id uuid primary key default gen_random_uuid(),
+  document_id uuid not null references public.commune_code_documents(id) on delete cascade,
+  author_user_id uuid not null references auth.users(id) on delete cascade,
+  line_start integer not null,
+  line_end integer not null,
+  comment text not null,
+  visibility_state text not null default 'published',
+  annotation_status text not null default 'open',
+  created_at timestamptz not null default now(),
+  updated_at timestamptz,
+  hidden_at timestamptz,
+  removed_at timestamptz,
+  moderation_reason text,
+  constraint commune_code_annotations_visibility_check check (visibility_state in ('published','flagged','hidden','removed','archived')),
+  constraint commune_code_annotations_status_check check (annotation_status in ('open','addressed','resolved','archived')),
+  constraint commune_code_annotations_line_check check (line_start > 0 and line_end >= line_start),
+  constraint commune_code_annotations_comment_check check (char_length(trim(comment)) between 1 and 2000)
+);
+
+create index if not exists commune_code_annotations_document_idx on public.commune_code_annotations(document_id, line_start, created_at);
+
+create table if not exists public.commune_code_sessions (
+  id uuid primary key default gen_random_uuid(),
+  document_id uuid not null references public.commune_code_documents(id) on delete cascade,
+  room_slug text,
+  status text not null default 'open',
+  active_editor_user_id uuid references auth.users(id) on delete set null,
+  edit_lock_expires_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  constraint commune_code_sessions_status_check check (status in ('open','locked','paused','closed','archived'))
+);
+
+create index if not exists commune_code_sessions_document_idx on public.commune_code_sessions(document_id, updated_at desc);
+
+create table if not exists public.commune_code_reports (
+  id uuid primary key default gen_random_uuid(),
+  document_id uuid references public.commune_code_documents(id) on delete cascade,
+  annotation_id uuid references public.commune_code_annotations(id) on delete cascade,
+  reporter_user_id uuid references auth.users(id) on delete set null,
+  reason text not null,
+  detail text,
+  report_status text not null default 'open',
+  created_at timestamptz not null default now(),
+  reviewed_at timestamptz,
+  reviewed_by uuid references auth.users(id) on delete set null,
+  reviewer_note text,
+  constraint commune_code_reports_reason_check check (reason in ('spam','harassment','unsafe_code','secret_or_private_data','misinformation','copyright_or_license','malware_or_suspicious','privacy_violation','other')),
+  constraint commune_code_reports_status_check check (report_status in ('open','under_review','action_taken','dismissed','archived')),
+  constraint commune_code_reports_target_check check (document_id is not null or annotation_id is not null)
+);
+
+create index if not exists commune_code_reports_status_idx on public.commune_code_reports(report_status, created_at desc);
+
+create table if not exists public.commune_code_moderation_events (
+  id uuid primary key default gen_random_uuid(),
+  document_id uuid references public.commune_code_documents(id) on delete set null,
+  annotation_id uuid references public.commune_code_annotations(id) on delete set null,
+  actor_user_id uuid references auth.users(id) on delete set null,
+  action text not null,
+  reason text,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  constraint commune_code_moderation_events_action_check check (action in ('document_created','document_updated','version_created','annotation_created','annotation_resolved','document_submitted','document_published','document_flagged','document_hidden','document_removed','document_archived','annotation_reported','document_reported','report_reviewed','edit_lock_acquired','edit_lock_released'))
+);
+
+create index if not exists commune_code_moderation_events_document_idx on public.commune_code_moderation_events(document_id, created_at desc);
+
+alter table public.commune_code_documents enable row level security;
+alter table public.commune_code_document_versions enable row level security;
+alter table public.commune_code_annotations enable row level security;
+alter table public.commune_code_sessions enable row level security;
+alter table public.commune_code_reports enable row level security;
+alter table public.commune_code_moderation_events enable row level security;
+
+drop policy if exists "public reads published code documents" on public.commune_code_documents;
+create policy "public reads published code documents" on public.commune_code_documents for select using (visibility_state = 'published' or owner_user_id = auth.uid() or public.current_user_can_review_domain('commune'::public.review_domain));
+drop policy if exists "users create own code documents" on public.commune_code_documents;
+create policy "users create own code documents" on public.commune_code_documents for insert to authenticated with check (owner_user_id = auth.uid() and visibility_state = 'draft');
+drop policy if exists "owners update own editable code documents" on public.commune_code_documents;
+create policy "owners update own editable code documents" on public.commune_code_documents for update to authenticated using (owner_user_id = auth.uid() and visibility_state in ('draft','submitted','archived') and review_status <> 'security_hold') with check (owner_user_id = auth.uid() and visibility_state in ('draft','submitted','archived') and review_status <> 'security_hold');
+drop policy if exists "moderators manage code documents" on public.commune_code_documents;
+create policy "moderators manage code documents" on public.commune_code_documents for all to authenticated using (public.current_user_can_review_domain('commune'::public.review_domain)) with check (public.current_user_can_review_domain('commune'::public.review_domain));
+
+drop policy if exists "public reads published code versions" on public.commune_code_document_versions;
+create policy "public reads published code versions" on public.commune_code_document_versions for select using (exists (select 1 from public.commune_code_documents doc where doc.id = document_id and (doc.visibility_state = 'published' or doc.owner_user_id = auth.uid() or public.current_user_can_review_domain('commune'::public.review_domain))));
+drop policy if exists "owners create code document versions" on public.commune_code_document_versions;
+create policy "owners create code document versions" on public.commune_code_document_versions for insert to authenticated with check (created_by = auth.uid() and exists (select 1 from public.commune_code_documents doc where doc.id = document_id and doc.owner_user_id = auth.uid() and doc.visibility_state in ('draft','submitted')));
+drop policy if exists "moderators manage code document versions" on public.commune_code_document_versions;
+create policy "moderators manage code document versions" on public.commune_code_document_versions for all to authenticated using (public.current_user_can_review_domain('commune'::public.review_domain)) with check (public.current_user_can_review_domain('commune'::public.review_domain));
+
+drop policy if exists "public reads published code annotations" on public.commune_code_annotations;
+create policy "public reads published code annotations" on public.commune_code_annotations for select using (visibility_state = 'published' and exists (select 1 from public.commune_code_documents doc where doc.id = document_id and doc.visibility_state = 'published'));
+drop policy if exists "owners and authors read code annotations" on public.commune_code_annotations;
+create policy "owners and authors read code annotations" on public.commune_code_annotations for select to authenticated using (author_user_id = auth.uid() or exists (select 1 from public.commune_code_documents doc where doc.id = document_id and doc.owner_user_id = auth.uid()) or public.current_user_can_review_domain('commune'::public.review_domain));
+drop policy if exists "users create code annotations" on public.commune_code_annotations;
+create policy "users create code annotations" on public.commune_code_annotations for insert to authenticated with check (author_user_id = auth.uid() and exists (select 1 from public.commune_code_documents doc where doc.id = document_id and doc.visibility_state in ('published','submitted') and doc.review_status in ('open_for_review','changes_requested','resolved','draft')));
+drop policy if exists "authors resolve own code annotations" on public.commune_code_annotations;
+create policy "authors resolve own code annotations" on public.commune_code_annotations for update to authenticated using (author_user_id = auth.uid() and visibility_state = 'published') with check (author_user_id = auth.uid() and visibility_state = 'published');
+drop policy if exists "moderators manage code annotations" on public.commune_code_annotations;
+create policy "moderators manage code annotations" on public.commune_code_annotations for all to authenticated using (public.current_user_can_review_domain('commune'::public.review_domain)) with check (public.current_user_can_review_domain('commune'::public.review_domain));
+
+drop policy if exists "users read relevant code sessions" on public.commune_code_sessions;
+create policy "users read relevant code sessions" on public.commune_code_sessions for select using (exists (select 1 from public.commune_code_documents doc where doc.id = document_id and (doc.visibility_state = 'published' or doc.owner_user_id = auth.uid() or public.current_user_can_review_domain('commune'::public.review_domain))));
+drop policy if exists "owners create code sessions" on public.commune_code_sessions;
+create policy "owners create code sessions" on public.commune_code_sessions for insert to authenticated with check (exists (select 1 from public.commune_code_documents doc where doc.id = document_id and doc.owner_user_id = auth.uid()));
+drop policy if exists "active editors update code sessions" on public.commune_code_sessions;
+create policy "active editors update code sessions" on public.commune_code_sessions for update to authenticated using (active_editor_user_id = auth.uid() or exists (select 1 from public.commune_code_documents doc where doc.id = document_id and doc.owner_user_id = auth.uid()) or public.current_user_can_review_domain('commune'::public.review_domain)) with check (active_editor_user_id = auth.uid() or exists (select 1 from public.commune_code_documents doc where doc.id = document_id and doc.owner_user_id = auth.uid()) or public.current_user_can_review_domain('commune'::public.review_domain));
+
+drop policy if exists "users create code reports" on public.commune_code_reports;
+create policy "users create code reports" on public.commune_code_reports for insert to authenticated with check (reporter_user_id = auth.uid());
+drop policy if exists "users read own code reports" on public.commune_code_reports;
+create policy "users read own code reports" on public.commune_code_reports for select to authenticated using (reporter_user_id = auth.uid());
+drop policy if exists "moderators manage code reports" on public.commune_code_reports;
+create policy "moderators manage code reports" on public.commune_code_reports for all to authenticated using (public.current_user_can_review_domain('commune'::public.review_domain)) with check (public.current_user_can_review_domain('commune'::public.review_domain));
+
+drop policy if exists "moderators read code moderation events" on public.commune_code_moderation_events;
+create policy "moderators read code moderation events" on public.commune_code_moderation_events for select to authenticated using (public.current_user_can_review_domain('commune'::public.review_domain));
+drop policy if exists "users create own code moderation events" on public.commune_code_moderation_events;
+create policy "users create own code moderation events" on public.commune_code_moderation_events for insert to authenticated with check (actor_user_id = auth.uid() and (action in ('document_created','document_updated','version_created','annotation_created','annotation_resolved','document_submitted','document_reported','annotation_reported','edit_lock_acquired','edit_lock_released') or public.current_user_can_review_domain('commune'::public.review_domain)));
+
+grant select on table public.commune_code_documents to anon, authenticated;
+grant insert, update on table public.commune_code_documents to authenticated;
+grant select on table public.commune_code_document_versions to anon, authenticated;
+grant insert on table public.commune_code_document_versions to authenticated;
+grant select on table public.commune_code_annotations to anon, authenticated;
+grant insert, update on table public.commune_code_annotations to authenticated;
+grant select, insert, update on table public.commune_code_sessions to authenticated;
+grant select, insert, update on table public.commune_code_reports to authenticated;
+grant select, insert on table public.commune_code_moderation_events to authenticated;
+
+-- 2026_06_14_sandbox_request_local_handoff.sql
+-- Sandbox request / Local Elysia handoff layer.
+-- This stores metadata and review decisions only. The public website never runs,
+-- installs, clones, or calls Local Elysia. Local Elysia must revalidate exported
+-- bundles and ask explicit local approval before any future execution.
+
+alter table public.commune_sandbox_review_requests add column if not exists submitted_by uuid references auth.users(id) on delete set null;
+alter table public.commune_sandbox_review_requests add column if not exists source_type text not null default 'manual';
+alter table public.commune_sandbox_review_requests add column if not exists source_id uuid;
+alter table public.commune_sandbox_review_requests add column if not exists title text;
+alter table public.commune_sandbox_review_requests add column if not exists summary text;
+alter table public.commune_sandbox_review_requests add column if not exists language text;
+alter table public.commune_sandbox_review_requests add column if not exists code_text text;
+alter table public.commune_sandbox_review_requests add column if not exists package_id uuid;
+alter table public.commune_sandbox_review_requests add column if not exists addon_submission_id uuid;
+alter table public.commune_sandbox_review_requests add column if not exists code_document_id uuid references public.commune_code_documents(id) on delete set null;
+alter table public.commune_sandbox_review_requests add column if not exists expected_command text;
+alter table public.commune_sandbox_review_requests add column if not exists declared_dependencies text[] not null default '{}';
+alter table public.commune_sandbox_review_requests add column if not exists declared_network_policy text not null default 'disabled';
+alter table public.commune_sandbox_review_requests add column if not exists declared_network_domains text[] not null default '{}';
+alter table public.commune_sandbox_review_requests add column if not exists declared_filesystem_policy text not null default 'none';
+alter table public.commune_sandbox_review_requests add column if not exists declared_file_scopes text[] not null default '{}';
+alter table public.commune_sandbox_review_requests add column if not exists requested_cpu_limit text;
+alter table public.commune_sandbox_review_requests add column if not exists requested_memory_limit text;
+alter table public.commune_sandbox_review_requests add column if not exists requested_timeout_seconds integer;
+alter table public.commune_sandbox_review_requests add column if not exists user_acknowledged_no_execution boolean not null default false;
+alter table public.commune_sandbox_review_requests add column if not exists user_acknowledged_no_secrets boolean not null default false;
+alter table public.commune_sandbox_review_requests add column if not exists user_acknowledged_local_elysia_final_authority boolean not null default false;
+alter table public.commune_sandbox_review_requests add column if not exists request_status text not null default 'draft';
+alter table public.commune_sandbox_review_requests add column if not exists review_status text not null default 'not_submitted';
+alter table public.commune_sandbox_review_requests add column if not exists handoff_status text not null default 'not_exported';
+alter table public.commune_sandbox_review_requests add column if not exists handoff_bundle_json jsonb;
+alter table public.commune_sandbox_review_requests add column if not exists handoff_exported_at timestamptz;
+alter table public.commune_sandbox_review_requests add column if not exists reviewed_by uuid references auth.users(id) on delete set null;
+alter table public.commune_sandbox_review_requests add column if not exists reviewed_at timestamptz;
+alter table public.commune_sandbox_review_requests add column if not exists reviewer_public_feedback text;
+alter table public.commune_sandbox_review_requests add column if not exists reviewer_private_note text;
+alter table public.commune_sandbox_review_requests add column if not exists security_hold_reason text;
+
+update public.commune_sandbox_review_requests
+set submitted_by = coalesce(submitted_by, user_id),
+    title = coalesce(title, request_title, 'Sandbox review request'),
+    request_status = case status
+      when 'requested' then 'submitted'
+      when 'in_review' then 'submitted'
+      when 'approved_for_local_sandbox' then 'approved_for_local_handoff'
+      when 'needs_information' then 'changes_requested'
+      when 'rejected' then 'rejected'
+      when 'archived' then 'archived'
+      else request_status
+    end,
+    review_status = case status
+      when 'requested' then 'pending_review'
+      when 'in_review' then 'pending_review'
+      when 'approved_for_local_sandbox' then 'approved'
+      when 'needs_information' then 'changes_requested'
+      when 'rejected' then 'rejected'
+      when 'archived' then 'rejected'
+      else review_status
+    end,
+    handoff_status = case status when 'approved_for_local_sandbox' then 'export_ready' else handoff_status end
+where title is null or submitted_by is null;
+
+alter table public.commune_sandbox_review_requests alter column title set not null;
+
+do $$ begin
+  alter table public.commune_sandbox_review_requests add constraint commune_sandbox_handoff_source_type_check check (source_type in ('commune_post','commune_code_document','developer_forge_addon','marketplace_addon_version','manual','other'));
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table public.commune_sandbox_review_requests add constraint commune_sandbox_handoff_request_status_check check (request_status in ('draft','submitted','changes_requested','approved_for_local_handoff','rejected','security_hold','archived','revoked'));
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table public.commune_sandbox_review_requests add constraint commune_sandbox_handoff_review_status_check check (review_status in ('not_submitted','pending_review','changes_requested','approved','rejected','security_hold'));
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table public.commune_sandbox_review_requests add constraint commune_sandbox_handoff_status_check check (handoff_status in ('not_exported','export_ready','exported','revoked','expired'));
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table public.commune_sandbox_review_requests add constraint commune_sandbox_handoff_network_policy_check check (declared_network_policy in ('disabled','declared_domains_only','future_review_required'));
+exception when duplicate_object then null; end $$;
+do $$ begin
+  alter table public.commune_sandbox_review_requests add constraint commune_sandbox_handoff_filesystem_policy_check check (declared_filesystem_policy in ('none','temporary_workspace_only','declared_read_only_inputs','future_review_required'));
+exception when duplicate_object then null; end $$;
+
+create index if not exists commune_sandbox_handoff_owner_idx on public.commune_sandbox_review_requests(coalesce(submitted_by, user_id), created_at desc);
+create index if not exists commune_sandbox_handoff_review_idx on public.commune_sandbox_review_requests(request_status, review_status, created_at desc);
+create index if not exists commune_sandbox_handoff_code_document_idx on public.commune_sandbox_review_requests(code_document_id) where code_document_id is not null;
+
+create table if not exists public.sandbox_handoff_events (
+  id uuid primary key default gen_random_uuid(),
+  sandbox_request_id uuid not null references public.commune_sandbox_review_requests(id) on delete cascade,
+  actor_user_id uuid references auth.users(id) on delete set null,
+  action text not null,
+  reason text,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  constraint sandbox_handoff_events_action_check check (action in ('draft_created','request_submitted','changes_requested','approved_for_local_handoff','rejected','security_hold','handoff_exported','handoff_revoked','archived'))
+);
+
+create index if not exists sandbox_handoff_events_request_idx on public.sandbox_handoff_events(sandbox_request_id, created_at desc);
+alter table public.sandbox_handoff_events enable row level security;
+
+drop policy if exists "users manage own sandbox handoff requests" on public.commune_sandbox_review_requests;
+create policy "users manage own sandbox handoff requests" on public.commune_sandbox_review_requests for all to authenticated
+using (coalesce(submitted_by, user_id) = auth.uid())
+with check (coalesce(submitted_by, user_id) = auth.uid() and request_status in ('draft','submitted','changes_requested','approved_for_local_handoff'));
+
+drop policy if exists "reviewers manage sandbox handoff requests" on public.commune_sandbox_review_requests;
+create policy "reviewers manage sandbox handoff requests" on public.commune_sandbox_review_requests for all to authenticated
+using (public.current_user_can_review_domain('commune'::public.review_domain))
+with check (public.current_user_can_review_domain('commune'::public.review_domain));
+
+drop policy if exists "users read own sandbox handoff events" on public.sandbox_handoff_events;
+create policy "users read own sandbox handoff events" on public.sandbox_handoff_events for select to authenticated
+using (exists (select 1 from public.commune_sandbox_review_requests r where r.id = sandbox_request_id and coalesce(r.submitted_by, r.user_id) = auth.uid()));
+
+drop policy if exists "reviewers manage sandbox handoff events" on public.sandbox_handoff_events;
+create policy "reviewers manage sandbox handoff events" on public.sandbox_handoff_events for all to authenticated
+using (public.current_user_can_review_domain('commune'::public.review_domain))
+with check (public.current_user_can_review_domain('commune'::public.review_domain));
+
+drop policy if exists "users create own sandbox handoff events" on public.sandbox_handoff_events;
+create policy "users create own sandbox handoff events" on public.sandbox_handoff_events for insert to authenticated
+with check (actor_user_id = auth.uid() and exists (select 1 from public.commune_sandbox_review_requests r where r.id = sandbox_request_id and coalesce(r.submitted_by, r.user_id) = auth.uid()));
+
+grant select, insert, update on table public.commune_sandbox_review_requests to authenticated;
+grant select, insert, update on table public.sandbox_handoff_events to authenticated;
