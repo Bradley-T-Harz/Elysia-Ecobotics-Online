@@ -46,4 +46,29 @@ const missingInspect = run(["inspect", "services/sandbox-runner/fixtures/does-no
 assert(missingInspect.status !== 0, "inspect with missing file should fail cleanly.");
 assert(/ENOENT|no such file|cannot find/i.test(`${missingInspect.stderr}${missingInspect.stdout}`), "inspect missing-file failure should be explicit.");
 
+const approvedFixture = "services/sandbox-runner/fixtures/approved-python.elysia-sandbox-request.json";
+const approvedValidate = run(["validate", approvedFixture]);
+assert(approvedValidate.status === 0, `approved fixture should validate without execution: ${approvedValidate.stderr || approvedValidate.stdout}`);
+const approvedValidateState = JSON.parse(approvedValidate.stdout);
+assert(approvedValidateState.ok === true, "approved fixture validator result should be ok=true.");
+assert(approvedValidateState.info.some((item) => item.code === "local_only"), "approved fixture validation should report local-only non-execution info.");
+
+const approvedInspect = run(["inspect", approvedFixture]);
+assert(approvedInspect.status === 0, `approved fixture inspect should succeed without execution: ${approvedInspect.stderr || approvedInspect.stdout}`);
+const approvedInspectState = JSON.parse(approvedInspect.stdout);
+assert(approvedInspectState.runnable_after_confirmation === true, "approved fixture inspect should be runnable only after explicit confirmation.");
+assert(approvedInspectState.network_policy === "disabled", "approved fixture inspect should show network disabled.");
+
+const unapprovedValidate = run(["validate", "services/sandbox-runner/fixtures/unapproved-python.elysia-sandbox-request.json"]);
+assert(unapprovedValidate.status !== 0, "unapproved fixture should fail validation.");
+const unapprovedState = JSON.parse(unapprovedValidate.stdout);
+assert(unapprovedState.ok === false, "unapproved fixture validator result should be ok=false.");
+assert(unapprovedState.errors.some((item) => item.code === "not_approved"), "unapproved fixture should fail because it is not approved.");
+
+const blockedSecretValidate = run(["validate", "services/sandbox-runner/fixtures/blocked-secret.elysia-sandbox-request.json"]);
+assert(blockedSecretValidate.status !== 0, "secret-like fixture should fail validation.");
+const blockedSecretState = JSON.parse(blockedSecretValidate.stdout);
+assert(blockedSecretState.ok === false, "secret-like fixture validator result should be ok=false.");
+assert(blockedSecretState.errors.some((item) => item.code.startsWith("secret_")), "secret-like fixture should fail on secret detection.");
+
 console.log("Sandbox runner smoke test ok.");

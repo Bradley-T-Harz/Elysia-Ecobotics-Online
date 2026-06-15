@@ -14,10 +14,13 @@ type AddonCardProps = {
 
 export default function AddonCard({ addon, selected, saved, onSelect, onSaveAddon, onRemoveAddon, onPrepareInstall }: AddonCardProps) {
   const installBlocked = ["revoked", "security_hold", "deprecated", "rejected"].includes(addon.status ?? "") || ["blocked", "deprecated"].includes(addon.trust_tier);
+  const liveReviewed = Boolean(addon.marketplace_listing_id);
   return (
     <article className={`addon-card ${selected ? "addon-card--selected" : ""}`}>
       <div className="addon-card__topline">
+        <TrustBadge label={liveReviewed ? "Live reviewed listing" : "Seed/example catalog"} tone={liveReviewed ? "safe" : "neutral"} />
         <TrustBadge label={trustTierLabel(addon.trust_tier)} tone={toneForTrustTier(addon.trust_tier)} />
+        <TrustBadge label={addon.signature_status === "signed" ? "Signed package" : "Unsigned or unverified package"} tone={addon.signature_status === "signed" ? "safe" : "warning"} />
         <TrustBadge label={addon.local_only ? "Local-only plan" : "Network boundary"} tone={addon.network_access ? "warning" : "safe"} />
         {addon.status === "revoked" && <TrustBadge label="Revoked" tone="danger" />}
       </div>

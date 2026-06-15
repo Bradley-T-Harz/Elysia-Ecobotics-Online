@@ -12,6 +12,8 @@ export default function AddonDetails({ addon, onPrepareInstall, onOpenLocalInsta
   if (!addon) {
     return <section className="details-panel muted-panel"><h2>Select an add-on</h2><p>Choose an add-on to inspect its manifest, dependencies, actions, and security labels.</p></section>;
   }
+  const installBlocked = ["revoked", "security_hold", "deprecated", "rejected"].includes(addon.status ?? "") || ["blocked", "deprecated"].includes(addon.trust_tier);
+  const liveReviewed = Boolean(addon.marketplace_listing_id);
 
   return (
     <section className="details-panel details-panel--full">
@@ -27,12 +29,16 @@ export default function AddonDetails({ addon, onPrepareInstall, onOpenLocalInsta
         </div>
       </div>
       <div className="tag-row">
+        <TrustBadge label={liveReviewed ? "Live reviewed listing" : "Seed/example catalog"} tone={liveReviewed ? "safe" : "neutral"} />
+        <TrustBadge label={addon.signature_status === "signed" ? "Signed package" : "Unsigned or unverified package"} tone={addon.signature_status === "signed" ? "safe" : "warning"} />
         <TrustBadge label={addon.category} tone="neutral" />
         <TrustBadge label={addon.network_access ? "Network access declared" : "No network declared"} tone={addon.network_access ? "warning" : "safe"} />
         <TrustBadge label={addon.local_only ? "Local-only plan" : "External boundary"} tone={addon.local_only ? "safe" : "warning"} />
         <TrustBadge label={addon.security.local_file_access === "none" ? "No file access declared" : addon.security.local_file_access} tone={addon.security.local_file_access === "none" ? "safe" : "warning"} />
       </div>
-      <p className="boundary-note">This website does not install this add-on locally. Local Elysia will later validate and execute allowed actions through its password-gated Add-ons room.</p>
+      <p className="boundary-note">This website does not install this add-on locally. If a future local installer/runtime is used, Local Elysia remains the password-gated final authority for validation, permissions, and any allowed action.</p>
+      {addon.status === "revoked" && <p className="boundary-note">This listing or version is revoked, so Marketplace install intent is blocked. Revocation preserves evidence and does not delete private review history.</p>}
+      {!liveReviewed && <p className="boundary-note">This is seed/example catalog content unless a live reviewed Marketplace listing badge appears above.</p>}
       <div className="details-grid details-grid--wide">
         <div><h3>Manifest summary</h3><p>ID: <code>{addon.id}</code></p><p>Version: {addon.version}</p><p>Publisher: {addon.publisher}</p></div>
         <div><h3>Source and license</h3><p>{addon.source_url ?? "Source not surfaced"}</p><p>{addon.homepage_url ?? "Homepage not surfaced"}</p><p>{addon.license ?? "License review required"}</p></div>
@@ -47,7 +53,7 @@ export default function AddonDetails({ addon, onPrepareInstall, onOpenLocalInsta
         <summary>View Manifest JSON</summary>
         <pre>{JSON.stringify(addon, null, 2)}</pre>
       </details>
-      <div className="button-row"><button type="button" className="button-primary" onClick={() => onPrepareInstall(addon.id)}>Review permissions</button><button type="button" onClick={() => onOpenLocalInstall(addon.id)}>Prepare Local Install</button><button type="button" disabled>.elysia-addon package preview only</button><a className="button-link" href="/catalog-preview.json" target="_blank" rel="noreferrer">View catalog preview JSON</a></div>
+      <div className="button-row"><button type="button" className="button-primary" disabled={installBlocked} onClick={() => onPrepareInstall(addon.id)}>{installBlocked ? "Install intent blocked" : "Review permissions"}</button><button type="button" disabled={installBlocked} onClick={() => onOpenLocalInstall(addon.id)}>{installBlocked ? "Local install blocked" : "Prepare Local Install"}</button><button type="button" disabled>.elysia-addon package preview only</button><a className="button-link" href="/catalog-preview.json" target="_blank" rel="noreferrer">View catalog preview JSON</a></div>
     </section>
   );
 }

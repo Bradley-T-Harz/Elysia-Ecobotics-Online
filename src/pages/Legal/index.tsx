@@ -109,14 +109,14 @@ export default function LegalPage() {
 
       <section className="legal-note-grid" aria-label="Legal policy status notes">
         <article className="section-card legal-note-card">
-          <StatusBadge label="Draft, not attorney-reviewed" tone="warning" />
-          <h2>Operating drafts</h2>
-          <p>These policies are public operating drafts for an early-stage project and are not a substitute for legal advice. They should be attorney-reviewed before major growth, paid add-ons, live uploads, public chat, backend moderation queues, or receipt storage.</p>
+          <StatusBadge label="Public operating policy" tone="warning" />
+          <h2>Operating policies</h2>
+          <p>These policies are public operating guidance for the current website and are not a substitute for legal advice. They should be reviewed periodically as the project grows, paid add-ons launch, live uploads expand, public chat opens wider, backend moderation queues mature, or receipt storage changes.</p>
         </article>
         <article className="section-card legal-note-card">
-          <StatusBadge label="Contact placeholders" tone="warning" />
+          <StatusBadge label="Official contacts" tone="warning" />
           <h2>Contact addresses</h2>
-          <p>Official contact addresses are being configured. Placeholder addresses remain in some draft policies until official Elysia Ecobotics contact emails are ready.</p>
+          <p>Use the role-based addresses below for public website matters: contact@elysiaecobotics.com, support@elysiaecobotics.com, privacy@elysiaecobotics.com, security@elysiaecobotics.com, abuse@elysiaecobotics.com, legal@elysiaecobotics.com, dmca@elysiaecobotics.com, marketplace@elysiaecobotics.com, and developers@elysiaecobotics.com.</p>
         </article>
       </section>
 

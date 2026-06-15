@@ -1,0 +1,50 @@
+{
+  "schema_version": "elysia.sandbox_request.v1",
+  "handoff_kind": "local_elysia_sandbox_request",
+  "request_id": "00000000-0000-4000-8000-000000000002",
+  "source": {
+    "source_type": "manual",
+    "source_id": "fixture-unapproved-python",
+    "title": "Unapproved Python Fixture",
+    "origin": "elysia_ecobotics_online"
+  },
+  "execution_intent": {
+    "language": "python",
+    "expected_command": "python main.py",
+    "declared_dependencies": [],
+    "declared_network_policy": "disabled",
+    "declared_network_domains": [],
+    "declared_filesystem_policy": "temporary_workspace_only",
+    "declared_file_scopes": [],
+    "requested_limits": {
+      "cpu": "0.5",
+      "memory": "256m",
+      "timeout_seconds": 5
+    }
+  },
+  "payload": {
+    "code_text": "print(\"this fixture should not validate as approved\")\n",
+    "package_reference": null,
+    "manifest_summary": null
+  },
+  "review": {
+    "review_status": "pending_review",
+    "approved_for_local_handoff": false,
+    "reviewed_at": null,
+    "reviewer_public_feedback": "Not approved.",
+    "security_notes_public": []
+  },
+  "safety_contract": {
+    "website_executed_code": false,
+    "requires_local_elysia_revalidation": true,
+    "requires_explicit_local_user_approval": true,
+    "network_default": "disabled",
+    "filesystem_default": "isolated_temporary_workspace",
+    "secrets_included": false,
+    "private_reviewer_notes_included": false
+  },
+  "integrity": {
+    "created_at": "2026-06-15T00:00:00.000Z",
+    "created_by": "elysia_ecobotics_online"
+  }
+}

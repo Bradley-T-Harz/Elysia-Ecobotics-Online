@@ -17,7 +17,7 @@
     "test:addons": "node scripts/addonSdkSmokeTest.mjs",
     "test:cli": "node scripts/addonSdkSmokeTest.mjs",
     "test:archive": "node scripts/addonSdkSmokeTest.mjs",
-    "test:all": "npm run test:routes && npm run test:security && npm run test:content && npm run test:commune && npm run test:addons && npm run typecheck && npm run build",
+    "test:all": "npm run test:routes && npm run test:security && npm run test:content && npm run test:commune && npm run test:addons && npm run test:sandbox-runner && npm run typecheck && npm run build",
     "addon": "node scripts/elysiaAddonCli.mjs",
     "addon:init": "node scripts/elysiaAddonCli.mjs init",
     "addon:validate": "node scripts/elysiaAddonCli.mjs validate",

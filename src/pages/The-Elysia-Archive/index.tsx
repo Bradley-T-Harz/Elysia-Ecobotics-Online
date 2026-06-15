@@ -8,6 +8,7 @@ export default function ArchivePage() {
       <PageHero eyebrow="Downloads" title="The Elysia Archive">
         <p>Elysia is a free, local-first AI companion application from Elysia Ecobotics™, an EcoSyneva Commons LLC initiative.</p>
         <p>No public installer, release download, or public source release is available yet. The Archive is being prepared to hold release notes, install instructions, checksums, signatures, compatibility notes, and historical versions when the first public release is ready.</p>
+        <p>Until official releases appear here or in the linked public repository, treat third-party mirrors, reposted installers, and unofficial checksums as unverified.</p>
       </PageHero>
       <section className="feature-grid feature-grid--three">
         <FeatureCard title="Latest Elysia download"><p>No public installer exists yet. Linux-first release cards will appear here for AppImage, .deb, tarball, and source build options when they are ready.</p><StatusBadge label="Coming soon" tone="warning" /></FeatureCard>
@@ -26,6 +27,17 @@ export default function ArchivePage() {
           <div>System requirements and supported platform notes.</div>
           <div><code>public/release-manifest.json</code> machine-readable release metadata.</div>
           <div>Minimal account preferences such as watched release channel or preferred platform.</div>
+        </div>
+      </section>
+      <section className="section-card">
+        <h2>Release status and safety notes</h2>
+        <div className="table-grid">
+          <div><strong>Public release:</strong> not available yet.</div>
+          <div><strong>Checksums:</strong> will be published only with real release artifacts.</div>
+          <div><strong>Signatures:</strong> will be published only after signing is actually in place.</div>
+          <div><strong>Mirrors:</strong> no unofficial mirror is endorsed as a source of truth.</div>
+          <div><strong>Installer trust:</strong> do not run files claiming to be Elysia releases unless they are linked from an official release record.</div>
+          <div><strong>Local-first boundary:</strong> public downloads will not contain private Local Elysia memory, logs, credentials, or vault data.</div>
         </div>
       </section>
     </div>
