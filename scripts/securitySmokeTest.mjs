@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-const roots = ["src", "supabase", "public", "docs", "packages", "scripts"];
+const roots = ["src", "supabase", "public", "docs", "packages", "scripts", "services"];
 const includeExtensions = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".sql", ".md", ".json", ".txt"]);
 
 const checks = [
@@ -22,7 +22,9 @@ function allowHit(file, line, checkName) {
   if (normalized.endsWith("scripts/securitySmokeTest.mjs")) return true;
   if ((normalized.endsWith("scripts/communeSmokeTest.mjs") || normalized.endsWith("scripts/siteContentSmokeTest.mjs")) && /scanner|fixture|assert|secret|SUPABASE_SERVICE_ROLE|service_role|BEGIN \[A-Z \]\*PRIVATE KEY|AWS_ACCESS_KEY_ID/i.test(line)) return true;
   if (normalized.endsWith("scripts/addonSdkSmokeTest.mjs") && /scanner|fixture|assert|inspect|archive|service-role|private key|package install hook|postinstall|preinstall|SUPABASE_SERVICE_ROLE|BEGIN PRIVATE KEY/i.test(line)) return true;
+  if (normalized.endsWith("scripts/sandboxRunnerSmokeTest.mjs") && /child_process|spawnSync|assert|help|missing file|does not execute|never runs code/i.test(line)) return true;
   if (normalized.endsWith("packages/addon-sdk/core.mjs") && /pattern|scanner|scan|blocked|inspect|archive|does not execute|will not execute|SUPABASE_SERVICE_ROLE|service_role|postinstall|preinstall|child_process|exec|spawn|eval|new\s\+Function/i.test(line)) return true;
+  if (normalized.includes("services/sandbox-runner/") && /pattern|scanner|blocked|validate|local-only|Docker|Podman|controlled argument|shell: false|child_process|spawn|exec|postinstall|preinstall|SUPABASE_SERVICE_ROLE|service_role|does not execute|will not execute|never runs code/i.test(line)) return true;
   if (normalized.endsWith("src/pages/The-Elysia-Commune/communeSafety.ts") && /pattern|blocked|scanner|scan|blocks/i.test(line)) return true;
   if (normalized.endsWith("src/pages/The-Elysia-Commune/communeCodeReviewApi.ts") && /pattern|secret|scanner|scan|block|SUPABASE_SERVICE_ROLE|service_role/i.test(line)) return true;
   if (normalized.endsWith("src/pages/The-Elysia-Commune/communeRealtimeApi.ts") && /pattern|secret|scanner|scan|block|SUPABASE_SERVICE_ROLE|service_role/i.test(line)) return true;

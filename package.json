@@ -13,6 +13,7 @@
     "test:security": "node scripts/securitySmokeTest.mjs",
     "test:content": "node scripts/siteContentSmokeTest.mjs",
     "test:commune": "node scripts/communeSmokeTest.mjs",
+    "test:sandbox-runner": "node scripts/sandboxRunnerSmokeTest.mjs",
     "test:addons": "node scripts/addonSdkSmokeTest.mjs",
     "test:cli": "node scripts/addonSdkSmokeTest.mjs",
     "test:archive": "node scripts/addonSdkSmokeTest.mjs",
