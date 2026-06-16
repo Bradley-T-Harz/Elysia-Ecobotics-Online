@@ -116,7 +116,7 @@ export default function LegalPage() {
         <article className="section-card legal-note-card">
           <StatusBadge label="Official contacts" tone="warning" />
           <h2>Contact addresses</h2>
-          <p>Use the role-based addresses below for public website matters: contact@elysiaecobotics.com, support@elysiaecobotics.com, privacy@elysiaecobotics.com, security@elysiaecobotics.com, abuse@elysiaecobotics.com, legal@elysiaecobotics.com, dmca@elysiaecobotics.com, marketplace@elysiaecobotics.com, and developers@elysiaecobotics.com.</p>
+          <p>Use the role-based addresses below for public website matters: hello@elysiaecobotics.com, contact@elysiaecobotics.com, support@elysiaecobotics.com, privacy@elysiaecobotics.com, security@elysiaecobotics.com, abuse@elysiaecobotics.com, legal@elysiaecobotics.com, dmca@elysiaecobotics.com, marketplace@elysiaecobotics.com, stewardship@elysiaecobotics.com, and volunteer@elysiaecobotics.com.</p>
         </article>
       </section>
 

@@ -60,7 +60,7 @@ const legalCombined = `${legalIndex}\n${legalPolicies}`;
 for (const forbidden of ["elysiaecobotics.example", "Draft, not attorney-reviewed", "Contact placeholders", "[Replace placeholder", "DMCA Agent Name", "Mailing Address", "Phone Number"]) {
   assert(!legalCombined.includes(forbidden), `Public legal placeholder still visible: ${forbidden}`);
 }
-for (const email of ["contact@elysiaecobotics.com", "support@elysiaecobotics.com", "privacy@elysiaecobotics.com", "security@elysiaecobotics.com", "abuse@elysiaecobotics.com", "legal@elysiaecobotics.com", "dmca@elysiaecobotics.com", "marketplace@elysiaecobotics.com", "developers@elysiaecobotics.com"]) {
+for (const email of ["hello@elysiaecobotics.com", "contact@elysiaecobotics.com", "support@elysiaecobotics.com", "privacy@elysiaecobotics.com", "security@elysiaecobotics.com", "abuse@elysiaecobotics.com", "legal@elysiaecobotics.com", "dmca@elysiaecobotics.com", "marketplace@elysiaecobotics.com", "stewardship@elysiaecobotics.com", "volunteer@elysiaecobotics.com"]) {
   assert(legalCombined.includes(email), `Role-based legal contact missing: ${email}`);
 }
 assert(archive.includes("No public installer exists yet"), "Archive must not imply a public installer exists.");
