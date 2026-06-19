@@ -104,6 +104,7 @@ export default function App() {
             <Route path="commune/repository-showcase" element={<CommunePage />} />
             <Route path="commune/troubleshooting" element={<CommunePage />} />
             <Route path="commune/sandbox-review" element={<CommunePage />} />
+            <Route path="commune/code-sharing/review" element={<CommunePage />} />
             <Route path="commune/realtime" element={<CommunePage />} />
             <Route path="commune/moderation" element={<CommunePage />} />
             <Route path="work-with-elysia-ecobotics" element={<WorkWithPage />} />

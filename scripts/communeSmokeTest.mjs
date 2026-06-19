@@ -24,13 +24,51 @@ const sandboxHandoffApi = await read("src/pages/The-Elysia-Commune/communeSandbo
 const sandboxValidator = await read("src/shared/sandbox/sandboxRequestValidator.ts");
 const sandboxBuilder = await read("src/shared/sandbox/sandboxHandoffBuilder.ts");
 
-for (const route of ["/commune", "commune/new", "commune/repository-showcase", "commune/troubleshooting", "commune/sandbox-review", "commune/realtime", "commune/moderation"]) {
+for (const route of ["/commune", "commune/new", "commune/repository-showcase", "commune/troubleshooting", "commune/sandbox-review", "commune/code-sharing/review", "commune/realtime", "commune/moderation"]) {
   assert(app.includes(route.replace(/^\//, "")) || app.includes(route), `Missing Commune route: ${route}`);
 }
 
-for (const anchor of ["commune-lobby", "commune-search", "commune-feed", "commune-rooms", "commune-post-composer", "commune-repository-showcase", "commune-sandbox-review", "commune-code-review", "commune-local-drafts", "commune-moderation-doctrine"]) {
+for (const roomSlug of ["media-garden", "troubleshooting-grove", "code-sharing", "repository-showcase", "community-network", "job-post", "official-updates", "research-notes", "elysia-iteration-showcase"]) {
+  assert(page.includes(roomSlug), `Missing Commune room slug: ${roomSlug}`);
+}
+
+const requiredLobbyRooms = ["Media Garden", "Troubleshooting Grove", "Code Sharing", "Repository Showcase", "Community Network", "Job Post", "Official Update", "Research Note", "Elysia Iteration Showcase"];
+let roomCursor = -1;
+for (const roomName of requiredLobbyRooms) {
+  const nextRoom = page.indexOf(`name: "${roomName}"`);
+  assert(nextRoom > roomCursor, `Commune room definition missing or out of order: ${roomName}`);
+  roomCursor = nextRoom;
+}
+
+for (const anchor of ["commune-lobby", "commune-search", "commune-feed", "commune-rooms", "commune-post-composer", "commune-repository-showcase", "commune-sandbox-review", "commune-code-review", "commune-local-drafts"]) {
   assert(page.includes(anchor), `Missing Commune anchor: ${anchor}`);
 }
+
+const lobbyBranchStart = page.indexOf("{isLobby && <>");
+const lobbyBranchEnd = page.indexOf("</>}", lobbyBranchStart);
+assert(lobbyBranchStart > -1 && lobbyBranchEnd > lobbyBranchStart, "Could not find consolidated Commune lobby render branch.");
+const lobbyBranch = page.slice(lobbyBranchStart, lobbyBranchEnd);
+for (const heavyPanel of ["<PostComposer", "<RepositoryShowcaseForm", "<SandboxDraftPanel", "<CollaborativeCodeReviewPanel", "<RealtimeFoundationPanel", "<CodeExecutionBoundaryPanel", "<FoundationStatusPanel"]) {
+  assert(!lobbyBranch.includes(heavyPanel), `Commune lobby still renders heavy panel: ${heavyPanel}`);
+}
+assert(!lobbyBranch.includes("<AccountModePanel"), "Commune lobby still renders the account-backed mode panel.");
+for (const lobbyPanel of ["<CommuneLobby", "<CommuneSearchPanel", "<RoomCards", "<CommunityFeed", "<CommuneSideChannelPanel", "<LocalDraftStudio"]) {
+  assert(page.includes(lobbyPanel), `Commune lobby panel missing: ${lobbyPanel}`);
+}
+assert(page.includes("!isLobby && <AccountModePanel"), "Account-backed Commune functionality should remain available outside the public lobby.");
+assert(page.includes("function RoomPage"), "Focused Commune room page component missing.");
+assert(page.includes("postTypeByRoomSlug"), "Commune room slug to post type mapping missing.");
+assert(page.includes("function RoomCards()"), "Commune lobby room cards should render the complete room list.");
+assert(page.includes("postTypes.map((type)"), "Commune lobby room cards should include every post type doorway.");
+assert(page.includes("Enter room"), "Commune room entry copy missing.");
+assert(page.includes("Shared code is not trusted and is not executed by the website or Elysia by default."), "Code Sharing caution copy missing.");
+assert(page.includes("function RoomPickerPanel()"), "Commune /new room picker compatibility panel missing.");
+assert(page.includes("Choose a room before posting"), "Commune /new room picker title missing.");
+assert(page.includes("Posts are created from inside their room so the format, safety notes, and context match what you are sharing."), "Commune /new room picker copy missing.");
+assert(page.includes('{mode === "new" && <RoomPickerPanel />}'), "Commune /new should render the room picker instead of the generic composer.");
+assert(!page.includes('{mode === "new" && <PostComposer'), "Commune /new still renders the generic post composer.");
+assert(!page.includes('to="/commune/new"'), "Commune page still links users to the generic /commune/new composer.");
+assert(!page.includes("Request to post"), "Generic Request to post copy should not be visible in Commune UI.");
 
 for (const reason of ["spam", "harassment", "unsafe_code", "secret_or_private_data", "misinformation", "copyright_or_license", "malware_or_suspicious", "privacy_violation", "other"]) {
   assert(safety.includes(`"${reason}"`), `Missing report reason: ${reason}`);
@@ -72,7 +110,6 @@ assert(page.includes("Local Elysia must revalidate"), "Local Elysia revalidation
 assert(page.includes("I understand the website will not execute this"), "Sandbox no-execution acknowledgement missing.");
 assert(page.includes("I confirm I am not including secrets"), "Sandbox no-secrets acknowledgement missing.");
 assert(page.includes("Prepare sandbox review request"), "Code review to sandbox request link missing.");
-assert(page.includes("FoundationStatusPanel"), "Commune foundation status panel missing.");
 assert(safety.includes("blockedCommuneUploadExtensions"), "Media upload blocklist missing.");
 assert(migration.includes("commune_realtime_messages"), "Realtime foundation table missing.");
 assert(realtimeMigration.includes("commune_realtime_rooms"), "Realtime rooms table missing.");

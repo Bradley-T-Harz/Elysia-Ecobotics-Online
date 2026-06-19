@@ -281,6 +281,24 @@ const postTypes: CommunePostTypeCard[] = [
   }
 ];
 
+const roomSlugByPostType: Record<CommunePostType, string> = {
+  media_garden: "media-garden",
+  troubleshooting: "troubleshooting-grove",
+  code_sharing: "code-sharing",
+  repository_showcase: "repository-showcase",
+  community_network: "community-network",
+  job_post: "job-post",
+  official_update: "official-updates",
+  research_note: "research-notes",
+  elysia_iteration_showcase: "elysia-iteration-showcase"
+};
+
+const postTypeByRoomSlug = new Map(postTypes.map((type) => [roomSlugByPostType[type.backendValue], type]));
+
+function roomPathForType(type: CommunePostTypeCard) {
+  return `/commune/rooms/${roomSlugByPostType[type.backendValue]}`;
+}
+
 const redactionChecklist = [
   "I removed secrets, tokens, API keys, and passwords.",
   "I removed private Elysia memory, private logs, and local vault content.",
@@ -327,20 +345,9 @@ const futureSupportTables = [
   "commune_blocklist_terms"
 ];
 
-const roomLinks = [
-  ["general-commune", "General Commune"],
-  ["troubleshooting-grove", "Troubleshooting Grove"],
-  ["code-sharing", "Code Sharing"],
-  ["repository-showcase", "Repository Showcase"],
-  ["living-library-help", "Living Library Help"],
-  ["marketplace-addons-help", "Marketplace/Add-ons Help"],
-  ["elysia-installation-help", "Elysia Installation Help"]
-] as const;
-
 const statusFilters = ["All", "Published", "Local drafts", "Pending review", "Repository showcases", "Sandbox requests", "Needs backend"];
 const safetyFilters = ["All", "No code execution", "Requires moderation", "Requires backend", "Requires sandbox", "Admin-only later"];
 const communeActions = [
-  { label: "Request to post", href: "/commune/new", kind: "post" },
   { label: "Troubleshooting", href: "/commune/troubleshooting", kind: "troubleshooting" },
   { label: "Repository showcase", href: "/commune/repository-showcase", kind: "repository" },
   { label: "Sandbox review request", href: "/commune/sandbox-review", kind: "sandbox" }
@@ -553,11 +560,11 @@ function CommuneLobby() {
   return <section className="section-card commune-lobby" id="commune-lobby">
     <div>
       <p className="eyebrow">Commune Lobby</p>
-      <h2>Browse rooms, search posts, draft something safe to share, or prepare a repository/sandbox review request.</h2>
-      <p>The Commune is where Elysia Ecobotics members can gather around public updates, troubleshooting, research notes, repository showcases, add-on ideas, and ecological/technical work. Everything here should be safe to make public. Redact first. Code executes nowhere by default.</p>
+      <h2>Welcome in. Choose a room, read public posts, or start a careful thread.</h2>
+      <p>The Commune is where Elysia Ecobotics members gather around public updates, troubleshooting, research notes, repository showcases, add-on ideas, ecological work, and community coordination. Everything here should be safe to make public. Redact first. Code executes nowhere by default.</p>
     </div>
     <CommuneActionNav activeKind="" />
-    <div className="commune-action-row"><a className="button-link" href="#commune-rooms">Browse rooms</a><a className="button-link" href="#commune-code-review">Code review desk</a><a className="button-link" href="#commune-local-drafts">View local drafts</a></div>
+    <div className="commune-action-row"><a className="button-link" href="#commune-rooms">Choose a room</a><a className="button-link" href="#commune-feed">Browse posts</a><a className="button-link" href="#commune-local-drafts">View local drafts</a></div>
   </section>;
 }
 
@@ -567,7 +574,7 @@ function CommuneSearchPanel({ filters, setFilters }: { filters: CommuneFilters; 
       <div>
         <p className="eyebrow">Search and filters</p>
         <h2>Find the right room before the page gets long.</h2>
-        <p>Filters apply to room/type cards, the community feed, and local drafts. They do not fake published posts.</p>
+        <p>Filters apply to the community feed and local drafts. The room list stays complete so every doorway remains visible.</p>
       </div>
       <button type="button" onClick={() => setFilters({ search: "", category: "All", status: "All", safety: "All" })}>Clear filters</button>
     </div>
@@ -613,9 +620,17 @@ function ZoneCatalog({ filters }: { filters: CommuneFilters }) {
   </section>;
 }
 
-function RoomCards({ rooms }: { rooms: CommuneRoom[] }) {
-  const source = rooms.length ? rooms : roomLinks.map(([slugValue, name]) => ({ id: slugValue, slug: slugValue, name, description: "Account-backed room is being prepared. Local draft tools remain available.", room_type: slugValue, requires_moderation: true }));
-  return <section className="section-card" id="commune-rooms"><p className="eyebrow">Rooms</p><h2>Moderated community spaces</h2><div className="commune-zone-grid">{source.map((room) => <article className="commune-zone-card commune-room-card" key={room.slug}><span className="commune-card-sigil" aria-hidden="true">{room.name.slice(0, 1)}</span><h3>{room.name}</h3><p>{room.description || "Moderated Commune room."}</p><StatusBadges labels={[room.room_type, room.requires_moderation ? "requires moderation" : "open"]} /><Link className="button-link" to={`/commune/rooms/${room.slug}`}>Open room</Link></article>)}</div></section>;
+function RoomCards() {
+  return <section className="section-card" id="commune-rooms"><p className="eyebrow">Rooms</p><h2>Choose a moderated community room</h2><div className="commune-zone-grid">{postTypes.map((type) => <article className="commune-zone-card commune-room-card" key={type.id}><span className="commune-card-sigil" aria-hidden="true">{type.name.slice(0, 1)}</span><h3>{type.name}</h3><p>{type.purpose}</p><p><strong>Allowed:</strong> {type.allowedContent}</p><p><strong>Caution:</strong> {type.cautions}</p><StatusBadges labels={type.currentStatus} /><Link className="button-link" to={roomPathForType(type)}>Enter room</Link></article>)}</div></section>;
+}
+
+function RoomPickerPanel() {
+  return <section className="section-card" id="commune-room-picker">
+    <p className="eyebrow">Start a thread</p>
+    <h2>Choose a room before posting</h2>
+    <p className="boundary-note">Posts are created from inside their room so the format, safety notes, and context match what you are sharing.</p>
+    <div className="commune-zone-grid">{postTypes.map((type) => <article className="commune-zone-card commune-room-card" key={type.id}><span className="commune-card-sigil" aria-hidden="true">{type.name.slice(0, 1)}</span><h3>{type.name}</h3><p>{type.purpose}</p><StatusBadges labels={type.currentStatus} /><Link className="button-link" to={roomPathForType(type)}>Enter room</Link></article>)}</div>
+  </section>;
 }
 
 function PostCard({ post, saved, onSave }: { post: CommunePost; saved: boolean; onSave: (id: string) => void }) {
@@ -633,8 +648,47 @@ function CommunityFeed({ posts, savedPostIds, onSave, filters }: { posts: Commun
     <p className="eyebrow">Community Feed</p>
     <h2>{filteredPosts.length ? `${filteredPosts.length} published item${filteredPosts.length === 1 ? "" : "s"}` : "No published Commune posts yet"}</h2>
     <p className="boundary-note">Only posts approved/published by moderation are public here. Drafts and pending requests remain private to their owner and reviewers.</p>
-    {filteredPosts.length ? <div className="commune-feed-grid">{filteredPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} />)}</div> : <div className="commune-feed-grid">{emptyCards.map((type) => <article className="commune-feed-card" key={type.id}><div className="commune-author-sigil" aria-hidden="true">{type.name.slice(0, 1)}</div><p className="eyebrow">{type.name}</p><h3>No {type.name} posts yet.</h3><p>{type.purpose}</p><a className="button-link" href={type.backendValue === "repository_showcase" ? "#commune-repository-showcase" : "#commune-post-composer"}>{type.backendValue === "repository_showcase" ? "Prepare request" : "Draft one"}</a></article>)}</div>}
+    {filteredPosts.length ? <div className="commune-feed-grid">{filteredPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} />)}</div> : <div className="commune-feed-grid">{emptyCards.map((type) => <article className="commune-feed-card" key={type.id}><div className="commune-author-sigil" aria-hidden="true">{type.name.slice(0, 1)}</div><p className="eyebrow">{type.name}</p><h3>No {type.name} posts yet.</h3><p>{type.purpose}</p><Link className="button-link" to={roomPathForType(type)}>Enter room</Link></article>)}</div>}
   </section>;
+}
+
+function RoomPage({ roomSlug, posts, savedPostIds, onSave, localDrafts, categories, onRefresh }: { roomSlug: string; posts: CommunePost[]; savedPostIds: string[]; onSave: (id: string) => void; localDrafts: ReturnType<typeof useLocalDraftState>; categories: CommuneCategory[]; onRefresh: () => Promise<void> }) {
+  const type = postTypeByRoomSlug.get(roomSlug);
+  const roomPosts = type ? posts.filter((post) => post.post_type === type.backendValue) : [];
+  if (!type) {
+    return <section className="section-card"><p className="eyebrow">Room</p><h2>Room not found</h2><p>This Commune room is not available yet. Choose another room from the lobby.</p><Link className="button-link" to="/commune">Back to Commune</Link></section>;
+  }
+  const canDraft = type.backendValue !== "official_update";
+  const roomPostComposer = canDraft && !["repository_showcase"].includes(type.backendValue);
+  return <>
+    <CommuneFocusedToolbar />
+    <section className="section-card commune-lobby">
+      <div>
+        <p className="eyebrow">Commune Room</p>
+        <h2>{type.name}</h2>
+        <p>{type.purpose}</p>
+      </div>
+      <p><strong>Allowed:</strong> {type.allowedContent}</p>
+      <p><strong>Caution:</strong> {type.cautions}</p>
+      <StatusBadges labels={type.currentStatus} />
+      <div className="commune-action-row">
+        {roomPostComposer && <a className="button-link button-link--primary" href="#commune-room-composer">{type.backendValue === "troubleshooting" ? "Create Troubleshooting Post" : `Create ${type.name} Post`}</a>}
+        {type.backendValue === "repository_showcase" && <Link className="button-link button-link--primary" to="/commune/repository-showcase">Create Repository Showcase</Link>}
+        {type.backendValue === "code_sharing" && <><a className="button-link button-link--primary" href="#commune-room-composer">Draft Code Sharing Post</a><Link className="button-link" to="/commune/code-sharing/review">Open Code Review Workbench</Link><Link className="button-link" to="/commune/sandbox-review">Prepare Sandbox Review Request</Link></>}
+        {type.backendValue === "official_update" && <a className="button-link button-link--primary" href="#commune-room-feed">Read official updates</a>}
+      </div>
+    </section>
+    <section className="section-card commune-feed" id="commune-room-feed">
+      <p className="eyebrow">{type.name} Posts</p>
+      <h2>{roomPosts.length ? `${roomPosts.length} published item${roomPosts.length === 1 ? "" : "s"}` : `No published ${type.name} posts yet`}</h2>
+      <p className="boundary-note">This room follows the Commune model: room posts become threads, and replies appear after moderation.</p>
+      {roomPosts.length ? <div className="commune-feed-grid">{roomPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} />)}</div> : <p className="commune-empty-state">Published posts will appear here after moderation. Start with a careful draft when you are ready.</p>}
+    </section>
+    {type.backendValue === "repository_showcase" && <section className="section-card commune-repo-card"><p className="eyebrow">Repository Showcase</p><h2>Metadata only, never execution</h2><p>A public repo is not automatically safe, compatible, licensed, or free of secrets. The website does not fetch, clone, build, run, or validate repositories from this room.</p><Link className="button-link button-link--primary" to="/commune/repository-showcase">Open repository showcase form</Link></section>}
+    {type.backendValue === "code_sharing" && <section className="section-card commune-sandbox-card"><p className="eyebrow">Code Sharing Tools</p><h2>Review code as text, then request sandbox review only when needed.</h2><p>Code snippets and documents are for discussion. The website does not execute code, open a terminal, install packages, clone repositories, or call Local Elysia.</p><div className="button-row"><Link className="button-link" to="/commune/code-sharing/review">Open Code Review Workbench</Link><Link className="button-link" to="/commune/sandbox-review">Prepare Sandbox Review Request</Link></div></section>}
+    {type.backendValue === "official_update" && <section className="section-card"><p className="eyebrow">Official Updates</p><h2>Read-only for community members</h2><p>Official release, security, roadmap, and governance notices are restricted to authorized Elysia Ecobotics administrators. Community users cannot self-assign official publishing authority.</p></section>}
+    {roomPostComposer && <div id="commune-room-composer"><PostComposer defaultType={type.backendValue} defaultRoomId={undefined} troubleshooting={type.backendValue === "troubleshooting"} localDrafts={localDrafts} categories={categories} onRefresh={onRefresh} /></div>}
+  </>;
 }
 
 function useCommuneLoad(roomSlug?: string, postId?: string) {
@@ -671,7 +725,7 @@ function AccountModePanel({ signedIn, isModerator, accountReady, activeKind }: {
     <p className="eyebrow">Account-backed mode</p>
     <h2>{signedIn ? "Signed in community actions available" : "Public read mode"}</h2>
     <p>{signedIn ? "You can submit posts/comments for moderation, save posts, follow threads, upload safe attachments privately for review, and report content when account-backed tables are active." : "Signed-out users can see published public posts and use local draft/export tools. Sign in to submit posts, comments, saves, follows, reports, or uploads."}</p>
-    {!accountReady && <p className="boundary-note">Account-backed Commune features are being prepared. Local draft and export tools remain available.</p>}
+    {!accountReady && <p className="boundary-note">Some signed-in community actions may be unavailable in this session. Local draft and export tools remain available.</p>}
     <CommuneActionNav activeKind={activeKind} includeModeration={isModerator} />
   </section>;
 }
@@ -752,7 +806,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
   }
 
   return <section className="section-card commune-composer-card commune-draft-desk" id="commune-post-composer">
-    <p className="eyebrow">Request to post</p>
+    <p className="eyebrow">Room post request</p>
     <h2>{troubleshooting ? "Troubleshooting post" : "Create a moderated Commune post"}</h2>
     <p className="boundary-note">Uploads are part of Elysia Ecobotics Online, not private local Elysia. Do not upload private local Elysia memory, logs, vault data, credentials, .env files, API keys, identity documents, or unredacted sensitive information.</p>
     <div className="commune-form-grid">
@@ -995,6 +1049,23 @@ function LocalDraftStudio({ localDrafts, filters }: { localDrafts: ReturnType<ty
   </section>;
 }
 
+function CommuneSideChannelPanel() {
+  return <section className="section-card commune-info-grid">
+    <article>
+      <p className="eyebrow">Live chat side channel</p>
+      <h2>Most community discussion belongs in room posts and replies.</h2>
+      <p>Governed realtime chat remains available as a side channel for signed-in public/community conversation. It has no private DMs, no file uploads, and no code execution.</p>
+      <Link className="button-link" to="/commune/realtime">Open live room chat</Link>
+    </article>
+    <article>
+      <p className="eyebrow">Code and sandbox paths</p>
+      <h2>Code review and sandbox handoff stay focused.</h2>
+      <p>Use Code Sharing for inert review documents and sandbox request metadata. The website does not run code, install dependencies, clone repositories, or call Local Elysia.</p>
+      <div className="button-row"><Link className="button-link" to="/commune/code-sharing/review">Code review workbench</Link><Link className="button-link" to="/commune/sandbox-review">Sandbox request</Link></div>
+    </article>
+  </section>;
+}
+
 function FoundationStatusPanel() {
   return <>
     <section className="section-card commune-info-grid">
@@ -1189,7 +1260,7 @@ function CollaborativeCodeReviewPanel() {
         <div className="button-row"><button className="button-primary" type="button" disabled={!account.signedIn} onClick={() => void saveDocument()}>{selected ? "Save document" : "Create document"}</button><button type="button" disabled={!selected} onClick={() => void submitReview()}>Submit for review</button><button type="button" disabled={!selected} onClick={() => void snapshot()}>Create version snapshot</button><button type="button" disabled={!selected} onClick={() => void lock("acquire")}>Acquire edit lock</button><button type="button" disabled={!selected} onClick={() => void lock("release")}>Release edit lock</button></div>
         <label><span>Snapshot summary</span><input value={snapshotSummary} onChange={(event) => setSnapshotSummary(event.target.value)} /></label>
         {account.isModerator && <div className="commune-moderator-controls"><label><span>Moderation reason</span><input value={moderationReason} onChange={(event) => setModerationReason(event.target.value)} /></label><button type="button" disabled={!selected} onClick={() => void publishOrModerate("publish")}>Publish</button><button type="button" disabled={!selected} onClick={() => void publishOrModerate("archive")}>Archive</button><button type="button" disabled={!selected} onClick={() => void publishOrModerate("hide")}>Hide</button><button type="button" disabled={!selected} onClick={() => void publishOrModerate("remove")}>Remove</button></div>}
-        <section className="commune-code-preview"><div className="addon-card__topline"><strong>{form.language}</strong><span>{form.fileName || "untitled"}</span></div><pre><code>{lines.map((line, index) => `${String(index + 1).padStart(4, " ")}  ${line}`).join("\n")}</code></pre><div className="button-row"><button type="button" onClick={() => void copyText(form.text, setMessage)}>Copy code text</button><button type="button" onClick={() => downloadText(`${slug(form.title || "code-review")}.txt`, form.text, "text/plain")}>Export text</button><Link className="button-link" to="/commune/new">Create Commune code post from this document</Link><Link className="button-link" to="/commune/sandbox-review" onClick={prepareSandboxFromSelected}>Prepare sandbox review request</Link></div><p className="boundary-note">The links above create metadata/posting paths only. They do not execute code or grant sandbox permission.</p></section>
+        <section className="commune-code-preview"><div className="addon-card__topline"><strong>{form.language}</strong><span>{form.fileName || "untitled"}</span></div><pre><code>{lines.map((line, index) => `${String(index + 1).padStart(4, " ")}  ${line}`).join("\n")}</code></pre><div className="button-row"><button type="button" onClick={() => void copyText(form.text, setMessage)}>Copy code text</button><button type="button" onClick={() => downloadText(`${slug(form.title || "code-review")}.txt`, form.text, "text/plain")}>Export text</button><Link className="button-link" to="/commune/rooms/code-sharing">Create Commune code post from this document</Link><Link className="button-link" to="/commune/sandbox-review" onClick={prepareSandboxFromSelected}>Prepare sandbox review request</Link></div><p className="boundary-note">The links above create metadata/posting paths only. They do not execute code or grant sandbox permission.</p></section>
         <section className="commune-info-grid"><article><h3>Manual snapshots</h3>{!versions.length && <p>No snapshots yet.</p>}{versions.map((version) => <details key={version.id}><summary>v{version.version_number}: {version.change_summary ?? "Snapshot"}</summary><p>{new Date(version.created_at).toLocaleString()}</p><pre className="admin-json-preview">{version.snapshot_text}</pre><button type="button" onClick={() => void copyText(version.snapshot_text, setMessage)}>Copy snapshot</button></details>)}</article><article><h3>Line annotations</h3><div className="commune-form-grid"><label><span>Line start</span><input type="number" min="1" value={annotation.lineStart} onChange={(event) => setAnnotation({ ...annotation, lineStart: Number(event.target.value) })} /></label><label><span>Line end</span><input type="number" min="1" value={annotation.lineEnd} onChange={(event) => setAnnotation({ ...annotation, lineEnd: Number(event.target.value) })} /></label><label className="wide-field"><span>Comment</span><input value={annotation.comment} onChange={(event) => setAnnotation({ ...annotation, comment: event.target.value })} /></label></div><button type="button" disabled={!selected || !account.signedIn} onClick={() => void addAnnotation()}>Add annotation</button>{annotations.map((item) => <article className="review-list-item" key={item.id}><strong>Lines {item.line_start}-{item.line_end}</strong><StatusBadges labels={[item.annotation_status, item.visibility_state]} /><p>{item.comment}</p><div className="button-row"><button type="button" onClick={() => void annotationAction(item, "resolve")}>Resolve</button><button type="button" onClick={() => void annotationAction(item, "report")}>Report annotation</button>{account.isModerator && <><button type="button" onClick={() => void annotationAction(item, "hide")}>Hide</button><button type="button" onClick={() => void annotationAction(item, "remove")}>Remove</button></>}</div></article>)}</article></section>
         <section className="commune-report-panel"><h3>Report document</h3><p>Reports are private to moderators/admins. Reporting does not automatically remove content.</p><label><span>Reason</span><select value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value as typeof codeReviewReportReasons[number] })}>{codeReviewReportReasons.map((reason) => <option key={reason} value={reason}>{reason.replace(/_/g, " ")}</option>)}</select></label><label><span>Detail</span><input value={report.detail} onChange={(event) => setReport({ ...report, detail: event.target.value })} /></label><button type="button" disabled={!selected || !account.signedIn} onClick={() => void reportDocument()}>Report code document</button></section>
       </div>
@@ -1343,8 +1414,10 @@ export default function CommunePage() {
     await refresh();
   }
 
-  const routeMode = ["new", "repository-showcase", "troubleshooting", "sandbox-review", "moderation", "realtime"].includes(mode || "") ? mode : "";
-  const activeActionKind = mode === "new" ? "post" : mode === "troubleshooting" ? "troubleshooting" : mode === "repository-showcase" ? "repository" : mode === "sandbox-review" ? "sandbox" : mode === "moderation" ? "moderation" : "";
+  const routeMode = location.pathname.endsWith("/commune/code-sharing/review") ? "code-review" : ["new", "repository-showcase", "troubleshooting", "sandbox-review", "moderation", "realtime"].includes(mode || "") ? mode : "";
+  const activeActionKind = mode === "troubleshooting" ? "troubleshooting" : mode === "repository-showcase" ? "repository" : mode === "sandbox-review" ? "sandbox" : mode === "moderation" ? "moderation" : "";
+  const isLobby = !postId && !routeMode && !roomSlug;
+  const isRoom = !postId && !routeMode && Boolean(roomSlug);
 
   return <div className="page-stack commune-page">
     <PageHero eyebrow="Public community" title="The Elysia Commune">
@@ -1352,33 +1425,27 @@ export default function CommunePage() {
       <p><strong>Share publicly. Redact first. Execute nowhere by default.</strong></p>
     </PageHero>
     <Doctrine />
-    {!postId && !routeMode && <CommuneLobby />}
-    {!postId && !routeMode && <CommuneSearchPanel filters={filters} setFilters={setFilters} />}
-    <AccountModePanel signedIn={state.signedIn} isModerator={state.isModerator} accountReady={state.accountReady} activeKind={activeActionKind} />
-    {["new", "troubleshooting", "repository-showcase", "sandbox-review"].includes(routeMode) && <CommuneFocusedToolbar />}
+    {isLobby && <CommuneLobby />}
+    {isLobby && <CommuneSearchPanel filters={filters} setFilters={setFilters} />}
+    {!isLobby && <AccountModePanel signedIn={state.signedIn} isModerator={state.isModerator} accountReady={state.accountReady} activeKind={activeActionKind} />}
+    {["new", "troubleshooting", "repository-showcase", "sandbox-review", "code-review", "realtime", "moderation"].includes(routeMode) && <CommuneFocusedToolbar />}
 
-    {mode === "new" && <PostComposer defaultRoomId={selectedRoom?.id} localDrafts={localDrafts} categories={categories} onRefresh={refresh} />}
+    {mode === "new" && <RoomPickerPanel />}
     {mode === "repository-showcase" && <RepositoryShowcaseForm localDrafts={localDrafts} />}
     {mode === "troubleshooting" && <PostComposer defaultType="troubleshooting" defaultRoomId={state.rooms.find((room) => room.slug === "troubleshooting-grove")?.id} troubleshooting localDrafts={localDrafts} categories={categories} onRefresh={refresh} />}
     {mode === "sandbox-review" && <SandboxDraftPanel localDrafts={localDrafts} />}
     {mode === "moderation" && <ModerationPanel />}
     {mode === "realtime" && <RealtimeFoundationPanel />}
+    {routeMode === "code-review" && <CollaborativeCodeReviewPanel />}
     {postId && <PostDetail postId={postId} />}
+    {isRoom && roomSlug && <RoomPage roomSlug={roomSlug} posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} localDrafts={localDrafts} categories={categories} onRefresh={refresh} />}
 
-    {!postId && !routeMode && <>
+    {isLobby && <>
       <RedactionPanel />
-      <RoomCards rooms={state.rooms} />
-      <ZoneCatalog filters={filters} />
-      {roomSlug && <section className="section-card"><p className="eyebrow">Room</p><h2>{selectedRoom?.name ?? roomSlug}</h2><p>{selectedRoom?.description ?? "Account-backed room is being prepared. Local draft tools remain available."}</p></section>}
+      <RoomCards />
       <CommunityFeed posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} filters={filters} />
-      <PostComposer defaultRoomId={selectedRoom?.id} localDrafts={localDrafts} categories={categories} onRefresh={refresh} />
-      <RepositoryShowcaseForm localDrafts={localDrafts} />
-      <SandboxDraftPanel localDrafts={localDrafts} />
-      <CollaborativeCodeReviewPanel />
-      <RealtimeFoundationPanel />
-      <CodeExecutionBoundaryPanel />
+      <CommuneSideChannelPanel />
       <LocalDraftStudio localDrafts={localDrafts} filters={filters} />
-      <FoundationStatusPanel />
     </>}
   </div>;
 }
