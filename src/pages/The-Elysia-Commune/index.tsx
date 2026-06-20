@@ -658,7 +658,7 @@ function CommunityFeed({ posts, savedPostIds, onSave, filters }: { posts: Commun
   </section>;
 }
 
-function RoomPage({ roomSlug, posts, savedPostIds, onSave, localDrafts, categories, onRefresh }: { roomSlug: string; posts: CommunePost[]; savedPostIds: string[]; onSave: (id: string) => void; localDrafts: ReturnType<typeof useLocalDraftState>; categories: CommuneCategory[]; onRefresh: () => Promise<void> }) {
+function RoomPage({ roomSlug, roomId, posts, savedPostIds, onSave, localDrafts, categories, onRefresh }: { roomSlug: string; roomId?: string; posts: CommunePost[]; savedPostIds: string[]; onSave: (id: string) => void; localDrafts: ReturnType<typeof useLocalDraftState>; categories: CommuneCategory[]; onRefresh: () => Promise<void> }) {
   const type = postTypeByRoomSlug.get(roomSlug);
   const roomPosts = type ? posts.filter((post) => post.post_type === type.backendValue) : [];
   if (!type) {
@@ -693,7 +693,7 @@ function RoomPage({ roomSlug, posts, savedPostIds, onSave, localDrafts, categori
     {type.backendValue === "repository_showcase" && <section className="section-card commune-repo-card"><p className="eyebrow">Repository Showcase</p><h2>Metadata only, never execution</h2><p>A public repo is not automatically safe, compatible, licensed, or free of secrets. The website does not fetch, clone, build, run, or validate repositories from this room.</p><Link className="button-link button-link--primary" to="/commune/repository-showcase">Open repository showcase form</Link></section>}
     {type.backendValue === "code_sharing" && <section className="section-card commune-sandbox-card"><p className="eyebrow">Code Sharing Tools</p><h2>Review code as text, then request sandbox review only when needed.</h2><p>Code snippets and documents are for discussion. The website does not execute code, open a terminal, install packages, clone repositories, or call Local Elysia.</p><div className="button-row"><Link className="button-link" to="/commune/code-sharing/review">Open Code Review Workbench</Link><Link className="button-link" to="/commune/sandbox-review">Prepare Sandbox Review Request</Link></div></section>}
     {type.backendValue === "official_update" && <section className="section-card"><p className="eyebrow">Official Updates</p><h2>Read-only for community members</h2><p>Official release, security, roadmap, and governance notices are restricted to authorized Elysia Ecobotics administrators. Community users cannot self-assign official publishing authority.</p></section>}
-    {roomPostComposer && <div id="commune-room-composer"><PostComposer defaultType={type.backendValue} defaultRoomId={undefined} troubleshooting={type.backendValue === "troubleshooting"} localDrafts={localDrafts} categories={categories} onRefresh={onRefresh} /></div>}
+    {roomPostComposer && <div id="commune-room-composer"><PostComposer defaultType={type.backendValue} defaultRoomId={roomId} troubleshooting={type.backendValue === "troubleshooting"} localDrafts={localDrafts} categories={categories} onRefresh={onRefresh} /></div>}
   </>;
 }
 
@@ -1451,7 +1451,7 @@ export default function CommunePage() {
     {mode === "realtime" && <RealtimeFoundationPanel />}
     {routeMode === "code-review" && <CollaborativeCodeReviewPanel />}
     {postId && <PostDetail postId={postId} />}
-    {isRoom && roomSlug && <RoomPage roomSlug={roomSlug} posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} localDrafts={localDrafts} categories={categories} onRefresh={refresh} />}
+    {isRoom && roomSlug && <RoomPage roomSlug={roomSlug} roomId={selectedRoom?.id} posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} localDrafts={localDrafts} categories={categories} onRefresh={refresh} />}
 
     {isLobby && <>
       <RedactionPanel />

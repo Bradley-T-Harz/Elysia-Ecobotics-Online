@@ -143,11 +143,17 @@ function useRoleGate(domain?: ReviewDomain) {
 function ReviewActions({ item, onChanged }: { item: ReviewItem; onChanged: (message: string) => void }) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
+  const [confirmReject, setConfirmReject] = useState(false);
 
   async function runStatus(status: ReviewStatus) {
+    if (status === "rejected" && !confirmReject) {
+      setConfirmReject(true);
+      return;
+    }
     setBusy(true);
     const result = await updateReviewStatus(item, status, note);
     setBusy(false);
+    setConfirmReject(false);
     onChanged(result.ok ? `Marked ${item.title ?? item.id} as ${status}.` : result.warning ?? "Review action failed.");
   }
 
@@ -161,6 +167,11 @@ function ReviewActions({ item, onChanged }: { item: ReviewItem; onChanged: (mess
   return <div className="review-actions">
     <label><span>Internal note</span><input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Reason or reviewer note" /></label>
     <div className="button-row"><button type="button" onClick={assign} disabled={busy}>Assign to me</button>{statusOptions.map((status) => <button key={status} type="button" onClick={() => void runStatus(status)} disabled={busy}>{status.replace(/_/g, " ")}</button>)}</div>
+    {confirmReject && <div className="warning-callout">
+      <strong>Reject and remove this submitted item?</strong>
+      <p>{item.source_table === "commune_posts" ? "Rejecting this post removes it from the Commune review/public workflow. The current website role policies support a non-public moderator removal rather than a hard delete." : "Rejecting a submitted review item is a destructive workflow decision. Continue only if this item should leave the active review path."}</p>
+      <div className="button-row"><button type="button" className="button-primary" onClick={() => void runStatus("rejected")} disabled={busy}>Yes, reject/remove</button><button type="button" onClick={() => setConfirmReject(false)} disabled={busy}>No, keep it</button></div>
+    </div>}
   </div>;
 }
 

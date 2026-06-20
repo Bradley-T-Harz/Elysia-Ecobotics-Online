@@ -62,6 +62,9 @@ assert(page.includes("postTypeByRoomSlug"), "Commune room slug to post type mapp
 assert(page.includes("Posting in: {selectedPostTypeLabel}"), "Room composer should show a simple read-only room context line.");
 assert(page.includes("postType: defaultType"), "Room composer should preserve the locked room post type internally.");
 assert(page.includes("current.postType === defaultType"), "Room composer should relock post type when navigating between rooms.");
+assert(page.includes("roomId={selectedRoom?.id}"), "Room composer should receive the selected backend room id.");
+assert(page.includes("defaultRoomId={roomId}"), "Room page should pass the backend room id into the post composer.");
+assert(!page.includes("defaultRoomId={undefined}"), "Room post composer should not drop the backend room id.");
 assert(!page.includes("<label><span>Post type</span><select"), "Room composer should not show the generic Post type dropdown.");
 assert(!page.includes("<label><span>Category</span><select"), "Room composer should not show the generic Category dropdown.");
 assert(safety.includes("parseCommuneTags"), "Commune tag parser missing.");

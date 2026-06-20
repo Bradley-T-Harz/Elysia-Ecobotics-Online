@@ -138,11 +138,55 @@ function sourceStatusTable(sourceTable: string) {
   return null;
 }
 
+async function syncCommuneReviewSubject(item: ReviewItem, nextStatus: ReviewStatus, note: string, actorId: string): Promise<{ ok: boolean; warning?: string }> {
+  if (!supabase || item.domain !== "commune") return { ok: true };
+  const now = new Date().toISOString();
+  if (item.source_table === "commune_posts") {
+    const update: Record<string, unknown> = {
+      updated_at: now,
+      last_activity_at: now,
+      moderation_status: nextStatus,
+      moderation_reason: note || null
+    };
+    if (nextStatus === "approved") {
+      Object.assign(update, { status: "published", visibility: "public", published_at: now, hidden_at: null, hidden_by: null, moderation_reason: null });
+    } else if (nextStatus === "in_review") {
+      Object.assign(update, { status: "in_review", visibility: "private_draft" });
+    } else if (nextStatus === "needs_information") {
+      Object.assign(update, { status: "needs_information", visibility: "private_draft" });
+    } else if (nextStatus === "archived") {
+      Object.assign(update, { status: "archived", visibility: "private_draft" });
+    } else if (nextStatus === "rejected") {
+      Object.assign(update, { status: "removed_by_moderator", visibility: "private_draft", hidden_at: now, hidden_by: actorId });
+    } else {
+      return { ok: true };
+    }
+    const { error } = await supabase.from("commune_posts").update(update).eq("id", item.source_id);
+    if (error) return { ok: false, warning: `Commune post was not updated: ${friendlyReviewWarning(error.message)}` };
+    return { ok: true };
+  }
+  if (item.source_table === "commune_comments") {
+    const update: Record<string, unknown> = {
+      updated_at: now,
+      moderation_reason: note || null
+    };
+    if (nextStatus === "approved") Object.assign(update, { status: "published", published_at: now, hidden_at: null, hidden_by: null });
+    else if (nextStatus === "archived") Object.assign(update, { status: "archived" });
+    else if (nextStatus === "rejected") Object.assign(update, { status: "removed_by_moderator", hidden_at: now, hidden_by: actorId });
+    else Object.assign(update, { status: "pending_review" });
+    const { error } = await supabase.from("commune_comments").update(update).eq("id", item.source_id);
+    if (error) return { ok: false, warning: `Commune comment was not updated: ${friendlyReviewWarning(error.message)}` };
+  }
+  return { ok: true };
+}
+
 export async function updateReviewStatus(item: ReviewItem, nextStatus: ReviewStatus, note: string): Promise<{ ok: boolean; warning?: string }> {
   if (!hasSupabaseConfig || !supabase) return { ok: false, warning: supabaseNotConfiguredMessage };
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return { ok: false, warning: "Sign in with a reviewer account first." };
   const reviewed = ["approved", "rejected", "archived"].includes(nextStatus);
+  const subjectSync = await syncCommuneReviewSubject(item, nextStatus, note, auth.user.id);
+  if (!subjectSync.ok) return subjectSync;
   const { error: itemError } = await supabase.from("review_items").update({
     status: nextStatus,
     updated_at: new Date().toISOString(),
