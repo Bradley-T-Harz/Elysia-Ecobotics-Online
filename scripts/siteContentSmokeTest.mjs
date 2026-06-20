@@ -15,6 +15,7 @@ const nav = await read("src/shared/components/SiteNav.tsx");
 const footer = await read("src/shared/components/SiteFooter.tsx");
 const app = await read("src/App.tsx");
 const commons = await read("src/pages/The-Commons-Circle/index.tsx");
+const commonsAdminConsole = await read("src/pages/The-Commons-Circle/CommonsCircleAdminConsolePage.tsx");
 const publicProfile = await read("src/pages/Public-Commons-Profile/index.tsx");
 const commune = await read("src/pages/The-Elysia-Commune/index.tsx");
 const forgeValidator = await read("src/pages/The-Developer-Forge/developerForgeValidator.ts");
@@ -38,6 +39,7 @@ for (const label of expectedNav) {
 assert(footer.includes("Elysia Ecobotics™ is an EcoSyneva Commons LLC initiative."), "Footer initiative trademark text missing.");
 assert(footer.includes("Elysia Ecobotics™ is a trademark of EcoSyneva Commons LLC."), "Footer trademark owner text missing.");
 assert(app.includes("lazy(() => import"), "App routes are not lazy-loaded.");
+assert(app.includes('path="commons-circle/admin-console"'), "Commons Circle admin console route missing.");
 assert(app.includes('path="admin/reports"'), "Admin reports route missing.");
 assert(app.includes('path="admin/addon-submissions"'), "Admin add-on submissions route missing.");
 assert(app.includes('path="admin/developers"'), "Admin developers route missing.");
@@ -46,6 +48,11 @@ assert(app.includes('path="admin/work-submissions"'), "Admin work submissions ro
 assert(!commons.includes("plannedBadges.map"), "Commons Circle appears to render planned/locked badge catalog.");
 assert(!publicProfile.includes("plannedBadges.map"), "Public profile appears to render planned/locked badge catalog.");
 assert(commons.includes("Recognition, not authority") || commons.includes("Badges are recognition"), "Commons Circle badge/role authority separation copy missing.");
+assert(commons.includes("CommonsCircleAdminEntryCard"), "Commons Circle should show a compact admin-console entry card instead of the full panel.");
+assert(!commons.includes("<h2>Moderation and governance tools</h2>"), "Commons Circle main page should not render the full Admin Console panel inline.");
+assert(commonsAdminConsole.includes("Moderation and governance tools"), "Commons Circle Admin Console page must preserve the full console panel.");
+assert(commonsAdminConsole.includes("Admin dashboard") && commonsAdminConsole.includes("User role management") && commonsAdminConsole.includes("Audit logs"), "Commons Circle Admin Console links missing.");
+assert(commonsAdminConsole.includes("Role required") && commonsAdminConsole.includes("Sign in required"), "Commons Circle Admin Console role/sign-in gate copy missing.");
 assert(commune.includes("Code executes nowhere by default") || commune.includes("execute nowhere"), "Commune code-execution safety copy missing.");
 for (const blocked of ["vault_access", "credential_access", "private_memory_access", "silent_shell_execution", "read_all_files", "write_arbitrary_files"]) {
   assert(forgeValidator.includes(blocked), `Developer Forge blocked permission missing: ${blocked}`);

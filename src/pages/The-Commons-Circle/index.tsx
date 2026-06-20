@@ -5,6 +5,7 @@ import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
 import { loadCurrentRoleState } from "../../shared/review/reviewClient";
 import type { AppRole } from "../../shared/review/reviewClient";
+import { CommonsCircleAdminEntryCard, userCanOpenCommonsAdminConsole } from "./CommonsCircleAdminConsolePage";
 import {
   commonsStorageKeys,
   defaultCustomization,
@@ -39,19 +40,6 @@ const membershipTiers = [
 const themeModes = ["deep_grove", "starlit_archive", "solar_meadow", "moonlit_reef", "aether_blue", "high_contrast"];
 const backgroundStyleOptions = ["soft_cyber_garden", "starfield_mantle", "living_archive", "clear_lantern"];
 const decalOptions = ["none", "leaf_glyph", "water_ripple", "star_map", "mushroom_badge", "circuit_vine", "pollinator", "wetland_reed", "moon_crest", "robotic_seed"];
-const adminConsoleLinks = [
-  ["/admin", "Admin dashboard", "Governance overview and safe queue counts."],
-  ["/admin/moderation", "Moderation dashboard", "Reported and flagged public content."],
-  ["/admin/reports", "Reported content queue", "Private reports and review outcomes."],
-  ["/admin/addon-submissions", "Add-on review queue", "Developer Forge submissions and package metadata."],
-  ["/admin/developers", "Developer verification", "Developer profile requests and trust status."],
-  ["/admin/library-sources", "Living Library source review", "Source submissions, provenance, and privacy notes."],
-  ["/admin/work-submissions", "Work With / role review", "Private work, volunteer, and role-interest submissions."],
-  ["/admin/roles", "User role management", "Manual authority assignment and revocation."],
-  ["/admin/audit", "Audit logs", "Internal review and moderation events."]
-] as const;
-const adminAuthorityRoles: AppRole[] = ["administrator", "moderator", "reviewer", "marketplace_reviewer", "source_reviewer", "commune_moderator", "guardian_reviewer"];
-
 function BadgeRow({ labels }: { labels: string[] }) {
   return <div className="commons-badge-row">{labels.filter(Boolean).map((label) => <span key={label}>{label}</span>)}</div>;
 }
@@ -184,7 +172,7 @@ export default function CommonsCirclePage() {
     const hasFreeMember = earned.some((badge) => badge.badge_key === "free_member");
     return profile && profileSetupComplete && !hasFreeMember ? [freeMemberFallbackBadge(profile.commons_onboarding_completed_at ?? onboardingDone.completedAt), ...earned] : earned;
   }, [homebase?.userBadges, onboardingDone.completedAt, profile, profileSetupComplete]);
-  const adminEntryAllowed = Boolean(homebase?.signedIn && (profile?.is_admin || roleState.isAdmin || roleState.roles.some((role) => adminAuthorityRoles.includes(role))));
+  const adminEntryAllowed = userCanOpenCommonsAdminConsole(homebase, roleState);
 
   async function saveVisibility() {
     if (!homebase?.signedIn) {
@@ -321,25 +309,11 @@ export default function CommonsCirclePage() {
           <a className="button-link" href="/commons-circle/setup/profile">Edit profile setup</a>
           <a className="button-link" href="#customization-studio">Customize circle</a>
           <a className="button-link" href="#privacy-lanterns">Privacy settings</a>
-          {adminEntryAllowed && <a className="button-link" href="#admin-console">Admin Console</a>}
+          {adminEntryAllowed && <a className="button-link" href="/commons-circle/admin-console">Admin Console</a>}
         </div>
       </section>
 
-      {adminEntryAllowed && <section className="section-card commons-admin-console" id="admin-console">
-        <p className="eyebrow">Private Admin Console</p>
-        <h2>Moderation and governance tools</h2>
-        <p>This card is shown only for signed-in accounts with administrator, reviewer, moderator, or domain-review authority. Queue details remain protected by Supabase RLS and each admin route checks access directly.</p>
-        <dl className="mini-facts">
-          <MiniFact label="Admin profile flag" value={profile?.is_admin ? "Yes" : "No"} />
-          <MiniFact label="Role gate" value={roleState.isAdmin ? "Administrator" : roleState.roles.length ? roleState.roles.map((role) => role.replace(/_/g, " ")).join(", ") : "Profile admin flag"} />
-          <MiniFact label="Private queues" value="RLS-gated" />
-          <MiniFact label="Authority source" value="Admin-assigned roles only" />
-        </dl>
-        <div className="commons-admin-grid">
-          {adminConsoleLinks.map(([href, label, description]) => <a className="commons-admin-link" href={href} key={href}><strong>{label}</strong><span>{description}</span></a>)}
-        </div>
-        <p className="boundary-note">Badges, membership tiers, donations, developer visibility, contribution interest, and public profile customization do not grant administrator, moderator, reviewer, guardian, or paid-role authority.</p>
-      </section>}
+      {adminEntryAllowed && <CommonsCircleAdminEntryCard />}
 
       {shouldPromptSync && <section className="section-card commons-sync-card">
         <p className="eyebrow">Explicit sync available</p>

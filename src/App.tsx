@@ -22,6 +22,7 @@ const LivingLibraryPage = lazy(() => import("./pages/The-Living-Library"));
 const CommunePage = lazy(() => import("./pages/The-Elysia-Commune"));
 const WorkWithPage = lazy(() => import("./pages/Work-With-Elysia-Ecobotics"));
 const CommonsCirclePage = lazy(() => import("./pages/The-Commons-Circle"));
+const CommonsCircleAdminConsolePage = lazy(() => import("./pages/The-Commons-Circle/CommonsCircleAdminConsolePage"));
 const CommonsCircleSetupPage = lazy(() => import("./pages/The-Commons-Circle/CommonsCircleSetupPage"));
 const SavedShelvesPage = lazy(() => import("./pages/The-Commons-Circle/SavedShelvesPage"));
 const PublicCommonsProfilePage = lazy(() => import("./pages/Public-Commons-Profile"));
@@ -109,6 +110,7 @@ export default function App() {
             <Route path="commune/moderation" element={<CommunePage />} />
             <Route path="work-with-elysia-ecobotics" element={<WorkWithPage />} />
             <Route path="commons-circle" element={<CommonsCirclePage />} />
+            <Route path="commons-circle/admin-console" element={<CommonsCircleAdminConsolePage />} />
             <Route path="commons-circle/saved-shelves" element={<SavedShelvesPage />} />
             <Route path="commons-circle/onboarding" element={<Navigate to="/commons-circle/setup/profile" replace />} />
             <Route path="commons-circle/setup/:step" element={<CommonsCircleSetupPage />} />
