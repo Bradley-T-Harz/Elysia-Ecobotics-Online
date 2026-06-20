@@ -1,6 +1,6 @@
 import { createReviewItem, loadCurrentRoleState, type AppRole } from "../../shared/review/reviewClient";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
-import { communeFallbackCategories, communeReportReasons, scanCommuneTextForSecrets, validateCommuneMediaFile } from "./communeSafety";
+import { communeFallbackCategories, communeReportReasons, parseCommuneTags, scanCommuneTextForSecrets, validateCommuneMediaFile } from "./communeSafety";
 
 export type CommunePostType = "media_garden" | "troubleshooting" | "code_sharing" | "repository_showcase" | "community_network" | "job_post" | "official_update" | "research_note" | "elysia_iteration_showcase";
 export type CommunePostStatus = "draft" | "pending_review" | "in_review" | "needs_information" | "approved" | "published" | "rejected" | "hidden" | "archived" | "deleted_by_user" | "removed_by_moderator";
@@ -121,7 +121,7 @@ export async function submitCommunePost(input: { postType: CommunePostType; room
     if (!media.ok) return { ok: false, message: media.message };
   }
   if (input.postType === "official_update" && !account.isModerator) return { ok: false, message: "Official Updates are restricted to authorized administrators/moderators." };
-  const tags = splitList(input.tags);
+  const tags = parseCommuneTags(input.tags);
   const links = splitList(input.links);
   const postId = crypto.randomUUID();
   const { error: postError } = await supabase.from(canonicalCommuneTables.posts).insert({ id: postId, user_id: account.userId, author_username: account.username, post_type: input.postType, title: input.title.trim(), body: input.body.trim(), excerpt: excerpt(input.body), tags, links, repository_url: input.repositoryUrl?.trim() || null, status: "pending_review", moderation_status: "pending_review", safety_acknowledgements: { public_boundary: true, no_secrets: true, no_execution: true } });

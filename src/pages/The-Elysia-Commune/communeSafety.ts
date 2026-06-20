@@ -27,6 +27,9 @@ export const allowedCommuneImageExtensions = new Set(["png", "jpg", "jpeg", "web
 export const allowedCommuneTextExtensions = new Set(["txt", "md", "json", "csv"]);
 export const blockedCommuneUploadExtensions = new Set(["env", "pem", "key", "p12", "pfx", "crt", "cer", "exe", "dll", "dylib", "so", "sh", "bash", "zsh", "bat", "cmd", "ps1", "zip", "tar", "gz", "tgz", "7z", "rar"]);
 
+export const MAX_COMMUNE_TAGS = 12;
+export const MAX_COMMUNE_TAG_LENGTH = 32;
+
 export type CommuneSecretScanResult = {
   blocked: boolean;
   warnings: string[];
@@ -76,4 +79,39 @@ export function validateCommuneMediaFile(file: Pick<File, "name" | "size" | "typ
 
 export function inertCodeSnippetLabel(language: string) {
   return language.trim() || "plain text";
+}
+
+export function normalizeCommuneTag(value: string) {
+  const normalized = value
+    .trim()
+    .replace(/^#+/, "")
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9_-]+/g, "")
+    .replace(/[-_]{2,}/g, "-")
+    .replace(/^[-_]+|[-_]+$/g, "")
+    .slice(0, MAX_COMMUNE_TAG_LENGTH);
+  return normalized || null;
+}
+
+export function parseCommuneTags(value: string | string[] | null | undefined) {
+  const values = Array.isArray(value) ? value : [value ?? ""];
+  const parsed = values.flatMap((item) => {
+    if (!item.trim()) return [];
+    if (/[,;\n]/.test(item)) return item.split(/[,;\n]+/);
+    return item.split(/\s+/);
+  });
+  const tags = parsed
+    .map(normalizeCommuneTag)
+    .filter((tag): tag is string => Boolean(tag));
+  return Array.from(new Set(tags)).slice(0, MAX_COMMUNE_TAGS);
+}
+
+export function formatCommuneTag(tag: string) {
+  const normalized = normalizeCommuneTag(tag);
+  return normalized ? `#${normalized}` : "";
+}
+
+export function formatCommuneTags(tags: string[] | string | null | undefined) {
+  return parseCommuneTags(tags).map(formatCommuneTag).filter(Boolean);
 }
