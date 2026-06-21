@@ -42,6 +42,7 @@ assert(footer.includes("Elysia Ecobotics™ is an EcoSyneva Commons LLC initiati
 assert(footer.includes("Elysia Ecobotics™ is a trademark of EcoSyneva Commons LLC."), "Footer trademark owner text missing.");
 assert(app.includes("lazy(() => import"), "App routes are not lazy-loaded.");
 assert(app.includes('path="commons-circle/admin-console"'), "Commons Circle admin console route missing.");
+assert(app.includes('path="commons-circle/@:username"'), "Commons Circle public profile route missing.");
 assert(app.includes('path="admin/reports"'), "Admin reports route missing.");
 assert(app.includes('path="admin/addon-submissions"'), "Admin add-on submissions route missing.");
 assert(app.includes('path="admin/developers"'), "Admin developers route missing.");
@@ -62,11 +63,15 @@ assert(!commons.includes("plannedBadges.map"), "Commons Circle appears to render
 assert(!publicProfile.includes("plannedBadges.map"), "Public profile appears to render planned/locked badge catalog.");
 assert(commons.includes("Recognition, not authority") || commons.includes("Badges are recognition"), "Commons Circle badge/role authority separation copy missing.");
 assert(commons.includes("CommonsCircleAdminEntryCard"), "Commons Circle should show a compact admin-console entry card instead of the full panel.");
+assert(commons.includes("`/commons-circle/@${encodeURIComponent(profile.username)}`"), "Commons Circle View public profile should use /commons-circle/@username.");
+assert(!commons.includes("href=\"/\"") || !commons.includes("View public profile"), "Commons Circle View public profile should not point to the homepage.");
 assert(!commons.includes("<h2>Moderation and governance tools</h2>"), "Commons Circle main page should not render the full Admin Console panel inline.");
 assert(commonsAdminConsole.includes("Moderation and governance tools"), "Commons Circle Admin Console page must preserve the full console panel.");
 assert(commonsAdminConsole.includes("Admin dashboard") && commonsAdminConsole.includes("User role management") && commonsAdminConsole.includes("Audit logs"), "Commons Circle Admin Console links missing.");
 assert(commonsAdminConsole.includes("Role required") && commonsAdminConsole.includes("Sign in required"), "Commons Circle Admin Console role/sign-in gate copy missing.");
 assert(commune.includes("Code executes nowhere by default") || commune.includes("execute nowhere"), "Commune code-execution safety copy missing.");
+assert(commune.includes("`/commons-circle/@${encodeURIComponent(username)}`"), "Commune author links should route to /commons-circle/@username.");
+assert(!commune.includes("to={`/commons/@${encodeURIComponent(username)}`"), "Commune author links should not use the old /commons/@username path.");
 for (const blocked of ["vault_access", "credential_access", "private_memory_access", "silent_shell_execution", "read_all_files", "write_arbitrary_files"]) {
   assert(forgeValidator.includes(blocked), `Developer Forge blocked permission missing: ${blocked}`);
 }

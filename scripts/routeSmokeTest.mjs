@@ -4,7 +4,7 @@ const requiredRoutes = [
   "/marketplace/manifest-api", "/marketplace/admin", "/products", "/lab", "/developer-forge", "/developer-forge/profile", "/developer-forge/dashboard", "/developer-forge/drafts", "/developer-forge/drafts/new", "/developer-forge/drafts/:id", "/developer-forge/drafts/:id/manifest", "/developer-forge/drafts/:id/permissions", "/developer-forge/drafts/:id/package", "/developer-forge/drafts/:id/validate", "/developer-forge/drafts/:id/preview", "/developer-forge/drafts/:id/submit", "/developer-forge/submissions", "/developer-forge/submissions/:id", "/developer-forge/docs", "/developer-forge/docs/manifest", "/developer-forge/docs/permissions", "/developer-forge/docs/security", "/developer-forge/docs/templates", "/developer-forge/docs/compatibility",
   "/living-library", "/commune", "/commune/rooms/:roomSlug", "/commune/posts/:postId", "/commune/new", "/commune/repository-showcase", "/commune/troubleshooting", "/commune/sandbox-review", "/commune/code-sharing/review", "/commune/realtime", "/commune/moderation", "/work-with-elysia-ecobotics", "/commons-circle", "/commons-circle/admin-console", "/commons-circle/saved-shelves",
   "/commons-circle/onboarding", "/commons-circle/setup/profile", "/commons-circle/setup/stewardship",
-  "/commons-circle/setup/work-with", "/commons-circle/setup/confirm", "/commons/@:username", "/story",
+  "/commons-circle/setup/work-with", "/commons-circle/setup/confirm", "/commons-circle/@:username", "/commons/@:username", "/story",
   "/about", "/mission", "/legal", "/legal/privacy-policy", "/legal/terms-of-use",
   "/legal/community-guidelines", "/legal/marketplace-developer-agreement",
   "/legal/add-on-submission-policy", "/legal/security-review-policy",

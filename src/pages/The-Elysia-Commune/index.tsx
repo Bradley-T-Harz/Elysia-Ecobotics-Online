@@ -541,7 +541,7 @@ function matchesSafety(labels: string[], safety: string) {
 
 function authorLink(username?: string | null) {
   if (!username) return <span>Community member</span>;
-  return <Link to={`/commons/@${encodeURIComponent(username)}`}>@{username}</Link>;
+  return <Link to={`/commons-circle/@${encodeURIComponent(username)}`}>@{username}</Link>;
 }
 
 function CommuneActionNav({ activeKind, includeModeration }: { activeKind?: string; includeModeration?: boolean }) {
@@ -649,25 +649,36 @@ function RoomPickerPanel() {
 
 function ReactionBar({ targetType, targetId, signedIn, onMessage }: { targetType: CommuneReactionTargetType; targetId: string; signedIn: boolean; onMessage?: (message: string) => void }) {
   const [summary, setSummary] = useState<CommuneReactionSummary>({ helpful: 0, caution: 0, viewerReaction: null });
+  const [signalMessage, setSignalMessage] = useState("");
+  const [voting, setVoting] = useState<CommuneReaction | null>(null);
   const key = communeReactionKey(targetType, targetId);
   const refresh = useCallback(async () => {
     const result = await loadCommuneReactionSummary([{ targetType, targetId }]);
     setSummary(result.summaries[key] ?? { helpful: 0, caution: 0, viewerReaction: null });
+    if (result.warnings.length) setSignalMessage(result.warnings[0]);
   }, [key, targetId, targetType]);
   useEffect(() => { void refresh(); }, [refresh]);
   async function vote(reaction: CommuneReaction) {
     if (!signedIn) {
-      onMessage?.("Sign in to add a Commune community signal. Anonymous visitors can still read signal counts.");
+      const signInMessage = "Sign in to add a Commune community signal. Anonymous visitors can still read signal counts.";
+      setSignalMessage(signInMessage);
+      onMessage?.(signInMessage);
       return;
     }
+    setVoting(reaction);
+    setSignalMessage(reaction === summary.viewerReaction ? "Removing your community signal..." : "Saving your community signal...");
     const result = summary.viewerReaction === reaction ? await clearCommuneReaction(targetType, targetId) : await setCommuneReaction(targetType, targetId, reaction);
-    onMessage?.(cleanCommuneMessage(result.message, "Commune community signals are not active until the reaction migration is applied."));
+    const visibleMessage = cleanCommuneMessage(result.message, "Commune community signals are not active until the reaction migration is applied.");
+    setSignalMessage(visibleMessage);
+    onMessage?.(visibleMessage);
     await refresh();
+    setVoting(null);
   }
   return <div className="commune-signal-bar" aria-label="Community signal">
     <span className="commune-signal-note">Community signal, not verification.</span>
-    <button className={summary.viewerReaction === "helpful" ? "commune-signal-button is-active" : "commune-signal-button"} type="button" onClick={() => void vote("helpful")}>Helpful <strong>{summary.helpful}</strong></button>
-    <button className={summary.viewerReaction === "caution" ? "commune-signal-button is-active" : "commune-signal-button"} type="button" onClick={() => void vote("caution")}>Needs caution <strong>{summary.caution}</strong></button>
+    <button className={summary.viewerReaction === "helpful" ? "commune-signal-button is-active" : "commune-signal-button"} type="button" disabled={Boolean(voting)} onClick={() => void vote("helpful")}>{voting === "helpful" ? "Saving..." : "Helpful"} <strong>{summary.helpful}</strong></button>
+    <button className={summary.viewerReaction === "caution" ? "commune-signal-button is-active" : "commune-signal-button"} type="button" disabled={Boolean(voting)} onClick={() => void vote("caution")}>{voting === "caution" ? "Saving..." : "Needs caution"} <strong>{summary.caution}</strong></button>
+    {signalMessage && <span className="commune-signal-message">{signalMessage}</span>}
   </div>;
 }
 

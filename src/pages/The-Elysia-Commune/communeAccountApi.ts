@@ -61,6 +61,9 @@ async function accountState(): Promise<CommuneAccountState> {
 
 function friendlyError(message: string, fallbackMessage: string) {
   if (import.meta.env.DEV) console.warn("[Commune backend]", message);
+  if (/commune_content_reactions|commune_content_reaction_counts/i.test(message)) return "Commune community signals are not active yet. Apply `2026_06_21_commune_content_reactions.sql` in Supabase, then try again.";
+  if (/commune_thread_participant_approvals/i.test(message)) return "Commune thread participation approvals are not active yet. Apply `2026_06_21_commune_thread_participant_approvals.sql` in Supabase, then try again.";
+  if (/parent_comment_id/i.test(message)) return "Commune replies are not active yet because the live comments table is missing `parent_comment_id`. Apply the Commune comments/replies migration in Supabase.";
   if (/schema cache|Could not find|does not exist|relation/i.test(message)) return fallbackMessage;
   if (/permission denied|row-level security|violates row-level security/i.test(message)) return "Your current account cannot use that Commune action yet.";
   return message;
@@ -200,17 +203,19 @@ export async function submitComment(input: { postId: string; threadId: string; b
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
   if (!account.userId) return { ok: false, message: "Sign in to submit a comment for moderation." };
+  if (!input.body.trim()) return { ok: false, message: input.parentCommentId ? "Write a reply before submitting." : "Write a comment before submitting." };
   const secretScan = scanCommuneTextForSecrets(input.body);
   if (secretScan.blocked) return { ok: false, message: `Comment blocked because it appears to contain private or secret material: ${secretScan.warnings.join(", ")}.` };
   const id = crypto.randomUUID();
   const approvedParticipant = await hasThreadParticipationApproval({ threadId: input.threadId, postId: input.postId, userId: account.userId, isModerator: account.isModerator });
-  const status = approvedParticipant ? "published" : "pending_review";
-  const { error } = await supabase.from(canonicalCommuneTables.comments).insert({ id, thread_id: input.threadId, post_id: input.postId, parent_comment_id: input.parentCommentId || null, user_id: account.userId, author_username: account.username, body: input.body.trim(), status, published_at: approvedParticipant ? new Date().toISOString() : null });
+  const { error } = await supabase.from(canonicalCommuneTables.comments).insert({ id, thread_id: input.threadId, post_id: input.postId, parent_comment_id: input.parentCommentId || null, user_id: account.userId, author_username: account.username, body: input.body.trim(), status: "pending_review", published_at: null });
   if (error) return { ok: false, message: friendlyError(error.message, "Comment moderation backend is not active yet.") };
   if (!approvedParticipant) {
     await createReviewItem({ domain: "commune", sourceTable: "commune_comments", sourceId: id, submittedBy: account.userId, title: input.parentCommentId ? "Commune reply" : "Commune comment", summary: excerpt(input.body) });
     return { ok: true, message: "First contribution to this post/thread submitted for moderation. Once approved here, you can continue in this thread." };
   }
+  const { error: publishError } = await supabase.from(canonicalCommuneTables.comments).update({ status: "published", published_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", id);
+  if (publishError) return { ok: false, message: friendlyError(publishError.message, "Comment was saved for moderation, but direct publish is not active until the latest comment policies are applied.") };
   if (account.isAdmin || account.isModerator) await recordCommuneGovernanceEvent({ actorId: account.userId, targetType: input.parentCommentId ? "reply" : "comment", targetId: id, action: account.isAdmin ? "admin_comment_published" : "moderator_comment_published", fromStatus: "draft", toStatus: "published", metadata: { post_id: input.postId, thread_id: input.threadId, parent_comment_id: input.parentCommentId ?? null, review_item_created: false } });
   return { ok: true, message: input.parentCommentId ? "Reply published in this thread." : "Comment published in this thread." };
 }

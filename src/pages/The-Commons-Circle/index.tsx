@@ -160,7 +160,7 @@ export default function CommonsCirclePage() {
 
   const profile = homebase?.profile ?? null;
   const profileSetupComplete = Boolean(profile?.commons_onboarding_completed_at || onboardingDone.completed);
-  const publicProfilePath = profile?.username ? `/commons/@${encodeURIComponent(profile.username)}` : "/commons-circle/setup/profile";
+  const publicProfilePath = profile?.username ? `/commons-circle/@${encodeURIComponent(profile.username)}` : "/commons-circle/setup/profile";
   const pendingRecognitionCount = verificationDrafts.filter((draft) => draft.status === "pending_admin_review_local").length;
   const localLivingCount = homebase?.localLiving.savedSourceIds.length ?? 0;
   const shouldPromptSync = Boolean(homebase?.signedIn && localLivingCount > 0 && syncChoice.choice !== "synced" && syncChoice.choice !== "keep_local");
