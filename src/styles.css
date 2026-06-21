@@ -2656,21 +2656,93 @@ code { color: var(--teal); overflow-wrap: anywhere; }
 .commune-post-card,
 .commune-preview-card {
   padding: 1rem;
-  border: 1px solid rgba(28, 68, 68, .12);
+  border: 1px solid rgba(142, 232, 220, 0.24);
   border-radius: 14px;
-  background: rgba(255,255,255,.78);
+  background:
+    radial-gradient(circle at 92% 8%, rgba(142, 232, 220, 0.12), transparent 10rem),
+    linear-gradient(180deg, rgba(13, 23, 31, 0.9), rgba(7, 13, 20, 0.84));
+  box-shadow: 0 16px 36px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  color: var(--text);
 }
 
 .commune-post-detail {
-  background: linear-gradient(135deg, rgba(255,255,255,.92), rgba(236,250,246,.72));
+  background:
+    radial-gradient(circle at 92% 8%, rgba(142, 232, 220, 0.12), transparent 12rem),
+    linear-gradient(135deg, rgba(13, 23, 31, 0.92), rgba(7, 13, 20, 0.86));
+  border-color: rgba(142, 232, 220, 0.24);
 }
 
 .commune-post-detail .tag-row span,
 .commune-post-card .tag-row span {
-  border: 1px solid rgba(28, 68, 68, .14);
+  border: 1px solid rgba(142, 232, 220, 0.24);
   border-radius: 999px;
   padding: .25rem .55rem;
-  background: rgba(255,255,255,.72);
+  background: rgba(142, 232, 220, 0.08);
+  color: var(--text);
+}
+
+.commune-reply-thread {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 0.75rem;
+  padding-left: 0.85rem;
+  border-left: 1px solid rgba(142, 232, 220, 0.24);
+}
+
+.commune-reply-card {
+  background:
+    radial-gradient(circle at 92% 8%, rgba(216, 182, 111, 0.1), transparent 8rem),
+    linear-gradient(180deg, rgba(13, 23, 31, 0.82), rgba(7, 13, 20, 0.78));
+}
+
+.commune-reply-form {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.commune-signal-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .45rem;
+  margin: .85rem 0;
+}
+
+.commune-signal-note {
+  color: rgba(236, 246, 243, .72);
+  font-size: .82rem;
+}
+
+.commune-signal-button {
+  border: 1px solid rgba(142, 232, 220, .24);
+  background: rgba(9, 23, 27, .58);
+  color: var(--text);
+  padding: .42rem .68rem;
+  border-radius: 999px;
+  font-size: .86rem;
+}
+
+.commune-signal-button.is-active {
+  border-color: rgba(216, 182, 111, .74);
+  background: rgba(216, 182, 111, .14);
+  color: #ffe9b3;
+}
+
+.commune-admin-controls,
+.commune-delete-confirm {
+  margin-top: 1rem;
+  padding: .9rem;
+  border: 1px solid rgba(216, 182, 111, .26);
+  border-radius: 14px;
+  background: rgba(47, 31, 23, .34);
+}
+
+.commune-admin-controls label {
+  margin: .55rem 0;
+}
+
+.commune-delete-confirm h3 {
+  margin-top: 0;
 }
 
 /* Developer Forge safe add-on workspace */

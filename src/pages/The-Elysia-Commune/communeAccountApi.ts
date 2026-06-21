@@ -9,10 +9,14 @@ export type CommunePost = { id: string; user_id?: string; author_username?: stri
 export type CommuneThread = { id: string; post_id?: string | null; room_id?: string | null; title: string; status: string; visibility: string; last_reply_at?: string | null };
 export type CommuneComment = { id: string; thread_id: string; post_id?: string | null; parent_comment_id?: string | null; user_id?: string; author_username?: string | null; body: string; status: string; created_at?: string | null; published_at?: string | null };
 export type CommuneModerationItem = { id: string; kind: "post" | "comment" | "upload" | "repo" | "sandbox" | "report"; title: string; status: string; created_at?: string | null; summary?: string | null };
-export type CommuneAccountState = { signedIn: boolean; userId: string | null; username: string | null; roles: AppRole[]; isModerator: boolean; warnings: string[] };
+export type CommuneAccountState = { signedIn: boolean; userId: string | null; username: string | null; roles: AppRole[]; isAdmin: boolean; isModerator: boolean; warnings: string[] };
 export type LoadCommuneData = { rooms: CommuneRoom[]; posts: CommunePost[]; comments: CommuneComment[]; threads: CommuneThread[]; savedPostIds: string[]; followedThreadIds: string[]; account: CommuneAccountState; warnings: string[] };
 export type CommuneCategory = { id: string; slug: string; title: string; description?: string | null; sort_order?: number | null; is_active?: boolean | null };
 export type CommuneCodeSnippet = { id: string; post_id: string; author_user_id: string; language?: string | null; file_name?: string | null; code_text: string; secret_scan_status?: string | null; sandbox_warning_acknowledged?: boolean | null; created_at?: string | null };
+export type CommuneReactionTargetType = "post" | "comment";
+export type CommuneReaction = "helpful" | "caution";
+export type CommuneReactionSummary = { helpful: number; caution: number; viewerReaction: CommuneReaction | null };
+export type CommuneReactionTarget = { targetType: CommuneReactionTargetType; targetId: string };
 
 export const postTypeOptions: { value: CommunePostType; label: string }[] = [
   { value: "media_garden", label: "Media Garden" },
@@ -50,9 +54,9 @@ function isModerator(roles: AppRole[], isAdmin: boolean) { return isAdmin || rol
 
 async function accountState(): Promise<CommuneAccountState> {
   const roleState = await loadCurrentRoleState();
-  if (!hasSupabaseConfig || !supabase || !roleState.signedIn || !roleState.userId) return { signedIn: roleState.signedIn, userId: roleState.userId, username: null, roles: roleState.roles, isModerator: isModerator(roleState.roles, roleState.isAdmin), warnings: roleState.warnings };
+  if (!hasSupabaseConfig || !supabase || !roleState.signedIn || !roleState.userId) return { signedIn: roleState.signedIn, userId: roleState.userId, username: null, roles: roleState.roles, isAdmin: roleState.isAdmin, isModerator: isModerator(roleState.roles, roleState.isAdmin), warnings: roleState.warnings };
   const { data, error } = await supabase.from("profiles").select("username").eq("id", roleState.userId).maybeSingle();
-  return { signedIn: true, userId: roleState.userId, username: (data as { username?: string } | null)?.username ?? null, roles: roleState.roles, isModerator: isModerator(roleState.roles, roleState.isAdmin), warnings: error ? [...roleState.warnings, error.message] : roleState.warnings };
+  return { signedIn: true, userId: roleState.userId, username: (data as { username?: string } | null)?.username ?? null, roles: roleState.roles, isAdmin: roleState.isAdmin, isModerator: isModerator(roleState.roles, roleState.isAdmin), warnings: error ? [...roleState.warnings, error.message] : roleState.warnings };
 }
 
 function friendlyError(message: string, fallbackMessage: string) {
@@ -60,6 +64,50 @@ function friendlyError(message: string, fallbackMessage: string) {
   if (/schema cache|Could not find|does not exist|relation/i.test(message)) return fallbackMessage;
   if (/permission denied|row-level security|violates row-level security/i.test(message)) return "Your current account cannot use that Commune action yet.";
   return message;
+}
+
+export function communeReactionKey(targetType: CommuneReactionTargetType, targetId: string) {
+  return `${targetType}:${targetId}`;
+}
+
+async function hasThreadParticipationApproval(input: { threadId: string; postId: string; userId: string; isModerator: boolean }) {
+  if (!supabase) return false;
+  if (input.isModerator) return true;
+  const { data: post } = await supabase.from(canonicalCommuneTables.posts).select("user_id,status").eq("id", input.postId).maybeSingle();
+  if ((post as { user_id?: string; status?: string } | null)?.user_id === input.userId && (post as { status?: string } | null)?.status === "published") return true;
+  const { data, error } = await supabase.from("commune_thread_participant_approvals").select("id").eq("thread_id", input.threadId).eq("user_id", input.userId).eq("status", "approved").is("revoked_at", null).maybeSingle();
+  if (error && import.meta.env.DEV) console.warn("[Commune participant approval]", error.message);
+  return Boolean(data);
+}
+
+async function grantThreadParticipationApproval(input: { threadId?: string | null; postId?: string | null; userId?: string | null; approvedBy: string; firstCommentId?: string | null; source: string }) {
+  if (!supabase || !input.threadId || !input.userId) return;
+  const { error } = await supabase.from("commune_thread_participant_approvals").upsert({
+    thread_id: input.threadId,
+    post_id: input.postId ?? null,
+    user_id: input.userId,
+    approved_by: input.approvedBy,
+    first_comment_id: input.firstCommentId ?? null,
+    approval_source: input.source,
+    status: "approved",
+    revoked_at: null,
+    updated_at: new Date().toISOString()
+  }, { onConflict: "thread_id,user_id" });
+  if (error && import.meta.env.DEV) console.warn("[Commune participant approval grant]", error.message);
+}
+
+async function recordCommuneGovernanceEvent(input: { actorId: string; targetType: string; targetId: string; action: string; fromStatus?: string | null; toStatus?: string | null; metadata?: Record<string, unknown> }) {
+  if (!supabase) return;
+  const { error } = await supabase.from("commune_moderation_events").insert({
+    actor_id: input.actorId,
+    target_type: input.targetType,
+    target_id: input.targetId,
+    action: input.action,
+    from_status: input.fromStatus ?? null,
+    to_status: input.toStatus ?? null,
+    metadata: { source: "admin_direct_publish", ...(input.metadata ?? {}) }
+  });
+  if (error && import.meta.env.DEV) console.warn("[Commune governance event]", error.message);
 }
 
 export async function loadCategories(): Promise<{ categories: CommuneCategory[]; warnings: string[] }> {
@@ -124,11 +172,17 @@ export async function submitCommunePost(input: { postType: CommunePostType; room
   const tags = parseCommuneTags(input.tags);
   const links = splitList(input.links);
   const postId = crypto.randomUUID();
-  const { error: postError } = await supabase.from(canonicalCommuneTables.posts).insert({ id: postId, user_id: account.userId, author_username: account.username, post_type: input.postType, title: input.title.trim(), body: input.body.trim(), excerpt: excerpt(input.body), tags, links, repository_url: input.repositoryUrl?.trim() || null, status: "pending_review", moderation_status: "pending_review", safety_acknowledgements: { public_boundary: true, no_secrets: true, no_execution: true } });
+  const adminDirectPublish = account.isAdmin;
+  const now = new Date().toISOString();
+  const { error: postError } = await supabase.from(canonicalCommuneTables.posts).insert({ id: postId, user_id: account.userId, author_username: account.username, post_type: input.postType, title: input.title.trim(), body: input.body.trim(), excerpt: excerpt(input.body), tags, links, repository_url: input.repositoryUrl?.trim() || null, status: adminDirectPublish ? "published" : "pending_review", moderation_status: adminDirectPublish ? "approved" : "pending_review", published_at: adminDirectPublish ? now : null, safety_acknowledgements: { public_boundary: true, no_secrets: true, no_execution: true } });
   if (postError) return { ok: false, message: friendlyError(postError.message, "Community posting backend is not active yet.") };
   let threadId: string | null = null;
   const { data: thread, error: threadError } = await supabase.from(canonicalCommuneTables.threads).insert({ post_id: postId, room_id: input.roomId || null, title: input.title.trim(), created_by: account.userId, visibility: "public" }).select("id").single();
   if (!threadError) threadId = (thread as { id: string }).id;
+  if (adminDirectPublish) {
+    await grantThreadParticipationApproval({ threadId, postId, userId: account.userId, approvedBy: account.userId, source: "admin_direct_post" });
+    await recordCommuneGovernanceEvent({ actorId: account.userId, targetType: "post", targetId: postId, action: "admin_post_published", fromStatus: "draft", toStatus: "published", metadata: { post_type: input.postType, review_item_created: false } });
+  }
   if (input.upload) {
     const upload = await uploadCommuneAttachment(input.upload, { postId, role: "post_attachment" });
     if (!upload.ok) return { ok: false, message: `Post saved for review, but upload failed: ${upload.message}` };
@@ -137,6 +191,7 @@ export async function submitCommunePost(input: { postType: CommunePostType; room
     const repo = await submitRepositoryShowcase({ repositoryUrl: input.repositoryUrl, projectName: input.title, projectSummary: excerpt(input.body), postId, sandboxRequested: Boolean(input.sandboxRequested) });
     if (!repo.ok) return { ok: false, message: `Post saved, but repository showcase failed: ${repo.message}` };
   }
+  if (adminDirectPublish) return { ok: true, postId, message: `Admin post published directly${threadId ? " with a public thread" : ""}. It remains auditable in Commune governance history.` };
   const review = await createReviewItem({ domain: "commune", sourceTable: "commune_posts", sourceId: postId, submittedBy: account.userId, title: input.title.trim(), summary: excerpt(input.body) });
   return { ok: true, postId, message: review.ok ? `Commune post submitted for moderation${threadId ? " with a pending thread" : ""}. It is not public until approved.` : `Post saved, but review routing needs attention: ${review.warning}` };
 }
@@ -148,10 +203,16 @@ export async function submitComment(input: { postId: string; threadId: string; b
   const secretScan = scanCommuneTextForSecrets(input.body);
   if (secretScan.blocked) return { ok: false, message: `Comment blocked because it appears to contain private or secret material: ${secretScan.warnings.join(", ")}.` };
   const id = crypto.randomUUID();
-  const { error } = await supabase.from(canonicalCommuneTables.comments).insert({ id, thread_id: input.threadId, post_id: input.postId, parent_comment_id: input.parentCommentId || null, user_id: account.userId, author_username: account.username, body: input.body.trim(), status: "pending_review" });
+  const approvedParticipant = await hasThreadParticipationApproval({ threadId: input.threadId, postId: input.postId, userId: account.userId, isModerator: account.isModerator });
+  const status = approvedParticipant ? "published" : "pending_review";
+  const { error } = await supabase.from(canonicalCommuneTables.comments).insert({ id, thread_id: input.threadId, post_id: input.postId, parent_comment_id: input.parentCommentId || null, user_id: account.userId, author_username: account.username, body: input.body.trim(), status, published_at: approvedParticipant ? new Date().toISOString() : null });
   if (error) return { ok: false, message: friendlyError(error.message, "Comment moderation backend is not active yet.") };
-  await createReviewItem({ domain: "commune", sourceTable: "commune_comments", sourceId: id, submittedBy: account.userId, title: "Commune comment", summary: excerpt(input.body) });
-  return { ok: true, message: "Comment submitted for moderation. It is not public until approved." };
+  if (!approvedParticipant) {
+    await createReviewItem({ domain: "commune", sourceTable: "commune_comments", sourceId: id, submittedBy: account.userId, title: input.parentCommentId ? "Commune reply" : "Commune comment", summary: excerpt(input.body) });
+    return { ok: true, message: "First contribution to this post/thread submitted for moderation. Once approved here, you can continue in this thread." };
+  }
+  if (account.isAdmin || account.isModerator) await recordCommuneGovernanceEvent({ actorId: account.userId, targetType: input.parentCommentId ? "reply" : "comment", targetId: id, action: account.isAdmin ? "admin_comment_published" : "moderator_comment_published", fromStatus: "draft", toStatus: "published", metadata: { post_id: input.postId, thread_id: input.threadId, parent_comment_id: input.parentCommentId ?? null, review_item_created: false } });
+  return { ok: true, message: input.parentCommentId ? "Reply published in this thread." : "Comment published in this thread." };
 }
 
 export async function savePost(postId: string): Promise<{ ok: boolean; message: string }> {
@@ -176,6 +237,92 @@ export async function markThreadRead(threadId: string): Promise<{ ok: boolean; m
   if (!account.userId) return { ok: false, message: "Sign in first." };
   const { error } = await supabase.from(canonicalCommuneTables.followedThreads).update({ last_read_at: new Date().toISOString() }).eq("user_id", account.userId).eq("thread_id", threadId);
   return { ok: !error, message: error ? friendlyError(error.message, "Followed-thread read state is not active yet.") : "Thread marked read." };
+}
+
+export async function loadCommuneReactionSummary(targets: CommuneReactionTarget[]): Promise<{ summaries: Record<string, CommuneReactionSummary>; warnings: string[] }> {
+  const summaries: Record<string, CommuneReactionSummary> = {};
+  for (const target of targets) summaries[communeReactionKey(target.targetType, target.targetId)] = { helpful: 0, caution: 0, viewerReaction: null };
+  if (!targets.length) return { summaries, warnings: [] };
+  if (!supabase) return { summaries, warnings: [supabaseNotConfiguredMessage] };
+  const warnings: string[] = [];
+  const targetIds = Array.from(new Set(targets.map((target) => target.targetId)));
+  const { data: counts, error: countError } = await supabase.from("commune_content_reaction_counts").select("target_type,target_id,helpful_count,caution_count").in("target_id", targetIds);
+  if (countError) warnings.push(friendlyError(countError.message, "Commune community signals are not active until the reaction-count migration is applied."));
+  for (const row of (counts ?? []) as Array<{ target_type: CommuneReactionTargetType; target_id: string; helpful_count?: number | null; caution_count?: number | null }>) {
+    const key = communeReactionKey(row.target_type, row.target_id);
+    if (!summaries[key]) continue;
+    summaries[key] = { ...summaries[key], helpful: row.helpful_count ?? 0, caution: row.caution_count ?? 0 };
+  }
+  const account = await accountState();
+  if (account.userId) {
+    const { data: reactions, error: reactionError } = await supabase.from("commune_content_reactions").select("target_type,target_id,reaction").eq("user_id", account.userId).in("target_id", targetIds);
+    if (reactionError) warnings.push(friendlyError(reactionError.message, "Your Commune community signal state could not be loaded yet."));
+    for (const row of (reactions ?? []) as Array<{ target_type: CommuneReactionTargetType; target_id: string; reaction: CommuneReaction }>) {
+      const key = communeReactionKey(row.target_type, row.target_id);
+      if (!summaries[key]) continue;
+      summaries[key] = { ...summaries[key], viewerReaction: row.reaction };
+    }
+  }
+  return { summaries, warnings };
+}
+
+export async function setCommuneReaction(targetType: CommuneReactionTargetType, targetId: string, reaction: CommuneReaction): Promise<{ ok: boolean; message: string }> {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId) return { ok: false, message: "Sign in to add a Commune community signal." };
+  const { error } = await supabase.from("commune_content_reactions").upsert({ user_id: account.userId, target_type: targetType, target_id: targetId, reaction, updated_at: new Date().toISOString() }, { onConflict: "user_id,target_type,target_id" });
+  return { ok: !error, message: error ? friendlyError(error.message, "Commune community signals are not active until the reaction migration is applied.") : "Community signal saved. It does not replace reporting or moderation." };
+}
+
+export async function clearCommuneReaction(targetType: CommuneReactionTargetType, targetId: string): Promise<{ ok: boolean; message: string }> {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId) return { ok: false, message: "Sign in to change Commune community signals." };
+  const { error } = await supabase.from("commune_content_reactions").delete().eq("user_id", account.userId).eq("target_type", targetType).eq("target_id", targetId);
+  return { ok: !error, message: error ? friendlyError(error.message, "Commune community signals are not active yet.") : "Community signal removed." };
+}
+
+export async function moderateCommuneContentTarget(input: { targetType: CommuneReactionTargetType; targetId: string; action: "flag" | "hide" | "delete"; reason?: string }): Promise<{ ok: boolean; message: string }> {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId || !account.isModerator) return { ok: false, message: "Commune moderation controls require an assigned moderator/admin role." };
+  const table = input.targetType === "post" ? canonicalCommuneTables.posts : canonicalCommuneTables.comments;
+  const { data: current, error: currentError } = await supabase.from(table).select("id,status,post_id,thread_id").eq("id", input.targetId).maybeSingle();
+  if (currentError) return { ok: false, message: friendlyError(currentError.message, "This Commune item could not be loaded for moderation yet.") };
+  const previousStatus = String((current as { status?: string } | null)?.status ?? "unknown");
+  const now = new Date().toISOString();
+  const actionStatus = input.action === "flag" ? "hidden" : input.action === "hide" ? "hidden" : "removed_by_moderator";
+  const update: Record<string, unknown> = { status: actionStatus, updated_at: now, moderation_reason: input.reason || null };
+  if (input.targetType === "post") {
+    update.visibility = "private_draft";
+    update.moderation_status = input.action === "flag" ? "flagged_for_removal" : input.action === "hide" ? "hidden_from_public" : "soft_deleted_by_moderator";
+    update.hidden_at = now;
+    if (input.action === "delete") update.removed_at = now;
+  } else {
+    update.visibility_state = input.action === "delete" ? "removed" : "hidden";
+    update.hidden_at = now;
+    if (input.action === "delete") update.removed_at = now;
+  }
+  const { error } = await supabase.from(table).update(update).eq("id", input.targetId);
+  if (error) return { ok: false, message: friendlyError(error.message, "This Commune moderation action could not be saved yet.") };
+  await supabase.from("commune_moderation_events").insert({
+    actor_id: account.userId,
+    target_type: input.targetType,
+    target_id: input.targetId,
+    action: input.action === "flag" ? "flag_for_removal" : input.action === "hide" ? "hide_from_public" : "soft_delete_from_public",
+    from_status: previousStatus,
+    to_status: actionStatus,
+    reason: input.reason || null,
+    metadata: { source: "post_detail_moderation_controls", public_content_removed: true, hard_delete: false }
+  });
+  return {
+    ok: true,
+    message: input.action === "delete"
+      ? "Content removed from public views. Evidence remains in admin-only Commune history; hard delete is not performed from the public frontend."
+      : input.action === "flag"
+        ? "Content flagged for removal and hidden from public views."
+        : "Content hidden from public views."
+  };
 }
 
 export async function submitRepositoryShowcase(input: { repositoryUrl: string; projectName: string; projectSummary: string; postId?: string; sandboxRequested?: boolean }): Promise<{ ok: boolean; message: string; id?: string }> {
@@ -293,7 +440,7 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
   if (!account.userId || !account.isModerator) return { ok: false, message: "Commune moderation requires an assigned moderator/admin role." };
   const now = new Date().toISOString();
   const table = item.kind === "post" ? canonicalCommuneTables.posts : item.kind === "comment" ? canonicalCommuneTables.comments : item.kind === "upload" ? canonicalCommuneTables.media : item.kind === "repo" ? canonicalCommuneTables.repositoryShowcases : item.kind === "sandbox" ? canonicalCommuneTables.sandboxReviews : canonicalCommuneTables.legacyReports;
-  const ownerSelect = item.kind === "post" ? "user_id,title" : item.kind === "comment" ? "user_id,body,post_id" : item.kind === "repo" ? "user_id,project_name" : item.kind === "sandbox" ? "user_id,request_title" : item.kind === "upload" ? "owner_user_id,file_name,post_id" : "reporter_user_id,report_type";
+  const ownerSelect = item.kind === "post" ? "user_id,title" : item.kind === "comment" ? "user_id,body,post_id,thread_id" : item.kind === "repo" ? "user_id,project_name" : item.kind === "sandbox" ? "user_id,request_title" : item.kind === "upload" ? "owner_user_id,file_name,post_id" : "reporter_user_id,report_type";
   const ownerResult = await supabase.from(table).select(ownerSelect).eq("id", item.id).maybeSingle();
   const ownerRow = (ownerResult.data ?? {}) as Record<string, unknown>;
   const targetUserId = String(ownerRow.user_id ?? ownerRow.owner_user_id ?? ownerRow.reporter_user_id ?? "");
@@ -302,9 +449,13 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
   const update: Record<string, unknown> = {};
   if (item.kind === "post") {
     update.updated_at = now;
-    update.status = action === "approve" ? "published" : action === "reject" ? "rejected" : action === "hide" ? "hidden" : action === "archive" ? "archived" : "needs_information";
-    if (action === "approve") update.published_at = now;
-    if (["hide", "reject", "needs_information"].includes(action)) update.moderation_reason = reason;
+    update.status = action === "approve" ? "published" : action === "reject" ? "removed_by_moderator" : action === "hide" ? "hidden" : action === "archive" ? "archived" : "needs_information";
+    update.visibility = action === "approve" ? "public" : "private_draft";
+    if (action === "approve") {
+      update.published_at = now;
+      update.moderation_reason = null;
+    }
+    if (["hide", "reject", "needs_information", "archive"].includes(action)) update.moderation_reason = reason;
   } else if (item.kind === "comment") {
     update.updated_at = now;
     update.status = action === "approve" ? "published" : action === "hide" ? "hidden" : action === "archive" ? "archived" : action === "reject" ? "removed_by_moderator" : "pending_review";
@@ -332,6 +483,16 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
   if (!reviewItem.error && reviewItem.data) {
     await supabase.from("review_items").update({ status: reviewStatus, updated_at: now }).eq("id", (reviewItem.data as { id: string }).id);
     await supabase.from("review_events").insert({ review_item_id: (reviewItem.data as { id: string }).id, actor_id: account.userId, event_type: `commune_${action}`, from_status: (reviewItem.data as { status?: string }).status ?? null, to_status: reviewStatus, note: reason || null, metadata: { source: "commune_moderation_ui", target_type: item.kind, content_status: toStatus } });
+  }
+  if (action === "approve") {
+    if (item.kind === "post") {
+      const { data: threadRow } = await supabase.from(canonicalCommuneTables.threads).select("id").eq("post_id", item.id).maybeSingle();
+      await grantThreadParticipationApproval({ threadId: (threadRow as { id?: string } | null)?.id ?? null, postId: item.id, userId: targetUserId, approvedBy: account.userId, source: "post_approval" });
+    }
+    if (item.kind === "comment") {
+      const commentRow = ownerRow as { user_id?: string | null; post_id?: string | null; thread_id?: string | null };
+      await grantThreadParticipationApproval({ threadId: commentRow.thread_id ?? null, postId: commentRow.post_id ?? postId, userId: targetUserId, approvedBy: account.userId, firstCommentId: item.id, source: "first_comment_approval" });
+    }
   }
   if (targetUserId && targetUserId !== account.userId) {
     await supabase.from("user_notifications").insert({

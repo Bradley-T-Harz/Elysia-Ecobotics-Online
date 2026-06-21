@@ -3,6 +3,7 @@ import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../..
 export type AppRole = "administrator" | "moderator" | "reviewer" | "marketplace_reviewer" | "source_reviewer" | "commune_moderator" | "guardian_reviewer";
 export type ReviewStatus = "draft" | "pending_review" | "in_review" | "needs_information" | "approved" | "rejected" | "withdrawn" | "archived";
 export type ReviewDomain = "commune" | "work_with" | "stewardship" | "contribution" | "living_library_source" | "living_library_broken_link" | "marketplace";
+export type ReviewQueueFilter = "active" | "history" | "all" | "approved" | "rejected" | "archived";
 
 export type CurrentRoleState = {
   signedIn: boolean;
@@ -39,6 +40,9 @@ export type ReviewEvent = {
   metadata?: Record<string, unknown> | null;
   created_at: string;
 };
+
+export const activeReviewStatuses: ReviewStatus[] = ["pending_review", "in_review", "needs_information"];
+export const historyReviewStatuses: ReviewStatus[] = ["approved", "rejected", "withdrawn", "archived"];
 
 export const domainLabels: Record<ReviewDomain, string> = {
   commune: "Commune",
@@ -117,10 +121,13 @@ export async function createReviewItem(input: {
   return { ok: true, reviewItemId };
 }
 
-export async function loadReviewItems(domain?: ReviewDomain): Promise<{ items: ReviewItem[]; warnings: string[] }> {
+export async function loadReviewItems(domain?: ReviewDomain, filter: ReviewQueueFilter = "active"): Promise<{ items: ReviewItem[]; warnings: string[] }> {
   if (!hasSupabaseConfig || !supabase) return { items: [], warnings: [supabaseNotConfiguredMessage] };
   let query = supabase.from("review_items").select("*").order("submitted_at", { ascending: false });
   if (domain) query = query.eq("domain", domain);
+  if (filter === "active") query = query.in("status", activeReviewStatuses);
+  else if (filter === "history") query = query.in("status", historyReviewStatuses);
+  else if (["approved", "rejected", "archived"].includes(filter)) query = query.eq("status", filter);
   const { data, error } = await query;
   return { items: (data ?? []) as ReviewItem[], warnings: error ? [friendlyReviewWarning(error.message)] : [] };
 }
@@ -136,6 +143,22 @@ export async function loadReviewEvents(reviewItemId?: string): Promise<{ events:
 function sourceStatusTable(sourceTable: string) {
   if (["work_with_requests", "stewardship_recognition_requests", "commune_post_requests", "living_library_source_suggestions", "broken_link_reports", "addon_submissions", "library_source_submissions", "work_role_submissions", "content_reports"].includes(sourceTable)) return sourceTable;
   return null;
+}
+
+async function grantCommuneThreadApproval(input: { threadId?: string | null; postId?: string | null; userId?: string | null; approvedBy: string; firstCommentId?: string | null; source: string }) {
+  if (!supabase || !input.threadId || !input.userId) return;
+  const { error } = await supabase.from("commune_thread_participant_approvals").upsert({
+    thread_id: input.threadId,
+    post_id: input.postId ?? null,
+    user_id: input.userId,
+    approved_by: input.approvedBy,
+    first_comment_id: input.firstCommentId ?? null,
+    approval_source: input.source,
+    status: "approved",
+    revoked_at: null,
+    updated_at: new Date().toISOString()
+  }, { onConflict: "thread_id,user_id" });
+  if (error && import.meta.env.DEV) console.warn("[review] thread participant approval", error.message);
 }
 
 async function syncCommuneReviewSubject(item: ReviewItem, nextStatus: ReviewStatus, note: string, actorId: string): Promise<{ ok: boolean; warning?: string }> {
@@ -163,9 +186,15 @@ async function syncCommuneReviewSubject(item: ReviewItem, nextStatus: ReviewStat
     }
     const { error } = await supabase.from("commune_posts").update(update).eq("id", item.source_id);
     if (error) return { ok: false, warning: `Commune post was not updated: ${friendlyReviewWarning(error.message)}` };
+    if (nextStatus === "approved") {
+      const { data: postRow } = await supabase.from("commune_posts").select("id,user_id").eq("id", item.source_id).maybeSingle();
+      const { data: threadRow } = await supabase.from("commune_threads").select("id").eq("post_id", item.source_id).maybeSingle();
+      await grantCommuneThreadApproval({ threadId: (threadRow as { id?: string } | null)?.id ?? null, postId: item.source_id, userId: (postRow as { user_id?: string } | null)?.user_id ?? null, approvedBy: actorId, source: "post_approval" });
+    }
     return { ok: true };
   }
   if (item.source_table === "commune_comments") {
+    const { data: commentRow } = await supabase.from("commune_comments").select("id,user_id,thread_id,post_id").eq("id", item.source_id).maybeSingle();
     const update: Record<string, unknown> = {
       updated_at: now,
       moderation_reason: note || null
@@ -176,6 +205,10 @@ async function syncCommuneReviewSubject(item: ReviewItem, nextStatus: ReviewStat
     else Object.assign(update, { status: "pending_review" });
     const { error } = await supabase.from("commune_comments").update(update).eq("id", item.source_id);
     if (error) return { ok: false, warning: `Commune comment was not updated: ${friendlyReviewWarning(error.message)}` };
+    if (nextStatus === "approved") {
+      const row = commentRow as { id?: string; user_id?: string | null; thread_id?: string | null; post_id?: string | null } | null;
+      await grantCommuneThreadApproval({ threadId: row?.thread_id ?? null, postId: row?.post_id ?? null, userId: row?.user_id ?? null, approvedBy: actorId, firstCommentId: item.source_id, source: "first_comment_approval" });
+    }
   }
   return { ok: true };
 }

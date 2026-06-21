@@ -3,18 +3,23 @@ import { Link, useLocation, useParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
 import {
+  clearCommuneReaction,
+  communeReactionKey,
   createCodeSnippet,
   followThread,
   loadCategories,
   loadCommuneData,
   loadCommuneModerationQueue,
+  loadCommuneReactionSummary,
   loadCodeSnippets,
   markThreadRead,
+  moderateCommuneContentTarget,
   moderateCommuneItem,
   postTypeOptions,
   reportCommuneContent,
   reportTypes,
   savePost,
+  setCommuneReaction,
   submitCommunePost,
   submitComment,
   submitRepositoryShowcase,
@@ -25,6 +30,9 @@ import {
   type CommuneModerationItem,
   type CommunePost,
   type CommunePostType,
+  type CommuneReaction,
+  type CommuneReactionSummary,
+  type CommuneReactionTargetType,
   type CommuneRoom,
   type CommuneThread
 } from "./communeAccountApi";
@@ -639,11 +647,53 @@ function RoomPickerPanel() {
   </section>;
 }
 
-function PostCard({ post, saved, onSave }: { post: CommunePost; saved: boolean; onSave: (id: string) => void }) {
-  return <article className="commune-post-card"><div className="addon-card__topline"><StatusBadges labels={[post.post_type, post.status]} /></div><h3><Link to={`/commune/posts/${post.id}`}>{post.title}</Link></h3><p>{post.excerpt || post.body.slice(0, 180)}</p><p>By {authorLink(post.author_username)} · {post.published_at ? new Date(post.published_at).toLocaleDateString() : "public date unavailable"}</p><TagChips tags={(post.tags ?? []).slice(0, 5)} /><div className="button-row"><Link className="button-link" to={`/commune/posts/${post.id}`}>Read</Link><button type="button" onClick={() => onSave(post.id)}>{saved ? "Saved" : "Save post"}</button></div></article>;
+function ReactionBar({ targetType, targetId, signedIn, onMessage }: { targetType: CommuneReactionTargetType; targetId: string; signedIn: boolean; onMessage?: (message: string) => void }) {
+  const [summary, setSummary] = useState<CommuneReactionSummary>({ helpful: 0, caution: 0, viewerReaction: null });
+  const key = communeReactionKey(targetType, targetId);
+  const refresh = useCallback(async () => {
+    const result = await loadCommuneReactionSummary([{ targetType, targetId }]);
+    setSummary(result.summaries[key] ?? { helpful: 0, caution: 0, viewerReaction: null });
+  }, [key, targetId, targetType]);
+  useEffect(() => { void refresh(); }, [refresh]);
+  async function vote(reaction: CommuneReaction) {
+    if (!signedIn) {
+      onMessage?.("Sign in to add a Commune community signal. Anonymous visitors can still read signal counts.");
+      return;
+    }
+    const result = summary.viewerReaction === reaction ? await clearCommuneReaction(targetType, targetId) : await setCommuneReaction(targetType, targetId, reaction);
+    onMessage?.(cleanCommuneMessage(result.message, "Commune community signals are not active until the reaction migration is applied."));
+    await refresh();
+  }
+  return <div className="commune-signal-bar" aria-label="Community signal">
+    <span className="commune-signal-note">Community signal, not verification.</span>
+    <button className={summary.viewerReaction === "helpful" ? "commune-signal-button is-active" : "commune-signal-button"} type="button" onClick={() => void vote("helpful")}>Helpful <strong>{summary.helpful}</strong></button>
+    <button className={summary.viewerReaction === "caution" ? "commune-signal-button is-active" : "commune-signal-button"} type="button" onClick={() => void vote("caution")}>Needs caution <strong>{summary.caution}</strong></button>
+  </div>;
 }
 
-function CommunityFeed({ posts, savedPostIds, onSave, filters }: { posts: CommunePost[]; savedPostIds: string[]; onSave: (id: string) => void; filters: CommuneFilters }) {
+function AdminContentControls({ targetType, targetId, isModerator, onChanged, onMessage }: { targetType: CommuneReactionTargetType; targetId: string; isModerator: boolean; onChanged?: () => Promise<void>; onMessage: (message: string) => void }) {
+  const [reason, setReason] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  if (!isModerator) return null;
+  async function act(action: "flag" | "hide" | "delete") {
+    const result = await moderateCommuneContentTarget({ targetType, targetId, action, reason });
+    onMessage(cleanCommuneMessage(result.message, "Commune moderation controls are not active for this session yet."));
+    setConfirmDelete(false);
+    if (result.ok) await onChanged?.();
+  }
+  return <div className="commune-admin-controls">
+    <p className="eyebrow">Admin moderation</p>
+    <label><span>Moderation reason</span><input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Private admin history note" /></label>
+    <div className="button-row"><button type="button" onClick={() => void act("flag")}>Flag for removal</button><button type="button" onClick={() => void act("hide")}>Hide from public</button><button type="button" onClick={() => setConfirmDelete(true)}>Delete</button></div>
+    {confirmDelete && <div className="commune-delete-confirm"><h3>Delete/remove this Commune content?</h3><p>This removes the item from public views. No keeps it unchanged. Admin-only History records the action.</p><div className="button-row"><button type="button" onClick={() => void act("delete")}>Yes, delete/remove</button><button type="button" onClick={() => setConfirmDelete(false)}>No, keep it</button></div></div>}
+  </div>;
+}
+
+function PostCard({ post, saved, onSave, signedIn }: { post: CommunePost; saved: boolean; onSave: (id: string) => void; signedIn: boolean }) {
+  return <article className="commune-post-card"><div className="addon-card__topline"><StatusBadges labels={[post.post_type, post.status]} /></div><h3><Link to={`/commune/posts/${post.id}`}>{post.title}</Link></h3><p>{post.excerpt || post.body.slice(0, 180)}</p><p>By {authorLink(post.author_username)} · {post.published_at ? new Date(post.published_at).toLocaleDateString() : "public date unavailable"}</p><TagChips tags={(post.tags ?? []).slice(0, 5)} /><ReactionBar targetType="post" targetId={post.id} signedIn={signedIn} /><div className="button-row"><Link className="button-link" to={`/commune/posts/${post.id}`}>Read</Link><button type="button" onClick={() => onSave(post.id)}>{saved ? "Saved" : "Save post"}</button></div></article>;
+}
+
+function CommunityFeed({ posts, savedPostIds, onSave, filters, signedIn }: { posts: CommunePost[]; savedPostIds: string[]; onSave: (id: string) => void; filters: CommuneFilters; signedIn: boolean }) {
   const filteredPosts = posts.filter((post) => {
     const type = postTypes.find((item) => item.backendValue === post.post_type);
     const labels = [post.status, post.visibility, type?.name ?? post.post_type, ...(post.tags ?? [])];
@@ -654,11 +704,11 @@ function CommunityFeed({ posts, savedPostIds, onSave, filters }: { posts: Commun
     <p className="eyebrow">Community Feed</p>
     <h2>{filteredPosts.length ? `${filteredPosts.length} published item${filteredPosts.length === 1 ? "" : "s"}` : "No published Commune posts yet"}</h2>
     <p className="boundary-note">Only posts approved/published by moderation are public here. Drafts and pending requests remain private to their owner and reviewers.</p>
-    {filteredPosts.length ? <div className="commune-feed-grid">{filteredPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} />)}</div> : <div className="commune-feed-grid">{emptyCards.map((type) => <article className="commune-feed-card" key={type.id}><div className="commune-author-sigil" aria-hidden="true">{type.name.slice(0, 1)}</div><p className="eyebrow">{type.name}</p><h3>No {type.name} posts yet.</h3><p>{type.purpose}</p><Link className="button-link" to={roomPathForType(type)}>Enter room</Link></article>)}</div>}
+    {filteredPosts.length ? <div className="commune-feed-grid">{filteredPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} signedIn={signedIn} />)}</div> : <div className="commune-feed-grid">{emptyCards.map((type) => <article className="commune-feed-card" key={type.id}><div className="commune-author-sigil" aria-hidden="true">{type.name.slice(0, 1)}</div><p className="eyebrow">{type.name}</p><h3>No {type.name} posts yet.</h3><p>{type.purpose}</p><Link className="button-link" to={roomPathForType(type)}>Enter room</Link></article>)}</div>}
   </section>;
 }
 
-function RoomPage({ roomSlug, roomId, posts, savedPostIds, onSave, localDrafts, categories, onRefresh }: { roomSlug: string; roomId?: string; posts: CommunePost[]; savedPostIds: string[]; onSave: (id: string) => void; localDrafts: ReturnType<typeof useLocalDraftState>; categories: CommuneCategory[]; onRefresh: () => Promise<void> }) {
+function RoomPage({ roomSlug, roomId, posts, savedPostIds, onSave, localDrafts, categories, onRefresh, signedIn }: { roomSlug: string; roomId?: string; posts: CommunePost[]; savedPostIds: string[]; onSave: (id: string) => void; localDrafts: ReturnType<typeof useLocalDraftState>; categories: CommuneCategory[]; onRefresh: () => Promise<void>; signedIn: boolean }) {
   const type = postTypeByRoomSlug.get(roomSlug);
   const roomPosts = type ? posts.filter((post) => post.post_type === type.backendValue) : [];
   if (!type) {
@@ -688,7 +738,7 @@ function RoomPage({ roomSlug, roomId, posts, savedPostIds, onSave, localDrafts, 
       <p className="eyebrow">{type.name} Posts</p>
       <h2>{roomPosts.length ? `${roomPosts.length} published item${roomPosts.length === 1 ? "" : "s"}` : `No published ${type.name} posts yet`}</h2>
       <p className="boundary-note">This room follows the Commune model: room posts become threads, and replies appear after moderation.</p>
-      {roomPosts.length ? <div className="commune-feed-grid">{roomPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} />)}</div> : <p className="commune-empty-state">Published posts will appear here after moderation. Start with a careful draft when you are ready.</p>}
+      {roomPosts.length ? <div className="commune-feed-grid">{roomPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} signedIn={signedIn} />)}</div> : <p className="commune-empty-state">Published posts will appear here after moderation. Start with a careful draft when you are ready.</p>}
     </section>
     {type.backendValue === "repository_showcase" && <section className="section-card commune-repo-card"><p className="eyebrow">Repository Showcase</p><h2>Metadata only, never execution</h2><p>A public repo is not automatically safe, compatible, licensed, or free of secrets. The website does not fetch, clone, build, run, or validate repositories from this room.</p><Link className="button-link button-link--primary" to="/commune/repository-showcase">Open repository showcase form</Link></section>}
     {type.backendValue === "code_sharing" && <section className="section-card commune-sandbox-card"><p className="eyebrow">Code Sharing Tools</p><h2>Review code as text, then request sandbox review only when needed.</h2><p>Code snippets and documents are for discussion. The website does not execute code, open a terminal, install packages, clone repositories, or call Local Elysia.</p><div className="button-row"><Link className="button-link" to="/commune/code-sharing/review">Open Code Review Workbench</Link><Link className="button-link" to="/commune/sandbox-review">Prepare Sandbox Review Request</Link></div></section>}
@@ -698,11 +748,11 @@ function RoomPage({ roomSlug, roomId, posts, savedPostIds, onSave, localDrafts, 
 }
 
 function useCommuneLoad(roomSlug?: string, postId?: string) {
-  const [state, setState] = useState({ rooms: [] as CommuneRoom[], posts: [] as CommunePost[], comments: [] as CommuneComment[], threads: [] as CommuneThread[], savedPostIds: [] as string[], followedThreadIds: [] as string[], signedIn: false, isModerator: false, accountReady: false });
+  const [state, setState] = useState({ rooms: [] as CommuneRoom[], posts: [] as CommunePost[], comments: [] as CommuneComment[], threads: [] as CommuneThread[], savedPostIds: [] as string[], followedThreadIds: [] as string[], signedIn: false, isAdmin: false, isModerator: false, accountReady: false });
   const refresh = useCallback(async () => {
     const result = await loadCommuneData(roomSlug, postId);
     logCommuneDiagnostics("load", [...result.account.warnings, ...result.warnings]);
-    setState({ rooms: result.rooms, posts: result.posts, comments: result.comments, threads: result.threads, savedPostIds: result.savedPostIds, followedThreadIds: result.followedThreadIds, signedIn: result.account.signedIn, isModerator: result.account.isModerator, accountReady: !result.warnings.some(isBackendDiagnostic) });
+    setState({ rooms: result.rooms, posts: result.posts, comments: result.comments, threads: result.threads, savedPostIds: result.savedPostIds, followedThreadIds: result.followedThreadIds, signedIn: result.account.signedIn, isAdmin: result.account.isAdmin, isModerator: result.account.isModerator, accountReady: !result.warnings.some(isBackendDiagnostic) });
   }, [roomSlug, postId]);
   useEffect(() => { void refresh(); }, [refresh]);
   return { state, refresh };
@@ -1108,25 +1158,47 @@ function PostDetail({ postId }: { postId: string }) {
   const { state, refresh } = useCommuneLoad(undefined, postId);
   const [snippets, setSnippets] = useState<CommuneCodeSnippet[]>([]);
   const [comment, setComment] = useState("");
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
   const [report, setReport] = useState<{ type: string; reason: string }>({ type: reportTypes[0], reason: "" });
   const [message, setMessage] = useState("");
   const post = state.posts[0];
   const thread = state.threads.find((item) => item.post_id === postId) ?? state.threads[0];
+  const topLevelComments = state.comments.filter((item) => !item.parent_comment_id);
+  const repliesByParent = state.comments.reduce<Record<string, CommuneComment[]>>((groups, item) => {
+    if (!item.parent_comment_id) return groups;
+    groups[item.parent_comment_id] = [...(groups[item.parent_comment_id] ?? []), item];
+    return groups;
+  }, {});
   useEffect(() => { void loadCodeSnippets(postId).then((result) => { setSnippets(result.snippets); logCommuneDiagnostics("code-snippets", result.warnings); }); }, [postId]);
   async function save() { const result = await savePost(postId); setMessage(cleanCommuneMessage(result.message, "Saved posts are not active yet. Try again after account-backed shelves are ready.")); await refresh(); }
   async function follow() { if (!thread) return setMessage("No thread is available yet."); const result = await followThread(thread.id); setMessage(cleanCommuneMessage(result.message, "Followed threads are not active yet.")); await refresh(); }
   async function markRead() { if (!thread) return; const result = await markThreadRead(thread.id); setMessage(cleanCommuneMessage(result.message, "Thread read-state is not active yet.")); await refresh(); }
-  async function submitReply() { if (!thread) return setMessage("No thread is available for this post yet."); const result = await submitComment({ postId, threadId: thread.id, body: comment }); setMessage(cleanCommuneMessage(result.message, "Comment saved locally is not available here yet. Backend moderation is being prepared.")); setComment(""); await refresh(); }
+  async function submitThreadComment() { if (!thread) return setMessage("No thread is available for this post yet."); const result = await submitComment({ postId, threadId: thread.id, body: comment }); setMessage(cleanCommuneMessage(result.message, "Comment saved locally is not available here yet. Backend moderation is being prepared.")); setComment(""); await refresh(); }
+  async function submitCommentReply(parentCommentId: string) { if (!thread) return setMessage("No thread is available for this post yet."); const body = replyDrafts[parentCommentId] ?? ""; const result = await submitComment({ postId, threadId: thread.id, body, parentCommentId }); setMessage(cleanCommuneMessage(result.message, "Reply saved locally is not available here yet. Backend moderation is being prepared.")); setReplyDrafts((current) => ({ ...current, [parentCommentId]: "" })); setActiveReplyId(null); await refresh(); }
   async function reportPost() { const result = await reportCommuneContent({ postId, reportType: report.type, reason: report.reason }); setMessage(cleanCommuneMessage(result.message, "Report routing is being prepared. If urgent, use another trusted contact path.")); setReport({ ...report, reason: "" }); }
   async function reportComment(commentId: string) { const result = await reportCommuneContent({ commentId, reportType: report.type, reason: report.reason || "Reported from post detail comment list." }); setMessage(cleanCommuneMessage(result.message, "Comment report routing is being prepared.")); }
+  function renderComment(item: CommuneComment, isReply = false) {
+    const replies = repliesByParent[item.id] ?? [];
+    return <article className={isReply ? "commune-preview-card commune-reply-card" : "commune-preview-card"} key={item.id}>
+      <p>{item.body}</p>
+      <p>By {authorLink(item.author_username)} · {item.status}</p>
+      <ReactionBar targetType="comment" targetId={item.id} signedIn={state.signedIn} onMessage={setMessage} />
+      <div className="button-row"><button type="button" onClick={() => void reportComment(item.id)}>Report comment</button>{!isReply && <button type="button" onClick={() => setActiveReplyId(activeReplyId === item.id ? null : item.id)}>Reply</button>}</div>
+      <AdminContentControls targetType="comment" targetId={item.id} isModerator={state.isModerator} onChanged={refresh} onMessage={setMessage} />
+      {activeReplyId === item.id && <div className="commune-reply-form"><label><span>Reply to this comment</span><textarea rows={3} value={replyDrafts[item.id] ?? ""} onChange={(event) => setReplyDrafts((current) => ({ ...current, [item.id]: event.target.value }))} /></label><button type="button" onClick={() => void submitCommentReply(item.id)}>Submit reply</button></div>}
+      {replies.length > 0 && <div className="commune-reply-thread">{replies.map((reply) => renderComment(reply, true))}</div>}
+    </article>;
+  }
   if (!post) return <section className="section-card"><h2>Post not found</h2><p>This post is not public, does not exist, or is still awaiting moderation.</p><p className="boundary-note">Account-backed posts may also be unavailable while Commune backend tables are being prepared.</p><Link className="button-link" to="/commune">Back to Commune</Link></section>;
-  return <><section className="section-card commune-post-detail"><p className="eyebrow">{post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>By {authorLink(post.author_username)}</p><StatusBadges labels={[post.status, post.visibility]} /><p>{post.body}</p><TagChips tags={post.tags} /><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div></section>{snippets.length > 0 && <section className="section-card"><p className="eyebrow">Code snippets</p><h2>Inert display only</h2>{snippets.map((snippet) => <article className="commune-code-preview" key={snippet.id}><div className="addon-card__topline"><strong>{inertCodeSnippetLabel(snippet.language ?? "")}</strong><span>{snippet.file_name ?? "snippet"}</span></div><pre><code>{snippet.code_text}</code></pre><div className="button-row"><button type="button" onClick={() => copyText(snippet.code_text, setMessage)}>Copy snippet</button></div><p className="boundary-note">Code is shown for discussion only. Do not run code you do not trust. The website did not execute this snippet.</p></article>)}</section>}<section className="section-card"><p className="eyebrow">Comments</p><h2>Replies after moderation</h2>{state.comments.map((item) => <article className="commune-preview-card" key={item.id}><p>{item.body}</p><p>By {authorLink(item.author_username)} · {item.status}</p><button type="button" onClick={() => void reportComment(item.id)}>Report comment</button></article>)}{!state.comments.length && <p>Moderated comments will appear here once the backend tables are active and replies are approved.</p>}<label><span>Reply</span><textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><button type="button" onClick={() => void submitReply()}>Submit comment for moderation</button></section><section className="section-card"><p className="eyebrow">Report</p><h2>Report this post</h2><p>Reports are reviewed by moderators/administrators. Reporting does not automatically remove content unless urgent automated controls are later added.</p><label><span>Report type</span><select value={report.type} onChange={(event) => setReport({ ...report, type: event.target.value })}>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span>Reason</span><textarea rows={3} value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value })} /></label><button type="button" onClick={() => void reportPost()}>Send report</button><p className="message">{message}</p></section></>;
+  return <><section className="section-card commune-post-detail"><p className="eyebrow">{post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>By {authorLink(post.author_username)}</p><StatusBadges labels={[post.status, post.visibility]} /><p>{post.body}</p><TagChips tags={post.tags} /><ReactionBar targetType="post" targetId={post.id} signedIn={state.signedIn} onMessage={setMessage} /><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div><AdminContentControls targetType="post" targetId={post.id} isModerator={state.isModerator} onChanged={refresh} onMessage={setMessage} /></section>{snippets.length > 0 && <section className="section-card"><p className="eyebrow">Code snippets</p><h2>Inert display only</h2>{snippets.map((snippet) => <article className="commune-code-preview" key={snippet.id}><div className="addon-card__topline"><strong>{inertCodeSnippetLabel(snippet.language ?? "")}</strong><span>{snippet.file_name ?? "snippet"}</span></div><pre><code>{snippet.code_text}</code></pre><div className="button-row"><button type="button" onClick={() => copyText(snippet.code_text, setMessage)}>Copy snippet</button></div><p className="boundary-note">Code is shown for discussion only. Do not run code you do not trust. The website did not execute this snippet.</p></article>)}</section>}<section className="section-card"><p className="eyebrow">Comments</p><h2>Comments and replies</h2><p className="boundary-note">{state.isAdmin ? "Admin comments publish directly and remain auditable." : "First participation in a post/thread is reviewed. After approval in that thread, later comments and replies can publish directly while remaining reportable and removable."}</p>{topLevelComments.map((item) => renderComment(item))}{!topLevelComments.length && <p>Moderated comments will appear here once the backend tables are active and replies are approved.</p>}<label><span>Comment on this post</span><textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><button type="button" onClick={() => void submitThreadComment()}>Submit comment</button></section><section className="section-card"><p className="eyebrow">Report</p><h2>Report this post</h2><p>Reports are reviewed by moderators/administrators. Reporting does not automatically remove content unless urgent automated controls are later added. Ratings do not replace reports or moderation.</p><label><span>Report type</span><select value={report.type} onChange={(event) => setReport({ ...report, type: event.target.value })}>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span>Reason</span><textarea rows={3} value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value })} /></label><button type="button" onClick={() => void reportPost()}>Send report</button><p className="message">{message}</p></section></>;
 }
 
 function ModerationPanel() {
   const [items, setItems] = useState<CommuneModerationItem[]>([]);
   const [message, setMessage] = useState("Moderation is role-gated. If the backend is not active yet, this panel stays in preview mode.");
   const [reason, setReason] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<CommuneModerationItem | null>(null);
   const refresh = useCallback(async () => {
     const result = await loadCommuneModerationQueue();
     logCommuneDiagnostics("moderation", result.warnings);
@@ -1135,7 +1207,14 @@ function ModerationPanel() {
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
   async function act(item: CommuneModerationItem, action: "approve" | "reject" | "hide" | "archive" | "needs_information" | "escalate") { const result = await moderateCommuneItem(item, action, reason); setMessage(cleanCommuneMessage(result.message, "Moderation action could not be completed because the backend queue is not active yet.")); await refresh(); }
-  return <section className="section-card"><p className="eyebrow">Role-gated moderation</p><h2>Commune moderation queue</h2><p className="boundary-note">Normal users cannot access RLS-protected pending posts, comments, uploads, reports, or moderation events.</p><label><span>Moderation note</span><input value={reason} onChange={(event) => setReason(event.target.value)} /></label><div className="commune-draft-grid">{items.map((item) => <article key={`${item.kind}-${item.id}`}><h3>{item.title}</h3><StatusBadges labels={[item.kind, item.status]} /><p>{item.summary}</p><div className="button-row"><button onClick={() => void act(item, "approve")}>Approve/publish</button><button onClick={() => void act(item, "needs_information")}>Needs info</button><button onClick={() => void act(item, "reject")}>Reject/remove</button><button onClick={() => void act(item, "hide")}>Hide</button><button onClick={() => void act(item, "archive")}>Archive</button><button onClick={() => void act(item, "escalate")}>Escalate</button></div></article>)}</div>{!items.length && <p>Moderation items will appear here for authorized roles when account-backed Commune tables are active.</p>}<p className="message">{message}</p></section>;
+  async function contentAct(item: CommuneModerationItem, action: "flag" | "delete") {
+    if (item.kind !== "post" && item.kind !== "comment") return;
+    const result = await moderateCommuneContentTarget({ targetType: item.kind, targetId: item.id, action, reason });
+    setMessage(cleanCommuneMessage(result.message, "Moderation action could not be completed because the backend queue is not active yet."));
+    setDeleteTarget(null);
+    await refresh();
+  }
+  return <section className="section-card"><p className="eyebrow">Role-gated moderation</p><h2>Commune moderation queue</h2><p className="boundary-note">Normal users cannot access RLS-protected pending posts, comments, uploads, reports, or moderation events.</p><label><span>Moderation note</span><input value={reason} onChange={(event) => setReason(event.target.value)} /></label><div className="commune-draft-grid">{items.map((item) => <article key={`${item.kind}-${item.id}`}><h3>{item.title}</h3><StatusBadges labels={[item.kind, item.status]} /><p>{item.summary}</p><div className="button-row"><button onClick={() => void act(item, "approve")}>Approve/publish</button><button onClick={() => void act(item, "needs_information")}>Needs info</button><button onClick={() => void act(item, "reject")}>Reject/remove</button><button onClick={() => void act(item, "hide")}>Hide</button><button onClick={() => void act(item, "archive")}>Archive</button><button onClick={() => void act(item, "escalate")}>Escalate</button>{(item.kind === "post" || item.kind === "comment") && <><button type="button" onClick={() => void contentAct(item, "flag")}>Flag for removal</button><button type="button" onClick={() => setDeleteTarget(item)}>Delete</button></>}</div>{deleteTarget?.id === item.id && deleteTarget.kind === item.kind && <div className="commune-delete-confirm"><h3>Delete/remove this Commune content?</h3><p>This removes the item from public views and leaves admin-only History evidence.</p><div className="button-row"><button type="button" onClick={() => void contentAct(item, "delete")}>Yes, delete/remove</button><button type="button" onClick={() => setDeleteTarget(null)}>No, keep it</button></div></div>}</article>)}</div>{!items.length && <p>Moderation items will appear here for authorized roles when account-backed Commune tables are active.</p>}<p className="message">{message}</p></section>;
 }
 
 function CollaborativeCodeReviewPanel() {
@@ -1451,12 +1530,12 @@ export default function CommunePage() {
     {mode === "realtime" && <RealtimeFoundationPanel />}
     {routeMode === "code-review" && <CollaborativeCodeReviewPanel />}
     {postId && <PostDetail postId={postId} />}
-    {isRoom && roomSlug && <RoomPage roomSlug={roomSlug} roomId={selectedRoom?.id} posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} localDrafts={localDrafts} categories={categories} onRefresh={refresh} />}
+    {isRoom && roomSlug && <RoomPage roomSlug={roomSlug} roomId={selectedRoom?.id} posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} localDrafts={localDrafts} categories={categories} onRefresh={refresh} signedIn={state.signedIn} />}
 
     {isLobby && <>
       <RedactionPanel />
       <RoomCards />
-      <CommunityFeed posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} filters={filters} />
+      <CommunityFeed posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} filters={filters} signedIn={state.signedIn} />
       <CommuneSideChannelPanel />
       <LocalDraftStudio localDrafts={localDrafts} filters={filters} />
     </>}

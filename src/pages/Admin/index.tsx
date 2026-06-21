@@ -59,8 +59,10 @@ import {
   type AppRole,
   type ReviewDomain,
   type ReviewItem,
+  type ReviewQueueFilter,
   type ReviewStatus,
   assignReviewItemToMe,
+  activeReviewStatuses,
   canReviewDomain,
   domainLabels,
   grantRole,
@@ -101,6 +103,14 @@ const routeDomains: Record<string, ReviewDomain | undefined> = {
 };
 
 const statusOptions: ReviewStatus[] = ["in_review", "needs_information", "approved", "rejected", "archived"];
+const reviewQueueFilters: { value: ReviewQueueFilter; label: string }[] = [
+  { value: "active", label: "Active" },
+  { value: "history", label: "History" },
+  { value: "approved", label: "Approved" },
+  { value: "rejected", label: "Rejected" },
+  { value: "archived", label: "Archived" },
+  { value: "all", label: "All" }
+];
 const roleOptions: AppRole[] = ["administrator", "moderator", "reviewer", "marketplace_reviewer", "source_reviewer", "commune_moderator", "guardian_reviewer"];
 
 function StatusBadge({ status }: { status: string }) {
@@ -180,19 +190,21 @@ function ReviewQueue({ domain }: { domain?: ReviewDomain }) {
   const [items, setItems] = useState<ReviewItem[]>([]);
   const [messages, setMessages] = useState<string[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
+  const [filter, setFilter] = useState<ReviewQueueFilter>("active");
 
   const refresh = useCallback(async () => {
-    const result = await loadReviewItems(domain);
+    const result = await loadReviewItems(domain, filter);
     setItems(result.items);
     setMessages(result.warnings);
-  }, [domain]);
+  }, [domain, filter]);
   useEffect(() => { if (gate.allowed) void refresh(); }, [gate.allowed, refresh]);
 
   const selectedItem = items.find((item) => item.id === selected) ?? items[0] ?? null;
   const title = domain ? `${domainLabels[domain]} Review Queue` : "All Review Queues";
+  const canActOnSelected = selectedItem ? activeReviewStatuses.includes(selectedItem.status) : false;
   if (!gate.allowed) return <Unauthorized warnings={gate.warnings} />;
 
-  return <div className="page-stack admin-page"><PageHero eyebrow="Admin Review" title={title}><p>Review queues are role-gated in the UI and protected by Supabase RLS. Actions write review events for auditability.</p></PageHero><AdminNav />{messages.map((message) => <p className="message" key={message}>{message}</p>)}<section className="two-column admin-review-grid"><div className="section-card"><p className="eyebrow">Queue</p><h2>{items.length} item{items.length === 1 ? "" : "s"}</h2>{items.length === 0 ? <p>No pending items.</p> : items.map((item) => <button className="review-list-item" type="button" key={item.id} onClick={() => setSelected(item.id)}><strong>{item.title || item.source_table}</strong><span>{domainLabels[item.domain]} · {item.source_table}</span><StatusBadge status={item.status} /></button>)}</div><div className="section-card">{selectedItem ? <><p className="eyebrow">Review detail</p><h2>{selectedItem.title || selectedItem.id}</h2><dl className="mini-facts"><div><dt>Domain</dt><dd>{domainLabels[selectedItem.domain]}</dd></div><div><dt>Status</dt><dd><StatusBadge status={selectedItem.status} /></dd></div><div><dt>Source</dt><dd>{selectedItem.source_table}</dd></div><div><dt>Submitted</dt><dd>{selectedItem.submitted_at ?? "Unknown"}</dd></div><div><dt>Private files</dt><dd>{["work_with", "stewardship"].includes(selectedItem.domain) ? "May exist; access is private and RLS-gated." : "None expected"}</dd></div></dl><p>{selectedItem.summary}</p><ReviewActions item={selectedItem} onChanged={(message) => { setMessages((current) => [message, ...current]); void refresh(); }} /></> : <p>No item selected.</p>}</div></section></div>;
+  return <div className="page-stack admin-page"><PageHero eyebrow="Admin Review" title={title}><p>Review queues are role-gated in the UI and protected by Supabase RLS. Active queues show only items that still need action; History keeps reviewed evidence out of the working queue.</p></PageHero><AdminNav />{messages.map((message) => <p className="message" key={message}>{message}</p>)}<section className="section-card"><p className="eyebrow">Queue view</p><h2>{filter === "active" ? "Active review queue" : "Admin review history"}</h2><div className="button-row">{reviewQueueFilters.map((item) => <button key={item.value} type="button" className={filter === item.value ? "button-primary" : ""} onClick={() => { setFilter(item.value); setSelected(null); }}>{item.label}</button>)}</div><p className="boundary-note">Archive is an admin-selected saved state. History is the chronological review record; approved, rejected, and archived items do not stay in the active queue.</p></section><section className="two-column admin-review-grid"><div className="section-card"><p className="eyebrow">Queue</p><h2>{items.length} item{items.length === 1 ? "" : "s"}</h2>{items.length === 0 ? <p>{filter === "active" ? "No active review items need action." : "No history items match this view."}</p> : items.map((item) => <button className="review-list-item" type="button" key={item.id} onClick={() => setSelected(item.id)}><strong>{item.title || item.source_table}</strong><span>{domainLabels[item.domain]} · {item.source_table}</span><StatusBadge status={item.status} /></button>)}</div><div className="section-card">{selectedItem ? <><p className="eyebrow">Review detail</p><h2>{selectedItem.title || selectedItem.id}</h2><dl className="mini-facts"><div><dt>Domain</dt><dd>{domainLabels[selectedItem.domain]}</dd></div><div><dt>Status</dt><dd><StatusBadge status={selectedItem.status} /></dd></div><div><dt>Source</dt><dd>{selectedItem.source_table}</dd></div><div><dt>Submitted</dt><dd>{selectedItem.submitted_at ?? "Unknown"}</dd></div><div><dt>Private files</dt><dd>{["work_with", "stewardship"].includes(selectedItem.domain) ? "May exist; access is private and RLS-gated." : "None expected"}</dd></div></dl><p>{selectedItem.summary}</p>{canActOnSelected ? <ReviewActions item={selectedItem} onChanged={(message) => { setMessages((current) => [message, ...current]); void refresh(); }} /> : <p className="boundary-note">This item is in admin history. It is not part of the active queue; use review events and audit logs for the timeline.</p>}</> : <p>No item selected.</p>}</div></section></div>;
 }
 
 function RolesPage() {
