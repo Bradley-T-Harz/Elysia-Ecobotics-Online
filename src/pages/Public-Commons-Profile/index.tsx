@@ -41,9 +41,26 @@ function DecalStrip({ settings }: { settings: PublicCustomizationView }) {
   return <div className="commons-decal-strip" aria-label="Selected profile decals">{decals.map((decal) => <span className="commons-decal-chip" key={decal}>{formatDecalLabel(decal)}</span>)}</div>;
 }
 
+function previewText(value: string, max = 180) {
+  const compact = value.replace(/\s+/g, " ").trim();
+  return compact.length > max ? `${compact.slice(0, max - 1).trim()}…` : compact;
+}
+
+function publicUsernameFromHandle(publicHandle: string) {
+  let decoded = publicHandle.trim();
+  try {
+    decoded = decodeURIComponent(decoded);
+  } catch {
+    return null;
+  }
+  if (!decoded.startsWith("@")) return null;
+  const username = decoded.slice(1).trim();
+  return /^[a-z0-9][a-z0-9_-]{1,48}$/i.test(username) ? username : null;
+}
 
 export default function PublicCommonsProfilePage() {
-  const { username = "" } = useParams();
+  const { publicHandle = "" } = useParams();
+  const username = publicUsernameFromHandle(publicHandle);
   const [profileData, setProfileData] = useState<PublicCommonsProfile | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -51,6 +68,12 @@ export default function PublicCommonsProfilePage() {
   useEffect(() => {
     let active = true;
     setLoading(true);
+    if (!username) {
+      setProfileData(null);
+      setWarnings([]);
+      setLoading(false);
+      return () => { active = false; };
+    }
     loadPublicCommonsProfile(username).then((result) => {
       if (!active) return;
       setProfileData(result.data);
@@ -66,23 +89,24 @@ export default function PublicCommonsProfilePage() {
 
   if (!profileData) {
     if (import.meta.env.DEV && warnings.length) console.warn("[Public Commons Profile]", warnings);
-    return <div className="page-stack"><PageHero eyebrow="Commons Profile" title="Profile not found"><p>This public Commons profile does not exist yet, is unavailable, or Supabase is not configured.</p></PageHero></div>;
+    return <div className="page-stack"><PageHero eyebrow="Commons Profile" title="Profile not found or not public"><p>This public Commons Circle profile is unavailable. The handle may be missing, private, not published, or not created yet.</p></PageHero></div>;
   }
 
-  const { profile, visibility, customization, badges, publicCollections, publicSavedSources, isOwner } = profileData;
+  const { profile, visibility, customization, badges, publicCollections, publicLinks, publicCommunePosts, publicCommuneComments, isOwner } = profileData;
   const style = { "--commons-accent": customization.accent_color || "#8ee8dc" } as CSSProperties;
   const profileClasses = `page-stack commons-public-profile commons-homebase ${customizationClass(customization)}`;
+  const visibleName = visibility.show_display_name ? profile.display_name || profile.username : `@${profile.username}`;
   if (import.meta.env.DEV && warnings.length) console.warn("[Public Commons Profile]", warnings);
 
   return (
     <div className={profileClasses} style={style}>
-      <PageHero eyebrow="Public Commons Profile" title={visibility.show_display_name ? profile.display_name || profile.username : `@${profile.username}`}>
-        <p>This public profile is controlled by the member's Commons Circle visibility settings. It never shows private email, resumes, receipts, Work With requests, admin review data, notifications, local Elysia connection data, or private saved items.</p>
+      <PageHero eyebrow="Public Commons Profile" title={visibleName}>
+        <p>This is a public Commons Circle profile. It does not expose private account email, private requests, saved shelves, local Elysia data, files, logs, vaults, credentials, or machine data.</p>
       </PageHero>
       <section className="section-card commons-homebase-hero">
         <div className="commons-profile-mantle" style={customization.banner_url ? { backgroundImage: `linear-gradient(135deg, rgba(10, 20, 22, .35), rgba(18, 44, 48, .4)), url(${customization.banner_url})` } : undefined}>
           <div className="commons-avatar">{customization.avatar_url ? <img src={customization.avatar_url} alt="Public Commons avatar" /> : <span>{(profile.display_name || profile.username).slice(0, 1).toUpperCase()}</span>}</div>
-          <div><p className="eyebrow">@{profile.username}</p><h2>{visibility.show_display_name ? profile.display_name || profile.username : `@${profile.username}`}</h2>{visibility.show_member_tier && <p>Free Member</p>}</div>
+          <div><p className="eyebrow">@{profile.username}</p><h2>{visibleName}</h2>{profile.headline && <p>{profile.headline}</p>}</div>
         </div>
         <DecalStrip settings={customization} />
         {isOwner && <div className="button-row"><a className="button-link button-link--primary" href="/commons-circle">Edit in Commons Circle</a></div>}
@@ -91,13 +115,15 @@ export default function PublicCommonsProfilePage() {
       <section className="commons-homebase-grid">
         <article className="section-card">
           <p className="eyebrow">Profile</p>
-          <h2>Public fields</h2>
+          <h2>Public identity</h2>
           {visibility.show_bio && profile.bio && <p>{profile.bio}</p>}
+          {profile.organization && <p><strong>Organization:</strong> {profile.organization}</p>}
           {visibility.show_interests && profile.interests && <p><strong>Interests:</strong> {profile.interests}</p>}
           {visibility.show_website && profile.website_url && <p><a href={profile.website_url} target="_blank" rel="noreferrer">Website</a></p>}
           {visibility.show_github && profile.github_url && <p><a href={profile.github_url} target="_blank" rel="noreferrer">GitHub / code profile</a></p>}
-          {visibility.show_developer_status && <p><strong>Developer status:</strong> {profile.is_developer ? "visible/requested" : "not listed"}</p>}
-          <p className="boundary-note">Authority roles are not granted by profile display, badges, medallions, donations, or self-selection.</p>
+          {publicLinks.map((link) => <p key={`${link.label}-${link.url}`}><a href={link.url} target="_blank" rel="noreferrer">{link.label}</a>{link.kind ? ` · ${link.kind}` : ""}</p>)}
+          {!profile.bio && !profile.organization && !profile.interests && !profile.website_url && !profile.github_url && !publicLinks.length && <p>No public profile fields are visible yet.</p>}
+          <p className="boundary-note">Profile display, badges, medallions, donations, and self-selection do not grant administrator, moderator, reviewer, guardian, developer trust, or paid-role authority.</p>
         </article>
         <article className="section-card">
           <p className="eyebrow">Stewardship</p>
@@ -110,7 +136,7 @@ export default function PublicCommonsProfilePage() {
 
       {visibility.show_source_collections && <section className="section-card commons-shelves"><p className="eyebrow">Public source collections</p><h2>Collections this member chose to show</h2>{publicCollections.length ? <div className="commons-shelf-grid">{publicCollections.map((collection) => <article className="commons-preview-card" key={collection.id || collection.title}><h3>{collection.title}</h3><p>{collection.description || "Public source collection"}</p><span>{collection.source_count} sources · {collection.visibility}</span></article>)}</div> : <p>No public collections are visible.</p>}</section>}
 
-      {visibility.show_saved_sources && <section className="section-card commons-shelves"><p className="eyebrow">Public saved sources</p><h2>Sources this member chose to show</h2>{publicSavedSources.length ? <div className="commons-shelf-grid">{publicSavedSources.map((source) => <article className="commons-preview-card" key={source.source_id}><h3>{source.source_name}</h3><p>{source.category || "Living Library source"}</p>{source.source_url && <a className="button-link" href={source.source_url} target="_blank" rel="noreferrer">Official source</a>}</article>)}</div> : <p>No public saved sources are visible.</p>}</section>}
+      {visibility.show_commune_posts && <section className="section-card commons-shelves"><p className="eyebrow">Public Commune contributions</p><h2>Published posts and comments</h2>{publicCommunePosts.length || publicCommuneComments.length ? <div className="commons-shelf-grid">{publicCommunePosts.map((post) => <article className="commons-preview-card" key={post.id}><h3>{post.title}</h3><p>{post.excerpt || post.post_type || "Published Commune post"}</p><a className="button-link" href={`/commune/posts/${post.id}`}>Read post</a></article>)}{publicCommuneComments.map((comment) => <article className="commons-preview-card" key={comment.id}><h3>{comment.parent_comment_id ? "Published reply" : "Published comment"}</h3><p>{previewText(comment.body)}</p><a className="button-link" href={`/commune/posts/${comment.post_id}`}>Open thread</a></article>)}</div> : <p>No public Commune contributions are visible yet.</p>}</section>}
     </div>
   );
 }

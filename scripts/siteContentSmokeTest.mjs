@@ -15,7 +15,10 @@ const nav = await read("src/shared/components/SiteNav.tsx");
 const footer = await read("src/shared/components/SiteFooter.tsx");
 const app = await read("src/App.tsx");
 const commons = await read("src/pages/The-Commons-Circle/index.tsx");
+const commonsApi = await read("src/pages/The-Commons-Circle/commonsCircleApi.ts");
+const commonsSetup = await read("src/pages/The-Commons-Circle/CommonsCircleSetupPage.tsx");
 const commonsAdminConsole = await read("src/pages/The-Commons-Circle/CommonsCircleAdminConsolePage.tsx");
+const publicProfileFieldsMigration = await read("supabase/migrations/2026_06_22_commons_public_profile_fields.sql");
 const adminPage = await read("src/pages/Admin/index.tsx");
 const reviewClient = await read("src/shared/review/reviewClient.ts");
 const publicProfile = await read("src/pages/Public-Commons-Profile/index.tsx");
@@ -42,7 +45,8 @@ assert(footer.includes("Elysia Ecobotics™ is an EcoSyneva Commons LLC initiati
 assert(footer.includes("Elysia Ecobotics™ is a trademark of EcoSyneva Commons LLC."), "Footer trademark owner text missing.");
 assert(app.includes("lazy(() => import"), "App routes are not lazy-loaded.");
 assert(app.includes('path="commons-circle/admin-console"'), "Commons Circle admin console route missing.");
-assert(app.includes('path="commons-circle/@:username"'), "Commons Circle public profile route missing.");
+assert(app.includes('path="commons-circle/:publicHandle"'), "Commons Circle public profile route missing.");
+assert(app.includes('path="commons/:publicHandle"'), "Legacy Commons public profile route missing.");
 assert(app.includes('path="admin/reports"'), "Admin reports route missing.");
 assert(app.includes('path="admin/addon-submissions"'), "Admin add-on submissions route missing.");
 assert(app.includes('path="admin/developers"'), "Admin developers route missing.");
@@ -89,6 +93,17 @@ assert(commonsAdminConsole.includes("Role required") && commonsAdminConsole.incl
 assert(commune.includes("Code executes nowhere by default") || commune.includes("execute nowhere"), "Commune code-execution safety copy missing.");
 assert(commune.includes("`/commons-circle/@${encodeURIComponent(username)}`"), "Commune author links should route to /commons-circle/@username.");
 assert(!commune.includes("to={`/commons/@${encodeURIComponent(username)}`"), "Commune author links should not use the old /commons/@username path.");
+assert(publicProfile.includes("publicUsernameFromHandle") && publicProfile.includes("publicHandle") && publicProfile.includes("Profile not found or not public"), "Public Commons profile should parse @handles and show a safe unavailable state.");
+assert(commonsApi.includes("loadPublicCommonsProfile") && !commonsApi.match(/loadPublicCommonsProfile[\s\S]*?select\("[^"]*is_admin/), "Public profile loader should not select admin/private authority fields.");
+assert(commonsApi.includes('select("id, username, display_name, bio, interests, website_url, github_url, avatar_url, commons_onboarding_completed_at")'), "Public profile loader should start from live-safe baseline profile fields.");
+assert(commonsApi.includes("Public profile fields") && commonsApi.includes("organization, headline, featured_public_links"), "Public profile optional fields should load separately from the baseline profile row.");
+assert(publicProfileFieldsMigration.includes("add column if not exists organization") && publicProfileFieldsMigration.includes("add column if not exists headline") && publicProfileFieldsMigration.includes("add column if not exists featured_public_links"), "Public profile field repair migration should add explicit public profile fields.");
+assert(commons.includes("Shape your public profile room") && commonsSetup.includes("Organization, optional"), "Commons Circle should still expose public profile customization/editing paths.");
+assert(commonsSetup.includes("Headline, optional") && commonsSetup.includes("Featured public links, optional"), "Commons Profile setup should include newly rendered public fields.");
+assert(publicProfile.includes("This is a public Commons Circle profile. It does not expose private account email") && publicProfile.includes("Public Commune contributions"), "Public profile should include privacy boundary copy and real public contribution rendering.");
+assert(!publicProfile.includes("publicSavedSources") && !commonsApi.includes("Public saved sources"), "Public profiles must not expose private saved Living Library shelves.");
+assert(!publicProfile.includes("Developer status") && !publicProfile.includes("online status") && !publicProfile.includes("followers") && !publicProfile.includes("clout"), "Public profile should not render status/clout/follower mechanics.");
+assert(!publicProfile.includes("auth.email") && !publicProfile.includes("contact_email") && !publicProfile.includes("review_items") && !publicProfile.includes("work_with_requests"), "Public profile page should not query private email or request data.");
 for (const blocked of ["vault_access", "credential_access", "private_memory_access", "silent_shell_execution", "read_all_files", "write_arbitrary_files"]) {
   assert(forgeValidator.includes(blocked), `Developer Forge blocked permission missing: ${blocked}`);
 }

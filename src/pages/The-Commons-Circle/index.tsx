@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
+import { Link } from "react-router-dom";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
@@ -305,7 +306,7 @@ export default function CommonsCirclePage() {
         </dl>
         <DecalStrip settings={customizationDraft} />
         <div className="button-row">
-          {profile?.username ? <a className="button-link button-link--primary" href={publicProfilePath}>View public profile</a> : <span className="button-link button-link--disabled" aria-disabled="true">Add a username to view public profile</span>}
+          {profile?.username ? <Link className="button-link button-link--primary" to={publicProfilePath}>View public profile</Link> : <span className="button-link button-link--disabled" aria-disabled="true">Add a username to view public profile</span>}
           <a className="button-link" href="/commons-circle/setup/profile">Edit profile setup</a>
           <a className="button-link" href="#customization-studio">Customize circle</a>
           <a className="button-link" href="#privacy-lanterns">Privacy settings</a>

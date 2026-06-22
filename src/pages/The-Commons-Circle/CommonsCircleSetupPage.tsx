@@ -95,11 +95,13 @@ const acceptedReceiptMimeTypes = new Set(["application/pdf", "image/png", "image
 const initialProfileDraft: MarketplaceProfileDraft = {
   username: "",
   display_name: "",
+  headline: "",
   bio: "",
   interests: "",
   website_url: "",
   github_url: "",
   organization: "",
+  featured_public_links: [],
   is_developer: false
 };
 const initialStewardshipDraft: StewardshipDraft = {
@@ -223,13 +225,27 @@ function profileFromExisting(profile: ProfileWithSetup | null): MarketplaceProfi
   return {
     username: profile.username ?? "",
     display_name: profile.display_name ?? "",
+    headline: profile.headline ?? "",
     bio: profile.bio ?? "",
     interests: profile.interests ?? "",
     website_url: profile.website_url ?? "",
     github_url: profile.github_url ?? "",
     organization: profile.organization ?? "",
+    featured_public_links: profile.featured_public_links ?? [],
     is_developer: Boolean(profile.is_developer)
   };
+}
+
+function formatFeaturedLinks(links: MarketplaceProfileDraft["featured_public_links"]) {
+  return (links ?? []).map((link) => `${link.label} | ${link.url}${link.kind ? ` | ${link.kind}` : ""}`).join("\n");
+}
+
+function parseFeaturedLinks(value: string): MarketplaceProfileDraft["featured_public_links"] {
+  return value.split("\n").slice(0, 8).flatMap((line) => {
+    const [labelPart, urlPart, kindPart] = line.split("|").map((part) => part.trim());
+    if (!labelPart || !urlPart || !/^https?:\/\/[^\s<>"']+$/i.test(urlPart)) return [];
+    return [{ label: labelPart.slice(0, 80), url: urlPart, kind: kindPart ? kindPart.slice(0, 32) : undefined }];
+  });
 }
 
 export default function CommonsCircleSetupPage() {
@@ -524,11 +540,13 @@ export default function CommonsCircleSetupPage() {
       const baseProfileFields = {
         username: profileDraft.username.trim(),
         display_name: profileDraft.display_name.trim(),
+        headline: profileDraft.headline?.trim() || null,
         bio: profileDraft.bio.trim(),
         interests: profileDraft.interests?.trim() || null,
         website_url: profileDraft.website_url?.trim() || null,
         github_url: profileDraft.github_url?.trim() || null,
         organization: profileDraft.organization?.trim() || null,
+        featured_public_links: profileDraft.featured_public_links ?? [],
         commons_onboarding_completed_at: now,
         stewardship_onboarding_skipped_at: stewardshipDraft.skipped ? now : null,
         work_with_onboarding_skipped_at: workWithDraft.skipped ? now : null
@@ -614,11 +632,13 @@ export default function CommonsCircleSetupPage() {
           <div className="commons-form-grid">
             <label><span>Username</span><input value={profileDraft.username} placeholder="bradley-harz" onChange={(event) => updateProfileDraft({ ...profileDraft, username: event.target.value })} /></label>
             <label><span>Display name</span><input value={profileDraft.display_name} placeholder="Bradley T. Harz" onChange={(event) => updateProfileDraft({ ...profileDraft, display_name: event.target.value })} /></label>
+            <label className="wide-field"><span>Headline, optional</span><input value={profileDraft.headline ?? ""} placeholder="Public Commons profile headline" onChange={(event) => updateProfileDraft({ ...profileDraft, headline: event.target.value })} /></label>
             <label className="wide-field"><span>Bio</span><textarea rows={3} value={profileDraft.bio} placeholder="Short public Commons bio" onChange={(event) => updateProfileDraft({ ...profileDraft, bio: event.target.value })} /></label>
             <label><span>Interests</span><input value={profileDraft.interests ?? ""} onChange={(event) => updateProfileDraft({ ...profileDraft, interests: event.target.value })} /></label>
             <label><span>Website</span><input value={profileDraft.website_url ?? ""} onChange={(event) => updateProfileDraft({ ...profileDraft, website_url: event.target.value })} /></label>
             <label><span>GitHub</span><input value={profileDraft.github_url ?? ""} onChange={(event) => updateProfileDraft({ ...profileDraft, github_url: event.target.value })} /></label>
             <label><span>Organization, optional</span><input value={profileDraft.organization ?? ""} onChange={(event) => updateProfileDraft({ ...profileDraft, organization: event.target.value })} /></label>
+            <label className="wide-field"><span>Featured public links, optional</span><textarea rows={3} value={formatFeaturedLinks(profileDraft.featured_public_links)} placeholder={"Label | https://example.com | website"} onChange={(event) => updateProfileDraft({ ...profileDraft, featured_public_links: parseFeaturedLinks(event.target.value) })} /></label>
             <label className="checkbox-line"><input type="checkbox" checked={profileDraft.is_developer} onChange={(event) => updateProfileDraft({ ...profileDraft, is_developer: event.target.checked })} /><span>Request developer profile flag. This is not reviewer, moderator, admin, or authority access.</span></label>
           </div>
           <div className="button-row"><button type="button" className="button-primary" onClick={continueFromProfile}>Continue: Stewardship & Donations</button><a className="button-link" href="/commons-circle">Cancel setup</a></div>

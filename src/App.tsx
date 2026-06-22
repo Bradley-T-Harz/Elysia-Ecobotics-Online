@@ -114,8 +114,8 @@ export default function App() {
             <Route path="commons-circle/saved-shelves" element={<SavedShelvesPage />} />
             <Route path="commons-circle/onboarding" element={<Navigate to="/commons-circle/setup/profile" replace />} />
             <Route path="commons-circle/setup/:step" element={<CommonsCircleSetupPage />} />
-            <Route path="commons-circle/@:username" element={<PublicCommonsProfilePage />} />
-            <Route path="commons/@:username" element={<PublicCommonsProfilePage />} />
+            <Route path="commons-circle/:publicHandle" element={<PublicCommonsProfilePage />} />
+            <Route path="commons/:publicHandle" element={<PublicCommonsProfilePage />} />
             <Route path="story" element={<StoryPage />} />
             <Route path="about" element={<AboutPage />} />
             <Route path="mission" element={<MissionPage />} />

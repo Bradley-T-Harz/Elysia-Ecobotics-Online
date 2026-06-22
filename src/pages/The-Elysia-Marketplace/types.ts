@@ -114,11 +114,13 @@ export type MarketplaceProfile = {
   id?: string;
   username: string;
   display_name: string;
+  headline?: string | null;
   bio: string;
-  interests?: string;
-  website_url?: string;
-  github_url?: string;
-  organization?: string;
+  interests?: string | null;
+  website_url?: string | null;
+  github_url?: string | null;
+  organization?: string | null;
+  featured_public_links?: FeaturedPublicLink[];
   is_developer: boolean;
   is_admin: boolean;
   saved_addon_ids: string[];
@@ -130,12 +132,20 @@ export type MarketplaceProfile = {
 export type MarketplaceProfileDraft = {
   username: string;
   display_name: string;
+  headline?: string;
   bio: string;
   interests?: string;
   website_url?: string;
   github_url?: string;
   organization?: string;
+  featured_public_links?: FeaturedPublicLink[];
   is_developer: boolean;
+};
+
+export type FeaturedPublicLink = {
+  label: string;
+  url: string;
+  kind?: string;
 };
 
 export type Publisher = {

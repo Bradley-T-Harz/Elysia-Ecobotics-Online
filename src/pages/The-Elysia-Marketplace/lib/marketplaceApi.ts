@@ -259,11 +259,13 @@ async function ensureMarketplaceProfileForUser(user: { id: string; email?: strin
     id: user.id,
     username,
     display_name: username,
+    headline: null,
     bio: "",
     interests: null,
     website_url: null,
     github_url: null,
     organization: null,
+    featured_public_links: [],
     is_developer: false,
     is_admin: false
   }, { onConflict: "id" });
@@ -368,10 +370,13 @@ export async function upsertMarketplaceProfile(draft: MarketplaceProfileDraft): 
     id: auth.user.id,
     username: draft.username.trim(),
     display_name: draft.display_name.trim(),
+    headline: draft.headline?.trim() || null,
     bio: draft.bio.trim(),
     interests: draft.interests?.trim() || null,
     website_url: draft.website_url?.trim() || null,
     github_url: draft.github_url?.trim() || null,
+    organization: draft.organization?.trim() || null,
+    featured_public_links: draft.featured_public_links ?? [],
     is_developer: draft.is_developer,
     is_admin: Boolean((existingProfile as { is_admin?: boolean } | null)?.is_admin)
   };

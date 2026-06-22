@@ -1,6 +1,6 @@
 import { livingLibrarySources } from "../The-Living-Library/livingLibrarySources";
 import type { LivingLibrarySource } from "../The-Living-Library/livingLibrarySources";
-import type { MarketplaceProfile } from "../The-Elysia-Marketplace/types";
+import type { FeaturedPublicLink, MarketplaceProfile } from "../The-Elysia-Marketplace/types";
 import { loadCurrentProfile } from "../The-Elysia-Marketplace/lib/marketplaceApi";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
 
@@ -58,6 +58,8 @@ export type NotificationPreview = { id: string; title: string; body?: string | n
 export type BadgeDefinition = { badge_key: string; name: string; description: string; badge_type: string; category?: string | null; rarity: string; is_active?: boolean; icon_path?: string | null; tags?: string[]; authority?: boolean; authority_linked?: boolean | null; award_mode?: string | null; rule_summary?: string | null; is_manual_only?: boolean | null; sort_order?: number | null; note?: string; default_status?: string };
 export type BadgeAwardRow = { badge_key: string; awarded_at?: string | null; award_reason?: string | null; award_source?: string | null; evidence_type?: string | null; evidence_id?: string | null; visibility?: "public" | "private" | null; revoked_at?: string | null };
 export type UserBadge = BadgeDefinition & BadgeAwardRow & { visibility?: "public" | "private" | null; earned: true };
+export type PublicCommunePostPreview = { id: string; title: string; post_type?: string | null; excerpt?: string | null; published_at?: string | null; created_at?: string | null };
+export type PublicCommuneCommentPreview = { id: string; post_id: string; parent_comment_id?: string | null; body: string; published_at?: string | null; created_at?: string | null };
 
 export type LocalLivingSnapshot = {
   savedSourceIds: string[];
@@ -97,7 +99,9 @@ export type PublicCommonsProfile = {
   customization: ProfileCustomization;
   badges: UserBadge[];
   publicCollections: SourceCollectionPreview[];
-  publicSavedSources: SavedLivingSourcePreview[];
+  publicLinks: FeaturedPublicLink[];
+  publicCommunePosts: PublicCommunePostPreview[];
+  publicCommuneComments: PublicCommuneCommentPreview[];
   isOwner: boolean;
 };
 
@@ -253,7 +257,8 @@ const tableReadinessLabels: Record<string, string> = {
   "Source collection items": "Source collection details are not configured yet.",
   "Saved Living Library sources": "No account-backed Living Library saves yet.",
   "Saved citations": "No account-backed saved citations yet.",
-  "Saved add-ons": "No account-backed Marketplace saves yet."
+  "Saved add-ons": "No account-backed Marketplace saves yet.",
+  "Public profile fields": "Optional public profile fields are not active yet."
 };
 
 function logBackendDetail(label: string, message: string) {
@@ -314,6 +319,19 @@ function mergeBadges(definitions: BadgeDefinition[], awarded: BadgeAwardRow[]): 
     earned.push({ ...definition, ...award, visibility: award.visibility ?? "public", earned: true });
   }
   return earned.sort((left, right) => (left.sort_order ?? 999) - (right.sort_order ?? 999) || left.name.localeCompare(right.name));
+}
+
+function safePublicLinks(value: unknown): FeaturedPublicLink[] {
+  if (!Array.isArray(value)) return [];
+  return value.slice(0, 8).flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const row = item as Record<string, unknown>;
+    const label = typeof row.label === "string" ? row.label.trim().slice(0, 80) : "";
+    const url = typeof row.url === "string" ? row.url.trim() : "";
+    const kind = typeof row.kind === "string" ? row.kind.trim().slice(0, 32) : undefined;
+    if (!label || !/^https?:\/\/[^\s<>"']+$/i.test(url)) return [];
+    return [{ label, url, kind }];
+  });
 }
 
 export function freeMemberFallbackBadge(awardedAt?: string | null): UserBadge {
@@ -643,31 +661,42 @@ export async function loadPublicCommonsProfile(username: string): Promise<{ data
   const warnings: string[] = [];
   if (!hasSupabaseConfig || !supabase) return { data: null, warnings: [supabaseNotConfiguredMessage] };
   const cleanUsername = username.replace(/^@/, "").trim();
-  const { data: profile, error } = await supabase.from("profiles").select("id, username, display_name, bio, interests, website_url, github_url, organization, is_developer, is_admin, avatar_url, commons_onboarding_completed_at").eq("username", cleanUsername).maybeSingle();
+  const { data: profile, error } = await supabase.from("profiles").select("id, username, display_name, bio, interests, website_url, github_url, avatar_url, commons_onboarding_completed_at").eq("username", cleanUsername).maybeSingle();
   if (error) return { data: null, warnings: [friendlyBackendMessage("Commons Profile", error.message)] };
   if (!profile) return { data: null, warnings: [] };
   const profileRow = { ...(profile as ProfileWithSetup), saved_addon_ids: [] };
-  const [visibilityRows, customizationRows, mediaRows, definitions, awarded, collections, savedSources] = await Promise.all([
+  const [publicFieldRows, visibilityRows, customizationRows, mediaRows, definitions, awarded, collections, publicPosts, publicComments] = await Promise.all([
+    safeQuery<Array<{ organization?: string | null; headline?: string | null; featured_public_links?: unknown }>>(warnings, "Public profile fields", supabase.from("profiles").select("organization, headline, featured_public_links").eq("id", profileRow.id).limit(1), []),
     safeQuery<VisibilitySettings[]>(warnings, "Public visibility", supabase.from("profile_visibility_settings").select("*").eq("user_id", profileRow.id).limit(1), []),
     safeQuery<ProfileCustomization[]>(warnings, "Public customization", supabase.from("profile_customization").select("*").eq("user_id", profileRow.id).limit(1), []),
     safeQuery<Array<{ media_type: string; public_url?: string | null; created_at?: string | null }>>(warnings, "Public profile media", supabase.from("profile_media").select("media_type, public_url, created_at").eq("user_id", profileRow.id).eq("status", "active").order("created_at", { ascending: false }), []),
     safeQuery<BadgeDefinition[]>(warnings, "Public badges", supabase.from("badge_definitions").select("badge_key, name, description, badge_type, icon_path, category, rarity, sort_order, authority_linked, award_mode, rule_summary, is_manual_only, is_active").eq("is_active", true).order("sort_order", { ascending: true }), plannedBadges),
     safeQuery<BadgeAwardRow[]>(warnings, "Public user badges", supabase.from("user_badges").select("badge_key, awarded_at, award_reason, award_source, evidence_type, evidence_id, visibility, revoked_at").eq("user_id", profileRow.id).eq("visibility", "public").is("revoked_at", null), []),
     safeQuery<Array<{ id: string; title: string; description?: string | null; visibility: string; created_at?: string | null }>>(warnings, "Public collections", supabase.from("user_source_collections").select("id, title, description, visibility, created_at").eq("user_id", profileRow.id).eq("visibility", "public").limit(12), []),
-    safeQuery<SavedLivingSourcePreview[]>(warnings, "Public saved sources", supabase.from("user_saved_living_sources").select("id, source_id, source_name, source_url, category, saved_at, notes").eq("user_id", profileRow.id).limit(12), [])
+    safeQuery<PublicCommunePostPreview[]>(warnings, "Public Commune posts", supabase.from("commune_posts").select("id, title, post_type, excerpt, published_at, created_at").eq("user_id", profileRow.id).eq("status", "published").eq("visibility", "public").order("published_at", { ascending: false }).limit(6), []),
+    safeQuery<PublicCommuneCommentPreview[]>(warnings, "Public Commune comments", supabase.from("commune_comments").select("id, post_id, parent_comment_id, body, published_at, created_at").eq("user_id", profileRow.id).eq("status", "published").eq("visibility_state", "published").order("published_at", { ascending: false }).limit(6), [])
   ]);
   const { data: auth } = await supabase.auth.getUser();
   const avatarUrl = mediaRows.find((row) => row.media_type === "avatar")?.public_url;
   const bannerUrl = mediaRows.find((row) => row.media_type === "banner")?.public_url;
   const visibility = { ...defaultVisibility, ...(visibilityRows[0] ?? {}) };
+  const publicFields = publicFieldRows[0] ?? {};
+  const publicProfileRow = {
+    ...profileRow,
+    organization: publicFields.organization ?? profileRow.organization ?? null,
+    headline: publicFields.headline ?? profileRow.headline ?? null,
+    featured_public_links: safePublicLinks(publicFields.featured_public_links)
+  };
   return {
     data: {
-      profile: profileRow,
+      profile: publicProfileRow,
       visibility,
       customization: { ...defaultCustomization, ...(customizationRows[0] ?? {}), avatar_url: avatarUrl ?? profileRow.avatar_url ?? null, banner_url: bannerUrl ?? null },
       badges: visibility.show_badges ? mergeBadges(definitions.length ? definitions : plannedBadges, awarded).filter((badge) => badge.visibility === "public") : [],
       publicCollections: visibility.show_source_collections ? collections.map((collection) => ({ ...collection, source_count: 0 })) : [],
-      publicSavedSources: visibility.show_saved_sources ? savedSources : [],
+      publicLinks: safePublicLinks(publicProfileRow.featured_public_links),
+      publicCommunePosts: visibility.show_commune_posts ? publicPosts : [],
+      publicCommuneComments: visibility.show_commune_posts ? publicComments : [],
       isOwner: auth.user?.id === profileRow.id
     },
     warnings
