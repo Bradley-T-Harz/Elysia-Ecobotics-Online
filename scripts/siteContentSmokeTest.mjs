@@ -49,10 +49,13 @@ assert(app.includes('path="admin/developers"'), "Admin developers route missing.
 assert(app.includes('path="admin/library-sources"'), "Admin library source route missing.");
 assert(app.includes('path="admin/work-submissions"'), "Admin work submissions route missing.");
 assert(reviewClient.includes("syncCommuneReviewSubject"), "Admin review actions should sync Commune review subjects.");
+assert(reviewClient.includes("createReviewHistoryItem"), "Admin History/All should support history-only review items.");
+assert(reviewClient.includes("history_only: true") && reviewClient.includes("active_queue: false"), "Direct-published history items should not enter the active queue.");
 assert(reviewClient.includes("activeReviewStatuses") && reviewClient.includes("historyReviewStatuses"), "Admin review queues should distinguish active queue from history.");
 assert(reviewClient.includes('filter: ReviewQueueFilter = "active"'), "Admin review queue should default to active items only.");
 assert(reviewClient.includes('item.source_table === "commune_posts"'), "Commune review sync should target commune_posts.");
 assert(reviewClient.includes('status: "published"') && reviewClient.includes('visibility: "public"'), "Commune approval should publish the underlying post.");
+assert(reviewClient.includes("approved Commune post thread repair") && reviewClient.includes('post_id: item.source_id'), "Commune approval should repair missing discussion threads for approved posts.");
 assert(reviewClient.includes('status: "archived"') && reviewClient.includes('visibility: "private_draft"'), "Commune archive should make the underlying post non-public.");
 assert(reviewClient.includes('status: "removed_by_moderator"'), "Commune rejection should remove the underlying post from public workflow.");
 assert(reviewClient.includes("grantCommuneThreadApproval"), "Approving Commune comments should grant thread participation approval.");

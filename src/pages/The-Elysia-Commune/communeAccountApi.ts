@@ -1,4 +1,4 @@
-import { createReviewItem, loadCurrentRoleState, type AppRole } from "../../shared/review/reviewClient";
+import { createReviewHistoryItem, createReviewItem, loadCurrentRoleState, type AppRole } from "../../shared/review/reviewClient";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
 import { communeFallbackCategories, communeReportReasons, parseCommuneTags, scanCommuneTextForSecrets, validateCommuneMediaFile } from "./communeSafety";
 
@@ -17,6 +17,8 @@ export type CommuneReactionTargetType = "post" | "comment";
 export type CommuneReaction = "helpful" | "caution";
 export type CommuneReactionSummary = { helpful: number; caution: number; viewerReaction: CommuneReaction | null };
 export type CommuneReactionTarget = { targetType: CommuneReactionTargetType; targetId: string };
+export type SubmitCommentStatus = "published" | "pending_review" | "failed" | "missing_thread" | "backend_unavailable";
+export type SubmitCommentResult = { ok: boolean; status: SubmitCommentStatus; message: string; commentId?: string };
 
 export const postTypeOptions: { value: CommunePostType; label: string }[] = [
   { value: "media_garden", label: "Media Garden" },
@@ -65,7 +67,7 @@ function friendlyError(message: string, fallbackMessage: string) {
   if (/commune_thread_participant_approvals/i.test(message)) return "Commune thread participation approvals are not active yet. Apply `2026_06_21_commune_thread_participant_approvals.sql` in Supabase, then try again.";
   if (/parent_comment_id/i.test(message)) return "Commune replies are not active yet because the live comments table is missing `parent_comment_id`. Apply the Commune comments/replies migration in Supabase.";
   if (/schema cache|Could not find|does not exist|relation/i.test(message)) return fallbackMessage;
-  if (/permission denied|row-level security|violates row-level security/i.test(message)) return "Your current account cannot use that Commune action yet.";
+  if (/permission denied|row-level security|violates row-level security/i.test(message)) return "This Commune action is blocked by the current database policy. If you are signed in, apply the latest Commune comment/reply RLS migration or ask an administrator to review the thread.";
   return message;
 }
 
@@ -76,11 +78,28 @@ export function communeReactionKey(targetType: CommuneReactionTargetType, target
 async function hasThreadParticipationApproval(input: { threadId: string; postId: string; userId: string; isModerator: boolean }) {
   if (!supabase) return false;
   if (input.isModerator) return true;
-  const { data: post } = await supabase.from(canonicalCommuneTables.posts).select("user_id,status").eq("id", input.postId).maybeSingle();
-  if ((post as { user_id?: string; status?: string } | null)?.user_id === input.userId && (post as { status?: string } | null)?.status === "published") return true;
+  const { data: post } = await supabase.from(canonicalCommuneTables.posts).select("user_id,status,visibility").eq("id", input.postId).maybeSingle();
+  if ((post as { user_id?: string; status?: string; visibility?: string } | null)?.user_id === input.userId && (post as { status?: string; visibility?: string } | null)?.status === "published" && (post as { visibility?: string } | null)?.visibility === "public") {
+    await grantPostAuthorParticipationApproval({ threadId: input.threadId, postId: input.postId, userId: input.userId });
+    return true;
+  }
   const { data, error } = await supabase.from("commune_thread_participant_approvals").select("id").eq("thread_id", input.threadId).eq("user_id", input.userId).eq("status", "approved").is("revoked_at", null).maybeSingle();
   if (error && import.meta.env.DEV) console.warn("[Commune participant approval]", error.message);
   return Boolean(data);
+}
+
+async function grantPostAuthorParticipationApproval(input: { threadId?: string | null; postId?: string | null; userId?: string | null }) {
+  if (!supabase || !input.threadId || !input.postId || !input.userId) return;
+  const { error } = await supabase.from("commune_thread_participant_approvals").insert({
+    thread_id: input.threadId,
+    post_id: input.postId,
+    user_id: input.userId,
+    approved_by: input.userId,
+    approval_source: "approved_post_author",
+    status: "approved",
+    reason: "Post author may participate in their approved public thread."
+  });
+  if (error && !/duplicate key|23505/i.test(`${error.code ?? ""} ${error.message}`) && import.meta.env.DEV) console.warn("[Commune post author approval repair]", error.message);
 }
 
 async function grantThreadParticipationApproval(input: { threadId?: string | null; postId?: string | null; userId?: string | null; approvedBy: string; firstCommentId?: string | null; source: string }) {
@@ -160,6 +179,33 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
   return { rooms: (rooms ?? []) as CommuneRoom[], posts: (posts ?? []) as CommunePost[], comments: (comments ?? []) as CommuneComment[], threads: (threads ?? []) as CommuneThread[], savedPostIds, followedThreadIds, account, warnings };
 }
 
+export async function ensureCommuneThreadForPost(post: CommunePost): Promise<{ ok: boolean; thread?: CommuneThread; message: string }> {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId) return { ok: false, message: "Sign in to join this post discussion." };
+  if (!post.id) return { ok: false, message: "Comment could not be submitted because this post id is missing." };
+  if (post.status !== "published" || post.visibility !== "public") return { ok: false, message: "Comment could not be submitted because this post is not public yet." };
+
+  const { data: existing, error: existingError } = await supabase
+    .from(canonicalCommuneTables.threads)
+    .select("id,post_id,room_id,title,status,visibility,last_reply_at")
+    .eq("post_id", post.id)
+    .eq("visibility", "public")
+    .order("created_at", { ascending: true })
+    .limit(1)
+    .maybeSingle();
+  if (existingError) return { ok: false, message: friendlyError(existingError.message, "Comment could not check this post discussion thread yet.") };
+  if (existing) return { ok: true, thread: existing as CommuneThread, message: "Discussion thread ready." };
+
+  const { data: created, error: createError } = await supabase
+    .from(canonicalCommuneTables.threads)
+    .insert({ post_id: post.id, title: post.title, created_by: account.userId, visibility: "public", status: "open" })
+    .select("id,post_id,room_id,title,status,visibility,last_reply_at")
+    .single();
+  if (createError) return { ok: false, message: friendlyError(createError.message, "Comment could not be submitted because this post has no discussion thread yet. Ask an administrator to repair the Commune thread row.") };
+  return { ok: true, thread: created as CommuneThread, message: "Discussion thread repaired for this published post." };
+}
+
 export async function submitCommunePost(input: { postType: CommunePostType; roomId?: string; title: string; body: string; tags: string; links: string; repositoryUrl?: string; acknowledgement: boolean; upload?: File | null; sandboxRequested?: boolean }): Promise<{ ok: boolean; message: string; postId?: string }> {
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
@@ -199,25 +245,43 @@ export async function submitCommunePost(input: { postType: CommunePostType; room
   return { ok: true, postId, message: review.ok ? `Commune post submitted for moderation${threadId ? " with a pending thread" : ""}. It is not public until approved.` : `Post saved, but review routing needs attention: ${review.warning}` };
 }
 
-export async function submitComment(input: { postId: string; threadId: string; body: string; parentCommentId?: string | null }): Promise<{ ok: boolean; message: string }> {
-  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+export async function submitComment(input: { postId: string; threadId: string; body: string; parentCommentId?: string | null }): Promise<SubmitCommentResult> {
+  if (!supabase) return { ok: false, status: "backend_unavailable", message: supabaseNotConfiguredMessage };
   const account = await accountState();
-  if (!account.userId) return { ok: false, message: "Sign in to submit a comment for moderation." };
-  if (!input.body.trim()) return { ok: false, message: input.parentCommentId ? "Write a reply before submitting." : "Write a comment before submitting." };
+  if (!account.userId) return { ok: false, status: "failed", message: "Sign in to submit a comment for moderation." };
+  if (!input.postId) return { ok: false, status: "failed", message: "Comment could not be submitted because this post id is missing." };
+  if (!input.threadId) return { ok: false, status: "missing_thread", message: "Comment could not be submitted because this post has no discussion thread yet." };
+  if (!input.body.trim()) return { ok: false, status: "failed", message: input.parentCommentId ? "Write a reply before submitting." : "Write a comment before submitting." };
   const secretScan = scanCommuneTextForSecrets(input.body);
-  if (secretScan.blocked) return { ok: false, message: `Comment blocked because it appears to contain private or secret material: ${secretScan.warnings.join(", ")}.` };
+  if (secretScan.blocked) return { ok: false, status: "failed", message: `Comment blocked because it appears to contain private or secret material: ${secretScan.warnings.join(", ")}.` };
   const id = crypto.randomUUID();
   const approvedParticipant = await hasThreadParticipationApproval({ threadId: input.threadId, postId: input.postId, userId: account.userId, isModerator: account.isModerator });
-  const { error } = await supabase.from(canonicalCommuneTables.comments).insert({ id, thread_id: input.threadId, post_id: input.postId, parent_comment_id: input.parentCommentId || null, user_id: account.userId, author_username: account.username, body: input.body.trim(), status: "pending_review", published_at: null });
-  if (error) return { ok: false, message: friendlyError(error.message, "Comment moderation backend is not active yet.") };
-  if (!approvedParticipant) {
-    await createReviewItem({ domain: "commune", sourceTable: "commune_comments", sourceId: id, submittedBy: account.userId, title: input.parentCommentId ? "Commune reply" : "Commune comment", summary: excerpt(input.body) });
-    return { ok: true, message: "First contribution to this post/thread submitted for moderation. Once approved here, you can continue in this thread." };
+  const directPublish = approvedParticipant;
+  const publishedAt = directPublish ? new Date().toISOString() : null;
+  const { error } = await supabase.from(canonicalCommuneTables.comments).insert({ id, thread_id: input.threadId, post_id: input.postId, parent_comment_id: input.parentCommentId || null, user_id: account.userId, author_username: account.username, body: input.body.trim(), status: directPublish ? "published" : "pending_review", published_at: publishedAt });
+  if (error) return { ok: false, status: "failed", message: friendlyError(error.message, "Comment moderation backend is not active yet.") };
+  if (!directPublish) {
+    const review = await createReviewItem({ domain: "commune", sourceTable: "commune_comments", sourceId: id, submittedBy: account.userId, title: input.parentCommentId ? "Commune reply" : "Commune comment", summary: excerpt(input.body) });
+    if (!review.ok) {
+      await supabase.from(canonicalCommuneTables.comments).update({ status: "deleted_by_user", updated_at: new Date().toISOString(), moderation_reason: "Review routing failed after pending comment insert." }).eq("id", id).eq("user_id", account.userId);
+      return { ok: false, status: "failed", commentId: id, message: `Comment could not enter Admin review yet: ${review.warning ?? "review routing unavailable"}. It was kept out of public view; please ask an administrator to check Commune review routing before resubmitting.` };
+    }
+    return { ok: true, status: "pending_review", commentId: id, message: "First contribution to this post/thread submitted for moderation. Once approved here, you can continue in this thread." };
   }
-  const { error: publishError } = await supabase.from(canonicalCommuneTables.comments).update({ status: "published", published_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", id);
-  if (publishError) return { ok: false, message: friendlyError(publishError.message, "Comment was saved for moderation, but direct publish is not active until the latest comment policies are applied.") };
+  const history = await createReviewHistoryItem({
+    domain: "commune",
+    sourceTable: "commune_comments",
+    sourceId: id,
+    submittedBy: account.userId,
+    title: input.parentCommentId ? "Direct-published Commune reply" : "Direct-published Commune comment",
+    summary: excerpt(input.body),
+    status: "approved",
+    eventType: account.isAdmin ? "admin_comment_direct_published" : account.isModerator ? "moderator_comment_direct_published" : "approved_participant_comment_direct_published",
+    metadata: { post_id: input.postId, thread_id: input.threadId, parent_comment_id: input.parentCommentId ?? null }
+  });
+  const historyWarning = history.ok ? "" : ` History record needs attention: ${history.warning ?? "review history unavailable"}.`;
   if (account.isAdmin || account.isModerator) await recordCommuneGovernanceEvent({ actorId: account.userId, targetType: input.parentCommentId ? "reply" : "comment", targetId: id, action: account.isAdmin ? "admin_comment_published" : "moderator_comment_published", fromStatus: "draft", toStatus: "published", metadata: { post_id: input.postId, thread_id: input.threadId, parent_comment_id: input.parentCommentId ?? null, review_item_created: false } });
-  return { ok: true, message: input.parentCommentId ? "Reply published in this thread." : "Comment published in this thread." };
+  return { ok: true, status: "published", commentId: id, message: `${input.parentCommentId ? "Reply published in this thread." : "Comment published in this thread."}${historyWarning}` };
 }
 
 export async function savePost(postId: string): Promise<{ ok: boolean; message: string }> {

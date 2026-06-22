@@ -6,6 +6,7 @@ import {
   clearCommuneReaction,
   communeReactionKey,
   createCodeSnippet,
+  ensureCommuneThreadForPost,
   followThread,
   loadCategories,
   loadCommuneData,
@@ -1169,7 +1170,11 @@ function PostDetail({ postId }: { postId: string }) {
   const { state, refresh } = useCommuneLoad(undefined, postId);
   const [snippets, setSnippets] = useState<CommuneCodeSnippet[]>([]);
   const [comment, setComment] = useState("");
+  const [commentStatus, setCommentStatus] = useState("Comments are public/community conversation once published. First participation may go to review.");
+  const [commentSubmitting, setCommentSubmitting] = useState(false);
   const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
+  const [replyStatuses, setReplyStatuses] = useState<Record<string, string>>({});
+  const [submittingReplyId, setSubmittingReplyId] = useState<string | null>(null);
   const [activeReplyId, setActiveReplyId] = useState<string | null>(null);
   const [report, setReport] = useState<{ type: string; reason: string }>({ type: reportTypes[0], reason: "" });
   const [message, setMessage] = useState("");
@@ -1185,8 +1190,54 @@ function PostDetail({ postId }: { postId: string }) {
   async function save() { const result = await savePost(postId); setMessage(cleanCommuneMessage(result.message, "Saved posts are not active yet. Try again after account-backed shelves are ready.")); await refresh(); }
   async function follow() { if (!thread) return setMessage("No thread is available yet."); const result = await followThread(thread.id); setMessage(cleanCommuneMessage(result.message, "Followed threads are not active yet.")); await refresh(); }
   async function markRead() { if (!thread) return; const result = await markThreadRead(thread.id); setMessage(cleanCommuneMessage(result.message, "Thread read-state is not active yet.")); await refresh(); }
-  async function submitThreadComment() { if (!thread) return setMessage("No thread is available for this post yet."); const result = await submitComment({ postId, threadId: thread.id, body: comment }); setMessage(cleanCommuneMessage(result.message, "Comment saved locally is not available here yet. Backend moderation is being prepared.")); setComment(""); await refresh(); }
-  async function submitCommentReply(parentCommentId: string) { if (!thread) return setMessage("No thread is available for this post yet."); const body = replyDrafts[parentCommentId] ?? ""; const result = await submitComment({ postId, threadId: thread.id, body, parentCommentId }); setMessage(cleanCommuneMessage(result.message, "Reply saved locally is not available here yet. Backend moderation is being prepared.")); setReplyDrafts((current) => ({ ...current, [parentCommentId]: "" })); setActiveReplyId(null); await refresh(); }
+  async function resolveThreadForComment() {
+    if (thread) return thread;
+    if (!post) return null;
+    const result = await ensureCommuneThreadForPost(post);
+    const cleaned = cleanCommuneMessage(result.message, "Comment could not prepare this post discussion thread yet.");
+    setCommentStatus(cleaned);
+    if (!result.ok || !result.thread) return null;
+    return result.thread;
+  }
+  async function submitThreadComment() {
+    setCommentSubmitting(true);
+    setCommentStatus("Submitting comment...");
+    try {
+      const activeThread = await resolveThreadForComment();
+      if (!activeThread) return;
+      const result = await submitComment({ postId, threadId: activeThread.id, body: comment });
+      const cleaned = cleanCommuneMessage(result.message, "Comment could not be submitted. Please refresh and try again.");
+      setCommentStatus(cleaned);
+      if (result.ok) {
+        setComment("");
+        await refresh();
+      }
+    } finally {
+      setCommentSubmitting(false);
+    }
+  }
+  async function submitCommentReply(parentCommentId: string) {
+    setSubmittingReplyId(parentCommentId);
+    setReplyStatuses((current) => ({ ...current, [parentCommentId]: "Submitting reply..." }));
+    try {
+      const activeThread = await resolveThreadForComment();
+      if (!activeThread) {
+        setReplyStatuses((current) => ({ ...current, [parentCommentId]: "Reply could not be submitted because this post has no discussion thread yet." }));
+        return;
+      }
+      const body = replyDrafts[parentCommentId] ?? "";
+      const result = await submitComment({ postId, threadId: activeThread.id, body, parentCommentId });
+      const cleaned = cleanCommuneMessage(result.message, "Reply could not be submitted. Please refresh and try again.");
+      setReplyStatuses((current) => ({ ...current, [parentCommentId]: cleaned }));
+      if (result.ok) {
+        setReplyDrafts((current) => ({ ...current, [parentCommentId]: "" }));
+        setActiveReplyId(null);
+        await refresh();
+      }
+    } finally {
+      setSubmittingReplyId(null);
+    }
+  }
   async function reportPost() { const result = await reportCommuneContent({ postId, reportType: report.type, reason: report.reason }); setMessage(cleanCommuneMessage(result.message, "Report routing is being prepared. If urgent, use another trusted contact path.")); setReport({ ...report, reason: "" }); }
   async function reportComment(commentId: string) { const result = await reportCommuneContent({ commentId, reportType: report.type, reason: report.reason || "Reported from post detail comment list." }); setMessage(cleanCommuneMessage(result.message, "Comment report routing is being prepared.")); }
   function renderComment(item: CommuneComment, isReply = false) {
@@ -1197,12 +1248,12 @@ function PostDetail({ postId }: { postId: string }) {
       <ReactionBar targetType="comment" targetId={item.id} signedIn={state.signedIn} onMessage={setMessage} />
       <div className="button-row"><button type="button" onClick={() => void reportComment(item.id)}>Report comment</button>{!isReply && <button type="button" onClick={() => setActiveReplyId(activeReplyId === item.id ? null : item.id)}>Reply</button>}</div>
       <AdminContentControls targetType="comment" targetId={item.id} isModerator={state.isModerator} onChanged={refresh} onMessage={setMessage} />
-      {activeReplyId === item.id && <div className="commune-reply-form"><label><span>Reply to this comment</span><textarea rows={3} value={replyDrafts[item.id] ?? ""} onChange={(event) => setReplyDrafts((current) => ({ ...current, [item.id]: event.target.value }))} /></label><button type="button" onClick={() => void submitCommentReply(item.id)}>Submit reply</button></div>}
+      {activeReplyId === item.id && <div className="commune-reply-form"><label><span>Reply to this comment</span><textarea rows={3} value={replyDrafts[item.id] ?? ""} onChange={(event) => setReplyDrafts((current) => ({ ...current, [item.id]: event.target.value }))} /></label><button type="button" disabled={submittingReplyId === item.id} onClick={() => void submitCommentReply(item.id)}>{submittingReplyId === item.id ? "Submitting reply..." : "Submit reply"}</button>{replyStatuses[item.id] && <p className="message">{replyStatuses[item.id]}</p>}</div>}
       {replies.length > 0 && <div className="commune-reply-thread">{replies.map((reply) => renderComment(reply, true))}</div>}
     </article>;
   }
   if (!post) return <section className="section-card"><h2>Post not found</h2><p>This post is not public, does not exist, or is still awaiting moderation.</p><p className="boundary-note">Account-backed posts may also be unavailable while Commune backend tables are being prepared.</p><Link className="button-link" to="/commune">Back to Commune</Link></section>;
-  return <><section className="section-card commune-post-detail"><p className="eyebrow">{post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>By {authorLink(post.author_username)}</p><StatusBadges labels={[post.status, post.visibility]} /><p>{post.body}</p><TagChips tags={post.tags} /><ReactionBar targetType="post" targetId={post.id} signedIn={state.signedIn} onMessage={setMessage} /><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div><AdminContentControls targetType="post" targetId={post.id} isModerator={state.isModerator} onChanged={refresh} onMessage={setMessage} /></section>{snippets.length > 0 && <section className="section-card"><p className="eyebrow">Code snippets</p><h2>Inert display only</h2>{snippets.map((snippet) => <article className="commune-code-preview" key={snippet.id}><div className="addon-card__topline"><strong>{inertCodeSnippetLabel(snippet.language ?? "")}</strong><span>{snippet.file_name ?? "snippet"}</span></div><pre><code>{snippet.code_text}</code></pre><div className="button-row"><button type="button" onClick={() => copyText(snippet.code_text, setMessage)}>Copy snippet</button></div><p className="boundary-note">Code is shown for discussion only. Do not run code you do not trust. The website did not execute this snippet.</p></article>)}</section>}<section className="section-card"><p className="eyebrow">Comments</p><h2>Comments and replies</h2><p className="boundary-note">{state.isAdmin ? "Admin comments publish directly and remain auditable." : "First participation in a post/thread is reviewed. After approval in that thread, later comments and replies can publish directly while remaining reportable and removable."}</p>{topLevelComments.map((item) => renderComment(item))}{!topLevelComments.length && <p>Moderated comments will appear here once the backend tables are active and replies are approved.</p>}<label><span>Comment on this post</span><textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><button type="button" onClick={() => void submitThreadComment()}>Submit comment</button></section><section className="section-card"><p className="eyebrow">Report</p><h2>Report this post</h2><p>Reports are reviewed by moderators/administrators. Reporting does not automatically remove content unless urgent automated controls are later added. Ratings do not replace reports or moderation.</p><label><span>Report type</span><select value={report.type} onChange={(event) => setReport({ ...report, type: event.target.value })}>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span>Reason</span><textarea rows={3} value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value })} /></label><button type="button" onClick={() => void reportPost()}>Send report</button><p className="message">{message}</p></section></>;
+  return <><section className="section-card commune-post-detail"><p className="eyebrow">{post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>By {authorLink(post.author_username)}</p><StatusBadges labels={[post.status, post.visibility]} /><p>{post.body}</p><TagChips tags={post.tags} /><ReactionBar targetType="post" targetId={post.id} signedIn={state.signedIn} onMessage={setMessage} /><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div><AdminContentControls targetType="post" targetId={post.id} isModerator={state.isModerator} onChanged={refresh} onMessage={setMessage} /></section>{snippets.length > 0 && <section className="section-card"><p className="eyebrow">Code snippets</p><h2>Inert display only</h2>{snippets.map((snippet) => <article className="commune-code-preview" key={snippet.id}><div className="addon-card__topline"><strong>{inertCodeSnippetLabel(snippet.language ?? "")}</strong><span>{snippet.file_name ?? "snippet"}</span></div><pre><code>{snippet.code_text}</code></pre><div className="button-row"><button type="button" onClick={() => copyText(snippet.code_text, setMessage)}>Copy snippet</button></div><p className="boundary-note">Code is shown for discussion only. Do not run code you do not trust. The website did not execute this snippet.</p></article>)}</section>}<section className="section-card"><p className="eyebrow">Comments</p><h2>Comments and replies</h2><p className="boundary-note">{state.isAdmin ? "Admin comments publish directly and remain auditable." : "First participation in a post/thread is reviewed. After approval in that thread, later comments and replies can publish directly while remaining reportable and removable."}</p>{!thread && <p className="boundary-note">This published post is missing its discussion thread. Submitting a comment will try to repair the thread with normal account permissions before saving.</p>}{topLevelComments.map((item) => renderComment(item))}{!topLevelComments.length && <p>Moderated comments will appear here once the backend tables are active and replies are approved.</p>}<label><span>Comment on this post</span><textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><div className="button-row"><button type="button" disabled={commentSubmitting} onClick={() => void submitThreadComment()}>{commentSubmitting ? "Submitting comment..." : "Submit comment"}</button></div><p className="message">{commentStatus}</p></section><section className="section-card"><p className="eyebrow">Report</p><h2>Report this post</h2><p>Reports are reviewed by moderators/administrators. Reporting does not automatically remove content unless urgent automated controls are later added. Ratings do not replace reports or moderation.</p><label><span>Report type</span><select value={report.type} onChange={(event) => setReport({ ...report, type: event.target.value })}>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span>Reason</span><textarea rows={3} value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value })} /></label><button type="button" onClick={() => void reportPost()}>Send report</button><p className="message">{message}</p></section></>;
 }
 
 function ModerationPanel() {

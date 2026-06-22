@@ -121,6 +121,43 @@ export async function createReviewItem(input: {
   return { ok: true, reviewItemId };
 }
 
+export async function createReviewHistoryItem(input: {
+  domain: ReviewDomain;
+  sourceTable: string;
+  sourceId: string;
+  submittedBy: string;
+  title: string;
+  summary?: string;
+  status: Extract<ReviewStatus, "approved" | "archived" | "rejected">;
+  eventType: string;
+  metadata?: Record<string, unknown>;
+}): Promise<{ ok: boolean; reviewItemId?: string; warning?: string }> {
+  if (!hasSupabaseConfig || !supabase) return { ok: false, warning: supabaseNotConfiguredMessage };
+  const now = new Date().toISOString();
+  const { data, error } = await supabase.from("review_items").insert({
+    domain: input.domain,
+    source_table: input.sourceTable,
+    source_id: input.sourceId,
+    submitted_by: input.submittedBy,
+    reviewed_by: input.submittedBy,
+    reviewed_at: now,
+    title: input.title,
+    summary: input.summary ?? null,
+    status: input.status
+  }).select("id").single();
+  if (error) return { ok: false, warning: error.message };
+  const reviewItemId = (data as { id: string }).id;
+  const { error: eventError } = await supabase.from("review_events").insert({
+    review_item_id: reviewItemId,
+    actor_id: input.submittedBy,
+    event_type: input.eventType,
+    to_status: input.status,
+    metadata: { visibility: "internal", history_only: true, active_queue: false, ...(input.metadata ?? {}) }
+  });
+  if (eventError) return { ok: false, reviewItemId, warning: eventError.message };
+  return { ok: true, reviewItemId };
+}
+
 export async function loadReviewItems(domain?: ReviewDomain, filter: ReviewQueueFilter = "active"): Promise<{ items: ReviewItem[]; warnings: string[] }> {
   if (!hasSupabaseConfig || !supabase) return { items: [], warnings: [supabaseNotConfiguredMessage] };
   let query = supabase.from("review_items").select("*").order("submitted_at", { ascending: false });
@@ -187,9 +224,21 @@ async function syncCommuneReviewSubject(item: ReviewItem, nextStatus: ReviewStat
     const { error } = await supabase.from("commune_posts").update(update).eq("id", item.source_id);
     if (error) return { ok: false, warning: `Commune post was not updated: ${friendlyReviewWarning(error.message)}` };
     if (nextStatus === "approved") {
-      const { data: postRow } = await supabase.from("commune_posts").select("id,user_id").eq("id", item.source_id).maybeSingle();
-      const { data: threadRow } = await supabase.from("commune_threads").select("id").eq("post_id", item.source_id).maybeSingle();
-      await grantCommuneThreadApproval({ threadId: (threadRow as { id?: string } | null)?.id ?? null, postId: item.source_id, userId: (postRow as { user_id?: string } | null)?.user_id ?? null, approvedBy: actorId, source: "post_approval" });
+      const { data: postRow } = await supabase.from("commune_posts").select("id,user_id,title").eq("id", item.source_id).maybeSingle();
+      const { data: threadRow } = await supabase.from("commune_threads").select("id").eq("post_id", item.source_id).order("created_at", { ascending: true }).limit(1).maybeSingle();
+      let threadId = (threadRow as { id?: string } | null)?.id ?? null;
+      if (!threadId) {
+        const { data: createdThread, error: threadError } = await supabase.from("commune_threads").insert({
+          post_id: item.source_id,
+          title: (postRow as { title?: string } | null)?.title ?? item.title ?? "Commune discussion",
+          created_by: actorId,
+          visibility: "public",
+          status: "open"
+        }).select("id").single();
+        if (threadError && import.meta.env.DEV) console.warn("[review] approved Commune post thread repair", threadError.message);
+        threadId = (createdThread as { id?: string } | null)?.id ?? null;
+      }
+      await grantCommuneThreadApproval({ threadId, postId: item.source_id, userId: (postRow as { user_id?: string } | null)?.user_id ?? null, approvedBy: actorId, source: "post_approval" });
     }
     return { ok: true };
   }

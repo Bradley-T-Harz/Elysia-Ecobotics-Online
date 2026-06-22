@@ -26,6 +26,7 @@ const sandboxValidator = await read("src/shared/sandbox/sandboxRequestValidator.
 const sandboxBuilder = await read("src/shared/sandbox/sandboxHandoffBuilder.ts");
 const participantApprovalMigration = await read("supabase/migrations/2026_06_21_commune_thread_participant_approvals.sql");
 const reactionMigration = await read("supabase/migrations/2026_06_21_commune_content_reactions.sql");
+const commentDirectPublishMigration = await read("supabase/migrations/2026_06_21_commune_comment_direct_publish_policy.sql");
 const styles = await read("src/styles.css");
 
 for (const route of ["/commune", "commune/new", "commune/repository-showcase", "commune/troubleshooting", "commune/sandbox-review", "commune/code-sharing/review", "commune/realtime", "commune/moderation"]) {
@@ -131,17 +132,32 @@ assert(page.includes("commune-reply-thread"), "Commune reply thread UI missing."
 assert(page.includes("Reply to this comment"), "Commune reply composer missing.");
 assert(page.includes("parentCommentId"), "Commune replies should submit parent_comment_id.");
 assert(page.includes("function ReactionBar"), "Commune reaction/signal UI component missing.");
-assert(page.includes("Helpful <strong>") && page.includes("Needs caution <strong>"), "Commune helpful/caution signal buttons missing.");
+assert(page.includes("Helpful") && page.includes("Needs caution") && page.includes("Saving..."), "Commune helpful/caution signal buttons missing.");
 assert(page.includes("Community signal, not verification."), "Commune signal honesty copy missing.");
 assert(page.includes("Ratings do not replace reports or moderation."), "Commune ratings-vs-reports copy missing.");
+assert(page.includes("commentStatus") && page.includes("Submitting comment..."), "Commune comment submit local status/loading state missing.");
+assert(page.includes("commentSubmitting") && page.includes("disabled={commentSubmitting}"), "Commune comment submit should disable while submitting.");
+assert(page.includes("setComment(\"\")") && page.includes("if (result.ok)"), "Commune comment text should only clear after successful submit.");
+assert(page.includes("ensureCommuneThreadForPost(post)"), "Commune post detail should repair or clearly fail missing discussion threads.");
+assert(page.includes("This published post is missing its discussion thread."), "Missing thread warning should be visible near the comment form.");
+assert(page.includes("replyStatuses") && page.includes("Submitting reply..."), "Commune replies should have local feedback/loading state.");
 assert(page.includes("function AdminContentControls"), "Commune admin content controls missing.");
 assert(page.includes("Flag for removal"), "Commune admin flag-for-removal action missing.");
 assert(page.includes("Hide from public"), "Commune admin hide action missing.");
 assert(page.includes("Yes, delete/remove"), "Commune destructive delete confirmation missing.");
 assert(page.includes("No, keep it"), "Commune destructive delete cancel action missing.");
 assert(accountApi.includes("hasThreadParticipationApproval"), "Commune first-comment participation approval check missing.");
+assert(accountApi.includes("SubmitCommentStatus"), "Commune comment submit should return typed status values.");
+assert(accountApi.includes("ensureCommuneThreadForPost"), "Commune thread ensure/repair helper missing.");
+assert(accountApi.includes("directPublish = approvedParticipant"), "Approved participants/admins should use the direct-publish comment path.");
+assert(accountApi.includes('status: directPublish ? "published" : "pending_review"'), "Direct-published comments should insert as published instead of pending-then-update.");
+assert(accountApi.includes("createReviewHistoryItem"), "Direct-published comments should create History/All review records.");
+assert(accountApi.includes("approved_participant_comment_direct_published"), "Approved participant comments should be recorded in history.");
+assert(accountApi.includes("approved_post_author"), "Approved post authors should get thread participant approval repair.");
 assert(accountApi.includes("commune_thread_participant_approvals"), "Commune participant approval table usage missing.");
 assert(accountApi.includes("First contribution to this post/thread submitted for moderation"), "Commune first-comment moderation copy missing.");
+assert(accountApi.includes("if (!review.ok)"), "Commune first-comment review item creation result must be checked.");
+assert(accountApi.includes("could not enter Admin review yet"), "Commune review routing failure should be visible.");
 assert(accountApi.includes("adminDirectPublish = account.isAdmin"), "Admin Commune posts should bypass self-review and publish directly.");
 assert(accountApi.includes("review_item_created: false"), "Admin direct Commune publish should record that no self-review item was created.");
 assert(accountApi.includes("admin_post_published") && accountApi.includes("admin_comment_published"), "Admin direct Commune actions should remain auditable.");
@@ -156,6 +172,11 @@ assert(accountApi.includes("hard_delete: false"), "Commune frontend delete/remov
 assert(page.includes("Admin comments publish directly and remain auditable."), "Admin post detail comment bypass copy missing.");
 assert(participantApprovalMigration.includes("commune_thread_participant_approvals"), "Commune participant approval migration missing.");
 assert(participantApprovalMigration.includes("thread_id, user_id"), "Commune participant approval should be per thread and user.");
+assert(commentDirectPublishMigration.includes("users create own commune comments with thread approval"), "Commune direct-publish comment RLS policy missing.");
+assert(commentDirectPublishMigration.includes("post authors create own thread participation approvals"), "Approved post author participation repair policy missing.");
+assert(commentDirectPublishMigration.includes("submitters create own direct commune history events"), "Direct-published comments should be allowed to create history events.");
+assert(commentDirectPublishMigration.includes("on conflict (thread_id, user_id) do nothing"), "Approved post author participation backfill should avoid duplicate approvals.");
+assert(commentDirectPublishMigration.includes("status = 'published'"), "Direct-publish policy should explicitly cover published comments.");
 assert(reactionMigration.includes("commune_content_reactions"), "Commune content reaction migration missing.");
 assert(reactionMigration.includes("unique (user_id, target_type, target_id)"), "Commune reactions should enforce one vote per user per item.");
 assert(reactionMigration.includes("reaction in ('helpful', 'caution')"), "Commune reaction labels should be helpful/caution.");
