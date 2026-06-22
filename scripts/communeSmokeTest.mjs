@@ -27,6 +27,8 @@ const sandboxBuilder = await read("src/shared/sandbox/sandboxHandoffBuilder.ts")
 const participantApprovalMigration = await read("supabase/migrations/2026_06_21_commune_thread_participant_approvals.sql");
 const reactionMigration = await read("supabase/migrations/2026_06_21_commune_content_reactions.sql");
 const commentDirectPublishMigration = await read("supabase/migrations/2026_06_21_commune_comment_direct_publish_policy.sql");
+const commentSchemaRepairMigration = await read("supabase/migrations/2026_06_22_commune_comments_schema_drift_repair.sql");
+const communeCommentSchemaCoverage = `${migration}\n${commentDirectPublishMigration}\n${commentSchemaRepairMigration}`;
 const styles = await read("src/styles.css");
 
 for (const route of ["/commune", "commune/new", "commune/repository-showcase", "commune/troubleshooting", "commune/sandbox-review", "commune/code-sharing/review", "commune/realtime", "commune/moderation"]) {
@@ -158,6 +160,7 @@ assert(accountApi.includes("commune_thread_participant_approvals"), "Commune par
 assert(accountApi.includes("First contribution to this post/thread submitted for moderation"), "Commune first-comment moderation copy missing.");
 assert(accountApi.includes("if (!review.ok)"), "Commune first-comment review item creation result must be checked.");
 assert(accountApi.includes("could not enter Admin review yet"), "Commune review routing failure should be visible.");
+assert(accountApi.includes("2026_06_22_commune_comments_schema_drift_repair.sql"), "Commune comment schema drift errors should name the repair migration.");
 assert(accountApi.includes("adminDirectPublish = account.isAdmin"), "Admin Commune posts should bypass self-review and publish directly.");
 assert(accountApi.includes("review_item_created: false"), "Admin direct Commune publish should record that no self-review item was created.");
 assert(accountApi.includes("admin_post_published") && accountApi.includes("admin_comment_published"), "Admin direct Commune actions should remain auditable.");
@@ -177,6 +180,15 @@ assert(commentDirectPublishMigration.includes("post authors create own thread pa
 assert(commentDirectPublishMigration.includes("submitters create own direct commune history events"), "Direct-published comments should be allowed to create history events.");
 assert(commentDirectPublishMigration.includes("on conflict (thread_id, user_id) do nothing"), "Approved post author participation backfill should avoid duplicate approvals.");
 assert(commentDirectPublishMigration.includes("status = 'published'"), "Direct-publish policy should explicitly cover published comments.");
+for (const column of ["author_username", "published_at", "updated_at", "hidden_at", "hidden_by", "moderation_reason"]) {
+  assert(commentSchemaRepairMigration.includes(`add column if not exists ${column}`), `Commune comments schema repair should add missing column: ${column}`);
+}
+for (const payloadColumn of ["thread_id", "post_id", "parent_comment_id", "user_id", "author_username", "body", "status", "published_at"]) {
+  assert(accountApi.includes(payloadColumn) && communeCommentSchemaCoverage.includes(payloadColumn), `Commune comment insert payload column should be represented in schema/migration coverage: ${payloadColumn}`);
+}
+for (const indexName of ["commune_comments_post_idx", "commune_comments_thread_status_idx", "commune_comments_parent_idx", "commune_comments_user_status_idx", "commune_comments_published_idx"]) {
+  assert(commentSchemaRepairMigration.includes(indexName), `Commune comments schema repair index missing: ${indexName}`);
+}
 assert(reactionMigration.includes("commune_content_reactions"), "Commune content reaction migration missing.");
 assert(reactionMigration.includes("unique (user_id, target_type, target_id)"), "Commune reactions should enforce one vote per user per item.");
 assert(reactionMigration.includes("reaction in ('helpful', 'caution')"), "Commune reaction labels should be helpful/caution.");

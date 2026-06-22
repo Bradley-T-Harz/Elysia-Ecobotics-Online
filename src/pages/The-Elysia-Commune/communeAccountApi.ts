@@ -65,6 +65,7 @@ function friendlyError(message: string, fallbackMessage: string) {
   if (import.meta.env.DEV) console.warn("[Commune backend]", message);
   if (/commune_content_reactions|commune_content_reaction_counts/i.test(message)) return "Commune community signals are not active yet. Apply `2026_06_21_commune_content_reactions.sql` in Supabase, then try again.";
   if (/commune_thread_participant_approvals/i.test(message)) return "Commune thread participation approvals are not active yet. Apply `2026_06_21_commune_thread_participant_approvals.sql` in Supabase, then try again.";
+  if (/commune_comments/i.test(message) && /author_username|published_at|updated_at|hidden_at|hidden_by|moderation_reason|schema cache|Could not find|does not exist|relation/i.test(message)) return "Comment could not be saved because the live comments table is missing a required column. Apply `2026_06_22_commune_comments_schema_drift_repair.sql` in Supabase, then refresh and try again.";
   if (/parent_comment_id/i.test(message)) return "Commune replies are not active yet because the live comments table is missing `parent_comment_id`. Apply the Commune comments/replies migration in Supabase.";
   if (/schema cache|Could not find|does not exist|relation/i.test(message)) return fallbackMessage;
   if (/permission denied|row-level security|violates row-level security/i.test(message)) return "This Commune action is blocked by the current database policy. If you are signed in, apply the latest Commune comment/reply RLS migration or ask an administrator to review the thread.";
