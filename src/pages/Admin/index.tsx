@@ -70,6 +70,7 @@ import {
   loadReviewEvents,
   loadReviewItems,
   loadUserRoles,
+  recoverRejectedCommuneReviewSubject,
   revokeRole,
   restoreCommuneReviewSubject,
   updateReviewStatus
@@ -150,6 +151,10 @@ function canRestoreCommuneItem(item: ReviewItem) {
   return item.domain === "commune" && ["commune_posts", "commune_comments"].includes(item.source_table) && item.status === "approved" && ["flagged", "flagged_for_removal", "hidden", "hidden_from_public", "removed", "removed_by_moderator", "soft_deleted_by_moderator", "deleted_by_admin"].includes(item.moderation_state ?? "");
 }
 
+function canRecoverRejectedCommuneItem(item: ReviewItem) {
+  return item.domain === "commune" && ["commune_posts", "commune_comments"].includes(item.source_table) && item.status === "rejected" && Boolean(item.content_status);
+}
+
 function Unauthorized({ warnings }: { warnings: string[] }) {
   return <div className="page-stack admin-page"><PageHero eyebrow="Admin" title="Review access required"><p>Admin and reviewer routes require a signed-in Website Account with an assigned authority role. Membership, stewardship recognition, donation support, developer visibility, or contribution interest does not grant authority.</p></PageHero>{warnings.map((warning) => <p className="message" key={warning}>{warning}</p>)}</div>;
 }
@@ -224,6 +229,31 @@ function CommuneRecoveryActions({ item, onChanged }: { item: ReviewItem; onChang
   </div>;
 }
 
+function CommuneRejectedRecoveryActions({ item, onChanged }: { item: ReviewItem; onChanged: (message: string) => void }) {
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  async function recover(action: "reopen_review" | "approve_and_restore") {
+    setBusy(true);
+    const result = await recoverRejectedCommuneReviewSubject(item, action, note);
+    setBusy(false);
+    if (!result.ok) {
+      onChanged(result.warning ?? "Rejected recovery action failed.");
+      return;
+    }
+    onChanged(action === "reopen_review"
+      ? "Rejected Commune item reopened for review. It remains non-public."
+      : "Rejected Commune item approved and restored. Original rejection history was preserved.");
+  }
+
+  return <div className="review-actions">
+    <p className="boundary-note">Rejected recovery is a review reconsideration workflow. Reopening or approving this item preserves the original rejection in history.</p>
+    <p className="boundary-note">Rejected content is not restored automatically. Reopen review to reconsider it, or approve and restore if the rejection was mistaken.</p>
+    <label><span>Reconsideration note</span><input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Reason for reopening or approving after rejection" /></label>
+    <div className="button-row"><button type="button" onClick={() => void recover("reopen_review")} disabled={busy}>Reopen review</button><button type="button" className="button-primary" onClick={() => void recover("approve_and_restore")} disabled={busy}>Approve and restore</button><button type="button" onClick={() => onChanged("Kept rejected. No state changed.")} disabled={busy}>Keep rejected</button></div>
+  </div>;
+}
+
 function ReviewQueue({ domain }: { domain?: ReviewDomain }) {
   const gate = useRoleGate(domain);
   const [items, setItems] = useState<ReviewItem[]>([]);
@@ -242,9 +272,11 @@ function ReviewQueue({ domain }: { domain?: ReviewDomain }) {
   const title = domain ? `${domainLabels[domain]} Review Queue` : "All Review Queues";
   const canActOnSelected = selectedItem ? activeReviewStatuses.includes(selectedItem.status) : false;
   const canRestoreSelected = selectedItem ? canRestoreCommuneItem(selectedItem) : false;
+  const canRecoverRejectedSelected = selectedItem ? canRecoverRejectedCommuneItem(selectedItem) : false;
+  const rejectedCommuneSourceMissing = selectedItem ? selectedItem.domain === "commune" && ["commune_posts", "commune_comments"].includes(selectedItem.source_table) && selectedItem.status === "rejected" && !selectedItem.content_status : false;
   if (!gate.allowed) return <Unauthorized warnings={gate.warnings} />;
 
-  return <div className="page-stack admin-page"><PageHero eyebrow="Admin Review" title={title}><p>Review queues are role-gated in the UI and protected by Supabase RLS. Active queues show only items that still need action; History keeps reviewed evidence out of the working queue.</p></PageHero><AdminNav />{messages.map((message) => <p className="message" key={message}>{message}</p>)}<section className="section-card"><p className="eyebrow">Queue view</p><h2>{reviewQueueTitle(filter)}</h2><div className="button-row">{reviewQueueFilters.map((item) => <button key={item.value} type="button" className={filter === item.value ? "button-primary" : ""} onClick={() => { setFilter(item.value); setSelected(null); }}>{item.label}</button>)}</div><p className="boundary-note">Archive is an admin-selected saved state. History is the chronological review and moderation record. Review status and moderation state are separate, so approved content can later be hidden, flagged, removed, or restored without rewriting the original decision.</p></section><section className="two-column admin-review-grid"><div className="section-card"><p className="eyebrow">Queue</p><h2>{items.length} item{items.length === 1 ? "" : "s"}</h2>{items.length === 0 ? <p>{reviewQueueEmptyText(filter)}</p> : items.map((item) => <button className="review-list-item" type="button" key={item.id} onClick={() => setSelected(item.id)}><strong>{item.title || item.source_table}</strong><span>{domainLabels[item.domain]} · {item.source_table}</span><StatusBadge status={item.status} />{item.moderation_state && <StatusBadge status={`moderation_${item.moderation_state}`} />}</button>)}</div><div className="section-card">{selectedItem ? <><p className="eyebrow">Review detail</p><h2>{selectedItem.title || selectedItem.id}</h2><dl className="mini-facts"><div><dt>Domain</dt><dd>{domainLabels[selectedItem.domain]}</dd></div><div><dt>Review status</dt><dd><StatusBadge status={selectedItem.status} /></dd></div><div><dt>Moderation state</dt><dd>{selectedItem.moderation_state ? <StatusBadge status={selectedItem.moderation_state} /> : "Not separately tracked"}</dd></div><div><dt>Public visibility</dt><dd>{selectedItem.public_visibility === "public" ? "public" : selectedItem.public_visibility === "not_public" ? "not public" : "unknown"}</dd></div><div><dt>Source</dt><dd>{selectedItem.source_table}</dd></div><div><dt>Source id</dt><dd>{selectedItem.source_id}</dd></div><div><dt>Submitted</dt><dd>{selectedItem.submitted_at ?? "Unknown"}</dd></div><div><dt>Updated</dt><dd>{selectedItem.content_updated_at ?? selectedItem.reviewed_at ?? "Unknown"}</dd></div><div><dt>Private files</dt><dd>{["work_with", "stewardship"].includes(selectedItem.domain) ? "May exist; access is private and RLS-gated." : "None expected"}</dd></div></dl><p>{selectedItem.content_preview || selectedItem.summary}</p>{selectedItem.moderation_reason && <p className="boundary-note">Moderation reason: {selectedItem.moderation_reason}</p>}{canActOnSelected ? <ReviewActions item={selectedItem} onChanged={(message) => { setMessages((current) => [message, ...current]); void refresh(); }} /> : <p className="boundary-note">This item is in admin history. It is not part of the active queue; use review events and audit logs for the timeline.</p>}{canRestoreSelected && <CommuneRecoveryActions item={selectedItem} onChanged={(message) => { setMessages((current) => [message, ...current]); void refresh(); }} />}</> : <p>No item selected.</p>}</div></section></div>;
+  return <div className="page-stack admin-page"><PageHero eyebrow="Admin Review" title={title}><p>Review queues are role-gated in the UI and protected by Supabase RLS. Active queues show only items that still need action; History keeps reviewed evidence out of the working queue.</p></PageHero><AdminNav />{messages.map((message) => <p className="message" key={message}>{message}</p>)}<section className="section-card"><p className="eyebrow">Queue view</p><h2>{reviewQueueTitle(filter)}</h2><div className="button-row">{reviewQueueFilters.map((item) => <button key={item.value} type="button" className={filter === item.value ? "button-primary" : ""} onClick={() => { setFilter(item.value); setSelected(null); }}>{item.label}</button>)}</div><p className="boundary-note">Archive is an admin-selected saved state. History is the chronological review and moderation record. Review status and moderation state are separate, so approved content can later be hidden, flagged, removed, or restored without rewriting the original decision.</p></section><section className="two-column admin-review-grid"><div className="section-card"><p className="eyebrow">Queue</p><h2>{items.length} item{items.length === 1 ? "" : "s"}</h2>{items.length === 0 ? <p>{reviewQueueEmptyText(filter)}</p> : items.map((item) => <button className="review-list-item" type="button" key={item.id} onClick={() => setSelected(item.id)}><strong>{item.title || item.source_table}</strong><span>{domainLabels[item.domain]} · {item.source_table}</span><StatusBadge status={item.status} />{item.moderation_state && <StatusBadge status={`moderation_${item.moderation_state}`} />}</button>)}</div><div className="section-card">{selectedItem ? <><p className="eyebrow">Review detail</p><h2>{selectedItem.title || selectedItem.id}</h2><dl className="mini-facts"><div><dt>Domain</dt><dd>{domainLabels[selectedItem.domain]}</dd></div><div><dt>Review status</dt><dd><StatusBadge status={selectedItem.status} /></dd></div><div><dt>Moderation state</dt><dd>{selectedItem.moderation_state ? <StatusBadge status={selectedItem.moderation_state} /> : "Not separately tracked"}</dd></div><div><dt>Public visibility</dt><dd>{selectedItem.public_visibility === "public" ? "public" : selectedItem.public_visibility === "not_public" ? "not public" : "unknown"}</dd></div><div><dt>Source</dt><dd>{selectedItem.source_table}</dd></div><div><dt>Source id</dt><dd>{selectedItem.source_id}</dd></div><div><dt>Submitted</dt><dd>{selectedItem.submitted_at ?? "Unknown"}</dd></div><div><dt>Updated</dt><dd>{selectedItem.content_updated_at ?? selectedItem.reviewed_at ?? "Unknown"}</dd></div><div><dt>Private files</dt><dd>{["work_with", "stewardship"].includes(selectedItem.domain) ? "May exist; access is private and RLS-gated." : "None expected"}</dd></div></dl><p>{selectedItem.content_preview || selectedItem.summary}</p>{selectedItem.moderation_reason && <p className="boundary-note">Moderation reason: {selectedItem.moderation_reason}</p>}{rejectedCommuneSourceMissing && <p className="boundary-note">Source content not found; this rejected record is history only.</p>}{canActOnSelected ? <ReviewActions item={selectedItem} onChanged={(message) => { setMessages((current) => [message, ...current]); void refresh(); }} /> : <p className="boundary-note">This item is in admin history. It is not part of the active queue; use review events and audit logs for the timeline.</p>}{canRestoreSelected && <CommuneRecoveryActions item={selectedItem} onChanged={(message) => { setMessages((current) => [message, ...current]); void refresh(); }} />}{canRecoverRejectedSelected && <CommuneRejectedRecoveryActions item={selectedItem} onChanged={(message) => { setMessages((current) => [message, ...current]); void refresh(); }} />}</> : <p>No item selected.</p>}</div></section></div>;
 }
 
 function RolesPage() {

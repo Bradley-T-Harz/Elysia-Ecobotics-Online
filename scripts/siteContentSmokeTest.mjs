@@ -57,6 +57,8 @@ assert(reviewClient.includes('"moderated"') && reviewClient.includes("moderatedC
 assert(reviewClient.includes("enrichCommuneReviewItems") && reviewClient.includes("moderation_state") && reviewClient.includes("public_visibility"), "Commune review items should surface source moderation state separately from review status.");
 assert(reviewClient.includes("restoreCommuneReviewSubject") && reviewClient.includes("restore_to_public"), "Commune review recovery should support restoring hidden/flagged content to public visibility.");
 assert(reviewClient.includes("review_status_preserved: true"), "Commune restore should preserve the original review decision in history.");
+assert(reviewClient.includes("recoverRejectedCommuneReviewSubject") && reviewClient.includes("commune_rejection_reopened") && reviewClient.includes("commune_rejected_approved_and_restored"), "Commune rejected recovery should support reopening review and approving/restoring rejected source content.");
+assert(reviewClient.includes("original_rejection_preserved: true"), "Commune rejected recovery should preserve original rejection history.");
 assert(reviewClient.includes('item.source_table === "commune_posts"'), "Commune review sync should target commune_posts.");
 assert(reviewClient.includes('status: "published"') && reviewClient.includes('visibility: "public"'), "Commune approval should publish the underlying post.");
 assert(reviewClient.includes("approved Commune post thread repair") && reviewClient.includes('post_id: item.source_id'), "Commune approval should repair missing discussion threads for approved posts.");
@@ -70,6 +72,9 @@ assert(adminPage.includes('{ value: "moderated", label: "Moderated" }'), "Admin 
 assert(adminPage.includes("Moderated content recovery"), "Admin Review moderated recovery heading missing.");
 assert(adminPage.includes("Review status and moderation state are separate"), "Admin Review should explain review status vs moderation state.");
 assert(adminPage.includes("Restore to public") && adminPage.includes("Keep hidden"), "Admin Review recovery actions missing.");
+assert(adminPage.includes("Rejected recovery is a review reconsideration workflow"), "Admin Review rejected recovery explanation missing.");
+assert(adminPage.includes("Reopen review") && adminPage.includes("Approve and restore") && adminPage.includes("Keep rejected"), "Admin Review rejected recovery controls missing.");
+assert(adminPage.includes("Source content not found; this rejected record is history only."), "Admin Review rejected history-only fallback missing.");
 assert(adminPage.includes("Public visibility") && adminPage.includes("Moderation state") && adminPage.includes("Review status"), "Admin Review detail should surface review/moderation/public visibility state.");
 assert(!commons.includes("plannedBadges.map"), "Commons Circle appears to render planned/locked badge catalog.");
 assert(!publicProfile.includes("plannedBadges.map"), "Public profile appears to render planned/locked badge catalog.");

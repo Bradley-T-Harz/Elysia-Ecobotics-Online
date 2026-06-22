@@ -180,9 +180,13 @@ assert(reviewClient.includes('"moderated"') && reviewClient.includes("moderatedC
 assert(reviewClient.includes("enrichCommuneReviewItems"), "Admin review should enrich Commune review items with source moderation state.");
 assert(reviewClient.includes("restoreCommuneReviewSubject") && reviewClient.includes("restore_to_public"), "Admin review should support restoring hidden/flagged Commune content.");
 assert(reviewClient.includes("review_status_preserved: true"), "Commune restore should preserve approved/rejected review history instead of overwriting it.");
+assert(reviewClient.includes("recoverRejectedCommuneReviewSubject") && reviewClient.includes("commune_rejection_reopened"), "Admin review should support reopening rejected Commune content for reconsideration.");
+assert(reviewClient.includes("commune_rejected_approved_and_restored") && reviewClient.includes("original_rejection_preserved: true"), "Admin review should support approving/restoring rejected Commune content while preserving rejection history.");
 assert(adminPage.includes("Moderated content recovery"), "Admin review moderated recovery view missing.");
 assert(adminPage.includes("Review status and moderation state are separate"), "Admin review should explain moderation state separately from review status.");
 assert(adminPage.includes("Restore to public") && adminPage.includes("Keep hidden"), "Admin review restore/keep-hidden controls missing.");
+assert(adminPage.includes("Rejected recovery is a review reconsideration workflow"), "Admin review rejected recovery copy missing.");
+assert(adminPage.includes("Reopen review") && adminPage.includes("Approve and restore") && adminPage.includes("Keep rejected"), "Admin review rejected recovery controls missing.");
 assert(page.includes("Admin comments publish directly and remain auditable."), "Admin post detail comment bypass copy missing.");
 assert(participantApprovalMigration.includes("commune_thread_participant_approvals"), "Commune participant approval migration missing.");
 assert(participantApprovalMigration.includes("thread_id, user_id"), "Commune participant approval should be per thread and user.");

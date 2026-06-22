@@ -4,6 +4,7 @@ export type AppRole = "administrator" | "moderator" | "reviewer" | "marketplace_
 export type ReviewStatus = "draft" | "pending_review" | "in_review" | "needs_information" | "approved" | "rejected" | "withdrawn" | "archived";
 export type ReviewDomain = "commune" | "work_with" | "stewardship" | "contribution" | "living_library_source" | "living_library_broken_link" | "marketplace";
 export type ReviewQueueFilter = "active" | "history" | "moderated" | "all" | "approved" | "rejected" | "archived";
+export type RejectedCommuneRecoveryAction = "reopen_review" | "approve_and_restore";
 
 export type CurrentRoleState = {
   signedIn: boolean;
@@ -168,6 +169,9 @@ export async function createReviewHistoryItem(input: {
 
 type CommuneCommentModerationRow = {
   id: string;
+  user_id?: string | null;
+  thread_id?: string | null;
+  post_id?: string | null;
   body?: string | null;
   status?: string | null;
   visibility_state?: string | null;
@@ -181,6 +185,7 @@ type CommuneCommentModerationRow = {
 
 type CommunePostModerationRow = {
   id: string;
+  user_id?: string | null;
   title?: string | null;
   body?: string | null;
   excerpt?: string | null;
@@ -469,6 +474,164 @@ async function recordCommuneRestoreEvent(input: { item: ReviewItem; actorId: str
     note: input.note || null,
     metadata: { visibility: "internal", moderation_state_from: input.previousState, moderation_state_to: "published", review_status_preserved: true, history_only: true, active_queue: false }
   });
+}
+
+function isRecoverableRejectedCommuneItem(item: ReviewItem) {
+  return item.domain === "commune" && item.status === "rejected" && ["commune_posts", "commune_comments"].includes(item.source_table);
+}
+
+async function recordCommuneRejectedRecoveryEvent(input: {
+  item: ReviewItem;
+  actorId: string;
+  targetType: "post" | "comment";
+  action: "reopen_rejected_review" | "approve_and_restore_rejected";
+  fromStatus: string;
+  toStatus: string;
+  reviewToStatus: ReviewStatus;
+  note: string;
+}) {
+  if (!supabase) return;
+  await supabase.from("commune_moderation_events").insert({
+    actor_id: input.actorId,
+    target_type: input.targetType,
+    target_id: input.item.source_id,
+    action: input.action,
+    from_status: input.fromStatus,
+    to_status: input.toStatus,
+    reason: input.note || null,
+    metadata: {
+      source: "admin_rejected_recovery",
+      review_item_id: input.item.id,
+      original_review_status: input.item.status,
+      review_status_to: input.reviewToStatus,
+      original_rejection_preserved: true,
+      archive_is_separate_from_history: true
+    }
+  });
+  await supabase.from("review_events").insert({
+    review_item_id: input.item.id,
+    actor_id: input.actorId,
+    event_type: input.action === "reopen_rejected_review" ? "commune_rejection_reopened" : "commune_rejected_approved_and_restored",
+    from_status: input.item.status,
+    to_status: input.reviewToStatus,
+    note: input.note || null,
+    metadata: {
+      visibility: "internal",
+      rejected_recovery: true,
+      original_rejection_preserved: true,
+      source_public: input.reviewToStatus === "approved",
+      active_queue: input.reviewToStatus === "pending_review",
+      archive_is_separate_from_history: true
+    }
+  });
+}
+
+export async function recoverRejectedCommuneReviewSubject(item: ReviewItem, action: RejectedCommuneRecoveryAction, note: string): Promise<{ ok: boolean; warning?: string }> {
+  if (!hasSupabaseConfig || !supabase) return { ok: false, warning: supabaseNotConfiguredMessage };
+  if (!isRecoverableRejectedCommuneItem(item)) return { ok: false, warning: "Only rejected Commune posts and comments can use rejected recovery actions." };
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return { ok: false, warning: "Sign in with a reviewer account first." };
+
+  const now = new Date().toISOString();
+  const targetType = item.source_table === "commune_posts" ? "post" : "comment";
+  const reviewToStatus: ReviewStatus = action === "reopen_review" ? "pending_review" : "approved";
+  const recoveryNote = note || (action === "reopen_review" ? "Rejected Commune item reopened for review." : "Rejected Commune item approved and restored.");
+
+  if (item.source_table === "commune_comments") {
+    const { data: current, error: currentError } = await supabase.from("commune_comments").select("id,user_id,thread_id,post_id,status,visibility_state,hidden_at,removed_at,archived_at,published_at").eq("id", item.source_id).maybeSingle();
+    if (currentError) return { ok: false, warning: `Commune comment could not be loaded: ${friendlyReviewWarning(currentError.message)}` };
+    const currentRow = current as CommuneCommentModerationRow | null;
+    if (!currentRow) return { ok: false, warning: "Source content not found; this rejected record is history only." };
+    if (currentRow.status === "deleted_by_user") return { ok: false, warning: "User-deleted comments cannot be restored from rejected recovery." };
+    const previousState = deriveCommentModerationState(currentRow);
+    const update = action === "reopen_review"
+      ? {
+        status: "pending_review",
+        visibility_state: "hidden",
+        moderation_reason: recoveryNote,
+        updated_at: now
+      }
+      : {
+        status: "published",
+        visibility_state: "published",
+        hidden_at: null,
+        hidden_by: null,
+        removed_at: null,
+        archived_at: null,
+        moderation_reason: null,
+        published_at: currentRow.published_at ?? now,
+        updated_at: now
+      };
+    const { error } = await supabase.from("commune_comments").update(update).eq("id", item.source_id);
+    if (error) return { ok: false, warning: `Commune comment recovery failed: ${friendlyReviewWarning(error.message)}` };
+    if (action === "approve_and_restore") await grantCommuneThreadApproval({ threadId: currentRow.thread_id ?? null, postId: currentRow.post_id ?? null, userId: currentRow.user_id ?? null, approvedBy: auth.user.id, firstCommentId: item.source_id, source: "rejected_comment_approved_and_restored" });
+    const { error: itemError } = await supabase.from("review_items").update({
+      status: reviewToStatus,
+      updated_at: now,
+      reviewed_at: action === "approve_and_restore" ? now : null,
+      reviewed_by: action === "approve_and_restore" ? auth.user.id : null
+    }).eq("id", item.id);
+    if (itemError) return { ok: false, warning: `Source was updated, but review status recovery failed: ${friendlyReviewWarning(itemError.message)}` };
+    await recordCommuneRejectedRecoveryEvent({ item, actorId: auth.user.id, targetType, action: action === "reopen_review" ? "reopen_rejected_review" : "approve_and_restore_rejected", fromStatus: previousState, toStatus: action === "reopen_review" ? "pending_review" : "published", reviewToStatus, note: recoveryNote });
+    return { ok: true };
+  }
+
+  const { data: current, error: currentError } = await supabase.from("commune_posts").select("id,user_id,title,status,visibility,visibility_state,moderation_status,hidden_at,removed_at,archived_at,published_at").eq("id", item.source_id).maybeSingle();
+  if (currentError) return { ok: false, warning: `Commune post could not be loaded: ${friendlyReviewWarning(currentError.message)}` };
+  const currentRow = current as CommunePostModerationRow | null;
+  if (!currentRow) return { ok: false, warning: "Source content not found; this rejected record is history only." };
+  if (currentRow.status === "deleted_by_user") return { ok: false, warning: "User-deleted posts cannot be restored from rejected recovery." };
+  const previousState = derivePostModerationState(currentRow);
+  const update = action === "reopen_review"
+    ? {
+      status: "pending_review",
+      visibility: "private_draft",
+      moderation_status: "pending_review",
+      moderation_reason: recoveryNote,
+      updated_at: now,
+      last_activity_at: now
+    }
+    : {
+      status: "published",
+      visibility: "public",
+      visibility_state: "published",
+      moderation_status: "approved",
+      hidden_at: null,
+      hidden_by: null,
+      removed_at: null,
+      archived_at: null,
+      moderation_reason: null,
+      published_at: currentRow.published_at ?? now,
+      updated_at: now,
+      last_activity_at: now
+    };
+  const { error } = await supabase.from("commune_posts").update(update).eq("id", item.source_id);
+  if (error) return { ok: false, warning: `Commune post recovery failed: ${friendlyReviewWarning(error.message)}` };
+  if (action === "approve_and_restore") {
+    const { data: threadRow } = await supabase.from("commune_threads").select("id").eq("post_id", item.source_id).order("created_at", { ascending: true }).limit(1).maybeSingle();
+    let threadId = (threadRow as { id?: string } | null)?.id ?? null;
+    if (!threadId) {
+      const { data: createdThread, error: threadError } = await supabase.from("commune_threads").insert({
+        post_id: item.source_id,
+        title: currentRow.title ?? item.title ?? "Commune discussion",
+        created_by: auth.user.id,
+        visibility: "public",
+        status: "open"
+      }).select("id").single();
+      if (threadError && import.meta.env.DEV) console.warn("[review] rejected Commune post restored thread repair", threadError.message);
+      threadId = (createdThread as { id?: string } | null)?.id ?? null;
+    }
+    await grantCommuneThreadApproval({ threadId, postId: item.source_id, userId: currentRow.user_id ?? null, approvedBy: auth.user.id, source: "rejected_post_approved_and_restored" });
+  }
+  const { error: itemError } = await supabase.from("review_items").update({
+    status: reviewToStatus,
+    updated_at: now,
+    reviewed_at: action === "approve_and_restore" ? now : null,
+    reviewed_by: action === "approve_and_restore" ? auth.user.id : null
+  }).eq("id", item.id);
+  if (itemError) return { ok: false, warning: `Source was updated, but review status recovery failed: ${friendlyReviewWarning(itemError.message)}` };
+  await recordCommuneRejectedRecoveryEvent({ item, actorId: auth.user.id, targetType, action: action === "reopen_review" ? "reopen_rejected_review" : "approve_and_restore_rejected", fromStatus: previousState, toStatus: action === "reopen_review" ? "pending_review" : "published", reviewToStatus, note: recoveryNote });
+  return { ok: true };
 }
 
 export async function updateReviewStatus(item: ReviewItem, nextStatus: ReviewStatus, note: string): Promise<{ ok: boolean; warning?: string }> {
