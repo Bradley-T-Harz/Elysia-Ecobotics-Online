@@ -53,6 +53,10 @@ assert(reviewClient.includes("createReviewHistoryItem"), "Admin History/All shou
 assert(reviewClient.includes("history_only: true") && reviewClient.includes("active_queue: false"), "Direct-published history items should not enter the active queue.");
 assert(reviewClient.includes("activeReviewStatuses") && reviewClient.includes("historyReviewStatuses"), "Admin review queues should distinguish active queue from history.");
 assert(reviewClient.includes('filter: ReviewQueueFilter = "active"'), "Admin review queue should default to active items only.");
+assert(reviewClient.includes('"moderated"') && reviewClient.includes("moderatedContentStates"), "Admin review queues should include a moderated recovery filter.");
+assert(reviewClient.includes("enrichCommuneReviewItems") && reviewClient.includes("moderation_state") && reviewClient.includes("public_visibility"), "Commune review items should surface source moderation state separately from review status.");
+assert(reviewClient.includes("restoreCommuneReviewSubject") && reviewClient.includes("restore_to_public"), "Commune review recovery should support restoring hidden/flagged content to public visibility.");
+assert(reviewClient.includes("review_status_preserved: true"), "Commune restore should preserve the original review decision in history.");
 assert(reviewClient.includes('item.source_table === "commune_posts"'), "Commune review sync should target commune_posts.");
 assert(reviewClient.includes('status: "published"') && reviewClient.includes('visibility: "public"'), "Commune approval should publish the underlying post.");
 assert(reviewClient.includes("approved Commune post thread repair") && reviewClient.includes('post_id: item.source_id'), "Commune approval should repair missing discussion threads for approved posts.");
@@ -62,6 +66,11 @@ assert(reviewClient.includes("grantCommuneThreadApproval"), "Approving Commune c
 assert(adminPage.includes("Reject and remove this submitted item?"), "Admin rejected actions should require explicit confirmation.");
 assert(adminPage.includes("Yes, reject/remove") && adminPage.includes("No, keep it"), "Admin rejection confirmation yes/no buttons missing.");
 assert(adminPage.includes("Admin review history") && adminPage.includes("Archive is an admin-selected saved state"), "Admin review history/archive distinction missing.");
+assert(adminPage.includes('{ value: "moderated", label: "Moderated" }'), "Admin Review should expose a Moderated recovery filter.");
+assert(adminPage.includes("Moderated content recovery"), "Admin Review moderated recovery heading missing.");
+assert(adminPage.includes("Review status and moderation state are separate"), "Admin Review should explain review status vs moderation state.");
+assert(adminPage.includes("Restore to public") && adminPage.includes("Keep hidden"), "Admin Review recovery actions missing.");
+assert(adminPage.includes("Public visibility") && adminPage.includes("Moderation state") && adminPage.includes("Review status"), "Admin Review detail should surface review/moderation/public visibility state.");
 assert(!commons.includes("plannedBadges.map"), "Commons Circle appears to render planned/locked badge catalog.");
 assert(!publicProfile.includes("plannedBadges.map"), "Public profile appears to render planned/locked badge catalog.");
 assert(commons.includes("Recognition, not authority") || commons.includes("Badges are recognition"), "Commons Circle badge/role authority separation copy missing.");

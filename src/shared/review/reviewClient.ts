@@ -3,7 +3,7 @@ import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../..
 export type AppRole = "administrator" | "moderator" | "reviewer" | "marketplace_reviewer" | "source_reviewer" | "commune_moderator" | "guardian_reviewer";
 export type ReviewStatus = "draft" | "pending_review" | "in_review" | "needs_information" | "approved" | "rejected" | "withdrawn" | "archived";
 export type ReviewDomain = "commune" | "work_with" | "stewardship" | "contribution" | "living_library_source" | "living_library_broken_link" | "marketplace";
-export type ReviewQueueFilter = "active" | "history" | "all" | "approved" | "rejected" | "archived";
+export type ReviewQueueFilter = "active" | "history" | "moderated" | "all" | "approved" | "rejected" | "archived";
 
 export type CurrentRoleState = {
   signedIn: boolean;
@@ -27,6 +27,13 @@ export type ReviewItem = {
   submitted_at?: string;
   reviewed_at?: string | null;
   reviewed_by?: string | null;
+  moderation_state?: string | null;
+  public_visibility?: "public" | "not_public" | "unknown";
+  content_status?: string | null;
+  content_visibility?: string | null;
+  content_preview?: string | null;
+  moderation_reason?: string | null;
+  content_updated_at?: string | null;
 };
 
 export type ReviewEvent = {
@@ -43,6 +50,7 @@ export type ReviewEvent = {
 
 export const activeReviewStatuses: ReviewStatus[] = ["pending_review", "in_review", "needs_information"];
 export const historyReviewStatuses: ReviewStatus[] = ["approved", "rejected", "withdrawn", "archived"];
+const moderatedContentStates = ["flagged", "flagged_for_removal", "hidden", "hidden_from_public", "removed", "removed_by_moderator", "soft_deleted_by_moderator", "deleted_by_admin"];
 
 export const domainLabels: Record<ReviewDomain, string> = {
   commune: "Commune",
@@ -158,15 +166,137 @@ export async function createReviewHistoryItem(input: {
   return { ok: true, reviewItemId };
 }
 
+type CommuneCommentModerationRow = {
+  id: string;
+  body?: string | null;
+  status?: string | null;
+  visibility_state?: string | null;
+  hidden_at?: string | null;
+  removed_at?: string | null;
+  archived_at?: string | null;
+  moderation_reason?: string | null;
+  published_at?: string | null;
+  updated_at?: string | null;
+};
+
+type CommunePostModerationRow = {
+  id: string;
+  title?: string | null;
+  body?: string | null;
+  excerpt?: string | null;
+  status?: string | null;
+  visibility?: string | null;
+  visibility_state?: string | null;
+  moderation_status?: string | null;
+  hidden_at?: string | null;
+  removed_at?: string | null;
+  archived_at?: string | null;
+  moderation_reason?: string | null;
+  published_at?: string | null;
+  updated_at?: string | null;
+};
+
+function summarizeText(value?: string | null) {
+  const clean = (value ?? "").replace(/\s+/g, " ").trim();
+  return clean.length > 180 ? `${clean.slice(0, 177)}...` : clean;
+}
+
+function deriveCommentModerationState(row: CommuneCommentModerationRow) {
+  const explicit = row.visibility_state && row.visibility_state !== "published" ? row.visibility_state : null;
+  if (explicit) return explicit;
+  if (row.status && moderatedContentStates.includes(row.status)) return row.status;
+  if (row.hidden_at) return "hidden";
+  if (row.removed_at) return "removed";
+  if (row.archived_at) return "archived";
+  return row.status ?? row.visibility_state ?? "unknown";
+}
+
+function derivePostModerationState(row: CommunePostModerationRow) {
+  if (row.moderation_status && row.moderation_status !== "approved" && row.moderation_status !== "not_submitted") return row.moderation_status;
+  if (row.visibility_state && row.visibility_state !== "published" && row.visibility_state !== "draft") return row.visibility_state;
+  if (row.status && moderatedContentStates.includes(row.status)) return row.status;
+  if (row.visibility && row.visibility !== "public") return row.visibility;
+  if (row.hidden_at) return "hidden";
+  if (row.removed_at) return "removed";
+  if (row.archived_at) return "archived";
+  return row.status ?? row.visibility ?? "unknown";
+}
+
+function isModeratedReviewItem(item: ReviewItem) {
+  const state = item.moderation_state ?? "";
+  return item.domain === "commune" && moderatedContentStates.includes(state);
+}
+
+async function enrichCommuneReviewItems(items: ReviewItem[], warnings: string[]): Promise<ReviewItem[]> {
+  if (!supabase || items.length === 0) return items;
+  const communeItems = items.filter((item) => item.domain === "commune" && ["commune_posts", "commune_comments"].includes(item.source_table));
+  if (communeItems.length === 0) return items;
+  const commentIds = [...new Set(communeItems.filter((item) => item.source_table === "commune_comments").map((item) => item.source_id))];
+  const postIds = [...new Set(communeItems.filter((item) => item.source_table === "commune_posts").map((item) => item.source_id))];
+  const commentMap = new Map<string, CommuneCommentModerationRow>();
+  const postMap = new Map<string, CommunePostModerationRow>();
+
+  if (commentIds.length) {
+    const { data, error } = await supabase.from("commune_comments").select("id,body,status,visibility_state,hidden_at,removed_at,archived_at,moderation_reason,published_at,updated_at").in("id", commentIds);
+    if (error) warnings.push(`Commune comment moderation state could not be loaded: ${friendlyReviewWarning(error.message)}`);
+    for (const row of (data ?? []) as CommuneCommentModerationRow[]) commentMap.set(row.id, row);
+  }
+
+  if (postIds.length) {
+    const { data, error } = await supabase.from("commune_posts").select("id,title,body,excerpt,status,visibility,visibility_state,moderation_status,hidden_at,removed_at,archived_at,moderation_reason,published_at,updated_at").in("id", postIds);
+    if (error) warnings.push(`Commune post moderation state could not be loaded: ${friendlyReviewWarning(error.message)}`);
+    for (const row of (data ?? []) as CommunePostModerationRow[]) postMap.set(row.id, row);
+  }
+
+  return items.map((item) => {
+    if (item.domain !== "commune") return item;
+    if (item.source_table === "commune_comments") {
+      const row = commentMap.get(item.source_id);
+      if (!row) return item;
+      const moderationState = deriveCommentModerationState(row);
+      const isPublic = row.status === "published" && (!row.visibility_state || row.visibility_state === "published") && !row.hidden_at && !row.removed_at;
+      return {
+        ...item,
+        moderation_state: moderationState,
+        public_visibility: isPublic ? "public" : "not_public",
+        content_status: row.status ?? null,
+        content_visibility: row.visibility_state ?? null,
+        content_preview: summarizeText(row.body),
+        moderation_reason: row.moderation_reason ?? null,
+        content_updated_at: row.updated_at ?? row.published_at ?? null
+      };
+    }
+    if (item.source_table === "commune_posts") {
+      const row = postMap.get(item.source_id);
+      if (!row) return item;
+      const moderationState = derivePostModerationState(row);
+      const isPublic = row.status === "published" && row.visibility === "public" && !row.hidden_at && !row.removed_at;
+      return {
+        ...item,
+        moderation_state: moderationState,
+        public_visibility: isPublic ? "public" : "not_public",
+        content_status: row.status ?? null,
+        content_visibility: row.visibility ?? row.visibility_state ?? null,
+        content_preview: summarizeText(row.excerpt ?? row.body),
+        moderation_reason: row.moderation_reason ?? null,
+        content_updated_at: row.updated_at ?? row.published_at ?? null
+      };
+    }
+    return item;
+  });
+}
+
 export async function loadReviewItems(domain?: ReviewDomain, filter: ReviewQueueFilter = "active"): Promise<{ items: ReviewItem[]; warnings: string[] }> {
   if (!hasSupabaseConfig || !supabase) return { items: [], warnings: [supabaseNotConfiguredMessage] };
   let query = supabase.from("review_items").select("*").order("submitted_at", { ascending: false });
   if (domain) query = query.eq("domain", domain);
   if (filter === "active") query = query.in("status", activeReviewStatuses);
-  else if (filter === "history") query = query.in("status", historyReviewStatuses);
+  else if (filter === "history" || filter === "moderated") query = query.in("status", historyReviewStatuses);
   else if (["approved", "rejected", "archived"].includes(filter)) query = query.eq("status", filter);
   const { data, error } = await query;
-  return { items: (data ?? []) as ReviewItem[], warnings: error ? [friendlyReviewWarning(error.message)] : [] };
+  const warnings = error ? [friendlyReviewWarning(error.message)] : [];
+  const enrichedItems = await enrichCommuneReviewItems((data ?? []) as ReviewItem[], warnings);
+  return { items: filter === "moderated" ? enrichedItems.filter(isModeratedReviewItem) : enrichedItems, warnings };
 }
 
 export async function loadReviewEvents(reviewItemId?: string): Promise<{ events: ReviewEvent[]; warnings: string[] }> {
@@ -249,8 +379,9 @@ async function syncCommuneReviewSubject(item: ReviewItem, nextStatus: ReviewStat
       moderation_reason: note || null
     };
     if (nextStatus === "approved") Object.assign(update, { status: "published", published_at: now, hidden_at: null, hidden_by: null });
-    else if (nextStatus === "archived") Object.assign(update, { status: "archived" });
-    else if (nextStatus === "rejected") Object.assign(update, { status: "removed_by_moderator", hidden_at: now, hidden_by: actorId });
+    if (nextStatus === "approved") Object.assign(update, { visibility_state: "published", removed_at: null, archived_at: null, moderation_reason: null });
+    else if (nextStatus === "archived") Object.assign(update, { status: "archived", visibility_state: "archived", archived_at: now });
+    else if (nextStatus === "rejected") Object.assign(update, { status: "removed_by_moderator", visibility_state: "removed", hidden_at: now, hidden_by: actorId, removed_at: now });
     else Object.assign(update, { status: "pending_review" });
     const { error } = await supabase.from("commune_comments").update(update).eq("id", item.source_id);
     if (error) return { ok: false, warning: `Commune comment was not updated: ${friendlyReviewWarning(error.message)}` };
@@ -260,6 +391,84 @@ async function syncCommuneReviewSubject(item: ReviewItem, nextStatus: ReviewStat
     }
   }
   return { ok: true };
+}
+
+export async function restoreCommuneReviewSubject(item: ReviewItem, note: string): Promise<{ ok: boolean; warning?: string }> {
+  if (!hasSupabaseConfig || !supabase) return { ok: false, warning: supabaseNotConfiguredMessage };
+  if (item.domain !== "commune" || !["commune_posts", "commune_comments"].includes(item.source_table)) return { ok: false, warning: "Only Commune posts and comments can be restored from this recovery action." };
+  if (item.status !== "approved") return { ok: false, warning: "Only approved Commune content can be restored to public visibility from this action. Rejected and archived records stay in admin history unless reviewed separately." };
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return { ok: false, warning: "Sign in with a reviewer account first." };
+  const now = new Date().toISOString();
+  const targetType = item.source_table === "commune_posts" ? "post" : "comment";
+
+  if (item.source_table === "commune_comments") {
+    const { data: current, error: currentError } = await supabase.from("commune_comments").select("status,visibility_state,hidden_at,removed_at,archived_at,published_at").eq("id", item.source_id).maybeSingle();
+    if (currentError) return { ok: false, warning: `Commune comment could not be loaded: ${friendlyReviewWarning(currentError.message)}` };
+    const currentRow = current as CommuneCommentModerationRow | null;
+    if (!currentRow) return { ok: false, warning: "Commune comment was not found." };
+    if (["rejected", "deleted_by_user"].includes(currentRow.status ?? "")) return { ok: false, warning: "Rejected or user-deleted comments are not restored by the visibility recovery action." };
+    const previousState = deriveCommentModerationState(currentRow);
+    const { error } = await supabase.from("commune_comments").update({
+      status: "published",
+      visibility_state: "published",
+      hidden_at: null,
+      hidden_by: null,
+      removed_at: null,
+      moderation_reason: null,
+      published_at: currentRow.published_at ?? now,
+      updated_at: now
+    }).eq("id", item.source_id);
+    if (error) return { ok: false, warning: `Commune comment was not restored: ${friendlyReviewWarning(error.message)}` };
+    await recordCommuneRestoreEvent({ item, actorId: auth.user.id, targetType, previousState, note, now });
+    return { ok: true };
+  }
+
+  const { data: current, error: currentError } = await supabase.from("commune_posts").select("status,visibility,visibility_state,moderation_status,hidden_at,removed_at,archived_at,published_at").eq("id", item.source_id).maybeSingle();
+  if (currentError) return { ok: false, warning: `Commune post could not be loaded: ${friendlyReviewWarning(currentError.message)}` };
+  const currentRow = current as CommunePostModerationRow | null;
+  if (!currentRow) return { ok: false, warning: "Commune post was not found." };
+  if (["rejected", "deleted_by_user"].includes(currentRow.status ?? "")) return { ok: false, warning: "Rejected or user-deleted posts are not restored by the visibility recovery action." };
+  const previousState = derivePostModerationState(currentRow);
+  const { error } = await supabase.from("commune_posts").update({
+    status: "published",
+    visibility: "public",
+    visibility_state: "published",
+    moderation_status: "approved",
+    hidden_at: null,
+    hidden_by: null,
+    removed_at: null,
+    moderation_reason: null,
+    published_at: currentRow.published_at ?? now,
+    updated_at: now,
+    last_activity_at: now
+  }).eq("id", item.source_id);
+  if (error) return { ok: false, warning: `Commune post was not restored: ${friendlyReviewWarning(error.message)}` };
+  await recordCommuneRestoreEvent({ item, actorId: auth.user.id, targetType, previousState, note, now });
+  return { ok: true };
+}
+
+async function recordCommuneRestoreEvent(input: { item: ReviewItem; actorId: string; targetType: "post" | "comment"; previousState: string; note: string; now: string }) {
+  if (!supabase) return;
+  await supabase.from("commune_moderation_events").insert({
+    actor_id: input.actorId,
+    target_type: input.targetType,
+    target_id: input.item.source_id,
+    action: "restore_to_public",
+    from_status: input.previousState,
+    to_status: "published",
+    reason: input.note || null,
+    metadata: { source: "admin_review_recovery", review_item_id: input.item.id, review_status: input.item.status, review_status_preserved: true, archive_is_separate_from_history: true }
+  });
+  await supabase.from("review_events").insert({
+    review_item_id: input.item.id,
+    actor_id: input.actorId,
+    event_type: "commune_restore_to_public",
+    from_status: input.item.status,
+    to_status: input.item.status,
+    note: input.note || null,
+    metadata: { visibility: "internal", moderation_state_from: input.previousState, moderation_state_to: "published", review_status_preserved: true, history_only: true, active_queue: false }
+  });
 }
 
 export async function updateReviewStatus(item: ReviewItem, nextStatus: ReviewStatus, note: string): Promise<{ ok: boolean; warning?: string }> {
