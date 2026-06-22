@@ -28,7 +28,8 @@ const participantApprovalMigration = await read("supabase/migrations/2026_06_21_
 const reactionMigration = await read("supabase/migrations/2026_06_21_commune_content_reactions.sql");
 const commentDirectPublishMigration = await read("supabase/migrations/2026_06_21_commune_comment_direct_publish_policy.sql");
 const commentSchemaRepairMigration = await read("supabase/migrations/2026_06_22_commune_comments_schema_drift_repair.sql");
-const communeCommentSchemaCoverage = `${migration}\n${commentDirectPublishMigration}\n${commentSchemaRepairMigration}`;
+const commentNotificationRepairMigration = await read("supabase/migrations/2026_06_22_commune_comment_notification_dependency_repair.sql");
+const communeCommentSchemaCoverage = `${migration}\n${commentDirectPublishMigration}\n${commentSchemaRepairMigration}\n${commentNotificationRepairMigration}`;
 const styles = await read("src/styles.css");
 
 for (const route of ["/commune", "commune/new", "commune/repository-showcase", "commune/troubleshooting", "commune/sandbox-review", "commune/code-sharing/review", "commune/realtime", "commune/moderation"]) {
@@ -161,6 +162,7 @@ assert(accountApi.includes("First contribution to this post/thread submitted for
 assert(accountApi.includes("if (!review.ok)"), "Commune first-comment review item creation result must be checked.");
 assert(accountApi.includes("could not enter Admin review yet"), "Commune review routing failure should be visible.");
 assert(accountApi.includes("2026_06_22_commune_comments_schema_drift_repair.sql"), "Commune comment schema drift errors should name the repair migration.");
+assert(accountApi.includes("2026_06_22_commune_comment_notification_dependency_repair.sql"), "Commune published-comment notification dependency errors should name the repair migration.");
 assert(accountApi.includes("adminDirectPublish = account.isAdmin"), "Admin Commune posts should bypass self-review and publish directly.");
 assert(accountApi.includes("review_item_created: false"), "Admin direct Commune publish should record that no self-review item was created.");
 assert(accountApi.includes("admin_post_published") && accountApi.includes("admin_comment_published"), "Admin direct Commune actions should remain auditable.");
@@ -189,6 +191,13 @@ for (const payloadColumn of ["thread_id", "post_id", "parent_comment_id", "user_
 for (const indexName of ["commune_comments_post_idx", "commune_comments_thread_status_idx", "commune_comments_parent_idx", "commune_comments_user_status_idx", "commune_comments_published_idx"]) {
   assert(commentSchemaRepairMigration.includes(indexName), `Commune comments schema repair index missing: ${indexName}`);
 }
+for (const dependency of ["user_notifications", "user_followed_commune_threads", "muted", "notify_commune_published_comment", "commune_notify_published_comment"]) {
+  assert(commentNotificationRepairMigration.includes(dependency), `Commune comment notification dependency repair missing: ${dependency}`);
+}
+assert(commentNotificationRepairMigration.includes("exception when others"), "Published-comment notification trigger should be fail-safe.");
+assert(commentNotificationRepairMigration.includes("raise notice 'Commune published-comment notification skipped"), "Notification trigger should skip accessory notification failures without rolling back comments.");
+assert(commentNotificationRepairMigration.includes("Comments/replies are core Commune participation. Notifications are accessory."), "Migration should document that notifications cannot break core comments.");
+assert(commentNotificationRepairMigration.includes("revoke all on table public.user_notifications from anon"), "Notification repair should keep notifications private from anonymous users.");
 assert(reactionMigration.includes("commune_content_reactions"), "Commune content reaction migration missing.");
 assert(reactionMigration.includes("unique (user_id, target_type, target_id)"), "Commune reactions should enforce one vote per user per item.");
 assert(reactionMigration.includes("reaction in ('helpful', 'caution')"), "Commune reaction labels should be helpful/caution.");
