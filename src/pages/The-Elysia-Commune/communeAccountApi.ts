@@ -69,7 +69,10 @@ function friendlyError(message: string, fallbackMessage: string) {
   if (/user_notifications|user_followed_commune_threads|notify_commune_published_comment|commune_notify_published_comment|muted/i.test(message)) return "Comment could not be saved because the published-comment notification dependency is missing or drifted. Apply `2026_06_22_commune_comment_notification_dependency_repair.sql` in Supabase, then refresh and try again.";
   if (/parent_comment_id/i.test(message)) return "Commune replies are not active yet because the live comments table is missing `parent_comment_id`. Apply the Commune comments/replies migration in Supabase.";
   if (/schema cache|Could not find|does not exist|relation/i.test(message)) return fallbackMessage;
-  if (/permission denied|row-level security|violates row-level security/i.test(message)) return "This Commune action is blocked by the current database policy. If you are signed in, apply the latest Commune comment/reply RLS migration or ask an administrator to review the thread.";
+  if (/permission denied|row-level security|violates row-level security/i.test(message)) {
+    if (/room post|attachment|upload|media|storage/i.test(fallbackMessage)) return fallbackMessage;
+    return "This Commune action is blocked by the current database policy. If you are signed in, apply the latest Commune comment/reply RLS migration or ask an administrator to review the thread.";
+  }
   return message;
 }
 
@@ -226,7 +229,7 @@ export async function submitCommunePost(input: { postType: CommunePostType; room
   const adminDirectPublish = account.isAdmin;
   const now = new Date().toISOString();
   const { error: postError } = await supabase.from(canonicalCommuneTables.posts).insert({ id: postId, user_id: account.userId, author_username: account.username, post_type: input.postType, title: input.title.trim(), body: input.body.trim(), excerpt: excerpt(input.body), tags, links, repository_url: input.repositoryUrl?.trim() || null, status: adminDirectPublish ? "published" : "pending_review", moderation_status: adminDirectPublish ? "approved" : "pending_review", published_at: adminDirectPublish ? now : null, safety_acknowledgements: { public_boundary: true, no_secrets: true, no_execution: true } });
-  if (postError) return { ok: false, message: friendlyError(postError.message, "Community posting backend is not active yet.") };
+  if (postError) return { ok: false, message: friendlyError(postError.message, "This room post is blocked by the current database policy. If you are signed in, the Commune room post/admin publishing policy may need to be applied.") };
   let threadId: string | null = null;
   const { data: thread, error: threadError } = await supabase.from(canonicalCommuneTables.threads).insert({ post_id: postId, room_id: input.roomId || null, title: input.title.trim(), created_by: account.userId, visibility: "public" }).select("id").single();
   if (!threadError) threadId = (thread as { id: string }).id;
@@ -236,13 +239,17 @@ export async function submitCommunePost(input: { postType: CommunePostType; room
   }
   if (input.upload) {
     const upload = await uploadCommuneAttachment(input.upload, { postId, role: "post_attachment" });
-    if (!upload.ok) return { ok: false, message: `Post saved for review, but upload failed: ${upload.message}` };
+    if (!upload.ok) return { ok: false, message: `${adminDirectPublish ? "Post published directly" : "Post saved for review"}, but upload failed: ${upload.message}` };
   }
   if (input.postType === "repository_showcase" && input.repositoryUrl) {
     const repo = await submitRepositoryShowcase({ repositoryUrl: input.repositoryUrl, projectName: input.title, projectSummary: excerpt(input.body), postId, sandboxRequested: Boolean(input.sandboxRequested) });
     if (!repo.ok) return { ok: false, message: `Post saved, but repository showcase failed: ${repo.message}` };
   }
-  if (adminDirectPublish) return { ok: true, postId, message: `Admin post published directly${threadId ? " with a public thread" : ""}. It remains auditable in Commune governance history.` };
+  if (adminDirectPublish) {
+    const history = await createReviewHistoryItem({ domain: "commune", sourceTable: "commune_posts", sourceId: postId, submittedBy: account.userId, title: input.title.trim(), summary: excerpt(input.body), status: "approved", eventType: "admin_post_direct_published", metadata: { post_type: input.postType, thread_id: threadId, review_item_created: false } });
+    const historyWarning = history.ok ? "" : ` History record needs attention: ${history.warning ?? "review history unavailable"}.`;
+    return { ok: true, postId, message: `Admin post published directly${threadId ? " with a public thread" : ""}. It remains auditable in Commune governance history.${historyWarning}` };
+  }
   const review = await createReviewItem({ domain: "commune", sourceTable: "commune_posts", sourceId: postId, submittedBy: account.userId, title: input.title.trim(), summary: excerpt(input.body) });
   return { ok: true, postId, message: review.ok ? `Commune post submitted for moderation${threadId ? " with a pending thread" : ""}. It is not public until approved.` : `Post saved, but review routing needs attention: ${review.warning}` };
 }
@@ -451,11 +458,11 @@ export async function uploadCommuneAttachment(file: File, attach: { postId?: str
   const storagePath = `${account.userId}/${Date.now()}-${safeName}`;
   const bucket = "commune-media";
   const upload = await supabase.storage.from(bucket).upload(storagePath, file, { contentType: file.type || undefined, upsert: false });
-  if (upload.error) return { ok: false, message: friendlyError(upload.error.message, "Community media storage is not active yet.") };
+  if (upload.error) return { ok: false, message: friendlyError(upload.error.message, "This attachment upload is blocked by the current storage policy. The Commune room media bucket or upload policy may need to be applied.") };
   const { data: mediaRow, error: mediaError } = await supabase.from(canonicalCommuneTables.media).insert({ owner_user_id: account.userId, post_id: attach.postId || null, comment_id: attach.commentId || null, storage_bucket: bucket, storage_path: storagePath, file_name: file.name, mime_type: file.type || null, file_size: file.size, media_kind: media.mediaKind, visibility_state: "submitted", warning_acknowledged: true }).select("id").single();
   if (mediaError) {
     await supabase.storage.from(bucket).remove([storagePath]);
-    return { ok: false, message: friendlyError(mediaError.message, "Community media metadata is not active yet; the private upload was cleaned up.") };
+    return { ok: false, message: friendlyError(mediaError.message, "This attachment upload is blocked by the current media metadata policy. The Commune room media table policy may need to be applied; the private upload was cleaned up.") };
   }
   const { error } = await supabase.from(canonicalCommuneTables.legacyUploads).insert({ user_id: account.userId, post_id: attach.postId || null, comment_id: attach.commentId || null, repository_showcase_id: attach.repositoryShowcaseId || null, storage_path: storagePath, original_filename: file.name, mime_type: file.type || null, size_bytes: file.size, upload_role: attach.role, status: "pending_review" }).select("id").single();
   if (error && import.meta.env.DEV) console.warn("[Commune legacy upload metadata]", error.message);

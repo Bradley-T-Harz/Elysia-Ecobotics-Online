@@ -8,6 +8,7 @@ import type { MarketplaceProfile, MarketplaceProfileDraft } from "../The-Elysia-
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
 import { commonsStewardshipOrganizations, type CommonsStewardshipOrganization } from "./commonsStewardshipOrganizations";
+import { loadCommonsHomebase, removeProfileMedia, uploadProfileMedia } from "./commonsCircleApi";
 
 type SetupStep = "profile" | "stewardship" | "work-with" | "confirm";
 type SetupStatus = "draft_local" | "pending_admin_review_local" | "pending_review";
@@ -258,6 +259,7 @@ export default function CommonsCircleSetupPage() {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const groupedOrganizations = useMemo(groupOrganizations, []);
   const stepIndex = Math.max(0, setupSteps.indexOf(step as SetupStep));
@@ -271,10 +273,16 @@ export default function CommonsCircleSetupPage() {
     result.warnings.forEach(pushMessage);
     const loaded = result.data as ProfileWithSetup | null;
     setProfile(loaded);
+    setAvatarUrl(loaded?.avatar_url ?? null);
     if (loaded) {
       const nextDraft = profileFromExisting(loaded);
       setProfileDraft(nextDraft);
       writeSession(sessionKeys.profileDraft, nextDraft);
+    }
+    const homebaseResult = await loadCommonsHomebase();
+    homebaseResult.warnings.forEach(pushMessage);
+    if (homebaseResult.customization.avatar_url) {
+      setAvatarUrl(homebaseResult.customization.avatar_url);
     }
   }, [pushMessage]);
 
@@ -299,6 +307,35 @@ export default function CommonsCircleSetupPage() {
   function updateWorkWithDraft(next: WorkWithDraft) {
     setWorkWithDraft(next);
     writeSession(sessionKeys.workWithDraft, next);
+  }
+
+  async function handleAvatarUpload(file: File | null) {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const result = await uploadProfileMedia(file, "avatar");
+      result.warnings.forEach(pushMessage);
+      if (result.publicUrl) {
+        setAvatarUrl(result.publicUrl);
+        pushMessage("Public profile picture uploaded. This image is public and separate from any private local Elysia identity photo.");
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleAvatarRemove() {
+    setBusy(true);
+    try {
+      const warnings = await removeProfileMedia("avatar");
+      warnings.forEach(pushMessage);
+      if (!warnings.length) {
+        setAvatarUrl(null);
+        pushMessage("Public profile picture removed. The public profile will use initials fallback.");
+      }
+    } finally {
+      setBusy(false);
+    }
   }
 
   function continueFromProfile() {
@@ -629,6 +666,17 @@ export default function CommonsCircleSetupPage() {
           <p className="eyebrow">Commons Profile draft</p>
           <h2>{profile ? "Review Commons Profile draft" : "Draft Commons Profile"}</h2>
           <p>Your Commons Profile is the public profile connected to your signed-in Website Account. It is not a second account and not a second login. It will not be created or updated until the final confirmation step.</p>
+          <section className="commons-profile-mantle" aria-label="Public profile picture preview">
+            <div className="commons-avatar">{avatarUrl ? <img src={avatarUrl} alt="Public Commons profile picture" /> : <span>{(profileDraft.display_name || profileDraft.username || "C").slice(0, 1).toUpperCase()}</span>}</div>
+            <div>
+              <p className="eyebrow">Public profile picture</p>
+              <p className="boundary-note">This image is public on your Commons Profile. Choose an online profile picture explicitly; this does not import or sync a private local Elysia identity photo.</p>
+              <div className="button-row">
+                <label className="button-link"><span>Choose profile picture</span><input style={{ display: "none" }} type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleAvatarUpload(event.target.files?.[0] ?? null)} /></label>
+                <button type="button" onClick={() => void handleAvatarRemove()} disabled={!avatarUrl || busy}>Remove profile picture</button>
+              </div>
+            </div>
+          </section>
           <div className="commons-form-grid">
             <label><span>Username</span><input value={profileDraft.username} placeholder="bradley-harz" onChange={(event) => updateProfileDraft({ ...profileDraft, username: event.target.value })} /></label>
             <label><span>Display name</span><input value={profileDraft.display_name} placeholder="Bradley T. Harz" onChange={(event) => updateProfileDraft({ ...profileDraft, display_name: event.target.value })} /></label>

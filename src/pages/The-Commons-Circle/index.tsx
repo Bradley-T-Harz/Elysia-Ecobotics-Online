@@ -17,6 +17,7 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
   readLocalStorage,
+  removeProfileMedia,
   saveCustomization,
   saveNotificationPreferences,
   saveVisibilitySettings,
@@ -245,6 +246,16 @@ export default function CommonsCirclePage() {
     }
   }
 
+  async function handleRemoveProfileMedia(mediaType: "avatar" | "banner") {
+    const warnings = await removeProfileMedia(mediaType);
+    polishedActionMessages("profile-media-remove", warnings, "Public profile media removal is not active yet.").forEach(pushMessage);
+    if (!warnings.length) {
+      setCustomizationDraft((current) => ({ ...current, [mediaType === "avatar" ? "avatar_url" : "banner_url"]: null }));
+      pushMessage(`${mediaType === "avatar" ? "Avatar" : "Banner"} removed from public profile display. Initials fallback remains available.`);
+      await refreshHomebase();
+    }
+  }
+
   return (
     <div className={homebaseClasses} style={homeStyle}>
       <PageHero eyebrow="Membership" title="The Commons Circle">
@@ -386,6 +397,8 @@ export default function CommonsCirclePage() {
           <div className="commons-media-upload-row">
             <label><span>Avatar upload</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleProfileMedia(event.target.files?.[0] ?? null, "avatar")} /></label>
             <label><span>Banner upload</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleProfileMedia(event.target.files?.[0] ?? null, "banner")} /></label>
+            <button type="button" onClick={() => void handleRemoveProfileMedia("avatar")} disabled={!customizationDraft.avatar_url}>Remove profile picture</button>
+            <button type="button" onClick={() => void handleRemoveProfileMedia("banner")} disabled={!customizationDraft.banner_url}>Remove banner</button>
           </div>
         </div>
         <div className="button-row"><button className="button-primary" type="button" onClick={() => void saveProfileRoom()}>Save customization</button></div>

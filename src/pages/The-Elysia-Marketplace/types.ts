@@ -119,6 +119,7 @@ export type MarketplaceProfile = {
   interests?: string | null;
   website_url?: string | null;
   github_url?: string | null;
+  avatar_url?: string | null;
   organization?: string | null;
   featured_public_links?: FeaturedPublicLink[];
   is_developer: boolean;

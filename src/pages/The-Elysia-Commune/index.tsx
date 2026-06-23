@@ -720,7 +720,7 @@ function CommunityFeed({ posts, savedPostIds, onSave, filters, signedIn }: { pos
   </section>;
 }
 
-function RoomPage({ roomSlug, roomId, posts, savedPostIds, onSave, localDrafts, categories, onRefresh, signedIn }: { roomSlug: string; roomId?: string; posts: CommunePost[]; savedPostIds: string[]; onSave: (id: string) => void; localDrafts: ReturnType<typeof useLocalDraftState>; categories: CommuneCategory[]; onRefresh: () => Promise<void>; signedIn: boolean }) {
+function RoomPage({ roomSlug, roomId, posts, savedPostIds, onSave, localDrafts, categories, onRefresh, signedIn, isAdmin }: { roomSlug: string; roomId?: string; posts: CommunePost[]; savedPostIds: string[]; onSave: (id: string) => void; localDrafts: ReturnType<typeof useLocalDraftState>; categories: CommuneCategory[]; onRefresh: () => Promise<void>; signedIn: boolean; isAdmin: boolean }) {
   const type = postTypeByRoomSlug.get(roomSlug);
   const roomPosts = type ? posts.filter((post) => post.post_type === type.backendValue) : [];
   if (!type) {
@@ -755,7 +755,7 @@ function RoomPage({ roomSlug, roomId, posts, savedPostIds, onSave, localDrafts, 
     {type.backendValue === "repository_showcase" && <section className="section-card commune-repo-card"><p className="eyebrow">Repository Showcase</p><h2>Metadata only, never execution</h2><p>A public repo is not automatically safe, compatible, licensed, or free of secrets. The website does not fetch, clone, build, run, or validate repositories from this room.</p><Link className="button-link button-link--primary" to="/commune/repository-showcase">Open repository showcase form</Link></section>}
     {type.backendValue === "code_sharing" && <section className="section-card commune-sandbox-card"><p className="eyebrow">Code Sharing Tools</p><h2>Review code as text, then request sandbox review only when needed.</h2><p>Code snippets and documents are for discussion. The website does not execute code, open a terminal, install packages, clone repositories, or call Local Elysia.</p><div className="button-row"><Link className="button-link" to="/commune/code-sharing/review">Open Code Review Workbench</Link><Link className="button-link" to="/commune/sandbox-review">Prepare Sandbox Review Request</Link></div></section>}
     {type.backendValue === "official_update" && <section className="section-card"><p className="eyebrow">Official Updates</p><h2>Read-only for community members</h2><p>Official release, security, roadmap, and governance notices are restricted to authorized Elysia Ecobotics administrators. Community users cannot self-assign official publishing authority.</p></section>}
-    {roomPostComposer && <div id="commune-room-composer"><PostComposer defaultType={type.backendValue} defaultRoomId={roomId} troubleshooting={type.backendValue === "troubleshooting"} localDrafts={localDrafts} categories={categories} onRefresh={onRefresh} /></div>}
+    {roomPostComposer && <div id="commune-room-composer"><PostComposer defaultType={type.backendValue} defaultRoomId={roomId} troubleshooting={type.backendValue === "troubleshooting"} localDrafts={localDrafts} categories={categories} onRefresh={onRefresh} isAdmin={isAdmin} /></div>}
   </>;
 }
 
@@ -798,10 +798,11 @@ function AccountModePanel({ signedIn, isModerator, accountReady, activeKind }: {
   </section>;
 }
 
-function PostComposer({ defaultType = "media_garden" as CommunePostType, defaultRoomId, troubleshooting = false, localDrafts, categories, onRefresh }: { defaultType?: CommunePostType; defaultRoomId?: string; troubleshooting?: boolean; localDrafts: ReturnType<typeof useLocalDraftState>; categories: CommuneCategory[]; onRefresh?: () => Promise<void> }) {
+function PostComposer({ defaultType = "media_garden" as CommunePostType, defaultRoomId, troubleshooting = false, localDrafts, categories, onRefresh, isAdmin = false }: { defaultType?: CommunePostType; defaultRoomId?: string; troubleshooting?: boolean; localDrafts: ReturnType<typeof useLocalDraftState>; categories: CommuneCategory[]; onRefresh?: () => Promise<void>; isAdmin?: boolean }) {
   const [form, setForm] = useState({ postType: defaultType, categorySlug: categories[0]?.slug ?? "general", roomId: defaultRoomId || "", title: "", summary: "", body: "", tags: "", links: "", repositoryUrl: "", os: "", browser: "", version: "", stepsTried: "", codeLanguage: "", codeFileName: "", codeText: "", stepsCodeAck: false, acknowledgement: false, sandboxRequested: false });
   const [file, setFile] = useState<File | null>(null);
-  const [message, setMessage] = useState("Signed-in users can submit posts for moderation. Local draft/export is available even when backend review is not active.");
+  const submitLabel = isAdmin ? "Publish as admin" : "Submit for moderation";
+  const [message, setMessage] = useState(isAdmin ? "Admins can publish room posts directly. Attachments still follow Commune media safety rules." : "Signed-in users can submit posts for moderation. Local draft/export is available even when backend review is not active.");
   const secretScan = scanCommuneTextForSecrets([form.title, form.body, form.codeFileName, form.codeText, form.repositoryUrl].join("\n"));
   const fileValidation = file ? validateCommuneMediaFile(file) : null;
   const selectedPostTypeLabel = postTypeOptions.find((type) => type.value === form.postType)?.label ?? form.postType;
@@ -884,6 +885,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     <h2>{troubleshooting ? "Troubleshooting post" : "Create a moderated Commune post"}</h2>
     <p className="boundary-note">Uploads are part of Elysia Ecobotics Online, not private local Elysia. Do not upload private local Elysia memory, logs, vault data, credentials, .env files, API keys, identity documents, or unredacted sensitive information.</p>
     <p className="boundary-note">Posting in: {selectedPostTypeLabel}</p>
+    {isAdmin && <p className="boundary-note">Admin mode: this room post will publish directly. Attachment uploads still use the Commune media safety policy.</p>}
     <div className="commune-form-grid">
       <label><span>Title</span><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
       <label><span>Summary</span><input value={form.summary} onChange={(event) => setForm({ ...form, summary: event.target.value })} /></label>
@@ -891,6 +893,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       <label><span>Links</span><input value={form.links} onChange={(event) => setForm({ ...form, links: event.target.value })} /></label>
       <label><span>Repository URL optional</span><input value={form.repositoryUrl} onChange={(event) => setForm({ ...form, repositoryUrl: event.target.value })} /></label>
       <label><span>Attachment optional</span><input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.md,.csv,.json" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></label>
+      <p className="boundary-note">Supported attachments: PNG, JPEG, WebP, PDF, TXT, Markdown, CSV, and JSON. Video uploads are not enabled for this room yet.</p>
       {troubleshooting && <><label><span>OS</span><input value={form.os} onChange={(event) => setForm({ ...form, os: event.target.value })} /></label><label><span>Browser</span><input value={form.browser} onChange={(event) => setForm({ ...form, browser: event.target.value })} /></label><label><span>Elysia version optional</span><input value={form.version} onChange={(event) => setForm({ ...form, version: event.target.value })} /></label><label><span>Steps tried</span><input value={form.stepsTried} onChange={(event) => setForm({ ...form, stepsTried: event.target.value })} /></label></>}
       <label className="wide-field"><span>Body</span><textarea rows={8} value={form.body} onChange={(event) => setForm({ ...form, body: event.target.value })} /></label>
       <label><span>Code language optional</span><input value={form.codeLanguage} onChange={(event) => setForm({ ...form, codeLanguage: event.target.value })} placeholder="typescript, bash, python..." /></label>
@@ -903,7 +906,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     {fileValidation && <p className={fileValidation.ok ? "boundary-note" : "message"}>{fileValidation.message}</p>}
     {form.codeText && <section className="commune-code-preview"><div className="addon-card__topline"><strong>{inertCodeSnippetLabel(form.codeLanguage)}</strong><span>{form.codeFileName || "snippet"}</span></div><pre><code>{form.codeText}</code></pre><p className="boundary-note">Code is shown for discussion only. Do not run code you do not trust.</p></section>}
     <div className="commune-checklist">{routeAcknowledgements.map((item) => <label className="checkbox-line" key={item}><input type="checkbox" checked={form.acknowledgement} onChange={(event) => setForm({ ...form, acknowledgement: event.target.checked })} /><span>{item}</span></label>)}<label className="checkbox-line"><input type="checkbox" checked={form.stepsCodeAck} onChange={(event) => setForm({ ...form, stepsCodeAck: event.target.checked })} /><span>Any code snippet is inert text for discussion only. It is not execution permission.</span></label><label className="checkbox-line"><input type="checkbox" checked={form.sandboxRequested} onChange={(event) => setForm({ ...form, sandboxRequested: event.target.checked })} /><span>Request sandbox review for repository/code metadata. This is not execution permission.</span></label></div>
-    <div className="button-row"><button type="button" className="button-primary" onClick={() => void submit()}>Submit for moderation</button><button type="button" onClick={() => saveLocal("draft_local")}>Save local draft</button><button type="button" onClick={() => saveLocal("pending_moderator_review_local")}>Save local request</button><button type="button" onClick={() => downloadText(`${slug(form.title)}.md`, postMarkdown(build("draft_local")), "text/markdown")}>Export Markdown</button><button type="button" onClick={() => copyText(postMarkdown(build("draft_local")), setMessage)}>Copy Markdown</button><Link className="button-link" to="/commune">Back to Commune</Link></div>
+    <div className="button-row"><button type="button" className="button-primary" onClick={() => void submit()}>{submitLabel}</button><button type="button" onClick={() => saveLocal("draft_local")}>Save local draft</button><button type="button" onClick={() => saveLocal("pending_moderator_review_local")}>Save local request</button><button type="button" onClick={() => downloadText(`${slug(form.title)}.md`, postMarkdown(build("draft_local")), "text/markdown")}>Export Markdown</button><button type="button" onClick={() => copyText(postMarkdown(build("draft_local")), setMessage)}>Copy Markdown</button><Link className="button-link" to="/commune">Back to Commune</Link></div>
     <p className="message">{message}</p>
   </section>;
 }
@@ -1586,13 +1589,13 @@ export default function CommunePage() {
 
     {mode === "new" && <RoomPickerPanel />}
     {mode === "repository-showcase" && <RepositoryShowcaseForm localDrafts={localDrafts} />}
-    {mode === "troubleshooting" && <PostComposer defaultType="troubleshooting" defaultRoomId={state.rooms.find((room) => room.slug === "troubleshooting-grove")?.id} troubleshooting localDrafts={localDrafts} categories={categories} onRefresh={refresh} />}
+    {mode === "troubleshooting" && <PostComposer defaultType="troubleshooting" defaultRoomId={state.rooms.find((room) => room.slug === "troubleshooting-grove")?.id} troubleshooting localDrafts={localDrafts} categories={categories} onRefresh={refresh} isAdmin={state.isAdmin} />}
     {mode === "sandbox-review" && <SandboxDraftPanel localDrafts={localDrafts} />}
     {mode === "moderation" && <ModerationPanel />}
     {mode === "realtime" && <RealtimeFoundationPanel />}
     {routeMode === "code-review" && <CollaborativeCodeReviewPanel />}
     {postId && <PostDetail postId={postId} />}
-    {isRoom && roomSlug && <RoomPage roomSlug={roomSlug} roomId={selectedRoom?.id} posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} localDrafts={localDrafts} categories={categories} onRefresh={refresh} signedIn={state.signedIn} />}
+    {isRoom && roomSlug && <RoomPage roomSlug={roomSlug} roomId={selectedRoom?.id} posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} localDrafts={localDrafts} categories={categories} onRefresh={refresh} signedIn={state.signedIn} isAdmin={state.isAdmin} />}
 
     {isLobby && <>
       <RedactionPanel />

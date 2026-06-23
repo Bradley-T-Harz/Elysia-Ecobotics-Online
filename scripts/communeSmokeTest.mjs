@@ -31,6 +31,7 @@ const reactionMigration = await read("supabase/migrations/2026_06_21_commune_con
 const commentDirectPublishMigration = await read("supabase/migrations/2026_06_21_commune_comment_direct_publish_policy.sql");
 const commentSchemaRepairMigration = await read("supabase/migrations/2026_06_22_commune_comments_schema_drift_repair.sql");
 const commentNotificationRepairMigration = await read("supabase/migrations/2026_06_22_commune_comment_notification_dependency_repair.sql");
+const roomPostMediaPolicyRepairMigration = await read("supabase/migrations/2026_06_23_commune_room_post_admin_and_media_policy_repair.sql");
 const communeCommentSchemaCoverage = `${migration}\n${commentDirectPublishMigration}\n${commentSchemaRepairMigration}\n${commentNotificationRepairMigration}`;
 const styles = await read("src/styles.css");
 
@@ -73,6 +74,10 @@ assert(page.includes("postType: defaultType"), "Room composer should preserve th
 assert(page.includes("current.postType === defaultType"), "Room composer should relock post type when navigating between rooms.");
 assert(page.includes("roomId={selectedRoom?.id}"), "Room composer should receive the selected backend room id.");
 assert(page.includes("defaultRoomId={roomId}"), "Room page should pass the backend room id into the post composer.");
+assert(page.includes("isAdmin={state.isAdmin}"), "Room composer should receive admin state for direct-publish labeling.");
+assert(page.includes('isAdmin ? "Publish as admin" : "Submit for moderation"'), "Room composer should show admin direct-publish copy while keeping member moderation copy.");
+assert(page.includes("Admins can publish room posts directly. Attachments still follow Commune media safety rules."), "Room composer should explain admin direct-publish without bypassing media safety.");
+assert(page.includes("Video uploads are not enabled for this room yet."), "Room composer should clearly reject unsupported video uploads instead of implying video support.");
 assert(!page.includes("defaultRoomId={undefined}"), "Room post composer should not drop the backend room id.");
 assert(!page.includes("<label><span>Post type</span><select"), "Room composer should not show the generic Post type dropdown.");
 assert(!page.includes("<label><span>Category</span><select"), "Room composer should not show the generic Category dropdown.");
@@ -168,6 +173,10 @@ assert(accountApi.includes("2026_06_22_commune_comment_notification_dependency_r
 assert(accountApi.includes("adminDirectPublish = account.isAdmin"), "Admin Commune posts should bypass self-review and publish directly.");
 assert(accountApi.includes("review_item_created: false"), "Admin direct Commune publish should record that no self-review item was created.");
 assert(accountApi.includes("admin_post_published") && accountApi.includes("admin_comment_published"), "Admin direct Commune actions should remain auditable.");
+assert(accountApi.includes("admin_post_direct_published"), "Admin direct Commune room posts should create History/All records.");
+assert(accountApi.includes("This room post is blocked by the current database policy"), "Room post RLS failures should not use comment/reply policy copy.");
+assert(accountApi.includes("This attachment upload is blocked by the current storage policy"), "Attachment upload RLS failures should mention storage/media policy.");
+assert(!accountApi.includes('friendlyError(postError.message, "Community posting backend is not active yet.")'), "Room post insert failures should use specific room-post policy copy.");
 assert(accountApi.includes("loadCommuneReactionSummary"), "Commune reaction-count loader missing.");
 assert(accountApi.includes("setCommuneReaction"), "Commune reaction setter missing.");
 assert(accountApi.includes("clearCommuneReaction"), "Commune reaction removal helper missing.");
@@ -211,6 +220,14 @@ assert(commentNotificationRepairMigration.includes("exception when others"), "Pu
 assert(commentNotificationRepairMigration.includes("raise notice 'Commune published-comment notification skipped"), "Notification trigger should skip accessory notification failures without rolling back comments.");
 assert(commentNotificationRepairMigration.includes("Comments/replies are core Commune participation. Notifications are accessory."), "Migration should document that notifications cannot break core comments.");
 assert(commentNotificationRepairMigration.includes("revoke all on table public.user_notifications from anon"), "Notification repair should keep notifications private from anonymous users.");
+assert(roomPostMediaPolicyRepairMigration.includes("admins create direct published commune posts"), "Room post policy repair should allow admin direct-published posts.");
+assert(roomPostMediaPolicyRepairMigration.includes("public.current_user_is_admin()"), "Room post direct-publish repair should be admin-scoped.");
+assert(roomPostMediaPolicyRepairMigration.includes("status = 'published'") && roomPostMediaPolicyRepairMigration.includes("visibility = 'public'"), "Admin direct-publish repair should target published public posts only.");
+assert(roomPostMediaPolicyRepairMigration.includes("'commune-media'"), "Media policy repair should target the explicit Commune media bucket.");
+assert(roomPostMediaPolicyRepairMigration.includes("allowed_mime_types"), "Media policy repair should make allowed MIME types explicit.");
+assert(roomPostMediaPolicyRepairMigration.includes("users upload own commune media files"), "Media policy repair should keep uploads scoped to the user's own folder.");
+assert(roomPostMediaPolicyRepairMigration.includes("bucket_id = 'commune-media'") && roomPostMediaPolicyRepairMigration.includes("storage.foldername(name)"), "Media storage policy should constrain bucket and path ownership.");
+assert(!roomPostMediaPolicyRepairMigration.includes("video/mp4"), "Media Garden video support should stay disabled until explicitly implemented.");
 assert(reactionMigration.includes("commune_content_reactions"), "Commune content reaction migration missing.");
 assert(reactionMigration.includes("unique (user_id, target_type, target_id)"), "Commune reactions should enforce one vote per user per item.");
 assert(reactionMigration.includes("reaction in ('helpful', 'caution')"), "Commune reaction labels should be helpful/caution.");

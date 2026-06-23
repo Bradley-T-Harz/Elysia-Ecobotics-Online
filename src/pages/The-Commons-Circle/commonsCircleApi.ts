@@ -520,8 +520,49 @@ export async function uploadProfileMedia(file: File, mediaType: "avatar" | "bann
   const publicUrl = data.publicUrl;
   const previous = await supabase.from("profile_media").update({ status: "hidden" }).eq("user_id", auth.user.id).eq("media_type", mediaType).eq("status", "active");
   if (previous.error) logBackendDetail("Profile media replacement", previous.error.message);
-  const { error } = await supabase.from("profile_media").insert({ user_id: auth.user.id, media_type: mediaType, bucket, storage_path: storagePath, public_url: publicUrl, status: "active" });
-  return { publicUrl, warnings: error ? [friendlyBackendMessage("Profile media", error.message)] : [] };
+  const { data: mediaRow, error } = await supabase.from("profile_media").insert({ user_id: auth.user.id, media_type: mediaType, bucket, storage_path: storagePath, public_url: publicUrl, status: "active" }).select("id").single();
+  const warnings = error ? [friendlyBackendMessage("Profile media", error.message)] : [];
+  if (!error) {
+    const mediaId = (mediaRow as { id?: string } | null)?.id ?? null;
+    const customizationPatch = {
+      [mediaType === "avatar" ? "avatar_media_id" : "banner_media_id"]: mediaId,
+      updated_at: new Date().toISOString()
+    };
+    const customizationResult = await supabase.from("profile_customization").upsert({ user_id: auth.user.id, ...customizationPatch }, { onConflict: "user_id" });
+    if (customizationResult.error) warnings.push(friendlyBackendMessage("Profile customization", customizationResult.error.message));
+    if (mediaType === "avatar") {
+      const profileResult = await supabase.from("profiles").update({ avatar_url: publicUrl, updated_at: new Date().toISOString() }).eq("id", auth.user.id);
+      if (profileResult.error) warnings.push(friendlyBackendMessage("Commons Profile avatar", profileResult.error.message));
+    }
+  }
+  return { publicUrl, warnings };
+}
+
+export async function removeProfileMedia(mediaType: "avatar" | "banner"): Promise<string[]> {
+  if (!supabase) return [supabaseNotConfiguredMessage];
+  const { data: auth } = await supabase.auth.getUser();
+  if (!auth.user) return ["Sign in before removing profile media."];
+  const warnings: string[] = [];
+  const result = await supabase
+    .from("profile_media")
+    .update({ status: "removed", updated_at: new Date().toISOString() })
+    .eq("user_id", auth.user.id)
+    .eq("media_type", mediaType)
+    .eq("status", "active");
+  if (result.error) warnings.push(friendlyBackendMessage("Profile media", result.error.message));
+  if (mediaType === "avatar") {
+    const profileResult = await supabase
+      .from("profiles")
+      .update({ avatar_url: null, updated_at: new Date().toISOString() })
+      .eq("id", auth.user.id);
+    if (profileResult.error) warnings.push(friendlyBackendMessage("Commons Profile avatar", profileResult.error.message));
+  }
+  const customizationResult = await supabase
+    .from("profile_customization")
+    .update({ [mediaType === "avatar" ? "avatar_media_id" : "banner_media_id"]: null, updated_at: new Date().toISOString() })
+    .eq("user_id", auth.user.id);
+  if (customizationResult.error) warnings.push(friendlyBackendMessage("Profile customization", customizationResult.error.message));
+  return warnings;
 }
 
 export async function syncLocalLivingLibraryToAccount(): Promise<{ synced: number; warnings: string[] }> {

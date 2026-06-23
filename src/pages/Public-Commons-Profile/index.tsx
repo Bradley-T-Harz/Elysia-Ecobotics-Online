@@ -12,11 +12,18 @@ function PublicBadgeIcon({ badge }: { badge: UserBadge }) {
 
 type PublicCustomizationView = {
   theme_mode?: string | null;
+  accent_color?: string | null;
   background_style?: string | null;
+  avatar_url?: string | null;
+  banner_url?: string | null;
   profile_layout?: string | null;
   decal_set?: string | null;
   selected_decals?: string[] | null;
 };
+
+function safeAccentColor(value: string | null | undefined) {
+  return /^#[0-9a-f]{6}$/i.test(value ?? "") ? value as string : "#8ee8dc";
+}
 
 function classToken(value: string | null | undefined, fallback: string) {
   return (value || fallback).replace(/[^a-z0-9_-]/gi, "_");
@@ -93,20 +100,22 @@ export default function PublicCommonsProfilePage() {
   }
 
   const { profile, visibility, customization, badges, publicCollections, publicLinks, publicCommunePosts, publicCommuneComments, isOwner } = profileData;
-  const style = { "--commons-accent": customization.accent_color || "#8ee8dc" } as CSSProperties;
+  const accentColor = safeAccentColor(customization.accent_color);
+  const style = { "--commons-accent": accentColor } as CSSProperties;
   const profileClasses = `page-stack commons-public-profile commons-homebase ${customizationClass(customization)}`;
   const visibleName = visibility.show_display_name ? profile.display_name || profile.username : `@${profile.username}`;
   if (import.meta.env.DEV && warnings.length) console.warn("[Public Commons Profile]", warnings);
 
   return (
-    <div className={profileClasses} style={style}>
+    <div className={profileClasses} style={style} data-commons-theme={customization.theme_mode || "starlit_archive"} data-commons-background={customization.background_style || "soft_cyber_garden"} data-commons-layout={customization.profile_layout || "classic_homebase"}>
       <PageHero eyebrow="Public Commons Profile" title={visibleName}>
         <p>This is a public Commons Circle profile. It does not expose private account email, private requests, saved shelves, local Elysia data, files, logs, vaults, credentials, or machine data.</p>
       </PageHero>
       <section className="section-card commons-homebase-hero">
-        <div className="commons-profile-mantle" style={customization.banner_url ? { backgroundImage: `linear-gradient(135deg, rgba(10, 20, 22, .35), rgba(18, 44, 48, .4)), url(${customization.banner_url})` } : undefined}>
+        <div className={`commons-profile-mantle${customization.banner_url ? " has-public-banner" : ""}`}>
+          {customization.banner_url && <img className="commons-public-banner" src={customization.banner_url} alt="" aria-hidden="true" loading="lazy" />}
           <div className="commons-avatar">{customization.avatar_url ? <img src={customization.avatar_url} alt="Public Commons avatar" /> : <span>{(profile.display_name || profile.username).slice(0, 1).toUpperCase()}</span>}</div>
-          <div><p className="eyebrow">@{profile.username}</p><h2>{visibleName}</h2>{profile.headline && <p>{profile.headline}</p>}</div>
+          <div><p className="eyebrow">@{profile.username}</p><h2>{visibleName}</h2>{profile.headline && <p>{profile.headline}</p>}<div className="commons-customization-badges" aria-label="Public profile presentation settings"><span>{formatDecalLabel(customization.theme_mode || "starlit_archive")}</span><span>{formatDecalLabel(customization.background_style || "soft_cyber_garden")}</span><span>{formatDecalLabel(customization.profile_layout || "classic_homebase")}</span></div></div>
         </div>
         <DecalStrip settings={customization} />
         {isOwner && <div className="button-row"><a className="button-link button-link--primary" href="/commons-circle">Edit in Commons Circle</a></div>}
