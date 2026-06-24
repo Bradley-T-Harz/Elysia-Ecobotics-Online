@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
+import CommonsAvatarViewer from "../../shared/components/CommonsAvatarViewer";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
 import { loadCurrentRoleState } from "../../shared/review/reviewClient";
@@ -84,6 +85,17 @@ function visibleDecals(settings: ProfileCustomization) {
   return decals.filter(Boolean);
 }
 
+function styleSignature(settings: ProfileCustomization) {
+  return JSON.stringify({
+    theme_mode: settings.theme_mode || defaultCustomization.theme_mode,
+    accent_color: settings.accent_color || defaultCustomization.accent_color,
+    background_style: settings.background_style || defaultCustomization.background_style,
+    decal_set: settings.decal_set || defaultCustomization.decal_set,
+    selected_decals: [...(settings.selected_decals ?? [])].sort(),
+    profile_layout: settings.profile_layout || defaultCustomization.profile_layout
+  });
+}
+
 function DecalStrip({ settings }: { settings: ProfileCustomization }) {
   const decals = visibleDecals(settings);
   if (!decals.length) return null;
@@ -110,6 +122,7 @@ export default function CommonsCirclePage() {
   const [messages, setMessages] = useState<string[]>([]);
   const [visibilityDraft, setVisibilityDraft] = useState<VisibilitySettings>(defaultVisibility);
   const [customizationDraft, setCustomizationDraft] = useState<ProfileCustomization>(defaultCustomization);
+  const [savedCustomization, setSavedCustomization] = useState<ProfileCustomization>(defaultCustomization);
   const [notificationDraft, setNotificationDraft] = useState<NotificationPreferences>(defaultNotificationPreferences);
   const [syncChoice, setSyncChoice] = useState(() => readLocalStorage<{ choice?: string }>(commonsStorageKeys.syncChoice, {}));
   const [onboardingDone, setOnboardingDone] = useState<OnboardingState>(() => readLocalStorage(commonsStorageKeys.onboarding, { skippedStewardship: false, welcomed: false }));
@@ -136,6 +149,7 @@ export default function CommonsCirclePage() {
     setHomebase(result);
     setRoleState({ roles: roles.roles, isAdmin: roles.isAdmin, signedIn: roles.signedIn, warnings: roles.warnings });
     setVisibilityDraft(result.visibility);
+    setSavedCustomization(result.customization);
     setCustomizationDraft(options?.preserveCustomization ?? (customizationWarnings && localCustomization ? { ...result.customization, ...localCustomization } : result.customization));
     setNotificationDraft(result.notificationPreferences);
     logDiagnostics("homebase", result.warnings);
@@ -167,8 +181,11 @@ export default function CommonsCirclePage() {
   const localLivingCount = homebase?.localLiving.savedSourceIds.length ?? 0;
   const shouldPromptSync = Boolean(homebase?.signedIn && localLivingCount > 0 && syncChoice.choice !== "synced" && syncChoice.choice !== "keep_local");
   const unreadCount = homebase?.notifications.filter((notice) => !notice.read_at).length ?? 0;
-  const homeStyle = { "--commons-accent": customizationDraft.accent_color || "#8ee8dc" } as CSSProperties;
-  const homebaseClasses = `page-stack commons-circle-page commons-homebase ${customizationClass(customizationDraft)}`;
+  const homeStyle = { "--commons-accent": savedCustomization.accent_color || "#8ee8dc" } as CSSProperties;
+  const homebaseClasses = `page-stack commons-circle-page commons-homebase ${customizationClass(savedCustomization)}`;
+  const previewStyle = { "--commons-accent": customizationDraft.accent_color || "#8ee8dc" } as CSSProperties;
+  const previewClasses = `commons-customization-preview commons-homebase ${customizationClass(customizationDraft)}`;
+  const hasUnsavedCustomization = styleSignature(customizationDraft) !== styleSignature(savedCustomization);
   const earnedBadges = useMemo(() => {
     const earned = homebase?.userBadges.filter((badge) => badge.earned && !badge.revoked_at) ?? [];
     const hasFreeMember = earned.some((badge) => badge.badge_key === "free_member");
@@ -200,11 +217,17 @@ export default function CommonsCirclePage() {
     });
   }
 
+  function revertCustomizationPreview() {
+    setCustomizationDraft(savedCustomization);
+    pushMessage("Customization preview reverted to the saved public profile style.");
+  }
+
   async function saveProfileRoom() {
     const savedDraft = { ...customizationDraft };
     if (!homebase?.signedIn) {
       writeLocalStorage("commonsCircle.customizationDemo.v1", savedDraft);
-      pushMessage("Saved locally in this browser. Sign in to save account-backed profile customization.");
+      setSavedCustomization(savedDraft);
+      pushMessage("Customization saved locally in this browser. Sign in to publish these style choices to your public profile.");
       return;
     }
     const warnings = await saveCustomization(savedDraft);
@@ -215,7 +238,8 @@ export default function CommonsCirclePage() {
       setCustomizationDraft(savedDraft);
       return;
     }
-    pushMessage("Profile room customization saved to your Website Account.");
+    setSavedCustomization(savedDraft);
+    pushMessage("Customization saved. Your public profile will use these style choices.");
     await refreshHomebase({ preserveCustomization: savedDraft });
   }
 
@@ -240,9 +264,11 @@ export default function CommonsCirclePage() {
     const result = await uploadProfileMedia(file, mediaType);
     polishedActionMessages("profile-media", result.warnings, "Public profile media upload is not active yet. No file was published.").forEach(pushMessage);
     if (result.publicUrl) {
-      setCustomizationDraft((current) => ({ ...current, [mediaType === "avatar" ? "avatar_url" : "banner_url"]: result.publicUrl }));
+      const nextDraft = { ...customizationDraft, [mediaType === "avatar" ? "avatar_url" : "banner_url"]: result.publicUrl };
+      setCustomizationDraft(nextDraft);
+      setSavedCustomization((current) => ({ ...current, [mediaType === "avatar" ? "avatar_url" : "banner_url"]: result.publicUrl }));
       pushMessage(`${mediaType === "avatar" ? "Avatar" : "Banner"} uploaded as public profile media. Private files still never use this bucket.`);
-      await refreshHomebase();
+      await refreshHomebase({ preserveCustomization: nextDraft });
     }
   }
 
@@ -250,9 +276,11 @@ export default function CommonsCirclePage() {
     const warnings = await removeProfileMedia(mediaType);
     polishedActionMessages("profile-media-remove", warnings, "Public profile media removal is not active yet.").forEach(pushMessage);
     if (!warnings.length) {
-      setCustomizationDraft((current) => ({ ...current, [mediaType === "avatar" ? "avatar_url" : "banner_url"]: null }));
+      const nextDraft = { ...customizationDraft, [mediaType === "avatar" ? "avatar_url" : "banner_url"]: null };
+      setCustomizationDraft(nextDraft);
+      setSavedCustomization((current) => ({ ...current, [mediaType === "avatar" ? "avatar_url" : "banner_url"]: null }));
       pushMessage(`${mediaType === "avatar" ? "Avatar" : "Banner"} removed from public profile display. Initials fallback remains available.`);
-      await refreshHomebase();
+      await refreshHomebase({ preserveCustomization: nextDraft });
     }
   }
 
@@ -301,8 +329,8 @@ export default function CommonsCirclePage() {
       </section>
 
       <section className="section-card commons-homebase-hero">
-        <div className="commons-profile-mantle" style={customizationDraft.banner_url ? { backgroundImage: `linear-gradient(135deg, rgba(10, 20, 22, .35), rgba(18, 44, 48, .4)), url(${customizationDraft.banner_url})` } : undefined}>
-          <div className="commons-avatar">{customizationDraft.avatar_url ? <img src={customizationDraft.avatar_url} alt="Commons profile avatar" /> : <span>{(profile?.display_name || profile?.username || "C").slice(0, 1).toUpperCase()}</span>}</div>
+        <div className="commons-profile-mantle" style={savedCustomization.banner_url ? { backgroundImage: `linear-gradient(135deg, rgba(10, 20, 22, .35), rgba(18, 44, 48, .4)), url(${savedCustomization.banner_url})` } : undefined}>
+          <CommonsAvatarViewer src={savedCustomization.avatar_url} alt="Commons profile avatar" fallback={(profile?.display_name || profile?.username || "C").slice(0, 1).toUpperCase()} viewLabel="View full Commons profile picture" />
           <div>
             <p className="eyebrow">Private Account Homebase</p>
             <h2>{profile?.display_name || profile?.username || "Website member"}</h2>
@@ -315,7 +343,7 @@ export default function CommonsCirclePage() {
           <MiniFact label="Unread signals" value={unreadCount} />
           <MiniFact label="Saved shelves" value={(homebase?.savedAddons.length ?? 0) + (homebase?.savedLivingSources.length ?? 0) + (homebase?.sourceCollections.length ?? 0)} />
         </dl>
-        <DecalStrip settings={customizationDraft} />
+        <DecalStrip settings={savedCustomization} />
         <div className="button-row">
           {profile?.username ? <Link className="button-link button-link--primary" to={publicProfilePath}>View public profile</Link> : <span className="button-link button-link--disabled" aria-disabled="true">Add a username to view public profile</span>}
           <a className="button-link" href="/commons-circle/setup/profile">Edit profile setup</a>
@@ -384,24 +412,41 @@ export default function CommonsCirclePage() {
       <section className="section-card commons-studio" id="customization-studio">
         <p className="eyebrow">Customization Studio</p>
         <h2>Shape your public profile room</h2>
-        <p>Avatar and banner media are public profile presentation assets. They upload immediately when selected. Theme, accent, decal, and layout choices save with this button. Do not upload receipts, resumes, private screenshots, credentials, or local Elysia material here.</p>
+        <p>Avatar and banner media update immediately when selected. Theme, accent, background, decorative marker, and layout choices preview here first and publish to your public profile when you press Save customization. Do not upload receipts, resumes, private screenshots, credentials, or local Elysia material here.</p>
+        <p className={hasUnsavedCustomization ? "boundary-note commons-unsaved-preview" : "commons-empty-state"}>
+          {hasUnsavedCustomization ? "Unsaved preview. Press Save customization to publish these style choices to your public profile." : "Saved customization is live on your public profile. New style changes will preview here before saving."}
+        </p>
         <div className="commons-studio-grid">
           <div className="commons-studio-controls">
             <label><span>Theme mode</span><select value={customizationDraft.theme_mode} onChange={(event) => updateCustomizationDraft({ theme_mode: event.target.value })}>{themeModes.map((theme) => <option key={theme} value={theme}>{theme}</option>)}</select></label>
             <label><span>Accent color</span><input type="color" value={customizationDraft.accent_color} onChange={(event) => updateCustomizationDraft({ accent_color: event.target.value })} /></label>
             <label><span>Background style</span><select value={customizationDraft.background_style} onChange={(event) => updateCustomizationDraft({ background_style: event.target.value })}>{backgroundStyleOptions.map((style) => <option key={style} value={style}>{style}</option>)}</select></label>
-            <label><span>Decal set</span><select value={customizationDraft.decal_set} onChange={(event) => updateCustomizationDraft({ decal_set: event.target.value })}>{decalOptions.map((decal) => <option key={decal} value={decal}>{decal}</option>)}</select></label>
+            <label><span>Decorative marker set</span><select value={customizationDraft.decal_set} onChange={(event) => updateCustomizationDraft({ decal_set: event.target.value })}>{decalOptions.map((decal) => <option key={decal} value={decal}>{decal}</option>)}</select></label>
             <label><span>Profile layout</span><select value={customizationDraft.profile_layout} onChange={(event) => updateCustomizationDraft({ profile_layout: event.target.value })}><option value="classic_homebase">classic_homebase</option><option value="compact_archive">compact_archive</option><option value="garden_shelves">garden_shelves</option></select></label>
           </div>
-          <fieldset className="commons-decal-picker"><legend>Selected decals</legend>{decalOptions.filter((decal) => decal !== "none").map((decal) => <label className="checkbox-line" key={decal}><input type="checkbox" checked={(customizationDraft.selected_decals ?? []).includes(decal)} onChange={() => toggleSelectedDecal(decal)} /><span>{formatDecalLabel(decal)}</span></label>)}</fieldset>
+          <fieldset className="commons-decal-picker"><legend>Selected decorative markers</legend>{decalOptions.filter((decal) => decal !== "none").map((decal) => <label className="checkbox-line" key={decal}><input type="checkbox" checked={(customizationDraft.selected_decals ?? []).includes(decal)} onChange={() => toggleSelectedDecal(decal)} /><span>{formatDecalLabel(decal)}</span></label>)}</fieldset>
           <div className="commons-media-upload-row">
             <label><span>Avatar upload</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleProfileMedia(event.target.files?.[0] ?? null, "avatar")} /></label>
             <label><span>Banner upload</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleProfileMedia(event.target.files?.[0] ?? null, "banner")} /></label>
-            <button type="button" onClick={() => void handleRemoveProfileMedia("avatar")} disabled={!customizationDraft.avatar_url}>Remove profile picture</button>
-            <button type="button" onClick={() => void handleRemoveProfileMedia("banner")} disabled={!customizationDraft.banner_url}>Remove banner</button>
+            <button type="button" onClick={() => void handleRemoveProfileMedia("avatar")} disabled={!savedCustomization.avatar_url && !customizationDraft.avatar_url}>Remove profile picture</button>
+            <button type="button" onClick={() => void handleRemoveProfileMedia("banner")} disabled={!savedCustomization.banner_url && !customizationDraft.banner_url}>Remove banner</button>
           </div>
         </div>
-        <div className="button-row"><button className="button-primary" type="button" onClick={() => void saveProfileRoom()}>Save customization</button></div>
+        <div className={previewClasses} style={previewStyle} aria-label="Bounded public profile room preview">
+          <div className="commons-profile-mantle" style={customizationDraft.banner_url ? { backgroundImage: `linear-gradient(135deg, rgba(10, 20, 22, .35), rgba(18, 44, 48, .4)), url(${customizationDraft.banner_url})` } : undefined}>
+            <CommonsAvatarViewer src={customizationDraft.avatar_url} alt="Draft Commons profile avatar preview" fallback={(profile?.display_name || profile?.username || "C").slice(0, 1).toUpperCase()} viewLabel="View full draft Commons profile picture" />
+            <div>
+              <p className="eyebrow">Public profile room preview</p>
+              <h3>{profile?.display_name || profile?.username || "Website member"}</h3>
+              <p>{profile?.username ? `@${profile.username}` : "Draft Commons Profile"}</p>
+              <div className="commons-customization-badges" aria-label="Draft public profile presentation settings"><span>{formatDecalLabel(customizationDraft.theme_mode || "starlit_archive")}</span><span>{formatDecalLabel(customizationDraft.background_style || "soft_cyber_garden")}</span><span>{formatDecalLabel(customizationDraft.profile_layout || "classic_homebase")}</span></div>
+            </div>
+          </div>
+          <DecalStrip settings={customizationDraft} />
+          <p className="commons-empty-state">This preview is local until Save customization publishes these style choices to your public profile.</p>
+        </div>
+        <p className="commons-empty-state">Decorative markers are public visual labels, not badges, rank, authority, or role claims.</p>
+        <div className="button-row"><button className="button-primary" type="button" onClick={() => void saveProfileRoom()} disabled={!hasUnsavedCustomization}>Save customization</button>{hasUnsavedCustomization && <button type="button" onClick={revertCustomizationPreview}>Revert preview</button>}<span className="commons-empty-state">{hasUnsavedCustomization ? "Unsaved preview active" : "No unsaved style changes"}</span></div>
       </section>
 
       <section className="section-card commons-privacy" id="privacy-lanterns">

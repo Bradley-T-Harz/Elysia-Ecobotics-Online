@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
+import CommonsAvatarViewer from "../../shared/components/CommonsAvatarViewer";
 import { loadCurrentProfile } from "../The-Elysia-Marketplace/lib/marketplaceApi";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
 import { createReviewItem } from "../../shared/review/reviewClient";
@@ -265,8 +266,14 @@ export default function CommonsCircleSetupPage() {
   const stepIndex = Math.max(0, setupSteps.indexOf(step as SetupStep));
 
   const pushMessage = useCallback((message: string) => {
-    if (message.trim()) setMessages((current) => [message, ...current].slice(0, 6));
+    const trimmed = message.trim();
+    if (!trimmed) return;
+    setMessages((current) => current.includes(trimmed) ? current : [trimmed, ...current].slice(0, 6));
   }, []);
+
+  function logSetupDiagnostics(scope: string, warnings: string[]) {
+    if (import.meta.env.DEV && warnings.length) console.warn(`[Commons Circle setup ${scope}]`, warnings);
+  }
 
   const refreshProfile = useCallback(async () => {
     const result = await loadCurrentProfile();
@@ -280,7 +287,7 @@ export default function CommonsCircleSetupPage() {
       writeSession(sessionKeys.profileDraft, nextDraft);
     }
     const homebaseResult = await loadCommonsHomebase();
-    homebaseResult.warnings.forEach(pushMessage);
+    logSetupDiagnostics("homebase", homebaseResult.warnings);
     if (homebaseResult.customization.avatar_url) {
       setAvatarUrl(homebaseResult.customization.avatar_url);
     }
@@ -667,7 +674,7 @@ export default function CommonsCircleSetupPage() {
           <h2>{profile ? "Review Commons Profile draft" : "Draft Commons Profile"}</h2>
           <p>Your Commons Profile is the public profile connected to your signed-in Website Account. It is not a second account and not a second login. It will not be created or updated until the final confirmation step.</p>
           <section className="commons-profile-mantle" aria-label="Public profile picture preview">
-            <div className="commons-avatar">{avatarUrl ? <img src={avatarUrl} alt="Public Commons profile picture" /> : <span>{(profileDraft.display_name || profileDraft.username || "C").slice(0, 1).toUpperCase()}</span>}</div>
+            <CommonsAvatarViewer src={avatarUrl} alt="Public Commons profile picture" fallback={(profileDraft.display_name || profileDraft.username || "C").slice(0, 1).toUpperCase()} viewLabel="View full public Commons profile picture" />
             <div>
               <p className="eyebrow">Public profile picture</p>
               <p className="boundary-note">This image is public on your Commons Profile. Choose an online profile picture explicitly; this does not import or sync a private local Elysia identity photo.</p>

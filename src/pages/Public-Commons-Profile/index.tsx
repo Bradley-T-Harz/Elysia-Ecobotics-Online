@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { useParams } from "react-router-dom";
+import CommonsAvatarViewer from "../../shared/components/CommonsAvatarViewer";
 import PageHero from "../../shared/components/PageHero";
 import { loadPublicCommonsProfile } from "../The-Commons-Circle/commonsCircleApi";
 import type { PublicCommonsProfile, UserBadge } from "../The-Commons-Circle/commonsCircleApi";
@@ -45,7 +46,7 @@ function visibleDecals(settings: PublicCustomizationView) {
 function DecalStrip({ settings }: { settings: PublicCustomizationView }) {
   const decals = visibleDecals(settings);
   if (!decals.length) return null;
-  return <div className="commons-decal-strip" aria-label="Selected profile decals">{decals.map((decal) => <span className="commons-decal-chip" key={decal}>{formatDecalLabel(decal)}</span>)}</div>;
+  return <div className="commons-decal-strip commons-public-decal-strip" aria-label="Selected public profile decorative markers">{decals.map((decal) => <span className="commons-decal-chip" key={decal}>{formatDecalLabel(decal)}</span>)}</div>;
 }
 
 function previewText(value: string, max = 180) {
@@ -111,11 +112,11 @@ export default function PublicCommonsProfilePage() {
       <PageHero eyebrow="Public Commons Profile" title={visibleName}>
         <p>This is a public Commons Circle profile. It does not expose private account email, private requests, saved shelves, local Elysia data, files, logs, vaults, credentials, or machine data.</p>
       </PageHero>
-      <section className="section-card commons-homebase-hero">
-        <div className={`commons-profile-mantle${customization.banner_url ? " has-public-banner" : ""}`}>
+      <section className="section-card commons-homebase-hero commons-public-room-hero">
+        <div className={`commons-profile-mantle commons-public-profile-mantle${customization.banner_url ? " has-public-banner" : ""}`}>
           {customization.banner_url && <img className="commons-public-banner" src={customization.banner_url} alt="" aria-hidden="true" loading="lazy" />}
-          <div className="commons-avatar">{customization.avatar_url ? <img src={customization.avatar_url} alt="Public Commons avatar" /> : <span>{(profile.display_name || profile.username).slice(0, 1).toUpperCase()}</span>}</div>
-          <div><p className="eyebrow">@{profile.username}</p><h2>{visibleName}</h2>{profile.headline && <p>{profile.headline}</p>}<div className="commons-customization-badges" aria-label="Public profile presentation settings"><span>{formatDecalLabel(customization.theme_mode || "starlit_archive")}</span><span>{formatDecalLabel(customization.background_style || "soft_cyber_garden")}</span><span>{formatDecalLabel(customization.profile_layout || "classic_homebase")}</span></div></div>
+          <CommonsAvatarViewer src={customization.avatar_url} alt="Public Commons avatar" fallback={(profile.display_name || profile.username).slice(0, 1).toUpperCase()} viewLabel="View full public Commons profile picture" />
+          <div className="commons-public-profile-title"><p className="eyebrow">@{profile.username}</p><h2>{visibleName}</h2>{profile.headline && <p>{profile.headline}</p>}<div className="commons-customization-badges" aria-label="Public profile presentation settings"><span>{formatDecalLabel(customization.theme_mode || "starlit_archive")}</span><span>{formatDecalLabel(customization.background_style || "soft_cyber_garden")}</span><span>{formatDecalLabel(customization.profile_layout || "classic_homebase")}</span></div></div>
         </div>
         <DecalStrip settings={customization} />
         {isOwner && <div className="button-row"><a className="button-link button-link--primary" href="/commons-circle">Edit in Commons Circle</a></div>}

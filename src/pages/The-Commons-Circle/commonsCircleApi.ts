@@ -252,6 +252,9 @@ const tableReadinessLabels: Record<string, string> = {
   "User badges": "Account-backed badge awards are not configured yet.",
   "Followed Commune threads": "No followed Commune threads yet.",
   "Notifications": "No notifications yet.",
+  "Notification preferences": "Notification preferences are not configured yet.",
+  "Visibility settings": "Profile visibility settings are not configured yet.",
+  "Profile customization": "Profile customization is not configured yet.",
   "Saved Commune posts": "No saved Commune posts yet.",
   "Source collections": "No source collections yet.",
   "Source collection items": "Source collection details are not configured yet.",
@@ -267,7 +270,7 @@ function logBackendDetail(label: string, message: string) {
 
 function friendlyBackendMessage(label: string, message: string) {
   logBackendDetail(label, message);
-  if (missingTablePattern.test(message)) return tableReadinessLabels[label] ?? `${label} are not configured yet.`;
+  if (missingTablePattern.test(message)) return tableReadinessLabels[label] ?? `${label} is not configured yet.`;
   if (/permission denied|row-level security|violates row-level security/i.test(message)) return `${label}: Account storage is not available for this section yet.`;
   return `${label}: Account-backed data is temporarily unavailable.`;
 }

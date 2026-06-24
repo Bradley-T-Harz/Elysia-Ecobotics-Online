@@ -32,10 +32,11 @@ const commentDirectPublishMigration = await read("supabase/migrations/2026_06_21
 const commentSchemaRepairMigration = await read("supabase/migrations/2026_06_22_commune_comments_schema_drift_repair.sql");
 const commentNotificationRepairMigration = await read("supabase/migrations/2026_06_22_commune_comment_notification_dependency_repair.sql");
 const roomPostMediaPolicyRepairMigration = await read("supabase/migrations/2026_06_23_commune_room_post_admin_and_media_policy_repair.sql");
+const publishedMediaDisplayPolicyMigration = await read("supabase/migrations/2026_06_24_commune_published_media_display_policy.sql");
 const communeCommentSchemaCoverage = `${migration}\n${commentDirectPublishMigration}\n${commentSchemaRepairMigration}\n${commentNotificationRepairMigration}`;
 const styles = await read("src/styles.css");
 
-for (const route of ["/commune", "commune/new", "commune/repository-showcase", "commune/troubleshooting", "commune/sandbox-review", "commune/code-sharing/review", "commune/realtime", "commune/moderation"]) {
+for (const route of ["/commune", "commune/new", "commune/:roomSlug", "commune/:roomSlug/new", "commune/repository-showcase", "commune/repository-showcase/new", "commune/troubleshooting", "commune/sandbox-review", "commune/code-sharing/review", "commune/code-sharing/sandbox-request", "commune/realtime", "commune/moderation"]) {
   assert(app.includes(route.replace(/^\//, "")) || app.includes(route), `Missing Commune route: ${route}`);
 }
 
@@ -72,12 +73,19 @@ assert(page.includes("postTypeByRoomSlug"), "Commune room slug to post type mapp
 assert(page.includes("Posting in: {selectedPostTypeLabel}"), "Room composer should show a simple read-only room context line.");
 assert(page.includes("postType: defaultType"), "Room composer should preserve the locked room post type internally.");
 assert(page.includes("current.postType === defaultType"), "Room composer should relock post type when navigating between rooms.");
+assert(page.includes("focusComposer={isRoomNew}"), "Room-specific /new routes should focus the selected room composer instead of reopening the lobby picker.");
 assert(page.includes("roomId={selectedRoom?.id}"), "Room composer should receive the selected backend room id.");
 assert(page.includes("defaultRoomId={roomId}"), "Room page should pass the backend room id into the post composer.");
 assert(page.includes("isAdmin={state.isAdmin}"), "Room composer should receive admin state for direct-publish labeling.");
 assert(page.includes('isAdmin ? "Publish as admin" : "Submit for moderation"'), "Room composer should show admin direct-publish copy while keeping member moderation copy.");
 assert(page.includes("Admins can publish room posts directly. Attachments still follow Commune media safety rules."), "Room composer should explain admin direct-publish without bypassing media safety.");
 assert(page.includes("Video uploads are not enabled for this room yet."), "Room composer should clearly reject unsupported video uploads instead of implying video support.");
+for (const roomNativeField of ["Issue type", "Affected area", "Expected behavior", "Actual behavior", "Known workaround", "Introduction type", "Collaboration interest", "Role interest", "Project circle/topic", "Paid / volunteer status", "Compensation clarity", "Location / remote / hybrid", "Contact path", "Research question / topic", "Citation notes", "Evidence summary", "Interpretation", "Uncertainty", "Iteration type", "Version / build label", "What changed", "Known limitations", "Official notice type", "Audit-safe note"]) {
+  assert(page.includes(roomNativeField), `Missing room-native composer field/copy: ${roomNativeField}`);
+}
+assert(page.includes("function splitPostSections"), "Post detail should parse room-native structured body sections.");
+assert(page.includes("commune-room-native-details"), "Post detail should render room-native sections instead of flattening all fields into the body.");
+assert(styles.includes(".commune-room-native-details"), "Room-native post detail styling missing.");
 assert(!page.includes("defaultRoomId={undefined}"), "Room post composer should not drop the backend room id.");
 assert(!page.includes("<label><span>Post type</span><select"), "Room composer should not show the generic Post type dropdown.");
 assert(!page.includes("<label><span>Category</span><select"), "Room composer should not show the generic Category dropdown.");
@@ -101,7 +109,7 @@ assert(page.includes("Shared code is not trusted and is not executed by the webs
 assert(page.includes("function RoomPickerPanel()"), "Commune /new room picker compatibility panel missing.");
 assert(page.includes("Choose a room before posting"), "Commune /new room picker title missing.");
 assert(page.includes("Posts are created from inside their room so the format, safety notes, and context match what you are sharing."), "Commune /new room picker copy missing.");
-assert(page.includes('{mode === "new" && <RoomPickerPanel />}'), "Commune /new should render the room picker instead of the generic composer.");
+assert(page.includes('{routeMode === "new" && <RoomPickerPanel />}'), "Commune /new should render the room picker instead of the generic composer.");
 assert(!page.includes('{mode === "new" && <PostComposer'), "Commune /new still renders the generic post composer.");
 assert(!page.includes('to="/commune/new"'), "Commune page still links users to the generic /commune/new composer.");
 assert(!page.includes("Request to post"), "Generic Request to post copy should not be visible in Commune UI.");
@@ -171,16 +179,40 @@ assert(accountApi.includes("could not enter Admin review yet"), "Commune review 
 assert(accountApi.includes("2026_06_22_commune_comments_schema_drift_repair.sql"), "Commune comment schema drift errors should name the repair migration.");
 assert(accountApi.includes("2026_06_22_commune_comment_notification_dependency_repair.sql"), "Commune published-comment notification dependency errors should name the repair migration.");
 assert(accountApi.includes("adminDirectPublish = account.isAdmin"), "Admin Commune posts should bypass self-review and publish directly.");
+assert(accountApi.includes("Official Updates are restricted to authorized administrators"), "Official Update backend/client path should require administrator authority, not broad moderator self-assignment.");
+assert(accountApi.includes('post_type: "repository_showcase"'), "Repository Showcase should create/link a normal Commune post.");
+assert(accountApi.includes("Repository showcase submitted as a normal Commune post for moderation"), "Repository Showcase should enter the normal Commune moderation flow.");
+assert(accountApi.includes("repository_metadata_only"), "Repository Showcase post safety acknowledgements should preserve metadata-only boundaries.");
 assert(accountApi.includes("review_item_created: false"), "Admin direct Commune publish should record that no self-review item was created.");
 assert(accountApi.includes("admin_post_published") && accountApi.includes("admin_comment_published"), "Admin direct Commune actions should remain auditable.");
 assert(accountApi.includes("admin_post_direct_published"), "Admin direct Commune room posts should create History/All records.");
 assert(accountApi.includes("This room post is blocked by the current database policy"), "Room post RLS failures should not use comment/reply policy copy.");
 assert(accountApi.includes("This attachment upload is blocked by the current storage policy"), "Attachment upload RLS failures should mention storage/media policy.");
 assert(!accountApi.includes('friendlyError(postError.message, "Community posting backend is not active yet.")'), "Room post insert failures should use specific room-post policy copy.");
+assert(accountApi.includes("CommuneMediaAttachment"), "Commune post media attachment type missing.");
+assert(accountApi.includes("loadPublishedMediaForPosts"), "Commune post detail loader should fetch published post attachments.");
+assert(accountApi.includes('.eq("visibility_state", "published")'), "Commune media loader should only fetch published attachments for public display.");
+assert(accountApi.includes("createSignedUrl"), "Commune media loader should resolve signed storage URLs instead of exposing raw storage paths.");
+assert(accountApi.includes("publishPostAttachments(postId)"), "Admin direct-published room posts should publish linked attachments.");
+assert(reviewClient.includes("publishCommunePostMedia") && reviewClient.includes('visibility_state: "published"'), "Admin review approval should publish linked Commune post media.");
+assert(page.includes("commune-media-section") && page.includes("Attached media"), "Commune post detail should render attached media inside the post flow.");
+assert(page.includes("Attached to this post by {authorLink(post.author_username)}"), "Commune post media should attribute attachments to the public post author handle.");
+const postTagIndex = page.indexOf("<TagChips tags={post.tags}");
+const postMediaIndex = page.indexOf("commune-media-section", postTagIndex);
+const postReactionIndex = page.indexOf("<ReactionBar targetType=\"post\"", postTagIndex);
+const postAdminIndex = page.indexOf("<AdminContentControls targetType=\"post\"", postTagIndex);
+assert(postTagIndex > -1 && postMediaIndex > postTagIndex && postMediaIndex < postReactionIndex && postMediaIndex < postAdminIndex, "Commune post media should render after post body/tags and before reactions/admin moderation.");
+assert(page.includes("commune-media-lightbox") && page.includes("Attachment unavailable or still under review."), "Commune post media display should include read-only preview and unavailable copy.");
+assert(styles.includes(".commune-media-section") && styles.includes("object-fit: contain"), "Commune media display styling should keep images contained, not cropped.");
 assert(accountApi.includes("loadCommuneReactionSummary"), "Commune reaction-count loader missing.");
 assert(accountApi.includes("setCommuneReaction"), "Commune reaction setter missing.");
 assert(accountApi.includes("clearCommuneReaction"), "Commune reaction removal helper missing.");
 assert(accountApi.includes("moderateCommuneContentTarget"), "Commune direct admin content moderation helper missing.");
+assert(accountApi.includes('currentSelect = input.targetType === "post" ? "id,status,visibility,visibility_state,moderation_status"'), "Commune post moderation should not select comment-only post_id/thread_id columns from commune_posts.");
+assert(accountApi.includes('update.visibility_state = input.action === "flag" ? "flagged" : input.action === "hide" ? "hidden" : "removed"'), "Commune post moderation should update post visibility_state for admin recovery views.");
+assert(accountApi.includes("update.hidden_by = account.userId"), "Commune post/comment moderation should record the admin actor when hiding/removing content.");
+assert(accountApi.includes("[\"published\", \"submitted\", \"flagged\"]"), "Commune post moderation should remove linked media from public display when the post is hidden/removed.");
+assert(reviewClient.includes("await publishCommunePostMedia(item.source_id);") && reviewClient.includes("restore_to_public"), "Restoring a Commune post should restore linked published media visibility.");
 assert(accountApi.includes("flag_for_removal"), "Commune admin flag action should write moderation history.");
 assert(accountApi.includes("hide_from_public"), "Commune admin hide action should write moderation history.");
 assert(accountApi.includes("soft_delete_from_public"), "Commune admin delete/remove action should write moderation history.");
@@ -228,6 +260,10 @@ assert(roomPostMediaPolicyRepairMigration.includes("allowed_mime_types"), "Media
 assert(roomPostMediaPolicyRepairMigration.includes("users upload own commune media files"), "Media policy repair should keep uploads scoped to the user's own folder.");
 assert(roomPostMediaPolicyRepairMigration.includes("bucket_id = 'commune-media'") && roomPostMediaPolicyRepairMigration.includes("storage.foldername(name)"), "Media storage policy should constrain bucket and path ownership.");
 assert(!roomPostMediaPolicyRepairMigration.includes("video/mp4"), "Media Garden video support should stay disabled until explicitly implemented.");
+assert(publishedMediaDisplayPolicyMigration.includes("public reads published commune media files"), "Published Commune media storage read policy migration missing.");
+assert(publishedMediaDisplayPolicyMigration.includes("media.visibility_state = 'published'"), "Published Commune media storage policy should require published media metadata.");
+assert(publishedMediaDisplayPolicyMigration.includes("post.status = 'published'") && publishedMediaDisplayPolicyMigration.includes("post.visibility = 'public'"), "Published Commune media storage policy should require a public published post.");
+assert(publishedMediaDisplayPolicyMigration.includes("update public.commune_media media") && publishedMediaDisplayPolicyMigration.includes("media.visibility_state in ('submitted', 'flagged')"), "Published media migration should backfill safe existing attachments on public published posts.");
 assert(reactionMigration.includes("commune_content_reactions"), "Commune content reaction migration missing.");
 assert(reactionMigration.includes("unique (user_id, target_type, target_id)"), "Commune reactions should enforce one vote per user per item.");
 assert(reactionMigration.includes("reaction in ('helpful', 'caution')"), "Commune reaction labels should be helpful/caution.");

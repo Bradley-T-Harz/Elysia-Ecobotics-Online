@@ -8,9 +8,10 @@ export type CommuneRoom = { id: string; slug: string; name: string; description?
 export type CommunePost = { id: string; user_id?: string; author_username?: string | null; post_type: CommunePostType; title: string; body: string; excerpt?: string | null; tags?: string[] | null; links?: string[] | null; repository_url?: string | null; status: CommunePostStatus; visibility: string; published_at?: string | null; last_activity_at?: string | null; created_at?: string | null };
 export type CommuneThread = { id: string; post_id?: string | null; room_id?: string | null; title: string; status: string; visibility: string; last_reply_at?: string | null };
 export type CommuneComment = { id: string; thread_id: string; post_id?: string | null; parent_comment_id?: string | null; user_id?: string; author_username?: string | null; body: string; status: string; created_at?: string | null; published_at?: string | null };
+export type CommuneMediaAttachment = { id: string; post_id: string; file_name: string; mime_type?: string | null; file_size?: number | null; media_kind: "image" | "document" | "code_text" | "archive" | "other"; visibility_state: string; storage_bucket?: string | null; storage_path?: string | null; signed_url?: string | null; created_at?: string | null };
 export type CommuneModerationItem = { id: string; kind: "post" | "comment" | "upload" | "repo" | "sandbox" | "report"; title: string; status: string; created_at?: string | null; summary?: string | null };
 export type CommuneAccountState = { signedIn: boolean; userId: string | null; username: string | null; roles: AppRole[]; isAdmin: boolean; isModerator: boolean; warnings: string[] };
-export type LoadCommuneData = { rooms: CommuneRoom[]; posts: CommunePost[]; comments: CommuneComment[]; threads: CommuneThread[]; savedPostIds: string[]; followedThreadIds: string[]; account: CommuneAccountState; warnings: string[] };
+export type LoadCommuneData = { rooms: CommuneRoom[]; posts: CommunePost[]; comments: CommuneComment[]; threads: CommuneThread[]; media: CommuneMediaAttachment[]; savedPostIds: string[]; followedThreadIds: string[]; account: CommuneAccountState; warnings: string[] };
 export type CommuneCategory = { id: string; slug: string; title: string; description?: string | null; sort_order?: number | null; is_active?: boolean | null };
 export type CommuneCodeSnippet = { id: string; post_id: string; author_user_id: string; language?: string | null; file_name?: string | null; code_text: string; secret_scan_status?: string | null; sandbox_warning_acknowledged?: boolean | null; created_at?: string | null };
 export type CommuneReactionTargetType = "post" | "comment";
@@ -137,6 +138,45 @@ async function recordCommuneGovernanceEvent(input: { actorId: string; targetType
   if (error && import.meta.env.DEV) console.warn("[Commune governance event]", error.message);
 }
 
+async function publishPostAttachments(postId: string) {
+  if (!supabase) return;
+  const { error } = await supabase
+    .from(canonicalCommuneTables.media)
+    .update({ visibility_state: "published", updated_at: new Date().toISOString() })
+    .eq("post_id", postId)
+    .in("visibility_state", ["submitted", "flagged"]);
+  if (error && import.meta.env.DEV) console.warn("[Commune media publish]", error.message);
+  await supabase
+    .from(canonicalCommuneTables.legacyUploads)
+    .update({ status: "published" })
+    .eq("post_id", postId)
+    .in("status", ["pending_review", "approved"]);
+}
+
+async function loadPublishedMediaForPosts(postIds: string[]): Promise<CommuneMediaAttachment[]> {
+  if (!supabase || !postIds.length) return [];
+  const client = supabase;
+  const { data, error } = await client
+    .from(canonicalCommuneTables.media)
+    .select("id,post_id,storage_bucket,storage_path,file_name,mime_type,file_size,media_kind,visibility_state,created_at")
+    .in("post_id", postIds)
+    .eq("visibility_state", "published")
+    .in("media_kind", ["image", "document", "code_text"])
+    .order("created_at", { ascending: true });
+  if (error) {
+    if (import.meta.env.DEV) console.warn("[Commune media load]", error.message);
+    return [];
+  }
+  const rows = (data ?? []) as CommuneMediaAttachment[];
+  const resolved = await Promise.all(rows.map(async (row) => {
+    if (!row.storage_bucket || !row.storage_path) return { ...row, signed_url: null };
+    const { data: signed, error: signedError } = await client.storage.from(row.storage_bucket).createSignedUrl(row.storage_path, 60 * 30);
+    if (signedError && import.meta.env.DEV) console.warn("[Commune media signed URL]", signedError.message);
+    return { ...row, signed_url: signed?.signedUrl ?? null };
+  }));
+  return resolved;
+}
+
 export async function loadCategories(): Promise<{ categories: CommuneCategory[]; warnings: string[] }> {
   if (!hasSupabaseConfig || !supabase) return { categories: communeFallbackCategories.map((item, index) => ({ ...item, id: item.slug, sort_order: index, is_active: true })), warnings: [supabaseNotConfiguredMessage] };
   const { data, error } = await supabase.from("commune_categories").select("id,slug,title,description,sort_order,is_active").eq("is_active", true).order("sort_order");
@@ -146,7 +186,7 @@ export async function loadCategories(): Promise<{ categories: CommuneCategory[];
 
 export async function loadCommuneData(roomSlug?: string, postId?: string): Promise<LoadCommuneData> {
   const account = await accountState();
-  if (!hasSupabaseConfig || !supabase) return { rooms: [], posts: [], comments: [], threads: [], savedPostIds: [], followedThreadIds: [], account, warnings: [supabaseNotConfiguredMessage] };
+  if (!hasSupabaseConfig || !supabase) return { rooms: [], posts: [], comments: [], threads: [], media: [], savedPostIds: [], followedThreadIds: [], account, warnings: [supabaseNotConfiguredMessage] };
   const warnings = [...account.warnings];
   const roomsQuery = supabase.from(canonicalCommuneTables.rooms).select("id, slug, name, description, room_type, requires_moderation").order("name");
   const { data: rooms, error: roomError } = await roomsQuery;
@@ -171,6 +211,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
   if (threadIds.length) commentQuery = commentQuery.in("thread_id", threadIds); else commentQuery = commentQuery.eq("thread_id", "00000000-0000-0000-0000-000000000000");
   const { data: comments, error: commentError } = await commentQuery;
   if (commentError) warnings.push(commentError.message);
+  const media = await loadPublishedMediaForPosts(postIds);
   let savedPostIds: string[] = [];
   let followedThreadIds: string[] = [];
   if (account.userId) {
@@ -181,7 +222,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
     savedPostIds = (saves ?? []).map((row) => row.post_id).filter(Boolean) as string[];
     followedThreadIds = (follows ?? []).map((row) => row.thread_id).filter(Boolean) as string[];
   }
-  return { rooms: (rooms ?? []) as CommuneRoom[], posts: (posts ?? []) as CommunePost[], comments: (comments ?? []) as CommuneComment[], threads: (threads ?? []) as CommuneThread[], savedPostIds, followedThreadIds, account, warnings };
+  return { rooms: (rooms ?? []) as CommuneRoom[], posts: (posts ?? []) as CommunePost[], comments: (comments ?? []) as CommuneComment[], threads: (threads ?? []) as CommuneThread[], media, savedPostIds, followedThreadIds, account, warnings };
 }
 
 export async function ensureCommuneThreadForPost(post: CommunePost): Promise<{ ok: boolean; thread?: CommuneThread; message: string }> {
@@ -222,7 +263,7 @@ export async function submitCommunePost(input: { postType: CommunePostType; room
     const media = validateCommuneMediaFile(input.upload);
     if (!media.ok) return { ok: false, message: media.message };
   }
-  if (input.postType === "official_update" && !account.isModerator) return { ok: false, message: "Official Updates are restricted to authorized administrators/moderators." };
+  if (input.postType === "official_update" && !account.isAdmin) return { ok: false, message: "Official Updates are restricted to authorized administrators. Community users cannot self-assign official publishing authority." };
   const tags = parseCommuneTags(input.tags);
   const links = splitList(input.links);
   const postId = crypto.randomUUID();
@@ -238,9 +279,10 @@ export async function submitCommunePost(input: { postType: CommunePostType; room
     await recordCommuneGovernanceEvent({ actorId: account.userId, targetType: "post", targetId: postId, action: "admin_post_published", fromStatus: "draft", toStatus: "published", metadata: { post_type: input.postType, review_item_created: false } });
   }
   if (input.upload) {
-    const upload = await uploadCommuneAttachment(input.upload, { postId, role: "post_attachment" });
+    const upload = await uploadCommuneAttachment(input.upload, { postId, role: "post_attachment", publishImmediately: adminDirectPublish });
     if (!upload.ok) return { ok: false, message: `${adminDirectPublish ? "Post published directly" : "Post saved for review"}, but upload failed: ${upload.message}` };
   }
+  if (adminDirectPublish) await publishPostAttachments(postId);
   if (input.postType === "repository_showcase" && input.repositoryUrl) {
     const repo = await submitRepositoryShowcase({ repositoryUrl: input.repositoryUrl, projectName: input.title, projectSummary: excerpt(input.body), postId, sandboxRequested: Boolean(input.sandboxRequested) });
     if (!repo.ok) return { ok: false, message: `Post saved, but repository showcase failed: ${repo.message}` };
@@ -365,24 +407,39 @@ export async function moderateCommuneContentTarget(input: { targetType: CommuneR
   const account = await accountState();
   if (!account.userId || !account.isModerator) return { ok: false, message: "Commune moderation controls require an assigned moderator/admin role." };
   const table = input.targetType === "post" ? canonicalCommuneTables.posts : canonicalCommuneTables.comments;
-  const { data: current, error: currentError } = await supabase.from(table).select("id,status,post_id,thread_id").eq("id", input.targetId).maybeSingle();
+  const currentSelect = input.targetType === "post" ? "id,status,visibility,visibility_state,moderation_status" : "id,status,post_id,thread_id,visibility_state";
+  const { data: current, error: currentError } = await supabase.from(table).select(currentSelect).eq("id", input.targetId).maybeSingle();
   if (currentError) return { ok: false, message: friendlyError(currentError.message, "This Commune item could not be loaded for moderation yet.") };
+  if (!current) return { ok: false, message: "This Commune item could not be found for moderation." };
   const previousStatus = String((current as { status?: string } | null)?.status ?? "unknown");
   const now = new Date().toISOString();
   const actionStatus = input.action === "flag" ? "hidden" : input.action === "hide" ? "hidden" : "removed_by_moderator";
   const update: Record<string, unknown> = { status: actionStatus, updated_at: now, moderation_reason: input.reason || null };
   if (input.targetType === "post") {
     update.visibility = "private_draft";
+    update.visibility_state = input.action === "flag" ? "flagged" : input.action === "hide" ? "hidden" : "removed";
     update.moderation_status = input.action === "flag" ? "flagged_for_removal" : input.action === "hide" ? "hidden_from_public" : "soft_deleted_by_moderator";
     update.hidden_at = now;
+    update.hidden_by = account.userId;
+    if (input.action === "flag") update.flagged_at = now;
     if (input.action === "delete") update.removed_at = now;
   } else {
     update.visibility_state = input.action === "delete" ? "removed" : "hidden";
     update.hidden_at = now;
+    update.hidden_by = account.userId;
     if (input.action === "delete") update.removed_at = now;
   }
   const { error } = await supabase.from(table).update(update).eq("id", input.targetId);
   if (error) return { ok: false, message: friendlyError(error.message, "This Commune moderation action could not be saved yet.") };
+  if (input.targetType === "post") {
+    const mediaState = input.action === "delete" ? "removed" : "hidden";
+    const { error: mediaError } = await supabase
+      .from(canonicalCommuneTables.media)
+      .update({ visibility_state: mediaState, updated_at: now })
+      .eq("post_id", input.targetId)
+      .in("visibility_state", ["published", "submitted", "flagged"]);
+    if (mediaError && import.meta.env.DEV) console.warn("[Commune post media moderation]", mediaError.message);
+  }
   await supabase.from("commune_moderation_events").insert({
     actor_id: account.userId,
     target_type: input.targetType,
@@ -403,18 +460,63 @@ export async function moderateCommuneContentTarget(input: { targetType: CommuneR
   };
 }
 
-export async function submitRepositoryShowcase(input: { repositoryUrl: string; projectName: string; projectSummary: string; postId?: string; sandboxRequested?: boolean }): Promise<{ ok: boolean; message: string; id?: string }> {
+export async function submitRepositoryShowcase(input: { repositoryUrl: string; projectName: string; projectSummary: string; postId?: string; roomId?: string; body?: string; tags?: string; links?: string; branch?: string; commit?: string; license?: string; readmePreview?: string; fileTreePreview?: string; screenshotNotes?: string; manifestStatus?: string; compatibility?: string; warnings?: string[]; sandboxRequested?: boolean }): Promise<{ ok: boolean; message: string; id?: string; postId?: string }> {
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
   if (!account.userId) return { ok: false, message: "Sign in to submit repository showcases." };
+  if (!input.projectName.trim()) return { ok: false, message: "Add a repository showcase title before submitting." };
   const host = (() => { try { const url = new URL(input.repositoryUrl); return ["http:", "https:"].includes(url.protocol) && !/^(localhost|127\.0\.0\.1|0\.0\.0\.0)$/i.test(url.hostname) ? url.hostname : null; } catch { return null; } })();
   if (!host) return { ok: false, message: "Use a public HTTP(S) repository URL. Localhost/private repository URLs are not accepted for public Commune metadata." };
-  const { data, error } = await supabase.from(canonicalCommuneTables.repositoryShowcases).insert({ user_id: account.userId, post_id: input.postId || null, repository_url: input.repositoryUrl, repository_host: host, project_name: input.projectName, project_summary: input.projectSummary, sandbox_review_requested: Boolean(input.sandboxRequested), status: "pending_review" }).select("id").single();
+  let postId = input.postId || null;
+  const now = new Date().toISOString();
+  const adminDirectPublish = account.isAdmin;
+  if (!postId) {
+    postId = crypto.randomUUID();
+    const body = input.body?.trim() || input.projectSummary.trim();
+    const { error: postError } = await supabase.from(canonicalCommuneTables.posts).insert({
+      id: postId,
+      user_id: account.userId,
+      author_username: account.username,
+      post_type: "repository_showcase",
+      title: input.projectName.trim(),
+      body,
+      excerpt: excerpt(body),
+      tags: parseCommuneTags(input.tags ?? "repository showcase"),
+      links: splitList(input.links ?? input.repositoryUrl),
+      repository_url: input.repositoryUrl,
+      status: adminDirectPublish ? "published" : "pending_review",
+      moderation_status: adminDirectPublish ? "approved" : "pending_review",
+      published_at: adminDirectPublish ? now : null,
+      safety_acknowledgements: { public_boundary: true, no_secrets: true, no_execution: true, repository_metadata_only: true }
+    });
+    if (postError) return { ok: false, message: friendlyError(postError.message, "This repository showcase post is blocked by the current database policy. If you are signed in, the Commune room post/admin publishing policy may need to be applied.") };
+    const { data: thread } = await supabase.from(canonicalCommuneTables.threads).insert({ post_id: postId, room_id: input.roomId || null, title: input.projectName.trim(), created_by: account.userId, visibility: "public" }).select("id").single();
+    const threadId = (thread as { id?: string } | null)?.id ?? null;
+    if (adminDirectPublish) {
+      await grantThreadParticipationApproval({ threadId, postId, userId: account.userId, approvedBy: account.userId, source: "admin_direct_repository_showcase" });
+      await recordCommuneGovernanceEvent({ actorId: account.userId, targetType: "post", targetId: postId, action: "admin_post_published", fromStatus: "draft", toStatus: "published", metadata: { post_type: "repository_showcase", review_item_created: false } });
+    }
+  }
+  const summary = [
+    input.projectSummary,
+    input.branch ? `Branch: ${input.branch}` : "",
+    input.commit ? `Commit: ${input.commit}` : "",
+    input.license ? `License: ${input.license}` : "",
+    input.manifestStatus ? `Manifest: ${input.manifestStatus}` : "",
+    input.compatibility ? `Compatibility: ${input.compatibility}` : "",
+    input.warnings?.length ? `Warnings: ${input.warnings.join(", ")}` : ""
+  ].filter(Boolean).join("\n");
+  const { data, error } = await supabase.from(canonicalCommuneTables.repositoryShowcases).insert({ user_id: account.userId, post_id: postId, repository_url: input.repositoryUrl, repository_host: host, project_name: input.projectName, project_summary: summary || input.projectSummary, sandbox_review_requested: Boolean(input.sandboxRequested), status: adminDirectPublish ? "approved" : "pending_review" }).select("id").single();
   if (error) return { ok: false, message: friendlyError(error.message, "Repository showcase review queue is not active yet.") };
   const id = (data as { id: string }).id;
-  await createReviewItem({ domain: "commune", sourceTable: "commune_repository_showcases", sourceId: id, submittedBy: account.userId, title: input.projectName, summary: "Repository showcase metadata only. The website did not clone, build, run, or execute code." });
+  if (adminDirectPublish) {
+    await createReviewHistoryItem({ domain: "commune", sourceTable: "commune_posts", sourceId: postId, submittedBy: account.userId, title: input.projectName, summary: "Admin-published repository showcase metadata only. The website did not clone, build, run, or execute code.", status: "approved", eventType: "admin_repository_showcase_direct_published", metadata: { repository_showcase_id: id, repository_url: input.repositoryUrl } });
+  } else {
+    await createReviewItem({ domain: "commune", sourceTable: "commune_posts", sourceId: postId, submittedBy: account.userId, title: input.projectName, summary: "Repository showcase post. Metadata only; no repository was cloned, built, run, or executed." });
+    await createReviewItem({ domain: "commune", sourceTable: "commune_repository_showcases", sourceId: id, submittedBy: account.userId, title: input.projectName, summary: "Repository showcase metadata only. The website did not clone, build, run, or execute code." });
+  }
   if (input.sandboxRequested) await submitSandboxReview({ requestTitle: `Sandbox review: ${input.projectName}`, repositoryUrl: input.repositoryUrl, repositoryShowcaseId: id, scope: "Metadata-only request for future bounded sandbox review.", riskNotes: "Website did not execute code.", permissions: [] });
-  return { ok: true, message: "Repository showcase submitted for moderation. No repository was fetched, cloned, built, or executed.", id };
+  return { ok: true, message: adminDirectPublish ? "Repository showcase published as an admin-authored public post. No repository was fetched, cloned, built, or executed." : "Repository showcase submitted as a normal Commune post for moderation. No repository was fetched, cloned, built, or executed.", id, postId };
 }
 
 export async function submitSandboxReview(input: { requestTitle: string; repositoryUrl?: string; packageUrl?: string; repositoryShowcaseId?: string; postId?: string; scope: string; riskNotes: string; permissions: string[] }): Promise<{ ok: boolean; message: string }> {
@@ -447,7 +549,7 @@ export async function reportCommuneContent(input: { postId?: string; commentId?:
   return { ok: true, message: "Report saved for moderator review. Reporting does not automatically remove content." };
 }
 
-export async function uploadCommuneAttachment(file: File, attach: { postId?: string; commentId?: string; repositoryShowcaseId?: string; role: string }): Promise<{ ok: boolean; message: string; id?: string }> {
+export async function uploadCommuneAttachment(file: File, attach: { postId?: string; commentId?: string; repositoryShowcaseId?: string; role: string; publishImmediately?: boolean }): Promise<{ ok: boolean; message: string; id?: string }> {
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
   if (!account.userId) return { ok: false, message: "Sign in before uploading Commune attachments." };
@@ -459,14 +561,15 @@ export async function uploadCommuneAttachment(file: File, attach: { postId?: str
   const bucket = "commune-media";
   const upload = await supabase.storage.from(bucket).upload(storagePath, file, { contentType: file.type || undefined, upsert: false });
   if (upload.error) return { ok: false, message: friendlyError(upload.error.message, "This attachment upload is blocked by the current storage policy. The Commune room media bucket or upload policy may need to be applied.") };
-  const { data: mediaRow, error: mediaError } = await supabase.from(canonicalCommuneTables.media).insert({ owner_user_id: account.userId, post_id: attach.postId || null, comment_id: attach.commentId || null, storage_bucket: bucket, storage_path: storagePath, file_name: file.name, mime_type: file.type || null, file_size: file.size, media_kind: media.mediaKind, visibility_state: "submitted", warning_acknowledged: true }).select("id").single();
+  const visibilityState = attach.publishImmediately ? "published" : "submitted";
+  const { data: mediaRow, error: mediaError } = await supabase.from(canonicalCommuneTables.media).insert({ owner_user_id: account.userId, post_id: attach.postId || null, comment_id: attach.commentId || null, storage_bucket: bucket, storage_path: storagePath, file_name: file.name, mime_type: file.type || null, file_size: file.size, media_kind: media.mediaKind, visibility_state: visibilityState, warning_acknowledged: true }).select("id").single();
   if (mediaError) {
     await supabase.storage.from(bucket).remove([storagePath]);
     return { ok: false, message: friendlyError(mediaError.message, "This attachment upload is blocked by the current media metadata policy. The Commune room media table policy may need to be applied; the private upload was cleaned up.") };
   }
-  const { error } = await supabase.from(canonicalCommuneTables.legacyUploads).insert({ user_id: account.userId, post_id: attach.postId || null, comment_id: attach.commentId || null, repository_showcase_id: attach.repositoryShowcaseId || null, storage_path: storagePath, original_filename: file.name, mime_type: file.type || null, size_bytes: file.size, upload_role: attach.role, status: "pending_review" }).select("id").single();
+  const { error } = await supabase.from(canonicalCommuneTables.legacyUploads).insert({ user_id: account.userId, post_id: attach.postId || null, comment_id: attach.commentId || null, repository_showcase_id: attach.repositoryShowcaseId || null, storage_path: storagePath, original_filename: file.name, mime_type: file.type || null, size_bytes: file.size, upload_role: attach.role, status: attach.publishImmediately ? "published" : "pending_review" }).select("id").single();
   if (error && import.meta.env.DEV) console.warn("[Commune legacy upload metadata]", error.message);
-  return { ok: true, message: "Attachment uploaded privately for moderation. No public URL was created.", id: (mediaRow as { id: string }).id };
+  return { ok: true, message: attach.publishImmediately ? "Attachment uploaded and linked to the published post." : "Attachment uploaded privately for moderation. No public URL was created.", id: (mediaRow as { id: string }).id };
 }
 
 export async function createCodeSnippet(input: { postId: string; language: string; fileName: string; codeText: string; sandboxAcknowledged: boolean }): Promise<{ ok: boolean; message: string; id?: string }> {
@@ -566,6 +669,7 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
     if (item.kind === "post") {
       const { data: threadRow } = await supabase.from(canonicalCommuneTables.threads).select("id").eq("post_id", item.id).maybeSingle();
       await grantThreadParticipationApproval({ threadId: (threadRow as { id?: string } | null)?.id ?? null, postId: item.id, userId: targetUserId, approvedBy: account.userId, source: "post_approval" });
+      await publishPostAttachments(item.id);
     }
     if (item.kind === "comment") {
       const commentRow = ownerRow as { user_id?: string | null; post_id?: string | null; thread_id?: string | null };

@@ -333,6 +333,21 @@ async function grantCommuneThreadApproval(input: { threadId?: string | null; pos
   if (error && import.meta.env.DEV) console.warn("[review] thread participant approval", error.message);
 }
 
+async function publishCommunePostMedia(postId: string) {
+  if (!supabase) return;
+  const { error } = await supabase
+    .from("commune_media")
+    .update({ visibility_state: "published", updated_at: new Date().toISOString() })
+    .eq("post_id", postId)
+    .in("visibility_state", ["submitted", "flagged"]);
+  if (error && import.meta.env.DEV) console.warn("[review] Commune post media publish", error.message);
+  await supabase
+    .from("commune_uploads")
+    .update({ status: "published" })
+    .eq("post_id", postId)
+    .in("status", ["pending_review", "approved"]);
+}
+
 async function syncCommuneReviewSubject(item: ReviewItem, nextStatus: ReviewStatus, note: string, actorId: string): Promise<{ ok: boolean; warning?: string }> {
   if (!supabase || item.domain !== "commune") return { ok: true };
   const now = new Date().toISOString();
@@ -374,6 +389,7 @@ async function syncCommuneReviewSubject(item: ReviewItem, nextStatus: ReviewStat
         threadId = (createdThread as { id?: string } | null)?.id ?? null;
       }
       await grantCommuneThreadApproval({ threadId, postId: item.source_id, userId: (postRow as { user_id?: string } | null)?.user_id ?? null, approvedBy: actorId, source: "post_approval" });
+      await publishCommunePostMedia(item.source_id);
     }
     return { ok: true };
   }
@@ -449,6 +465,7 @@ export async function restoreCommuneReviewSubject(item: ReviewItem, note: string
     last_activity_at: now
   }).eq("id", item.source_id);
   if (error) return { ok: false, warning: `Commune post was not restored: ${friendlyReviewWarning(error.message)}` };
+  await publishCommunePostMedia(item.source_id);
   await recordCommuneRestoreEvent({ item, actorId: auth.user.id, targetType, previousState, note, now });
   return { ok: true };
 }
@@ -622,6 +639,7 @@ export async function recoverRejectedCommuneReviewSubject(item: ReviewItem, acti
       threadId = (createdThread as { id?: string } | null)?.id ?? null;
     }
     await grantCommuneThreadApproval({ threadId, postId: item.source_id, userId: currentRow.user_id ?? null, approvedBy: auth.user.id, source: "rejected_post_approved_and_restored" });
+    await publishCommunePostMedia(item.source_id);
   }
   const { error: itemError } = await supabase.from("review_items").update({
     status: reviewToStatus,

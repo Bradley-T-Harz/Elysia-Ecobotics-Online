@@ -100,12 +100,16 @@ export default function App() {
             <Route path="living-library" element={<LivingLibraryPage />} />
             <Route path="commune" element={<CommunePage />} />
             <Route path="commune/rooms/:roomSlug" element={<CommunePage />} />
+            <Route path="commune/:roomSlug" element={<CommunePage />} />
+            <Route path="commune/:roomSlug/new" element={<CommunePage />} />
             <Route path="commune/posts/:postId" element={<CommunePage />} />
             <Route path="commune/new" element={<CommunePage />} />
             <Route path="commune/repository-showcase" element={<CommunePage />} />
+            <Route path="commune/repository-showcase/new" element={<CommunePage />} />
             <Route path="commune/troubleshooting" element={<CommunePage />} />
             <Route path="commune/sandbox-review" element={<CommunePage />} />
             <Route path="commune/code-sharing/review" element={<CommunePage />} />
+            <Route path="commune/code-sharing/sandbox-request" element={<CommunePage />} />
             <Route path="commune/realtime" element={<CommunePage />} />
             <Route path="commune/moderation" element={<CommunePage />} />
             <Route path="work-with-elysia-ecobotics" element={<WorkWithPage />} />
