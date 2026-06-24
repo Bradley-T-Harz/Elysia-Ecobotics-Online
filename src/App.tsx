@@ -108,6 +108,8 @@ export default function App() {
             <Route path="commune/repository-showcase/new" element={<CommunePage />} />
             <Route path="commune/troubleshooting" element={<CommunePage />} />
             <Route path="commune/sandbox-review" element={<CommunePage />} />
+            <Route path="commune/coding-cornucopia/review" element={<CommunePage />} />
+            <Route path="commune/coding-cornucopia/sandbox-request" element={<CommunePage />} />
             <Route path="commune/code-sharing/review" element={<CommunePage />} />
             <Route path="commune/code-sharing/sandbox-request" element={<CommunePage />} />
             <Route path="commune/realtime" element={<CommunePage />} />

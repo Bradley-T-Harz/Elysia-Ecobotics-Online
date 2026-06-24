@@ -3470,6 +3470,69 @@ code { color: var(--teal); overflow-wrap: anywhere; }
   font-size: 0.9rem;
 }
 
+.coding-cornucopia-editor {
+  min-width: 0;
+}
+
+.coding-cornucopia-editor .cm-editor {
+  outline: none;
+}
+
+.coding-diagnostics-list,
+.coding-sandbox-panel,
+.coding-run-result,
+.coding-output-grid {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.coding-sandbox-panel,
+.coding-run-result {
+  border: 1px solid rgba(142, 232, 220, 0.22);
+  border-radius: 14px;
+  padding: 0.85rem;
+  background: rgba(3, 10, 16, 0.54);
+}
+
+.coding-diagnostic {
+  border: 1px solid rgba(142, 232, 220, 0.18);
+  border-radius: 12px;
+  padding: 0.7rem;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.coding-diagnostic p {
+  margin: 0.25rem 0;
+}
+
+.coding-diagnostic span {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.coding-diagnostic--error {
+  border-color: rgba(255, 118, 118, 0.46);
+  background: rgba(255, 92, 92, 0.08);
+}
+
+.coding-diagnostic--warning {
+  border-color: rgba(216, 182, 111, 0.46);
+  background: rgba(216, 182, 111, 0.08);
+}
+
+.coding-output-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.coding-output-grid pre {
+  max-height: 14rem;
+  overflow: auto;
+  border-radius: 12px;
+  padding: 0.8rem;
+  background: rgba(0, 0, 0, 0.48);
+  white-space: pre-wrap;
+}
+
 .commune-chat-layout {
   display: grid;
   grid-template-columns: minmax(220px, 0.32fr) minmax(0, 1fr);
@@ -3608,6 +3671,10 @@ code { color: var(--teal); overflow-wrap: anywhere; }
 @media (max-width: 860px) {
   .commune-chat-layout,
   .commune-code-review-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .coding-output-grid {
     grid-template-columns: 1fr;
   }
 

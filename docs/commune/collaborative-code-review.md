@@ -1,19 +1,20 @@
-# Collaborative code review
+# Coding Cornucopia collaborative code review
 
-Commune collaborative code review is a text-and-discussion layer. It lets signed-in users create code review documents, save manual snapshots, annotate line ranges, copy/export text, and prepare future Commune post or sandbox-review metadata.
+Coding Cornucopia collaborative code review is a text-and-discussion layer with explicit manual snapshots, static diagnostics, annotations, and optional governed sandbox runs when an isolated runner service is configured.
 
-It is not runtime execution.
+The browser page is not runtime execution. Runtime execution belongs only to explicit snapshots sent to the isolated sandbox runner.
 
 Boundaries:
 
-- No code execution.
-- No terminal or run button.
+- No browser, Supabase, Postgres, or Local Elysia execution.
+- No terminal.
 - No dependency install, package scripts, or repository clone.
 - No local file access.
 - No private local Elysia memory, vault, log, credential, or machine-data access.
 - No dangerous HTML rendering.
-- Code is rendered inertly in `<pre><code>` as text.
+- Code is rendered inertly in the Coding Cornucopia editor/viewer.
+- Sandbox success is evidence only, not trust or Marketplace approval.
 
 Documents are cloud-hosted community data when saved to Supabase. Do not paste credentials, `.env` files, private local logs, private files, tokens, private keys, vault data, or sensitive personal material.
 
-Version history is manual snapshots only. The edit lock is a simple coordination foundation, not full CRDT/Yjs multiplayer editing.
+Version history is manual snapshots. The edit lock is a simple coordination foundation, not full CRDT/Yjs multiplayer editing yet.

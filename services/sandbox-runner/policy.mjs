@@ -1,7 +1,18 @@
+import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
+
 export const runnerRoot = new URL("./", import.meta.url);
-export const runtimeRoot = new URL("./runtime/", runnerRoot);
-export const jobsRoot = new URL("./runtime/jobs/", runnerRoot);
-export const auditRoot = new URL("./runtime/audit/", runnerRoot);
+
+function runtimeDirectoryUrl() {
+  const configured = process.env.ELYSIA_SANDBOX_RUNTIME_ROOT;
+  if (!configured) return new URL("./runtime/", runnerRoot);
+  const url = pathToFileURL(resolve(configured));
+  return new URL(url.href.endsWith("/") ? url.href : `${url.href}/`);
+}
+
+export const runtimeRoot = runtimeDirectoryUrl();
+export const jobsRoot = new URL("./jobs/", runtimeRoot);
+export const auditRoot = new URL("./audit/", runtimeRoot);
 export const maxOutputBytes = 128 * 1024;
 
 export const supportedRuntimes = {
@@ -16,8 +27,18 @@ export const supportedRuntimes = {
     fileName: "main.js",
     allowedCommand: ["node", "main.js"],
     aliases: ["javascript", "js", "node"]
+  },
+  typescript: {
+    image: "node:22-alpine",
+    fileName: "main.ts",
+    allowedCommand: ["node", "--experimental-strip-types", "main.ts"],
+    aliases: ["typescript", "ts", "tsx"]
   }
 };
+
+export const staticDiagnosticLanguages = ["json", "yaml", "markdown", "html", "css", "text"];
+export const futureLanguages = ["go", "rust", "java", "c", "cpp", "c++"];
+export const disabledLanguages = ["shell", "bash", "sh"];
 
 export const defaultLimits = {
   cpus: "0.5",
@@ -65,8 +86,30 @@ export const secretPatterns = [
 ];
 
 export function runtimeForLanguage(language) {
-  const normalized = String(language || "").trim().toLowerCase();
+  const normalized = normalizeLanguage(language);
   return Object.values(supportedRuntimes).find((runtime) => runtime.aliases.includes(normalized)) || null;
+}
+
+export function normalizeLanguage(language) {
+  const normalized = String(language || "text").trim().toLowerCase().replace(/^\./, "");
+  if (["js", "mjs", "cjs", "node"].includes(normalized)) return "javascript";
+  if (["ts", "tsx"].includes(normalized)) return "typescript";
+  if (["py"].includes(normalized)) return "python";
+  if (["md"].includes(normalized)) return "markdown";
+  if (["yml"].includes(normalized)) return "yaml";
+  if (["htm"].includes(normalized)) return "html";
+  if (["cxx", "cc"].includes(normalized)) return "cpp";
+  if (["bash", "sh"].includes(normalized)) return "shell";
+  return normalized;
+}
+
+export function languagePolicyStatus(language) {
+  const normalized = normalizeLanguage(language);
+  if (runtimeForLanguage(normalized)) return "active_sandbox";
+  if (staticDiagnosticLanguages.includes(normalized)) return "static_diagnostics";
+  if (futureLanguages.includes(normalized)) return "future";
+  if (disabledLanguages.includes(normalized)) return "disabled";
+  return "unsupported";
 }
 
 export function redactSecrets(text) {

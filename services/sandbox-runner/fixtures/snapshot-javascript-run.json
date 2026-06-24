@@ -1,0 +1,10 @@
+{
+  "snapshot_id": "fixture-js-safe-snapshot",
+  "source_type": "commune_code_version",
+  "source_id": "fixture-code-document",
+  "language": "javascript",
+  "file_name": "main.js",
+  "code": "console.log('Coding Cornucopia sandbox fixture ok')\n",
+  "network_policy": "disabled",
+  "filesystem_policy": "temporary_workspace_only"
+}

@@ -17,11 +17,17 @@ function runProcess(bin, args, options = {}) {
 }
 
 export async function findContainerEngine() {
+  const engines = await findContainerEngines();
+  return engines[0] || null;
+}
+
+export async function findContainerEngines() {
+  const engines = [];
   for (const bin of ["docker", "podman"]) {
     const result = await runProcess(bin, ["--version"]);
-    if (result.ok) return { bin, version: result.stdout.trim() || result.stderr.trim() };
+    if (result.ok) engines.push({ bin, version: result.stdout.trim() || result.stderr.trim() });
   }
-  return null;
+  return engines;
 }
 
 export async function imageAvailable(bin, image) {
@@ -55,14 +61,16 @@ export function buildContainerArgs({ job, runtime, inputDirectory }) {
 }
 
 export async function runContainerJob(job, runtime, inputDirectory) {
-  const engine = await findContainerEngine();
-  if (!engine) {
+  const engines = await findContainerEngines();
+  if (!engines.length) {
     await writeAuditEvent(job.job_id, "validation_failed", "Docker/Podman unavailable; failed closed.");
     return { ...job, status: "validation_failed", result: "Docker or Podman is not available. The runner will not fall back to host execution." };
   }
-  if (!(await imageAvailable(engine.bin, runtime.image))) {
+  const imageAvailability = await Promise.all(engines.map(async (engine) => ({ engine, available: await imageAvailable(engine.bin, runtime.image) })));
+  const engine = imageAvailability.find((item) => item.available)?.engine ?? engines[0];
+  if (!imageAvailability.some((item) => item.available)) {
     await writeAuditEvent(job.job_id, "validation_failed", `Required image ${runtime.image} missing; no automatic pull.`);
-    return { ...job, status: "validation_failed", result: `Required local container image is not available: ${runtime.image}. The runner will not pull images automatically.` };
+    return { ...job, status: "validation_failed", result: `Required local container image is not available in Docker or Podman: ${runtime.image}. The runner will not pull images automatically.` };
   }
   const { args, containerName } = buildContainerArgs({ job, runtime, inputDirectory });
   const started = new Date().toISOString();

@@ -24,7 +24,7 @@ export type SubmitCommentResult = { ok: boolean; status: SubmitCommentStatus; me
 export const postTypeOptions: { value: CommunePostType; label: string }[] = [
   { value: "media_garden", label: "Media Garden" },
   { value: "troubleshooting", label: "Troubleshooting Grove" },
-  { value: "code_sharing", label: "Code Sharing" },
+  { value: "code_sharing", label: "Coding Cornucopia" },
   { value: "repository_showcase", label: "Repository Showcase" },
   { value: "community_network", label: "Community Network" },
   { value: "job_post", label: "Job Post" },
@@ -54,6 +54,11 @@ function fallback<T>(data: T, warning = supabaseNotConfiguredMessage) { return {
 function splitList(value: string) { return value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean); }
 function excerpt(value: string) { return value.replace(/\s+/g, " ").trim().slice(0, 220); }
 function isModerator(roles: AppRole[], isAdmin: boolean) { return isAdmin || roles.some((role) => ["administrator", "moderator", "commune_moderator", "guardian_reviewer"].includes(role)); }
+function roomSlugCandidates(roomSlug?: string) {
+  if (!roomSlug) return [];
+  if (roomSlug === "coding-cornucopia" || roomSlug === "code-sharing") return ["coding-cornucopia", "code-sharing"];
+  return [roomSlug];
+}
 
 async function accountState(): Promise<CommuneAccountState> {
   const roleState = await loadCurrentRoleState();
@@ -191,7 +196,8 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
   const roomsQuery = supabase.from(canonicalCommuneTables.rooms).select("id, slug, name, description, room_type, requires_moderation").order("name");
   const { data: rooms, error: roomError } = await roomsQuery;
   if (roomError) warnings.push(roomError.message);
-  const selectedRoom = roomSlug ? (rooms ?? []).find((room) => room.slug === roomSlug) as CommuneRoom | undefined : undefined;
+  const candidateRoomSlugs = roomSlugCandidates(roomSlug);
+  const selectedRoom = candidateRoomSlugs.length ? (rooms ?? []).find((room) => candidateRoomSlugs.includes(room.slug)) as CommuneRoom | undefined : undefined;
   let postQuery = supabase.from(canonicalCommuneTables.posts).select("id,user_id,author_username,post_type,title,body,excerpt,tags,links,repository_url,status,visibility,published_at,last_activity_at,created_at").eq("status", "published").eq("visibility", "public").order("last_activity_at", { ascending: false }).limit(50);
   if (postId) postQuery = postQuery.eq("id", postId);
   if (selectedRoom) {

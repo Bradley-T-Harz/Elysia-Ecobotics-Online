@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-import { createAndRunJob, doctor, inspectBundle, killJob, readBundle, readJob, validateHandoffBundle } from "./runner.mjs";
+import { createAndRunJob, createAndRunSnapshotRun, doctor, inspectBundle, killJob, readBundle, readJob, readSnapshotPayload, validateHandoffBundle, validateSnapshotRunPayload } from "./runner.mjs";
 
 function usage() {
-  return `elysia-sandbox-runner local CLI\n\nCommands:\n  doctor\n  validate <handoff.json>\n  inspect <handoff.json>\n  run <handoff.json> --confirm-local-execution\n  status <job-id>\n  kill <job-id>\n\nThis CLI is local-only. It never runs code in the website, browser, Supabase, or Cloudflare. Docker/Podman images must exist locally; no images are pulled automatically.`;
+  return `elysia-sandbox-runner local CLI\n\nCommands:\n  doctor\n  validate <handoff.json>\n  inspect <handoff.json>\n  run <handoff.json> --confirm-local-execution\n  validate-snapshot <snapshot-run.json>\n  run-snapshot <snapshot-run.json> --confirm-local-execution\n  status <job-id>\n  kill <job-id>\n\nThis CLI is local-only. It never runs code in the website, browser, Supabase, or Cloudflare. Docker/Podman images must exist locally; no images are pulled automatically.`;
 }
 
 async function main(argv) {
@@ -11,6 +11,15 @@ async function main(argv) {
   if (command === "doctor") { console.log(JSON.stringify(await doctor(), null, 2)); return; }
   if (command === "status") { if (!target) throw new Error("status requires <job-id>"); console.log(JSON.stringify(await readJob(target), null, 2)); return; }
   if (command === "kill") { if (!target) throw new Error("kill requires <job-id>"); console.log(JSON.stringify(await killJob(target), null, 2)); return; }
+  if (command === "validate-snapshot" || command === "run-snapshot") {
+    if (!target) throw new Error(`${command} requires <snapshot-run.json>`);
+    const payload = await readSnapshotPayload(target);
+    if (command === "validate-snapshot") { const result = validateSnapshotRunPayload(payload); console.log(JSON.stringify(result, null, 2)); if (!result.ok) process.exitCode = 1; return; }
+    const result = await createAndRunSnapshotRun(payload, { confirmLocalExecution: flags.includes("--confirm-local-execution") });
+    console.log(JSON.stringify(result, null, 2));
+    if (!result.ok) process.exitCode = 1;
+    return;
+  }
   if (!["validate", "inspect", "run"].includes(command)) throw new Error(`Unknown command: ${command}\n${usage()}`);
   if (!target) throw new Error(`${command} requires <handoff.json>`);
   const bundle = await readBundle(target);

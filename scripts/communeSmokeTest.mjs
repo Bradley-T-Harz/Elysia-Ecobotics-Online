@@ -26,6 +26,14 @@ const sandboxHandoffMigration = await read("supabase/migrations/2026_06_14_sandb
 const sandboxHandoffApi = await read("src/pages/The-Elysia-Commune/communeSandboxHandoffApi.ts");
 const sandboxValidator = await read("src/shared/sandbox/sandboxRequestValidator.ts");
 const sandboxBuilder = await read("src/shared/sandbox/sandboxHandoffBuilder.ts");
+const languagePolicies = await read("src/pages/The-Elysia-Commune/codeLanguagePolicies.ts");
+const diagnosticTypes = await read("src/pages/The-Elysia-Commune/codeDiagnosticTypes.ts");
+const sandboxClient = await read("src/pages/The-Elysia-Commune/codingSandboxClient.ts");
+const sandboxRunner = await read("services/sandbox-runner/runner.mjs");
+const sandboxServer = await read("services/sandbox-runner/server.mjs");
+const sandboxBoundaryDoc = await read("docs/security/coding-cornucopia-sandbox-boundary.md");
+const sandboxThreatDoc = await read("docs/security/coding-cornucopia-threat-model.md");
+const sandboxContractDoc = await read("docs/api/coding-cornucopia-sandbox-contract.md");
 const participantApprovalMigration = await read("supabase/migrations/2026_06_21_commune_thread_participant_approvals.sql");
 const reactionMigration = await read("supabase/migrations/2026_06_21_commune_content_reactions.sql");
 const commentDirectPublishMigration = await read("supabase/migrations/2026_06_21_commune_comment_direct_publish_policy.sql");
@@ -33,18 +41,19 @@ const commentSchemaRepairMigration = await read("supabase/migrations/2026_06_22_
 const commentNotificationRepairMigration = await read("supabase/migrations/2026_06_22_commune_comment_notification_dependency_repair.sql");
 const roomPostMediaPolicyRepairMigration = await read("supabase/migrations/2026_06_23_commune_room_post_admin_and_media_policy_repair.sql");
 const publishedMediaDisplayPolicyMigration = await read("supabase/migrations/2026_06_24_commune_published_media_display_policy.sql");
+const codingRunsMigration = await read("supabase/migrations/2026_06_24_coding_cornucopia_runs_and_diagnostics.sql");
 const communeCommentSchemaCoverage = `${migration}\n${commentDirectPublishMigration}\n${commentSchemaRepairMigration}\n${commentNotificationRepairMigration}`;
 const styles = await read("src/styles.css");
 
-for (const route of ["/commune", "commune/new", "commune/:roomSlug", "commune/:roomSlug/new", "commune/repository-showcase", "commune/repository-showcase/new", "commune/troubleshooting", "commune/sandbox-review", "commune/code-sharing/review", "commune/code-sharing/sandbox-request", "commune/realtime", "commune/moderation"]) {
+for (const route of ["/commune", "commune/new", "commune/:roomSlug", "commune/:roomSlug/new", "commune/repository-showcase", "commune/repository-showcase/new", "commune/troubleshooting", "commune/sandbox-review", "commune/coding-cornucopia/review", "commune/coding-cornucopia/sandbox-request", "commune/code-sharing/review", "commune/code-sharing/sandbox-request", "commune/realtime", "commune/moderation"]) {
   assert(app.includes(route.replace(/^\//, "")) || app.includes(route), `Missing Commune route: ${route}`);
 }
 
-for (const roomSlug of ["media-garden", "troubleshooting-grove", "code-sharing", "repository-showcase", "community-network", "job-post", "official-updates", "research-notes", "elysia-iteration-showcase"]) {
+for (const roomSlug of ["media-garden", "troubleshooting-grove", "coding-cornucopia", "code-sharing", "repository-showcase", "community-network", "job-post", "official-updates", "research-notes", "elysia-iteration-showcase"]) {
   assert(page.includes(roomSlug), `Missing Commune room slug: ${roomSlug}`);
 }
 
-const requiredLobbyRooms = ["Media Garden", "Troubleshooting Grove", "Code Sharing", "Repository Showcase", "Community Network", "Job Post", "Official Update", "Research Note", "Elysia Iteration Showcase"];
+const requiredLobbyRooms = ["Media Garden", "Troubleshooting Grove", "Coding Cornucopia", "Repository Showcase", "Community Network", "Job Post", "Official Update", "Research Note", "Elysia Iteration Showcase"];
 let roomCursor = -1;
 for (const roomName of requiredLobbyRooms) {
   const nextRoom = page.indexOf(`name: "${roomName}"`);
@@ -105,7 +114,7 @@ assert(migration.includes("tags text[]"), "Commune Supabase schema should suppor
 assert(page.includes("function RoomCards()"), "Commune lobby room cards should render the complete room list.");
 assert(page.includes("postTypes.map((type)"), "Commune lobby room cards should include every post type doorway.");
 assert(page.includes("Enter room"), "Commune room entry copy missing.");
-assert(page.includes("Shared code is not trusted and is not executed by the website or Elysia by default."), "Code Sharing caution copy missing.");
+assert(page.includes("Shared code is public knowledge, not automatic trust."), "Coding Cornucopia caution copy missing.");
 assert(page.includes("function RoomPickerPanel()"), "Commune /new room picker compatibility panel missing.");
 assert(page.includes("Choose a room before posting"), "Commune /new room picker title missing.");
 assert(page.includes("Posts are created from inside their room so the format, safety notes, and context match what you are sharing."), "Commune /new room picker copy missing.");
@@ -127,7 +136,7 @@ for (const category of ["general", "troubleshooting", "repositories", "living-li
   assert(migration.includes(`'${category}'`), `Missing seeded DB category: ${category}`);
 }
 
-assert(page.includes("<pre><code>"), "Code snippets are not displayed as inert pre/code text.");
+assert(page.includes("CodeWorkspaceEditor") && page.includes("Inert code snippet"), "Code snippets should render through the inert Coding Cornucopia editor/viewer.");
 assert(page.includes("The public website does not execute code."), "Code execution boundary copy missing.");
 assert(page.includes("Governed live chat rooms"), "Governed realtime chat panel missing.");
 assert(page.includes("Realtime Commune messages are cloud-hosted public/community data."), "Realtime public/community data warning missing.");
@@ -136,13 +145,16 @@ assert(page.includes("no file uploads"), "Realtime no-file-upload copy missing."
 assert(page.includes("no code execution"), "Realtime no-code-execution copy missing.");
 assert(page.includes("Report message"), "Realtime message report UI missing.");
 assert(page.includes("Send message"), "Realtime composer send action missing.");
-assert(page.includes("Collaborative Code Review"), "Collaborative code review section missing.");
-assert(page.includes("Shared code documents for review, not execution"), "Code review safety heading missing.");
+assert(page.includes("Coding Cornucopia Workbench"), "Coding Cornucopia workbench section missing.");
+assert(page.includes("Shared code documents, snapshots, diagnostics, and governed sandbox runs"), "Coding Cornucopia workbench heading missing.");
 assert(page.includes("Create version snapshot"), "Code review version snapshot action missing.");
 assert(page.includes("Line annotations"), "Code review annotation UI missing.");
 assert(page.includes("Acquire edit lock"), "Code review edit lock action missing.");
 assert(page.includes("Report code document"), "Code review report action missing.");
 assert(page.includes("Create Commune code post from this document"), "Code review Commune post linkage missing.");
+assert(page.includes("Run snapshot in sandbox"), "Coding Cornucopia snapshot sandbox run action missing.");
+assert(sandboxClient.includes("VITE_CODING_SANDBOX_ENDPOINT"), "Coding Cornucopia sandbox endpoint fail-closed copy missing.");
+assert(page.includes("No terminal") && page.includes("No package install"), "Coding Cornucopia must preserve no-terminal/no-package-install boundary copy.");
 assert(!page.includes("dangerouslySetInnerHTML"), "Commune page must not render chat/code with dangerouslySetInnerHTML.");
 assert(page.includes("Canonical account-backed paths"), "Commune canonical table path status copy missing.");
 assert(page.includes("Report comment"), "Commune comment report action missing.");
@@ -311,5 +323,16 @@ assert(sandboxBuilder.includes("website_executed_code: false"), "Sandbox handoff
 assert(migration.includes("commune_sandbox_reviews"), "Sandbox review foundation table missing.");
 assert(migration.includes("commune_code_snippets"), "Code snippet table missing.");
 assert(migration.includes("commune_reports"), "Commune reports table missing.");
+assert(languagePolicies.includes("CodingLanguagePolicy") && languagePolicies.includes("active_sandbox") && languagePolicies.includes("disabled"), "Coding Cornucopia language policy module missing active/static/future/disabled states.");
+assert(languagePolicies.includes("shell") && languagePolicies.includes("Disabled by default"), "Shell must remain disabled by default.");
+assert(diagnosticTypes.includes("runStaticCodingDiagnostics") && diagnosticTypes.includes("secret_scan_warning") && diagnosticTypes.includes("sandbox_internal_failure"), "Coding Cornucopia structured diagnostics missing.");
+assert(sandboxClient.includes("VITE_CODING_SANDBOX_ENDPOINT") && sandboxClient.includes("sandbox_unavailable") && sandboxClient.includes("policy_blocked"), "Coding Cornucopia frontend sandbox client must fail closed.");
+assert(sandboxRunner.includes("createAndRunSnapshotRun") && sandboxRunner.includes("runContainerJob") && sandboxRunner.includes("Snapshot run"), "Sandbox runner snapshot execution path missing.");
+assert(sandboxServer.includes("/v1/runs") && sandboxServer.includes("--confirm-service-execution"), "Sandbox runner service endpoint must require explicit service confirmation.");
+assert(codingRunsMigration.includes("commune_sandbox_runs") && codingRunsMigration.includes("commune_code_diagnostics"), "Coding Cornucopia run/diagnostic migration missing.");
+assert(codingRunsMigration.includes("commune_language_policies") && codingRunsMigration.includes("commune_sandbox_policies"), "Coding Cornucopia policy tables missing.");
+assert(sandboxBoundaryDoc.includes("Snapshot Rule") && sandboxBoundaryDoc.includes("Developer Forge and Marketplace approval remain separate"), "Coding Cornucopia sandbox boundary doc missing snapshot/trust separation.");
+assert(sandboxThreatDoc.includes("Required Production Controls") && sandboxThreatDoc.includes("Shell"), "Coding Cornucopia threat model missing production controls.");
+assert(sandboxContractDoc.includes("POST /v1/runs") && sandboxContractDoc.includes("VITE_CODING_SANDBOX_ENDPOINT"), "Coding Cornucopia sandbox API contract missing.");
 
 console.log("Commune smoke test ok.");
