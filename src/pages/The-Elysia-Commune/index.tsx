@@ -31,6 +31,7 @@ import {
   moderateCommuneContentTarget,
   moderateCommuneItem,
   postTypeOptions,
+  recordCodingSandboxRunResult,
   reportCommuneContent,
   reportTypes,
   savePost,
@@ -56,14 +57,17 @@ import { communeFallbackCategories, formatCommuneTag, formatCommuneTags, inertCo
 import {
   acquireEditLock,
   archiveCodeDocument,
+  buildPatchOrDiffPreview,
   codeReviewReportReasons,
   createAnnotation,
   createCodeDocument,
   createDocumentVersion,
+  decideCodeRevisionProposal,
   detectSecretLikeCodeText,
   hideAnnotation,
   hideCodeDocument,
   listAnnotations,
+  listCodeRevisionProposals,
   listDocumentVersions,
   listMyCodeDocuments,
   listPublishedCodeDocuments,
@@ -75,11 +79,14 @@ import {
   reportCodeAnnotation,
   reportCodeDocument,
   resolveAnnotation,
+  submitCodeRevisionProposal,
   submitCodeDocumentForReview,
   updateCodeDocument,
+  withdrawCodeRevisionProposal,
   type CodeAnnotation,
   type CodeDocument,
   type CodeDocumentVersion,
+  type CodeRevisionProposal,
   type CodeSession
 } from "./communeCodeReviewApi";
 import {
@@ -422,30 +429,106 @@ function DiagnosticsList({ diagnostics }: { diagnostics: CodingDiagnostic[] }) {
   </div>;
 }
 
-function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, language, fileName, code }: { snapshotId: string; sourceType: "commune_post_snippet" | "commune_code_document" | "commune_code_version"; sourceId?: string | null; language: string; fileName?: string | null; code: string }) {
-  const policy = getCodingLanguagePolicy(language);
+type SandboxRunUiState = "idle" | "preparing_snapshot" | SandboxRunResult["status"];
+
+function stableSnapshotSuffix(value: string) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function proposalDraftSnapshotId(snippetId: string, input: { codeText: string; language: string; fileName: string }) {
+  return `proposal-draft-${snippetId}-${stableSnapshotSuffix([input.language, input.fileName, input.codeText].join("\n---coding-cornucopia-draft---\n"))}`;
+}
+
+function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeDocumentId, codeVersionId, language, fileName, code, signedIn = true, runLabel = "Run snapshot in sandbox" }: {
+  snapshotId: string;
+  sourceType: "commune_post_snippet" | "commune_code_document" | "commune_code_version";
+  sourceId?: string | null;
+  postId?: string | null;
+  codeDocumentId?: string | null;
+  codeVersionId?: string | null;
+  language: string;
+  fileName?: string | null;
+  code: string;
+  signedIn?: boolean;
+  runLabel?: string;
+}) {
+  const normalizedLanguage = normalizeCodingLanguage(language);
+  const policy = getCodingLanguagePolicy(normalizedLanguage);
   const endpoint = sandboxEndpointState();
-  const staticDiagnostics = useMemo(() => runStaticCodingDiagnostics({ language, fileName, code }), [language, fileName, code]);
+  const staticDiagnostics = useMemo(() => runStaticCodingDiagnostics({ language: normalizedLanguage, fileName, code }), [normalizedLanguage, fileName, code]);
   const [result, setResult] = useState<SandboxRunResult | null>(null);
   const [running, setRunning] = useState(false);
-  const canRun = endpoint.configured && policy.status === "active_sandbox" && Boolean(snapshotId) && Boolean(code.trim());
+  const [runState, setRunState] = useState<SandboxRunUiState>("idle");
+  const [recordMessage, setRecordMessage] = useState("");
+  useEffect(() => {
+    setResult(null);
+    setRunState("idle");
+    setRecordMessage("");
+  }, [snapshotId, sourceType, sourceId, normalizedLanguage, fileName, code]);
+  const hasSnapshot = Boolean(snapshotId.trim());
+  const hasCode = Boolean(code.trim());
+  const policyEligible = policy.status === "active_sandbox" || policy.status === "static_diagnostics";
+  const disabledReason = !signedIn
+    ? "Sign in to request and record governed sandbox diagnostics."
+    : !endpoint.configured
+      ? "Sandbox endpoint not configured. Set VITE_CODING_SANDBOX_ENDPOINT to the isolated runner service before requesting a run."
+      : !hasSnapshot
+        ? "Create or choose an explicit snapshot before running."
+        : !hasCode
+          ? "Add code before requesting sandbox diagnostics."
+          : !policyEligible
+            ? `${policy.label} is not executable in V1. Static review remains available; shell and native-code policies stay disabled/future until hardened.`
+            : "";
+  const canRun = !disabledReason;
 
   async function runSnapshot() {
+    if (!canRun) return;
     setRunning(true);
+    setRunState("preparing_snapshot");
+    setRecordMessage("");
     try {
-      setResult(await requestSandboxRun({ snapshotId, sourceType, sourceId, language, fileName, code }));
+      setRunState("running");
+      const runResult = await requestSandboxRun({ snapshotId, sourceType, sourceId, language: normalizedLanguage, fileName, code });
+      setResult(runResult);
+      setRunState(runResult.status);
+      const record = await recordCodingSandboxRunResult({
+        snapshotId,
+        sourceType,
+        sourceId,
+        postId,
+        codeDocumentId,
+        codeVersionId,
+        language: normalizedLanguage,
+        fileName,
+        requestPayload: {
+          source_type: sourceType,
+          source_id: sourceId ?? null,
+          snapshot_id: snapshotId,
+          language: normalizedLanguage,
+          file_name: fileName ?? null,
+          network_policy: "disabled",
+          filesystem_policy: "temporary_workspace_only"
+        },
+        result: runResult
+      });
+      setRecordMessage(record.ok ? record.message : record.message);
     } catch (error) {
-      setResult({
+      const failedResult: SandboxRunResult = {
         ok: false,
         status: "failed",
-        language: normalizeCodingLanguage(language),
+        language: normalizedLanguage,
         file: fileName ?? null,
         snapshotId,
         diagnostics: [{
           severity: "error",
           phase: "sandbox",
           category: "sandbox_internal_failure",
-          language: normalizeCodingLanguage(language),
+          language: normalizedLanguage,
           file: fileName ?? null,
           line: null,
           column: null,
@@ -453,7 +536,9 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, language, fil
           message: error instanceof Error ? error.message : "Sandbox request failed."
         }],
         message: "Sandbox request failed before a run result was returned."
-      });
+      };
+      setResult(failedResult);
+      setRunState("failed");
     } finally {
       setRunning(false);
     }
@@ -463,12 +548,14 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, language, fil
     <div className="addon-card__topline"><strong>Sandbox diagnostics</strong><span>{codingLanguageStatusLabel(policy.status)}</span></div>
     <p className="boundary-note">{endpoint.message}</p>
     <p className="boundary-note">Runs are snapshot-based. No browser execution, no terminal, no package install, no repo clone, no Local Elysia handoff, and no trust label is created by a successful run.</p>
+    <StatusBadges labels={[`state: ${runState.replace(/_/g, " ")}`, policy.sandboxRuntime ? `runtime: ${policy.sandboxRuntime}` : "no active runtime", "network disabled", "ephemeral workspace"]} />
     <DiagnosticsList diagnostics={staticDiagnostics} />
     <div className="button-row">
-      <button type="button" disabled={!canRun || running} onClick={() => void runSnapshot()}>{running ? "Running in sandbox..." : "Run snapshot in sandbox"}</button>
+      <button type="button" disabled={!canRun || running} onClick={() => void runSnapshot()}>{running ? "Running in sandbox..." : runLabel}</button>
       {!endpoint.configured && <Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Prepare governed sandbox request</Link>}
     </div>
-    {!canRun && <p className="boundary-note">{policy.status !== "active_sandbox" ? `${policy.label} is not executable in V1. Static diagnostics remain available.` : "Create a snapshot and configure the isolated sandbox endpoint before running."}</p>}
+    {disabledReason && <p className="boundary-note">{disabledReason}</p>}
+    {recordMessage && <p className="boundary-note">{recordMessage}</p>}
     {result && <article className="coding-run-result">
       <div className="addon-card__topline"><strong>{result.status.replace(/_/g, " ")}</strong><span>{result.runId ?? "no run id"}</span></div>
       <p>{result.message}</p>
@@ -1054,7 +1141,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
   const selectedPostTypeLabel = postTypeOptions.find((type) => type.value === form.postType)?.label ?? form.postType;
   const normalizedTags = parseCommuneTags(form.tags);
   const showTroubleshootingFields = form.postType === "troubleshooting";
-  const showCodeFields = form.postType === "code_sharing";
+  const showCodeFields = form.postType === "code_sharing" || form.postType === "troubleshooting";
   const showRepositoryField = form.postType === "code_sharing";
   const showAttachmentField = form.postType !== "official_update";
   const showCommunityFields = form.postType === "community_network";
@@ -1062,6 +1149,11 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
   const showResearchFields = form.postType === "research_note";
   const showIterationFields = form.postType === "elysia_iteration_showcase";
   const showOfficialFields = form.postType === "official_update";
+  const codeSectionTitle = showTroubleshootingFields ? "Code / reproduction snippet optional" : "Inert code snippet";
+  const codePreviewTitle = showTroubleshootingFields ? "Reproduction snippet preview" : inertCodeSnippetLabel(form.codeLanguage);
+  const codeSafetyCopy = showTroubleshootingFields
+    ? "Code is optional and should be a minimal redacted reproduction. Do not include tokens, API keys, .env files, passwords, private paths, private logs, local Elysia memory, vault data, credentials, account secrets, or private user data."
+    : "Code is shown for discussion only. Do not run code you do not trust. Visibility is not a trust signal.";
 
   useEffect(() => {
     setForm((current) => current.postType === defaultType && current.roomId === (defaultRoomId || "") ? current : { ...current, postType: defaultType, roomId: defaultRoomId || "" });
@@ -1221,15 +1313,15 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       {showResearchFields && <><label><span>Research question / topic</span><input value={form.researchQuestion} onChange={(event) => setForm({ ...form, researchQuestion: event.target.value })} /></label><label><span>Domain</span><input value={form.researchDomain} onChange={(event) => setForm({ ...form, researchDomain: event.target.value })} /></label><label><span>Confidence / evidence strength</span><select value={form.evidenceStrength} onChange={(event) => setForm({ ...form, evidenceStrength: event.target.value })}><option value="">Select strength</option>{["Early note", "Anecdotal observation", "Multiple sources", "Strong source trail", "Uncertain / needs review"].map((value) => <option key={value}>{value}</option>)}</select></label><label><span>Living Library source link</span><input value={form.livingLibraryLink} onChange={(event) => setForm({ ...form, livingLibraryLink: event.target.value })} /></label><label className="wide-field"><span>Citation notes</span><textarea rows={3} value={form.citationNotes} onChange={(event) => setForm({ ...form, citationNotes: event.target.value })} /></label><label className="wide-field"><span>Evidence summary</span><textarea rows={4} value={form.evidenceSummary} onChange={(event) => setForm({ ...form, evidenceSummary: event.target.value })} /></label><label className="wide-field"><span>Observation</span><textarea rows={4} value={form.observation} onChange={(event) => setForm({ ...form, observation: event.target.value })} /></label><label className="wide-field"><span>Interpretation</span><textarea rows={4} value={form.interpretation} onChange={(event) => setForm({ ...form, interpretation: event.target.value })} /></label><label className="wide-field"><span>Uncertainty</span><textarea rows={3} value={form.uncertainty} onChange={(event) => setForm({ ...form, uncertainty: event.target.value })} /></label></>}
       {showIterationFields && <><label><span>Iteration type</span><select value={form.iterationType} onChange={(event) => setForm({ ...form, iterationType: event.target.value })}><option value="">Select type</option>{["Feature", "Demo", "Update", "Design note", "Add-on preview", "UI progress"].map((value) => <option key={value}>{value}</option>)}</select></label><label><span>Version / build label</span><input value={form.versionLabel} onChange={(event) => setForm({ ...form, versionLabel: event.target.value })} /></label><label className="wide-field"><span>What changed</span><textarea rows={4} value={form.whatChanged} onChange={(event) => setForm({ ...form, whatChanged: event.target.value })} /></label><label className="wide-field"><span>Why it matters</span><textarea rows={4} value={form.whyItMatters} onChange={(event) => setForm({ ...form, whyItMatters: event.target.value })} /></label><label className="wide-field"><span>Known limitations</span><textarea rows={3} value={form.knownLimitations} onChange={(event) => setForm({ ...form, knownLimitations: event.target.value })} /></label><label className="wide-field"><span>Next step</span><textarea rows={3} value={form.nextStep} onChange={(event) => setForm({ ...form, nextStep: event.target.value })} /></label></>}
       {showOfficialFields && <><label><span>Official notice type</span><select value={form.officialNoticeType} onChange={(event) => setForm({ ...form, officialNoticeType: event.target.value })}>{["release", "roadmap", "governance", "security", "general announcement"].map((value) => <option key={value}>{value}</option>)}</select></label><label><span>Version / tag optional</span><input value={form.officialVersion} onChange={(event) => setForm({ ...form, officialVersion: event.target.value })} /></label><label className="wide-field"><span>Audit-safe note</span><textarea rows={3} value={form.officialAuditNote} onChange={(event) => setForm({ ...form, officialAuditNote: event.target.value })} placeholder="Public correction/update context if relevant." /></label></>}
-      <label className="wide-field"><span>{showCodeFields ? "Discussion / explanation" : showResearchFields ? "Context / discussion" : showJobFields ? "Role summary" : "Body"}</span><textarea rows={8} value={form.body} onChange={(event) => setForm({ ...form, body: event.target.value })} /></label>
-      {showCodeFields && <><label><span>Code language</span><select value={normalizeCodingLanguage(form.codeLanguage)} onChange={(event) => setForm({ ...form, codeLanguage: event.target.value })}>{codingLanguageOptions().map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label><span>Code filename</span><input value={form.codeFileName} onChange={(event) => setForm({ ...form, codeFileName: event.target.value })} /></label><label className="wide-field"><span>Inert code snippet</span><CodeWorkspaceEditor value={form.codeText} language={form.codeLanguage} onChange={(value) => setForm({ ...form, codeText: value })} minHeight="260px" /></label></>}
+      <label className="wide-field"><span>{form.postType === "code_sharing" ? "Discussion / explanation" : showResearchFields ? "Context / discussion" : showJobFields ? "Role summary" : "Body"}</span><textarea rows={8} value={form.body} onChange={(event) => setForm({ ...form, body: event.target.value })} /></label>
+      {showCodeFields && <><label><span>Code language</span><select value={normalizeCodingLanguage(form.codeLanguage)} onChange={(event) => setForm({ ...form, codeLanguage: event.target.value })}>{codingLanguageOptions().map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label><span>Code filename</span><input value={form.codeFileName} onChange={(event) => setForm({ ...form, codeFileName: event.target.value })} placeholder={showTroubleshootingFields ? "reproduction.js, failing-test.py" : "snippet.ts"} /></label><label className="wide-field"><span>{codeSectionTitle}</span><CodeWorkspaceEditor value={form.codeText} language={form.codeLanguage} onChange={(value) => setForm({ ...form, codeText: value })} minHeight="260px" /></label><p className="wide-field boundary-note">{codeSafetyCopy}</p></>}
     </div>
     <p className="boundary-note">Use hashtags, commas, or simple words. Tags help people find posts later.</p>
     <TagChips tags={normalizedTags} />
     {secretScan.warnings.length > 0 && <WarningCallout title="Secret warning"><p>{secretScan.blocked ? "Submission is blocked until private/secret material is removed." : "Review this content carefully before sharing."} Flags: {secretScan.warnings.join(", ")}.</p></WarningCallout>}
     {fileValidation && <p className={fileValidation.ok ? "boundary-note" : "message"}>{fileValidation.message}</p>}
-    {form.codeText && <section className="commune-code-preview"><div className="addon-card__topline"><strong>{inertCodeSnippetLabel(form.codeLanguage)}</strong><span>{form.codeFileName || "snippet"}</span></div><CodeWorkspaceEditor value={form.codeText} language={form.codeLanguage} readOnly minHeight="220px" /><p className="boundary-note">Code is shown for discussion only. Do not run code you do not trust. Visibility is not a trust signal.</p><DiagnosticsList diagnostics={runStaticCodingDiagnostics({ language: form.codeLanguage, fileName: form.codeFileName, code: form.codeText })} /></section>}
-    <div className="commune-checklist">{routeAcknowledgements.map((item) => <label className="checkbox-line" key={item}><input type="checkbox" checked={form.acknowledgement} onChange={(event) => setForm({ ...form, acknowledgement: event.target.checked })} /><span>{item}</span></label>)}{showCodeFields && <><label className="checkbox-line"><input type="checkbox" checked={form.stepsCodeAck} onChange={(event) => setForm({ ...form, stepsCodeAck: event.target.checked })} /><span>Any code snippet is inert text for discussion only. It is not execution permission.</span></label><label className="checkbox-line"><input type="checkbox" checked={form.sandboxRequested} onChange={(event) => setForm({ ...form, sandboxRequested: event.target.checked })} /><span>Request sandbox review for repository/code metadata. This is not execution permission.</span></label></>}</div>
+    {form.codeText && <section className="commune-code-preview"><div className="addon-card__topline"><strong>{codePreviewTitle}</strong><span>{form.codeFileName || "snippet"}</span></div><CodeWorkspaceEditor value={form.codeText} language={form.codeLanguage} readOnly minHeight="220px" /><p className="boundary-note">{codeSafetyCopy}</p><p className="boundary-note">Code is inert unless it is sent to the governed sandbox runner. Sandbox success is evidence only, not approval, trust, Marketplace readiness, or permission to run code elsewhere.</p><DiagnosticsList diagnostics={runStaticCodingDiagnostics({ language: form.codeLanguage, fileName: form.codeFileName, code: form.codeText })} /></section>}
+    <div className="commune-checklist">{routeAcknowledgements.map((item) => <label className="checkbox-line" key={item}><input type="checkbox" checked={form.acknowledgement} onChange={(event) => setForm({ ...form, acknowledgement: event.target.checked })} /><span>{item}</span></label>)}{showCodeFields && <><label className="checkbox-line"><input type="checkbox" checked={form.stepsCodeAck} onChange={(event) => setForm({ ...form, stepsCodeAck: event.target.checked })} /><span>{showTroubleshootingFields ? "Any troubleshooting code/reproduction snippet is inert redacted text until an explicit sandbox run. It is not execution permission." : "Any code snippet is inert text for discussion only. It is not execution permission."}</span></label><label className="checkbox-line"><input type="checkbox" checked={form.sandboxRequested} onChange={(event) => setForm({ ...form, sandboxRequested: event.target.checked })} /><span>{showTroubleshootingFields ? "Request sandbox review metadata for this reproduction case. This is not execution permission and does not prove the fix is safe." : "Request sandbox review for repository/code metadata. This is not execution permission."}</span></label></>}</div>
     <div className="button-row"><button type="button" className="button-primary" onClick={() => void submit()}>{submitLabel}</button><button type="button" onClick={() => saveLocal("draft_local")}>Save local draft</button><button type="button" onClick={() => saveLocal("pending_moderator_review_local")}>Save local request</button><button type="button" onClick={() => downloadText(`${slug(form.title)}.md`, postMarkdown(build("draft_local")), "text/markdown")}>Export Markdown</button><button type="button" onClick={() => copyText(postMarkdown(build("draft_local")), setMessage)}>Copy Markdown</button><Link className="button-link" to="/commune">Back to Commune</Link></div>
     <p className="message">{message}</p>
   </section>;
@@ -1515,6 +1607,32 @@ function FoundationStatusPanel() {
   </>;
 }
 
+function codeWorkbenchPath(postType: CommunePostType) {
+  return postType === "troubleshooting" ? "/commune/troubleshooting-grove/review" : "/commune/coding-cornucopia/review";
+}
+
+function AttachedCodeSnippets({ snippets, authorUsername, signedIn, postType, onMessage }: { snippets: CommuneCodeSnippet[]; authorUsername?: string | null; signedIn: boolean; postType: CommunePostType; onMessage: (message: string) => void }) {
+  if (!snippets.length) return null;
+  const isTroubleshooting = postType === "troubleshooting";
+  const workbenchPath = codeWorkbenchPath(postType);
+  return <div className="commune-code-section">
+    <p className="eyebrow">{isTroubleshooting ? "Code attached for troubleshooting" : "Code attached to this post"}</p>
+    <p className="commune-media-attribution">{isTroubleshooting ? "Reproduction snippet" : "Coding Cornucopia snippet"} attached by {authorLink(authorUsername)}.</p>
+    <p className="boundary-note">{isTroubleshooting ? "Troubleshooting code should be a minimal redacted reproduction. Proposed fixes do not overwrite this public snapshot unless the original post author accepts them." : "Code is inert public text. Proposed revisions do not overwrite this public snapshot unless the original post author accepts them."} Sandbox runs require explicit governed snapshots and do not create trust, approval, or Marketplace readiness.</p>
+    <div className="commune-code-list">
+      {snippets.map((snippet) => <article className="commune-code-preview" key={snippet.id}>
+        <div className="addon-card__topline"><strong>{inertCodeSnippetLabel(snippet.language ?? "")}</strong><span>{snippet.file_name ?? "snippet"} · current accepted snapshot v{snippet.accepted_version_number ?? 1}</span></div>
+        {snippet.accepted_revision_summary && <p className="boundary-note">Accepted revision: {snippet.accepted_revision_summary}</p>}
+        <CodeWorkspaceEditor value={snippet.code_text} language={snippet.language} readOnly minHeight="260px" />
+        <DiagnosticsList diagnostics={runStaticCodingDiagnostics({ language: snippet.language, fileName: snippet.file_name, code: snippet.code_text })} />
+        <div className="button-row"><button type="button" onClick={() => copyText(snippet.code_text, onMessage)}>Copy snippet</button><Link className="button-link" to={`${workbenchPath}?post=${snippet.post_id}&snippet=${snippet.id}`}>{isTroubleshooting ? "Open troubleshooting workbench" : "Open Coding Workbench"}</Link>{signedIn && <Link className="button-link" to={`${workbenchPath}?post=${snippet.post_id}&snippet=${snippet.id}&mode=propose`}>{isTroubleshooting ? "Propose fix" : "Propose edit"}</Link>}<Link className="button-link" to={`${workbenchPath}?post=${snippet.post_id}&snippet=${snippet.id}&mode=proposals`}>{isTroubleshooting ? "View proposed fixes" : "View proposals"}</Link></div>
+        <CodingSandboxRunPanel snapshotId={snippet.accepted_revision_id ?? snippet.id} sourceType="commune_post_snippet" sourceId={snippet.id} postId={snippet.post_id} language={snippet.language ?? "text"} fileName={snippet.file_name} code={snippet.code_text} signedIn={signedIn} runLabel="Run in sandbox" />
+        <p className="boundary-note">Code is shown for discussion only. The website did not execute this snippet. {isTroubleshooting ? "Accepted fixes" : "Accepted revisions"} preserve version history and proposer attribution; rejected proposals leave this public code unchanged.</p>
+      </article>)}
+    </div>
+  </div>;
+}
+
 function PostDetail({ postId }: { postId: string }) {
   const { state, refresh } = useCommuneLoad(undefined, postId);
   const [snippets, setSnippets] = useState<CommuneCodeSnippet[]>([]);
@@ -1614,9 +1732,8 @@ function PostDetail({ postId }: { postId: string }) {
   if (!post) return <section className="section-card"><h2>Post not found</h2><p>This post is not public, does not exist, or is still awaiting moderation.</p><p className="boundary-note">Account-backed posts may also be unavailable while Commune backend tables are being prepared.</p><Link className="button-link" to="/commune">Back to Commune</Link></section>;
   const parsedBody = splitPostSections(post.body);
   return <>
-    <section className="section-card commune-post-detail"><p className="eyebrow">{post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>By {authorLink(post.author_username)}</p><StatusBadges labels={[post.status, post.visibility]} />{parsedBody.intro && <p className="commune-post-body">{parsedBody.intro}</p>}{parsedBody.sections.length > 0 && <div className="commune-room-native-details"><p className="eyebrow">Room-native details</p><div className="commune-room-native-grid">{parsedBody.sections.map((section) => <article className="commune-room-native-field" key={section.heading}><h3>{section.heading}</h3><p>{section.body}</p></article>)}</div></div>}{post.post_type === "repository_showcase" && <WarningCallout title="Repository showcase boundary"><p>This showcased repository is a public reference for discussion, not an approved add-on. The website did not fetch, clone, run, install, auto-train on, or validate this repository.</p></WarningCallout>}{post.post_type === "official_update" && <p className="boundary-note">Official Updates are administrator-authored notices. Community users cannot self-assign release, security, roadmap, or governance authority.</p>}<TagChips tags={post.tags} />{attachments.length > 0 && <div className="commune-media-section"><p className="eyebrow">Attached media</p><p className="commune-media-attribution">Attached to this post by {authorLink(post.author_username)}.</p><p className="boundary-note">Published attachments are read-only and remain governed by Commune moderation and safety policies.</p><div className="commune-media-grid">{attachments.map((item) => <article className="commune-media-card" key={item.id}>{item.media_kind === "image" && item.signed_url ? <button className="commune-media-image-button" type="button" onClick={() => setActiveMedia(item)}><img src={item.signed_url} alt={`Attached media: ${item.file_name}`} loading="lazy" /></button> : <div className="commune-media-unavailable"><strong>{item.file_name}</strong><p>{item.signed_url ? "This attachment can be opened from its signed public review URL." : "Attachment unavailable or still under review."}</p></div>}<div className="commune-media-meta"><strong>{item.file_name}</strong><span>{item.mime_type ?? item.media_kind}{item.file_size ? ` · ${item.file_size} bytes` : ""}</span></div></article>)}</div></div>}<ReactionBar targetType="post" targetId={post.id} signedIn={state.signedIn} onMessage={setMessage} /><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div><AdminContentControls targetType="post" targetId={post.id} isModerator={state.isModerator} onChanged={refresh} onMessage={setMessage} /></section>
+    <section className="section-card commune-post-detail"><p className="eyebrow">{post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>By {authorLink(post.author_username)}</p><StatusBadges labels={[post.status, post.visibility]} />{parsedBody.intro && <p className="commune-post-body">{parsedBody.intro}</p>}{parsedBody.sections.length > 0 && <div className="commune-room-native-details"><p className="eyebrow">Room-native details</p><div className="commune-room-native-grid">{parsedBody.sections.map((section) => <article className="commune-room-native-field" key={section.heading}><h3>{section.heading}</h3><p>{section.body}</p></article>)}</div></div>}{post.post_type === "repository_showcase" && <WarningCallout title="Repository showcase boundary"><p>This showcased repository is a public reference for discussion, not an approved add-on. The website did not fetch, clone, run, install, auto-train on, or validate this repository.</p></WarningCallout>}{post.post_type === "official_update" && <p className="boundary-note">Official Updates are administrator-authored notices. Community users cannot self-assign release, security, roadmap, or governance authority.</p>}<TagChips tags={post.tags} />{attachments.length > 0 && <div className="commune-media-section"><p className="eyebrow">Attached media</p><p className="commune-media-attribution">Attached to this post by {authorLink(post.author_username)}.</p><p className="boundary-note">Published attachments are read-only and remain governed by Commune moderation and safety policies.</p><div className="commune-media-grid">{attachments.map((item) => <article className="commune-media-card" key={item.id}>{item.media_kind === "image" && item.signed_url ? <button className="commune-media-image-button" type="button" onClick={() => setActiveMedia(item)}><img src={item.signed_url} alt={`Attached media: ${item.file_name}`} loading="lazy" /></button> : <div className="commune-media-unavailable"><strong>{item.file_name}</strong><p>{item.signed_url ? "This attachment can be opened from its signed public review URL." : "Attachment unavailable or still under review."}</p></div>}<div className="commune-media-meta"><strong>{item.file_name}</strong><span>{item.mime_type ?? item.media_kind}{item.file_size ? ` · ${item.file_size} bytes` : ""}</span></div></article>)}</div></div>}<AttachedCodeSnippets snippets={snippets} authorUsername={post.author_username} postType={post.post_type} signedIn={state.signedIn} onMessage={setMessage} /><ReactionBar targetType="post" targetId={post.id} signedIn={state.signedIn} onMessage={setMessage} /><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div><AdminContentControls targetType="post" targetId={post.id} isModerator={state.isModerator} onChanged={refresh} onMessage={setMessage} /></section>
     {activeMedia?.signed_url && <div className="commune-media-lightbox" role="dialog" aria-modal="true" aria-label={`Attachment preview: ${activeMedia.file_name}`} onClick={() => setActiveMedia(null)}><div className="commune-media-lightbox-panel" onClick={(event) => event.stopPropagation()}><button className="commune-media-lightbox-close" type="button" onClick={() => setActiveMedia(null)}>Close</button><img src={activeMedia.signed_url} alt={`Attached media: ${activeMedia.file_name}`} /></div></div>}
-    {snippets.length > 0 && <section className="section-card"><p className="eyebrow">Coding Cornucopia snippets</p><h2>Inert public code display</h2>{snippets.map((snippet) => <article className="commune-code-preview" key={snippet.id}><div className="addon-card__topline"><strong>{inertCodeSnippetLabel(snippet.language ?? "")}</strong><span>{snippet.file_name ?? "snippet"}</span></div><CodeWorkspaceEditor value={snippet.code_text} language={snippet.language} readOnly minHeight="260px" /><DiagnosticsList diagnostics={runStaticCodingDiagnostics({ language: snippet.language, fileName: snippet.file_name, code: snippet.code_text })} /><div className="button-row"><button type="button" onClick={() => copyText(snippet.code_text, setMessage)}>Copy snippet</button><Link className="button-link" to="/commune/coding-cornucopia/review">Open Coding Workbench</Link></div><p className="boundary-note">Code is shown for discussion only. The website did not execute this snippet. Sandbox runs require explicit governed snapshots and do not create trust or Marketplace approval.</p></article>)}</section>}
     <section className="section-card"><p className="eyebrow">Comments</p><h2>Comments and replies</h2><p className="boundary-note">{state.isAdmin ? "Admin comments publish directly and remain auditable." : "First participation in a post/thread is reviewed. After approval in that thread, later comments and replies can publish directly while remaining reportable and removable."}</p>{!thread && <p className="boundary-note">This published post is missing its discussion thread. Submitting a comment will try to repair the thread with normal account permissions before saving.</p>}{topLevelComments.map((item) => renderComment(item))}{!topLevelComments.length && <p>Moderated comments will appear here once the backend tables are active and replies are approved.</p>}<label><span>Comment on this post</span><textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><div className="button-row"><button type="button" disabled={commentSubmitting} onClick={() => void submitThreadComment()}>{commentSubmitting ? "Submitting comment..." : "Submit comment"}</button></div><p className="message">{commentStatus}</p></section>
     <section className="section-card"><p className="eyebrow">Report</p><h2>Report this post</h2><p>Reports are reviewed by moderators/administrators. Reporting does not automatically remove content unless urgent automated controls are later added. Ratings do not replace reports or moderation.</p><label><span>Report type</span><select value={report.type} onChange={(event) => setReport({ ...report, type: event.target.value })}>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span>Reason</span><textarea rows={3} value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value })} /></label><button type="button" onClick={() => void reportPost()}>Send report</button><p className="message">{message}</p></section>
   </>;
@@ -1645,7 +1762,182 @@ function ModerationPanel() {
   return <section className="section-card"><p className="eyebrow">Role-gated moderation</p><h2>Commune moderation queue</h2><p className="boundary-note">Normal users cannot access RLS-protected pending posts, comments, uploads, reports, or moderation events.</p><label><span>Moderation note</span><input value={reason} onChange={(event) => setReason(event.target.value)} /></label><div className="commune-draft-grid">{items.map((item) => <article key={`${item.kind}-${item.id}`}><h3>{item.title}</h3><StatusBadges labels={[item.kind, item.status]} /><p>{item.summary}</p><div className="button-row"><button onClick={() => void act(item, "approve")}>Approve/publish</button><button onClick={() => void act(item, "needs_information")}>Needs info</button><button onClick={() => void act(item, "reject")}>Reject/remove</button><button onClick={() => void act(item, "hide")}>Hide</button><button onClick={() => void act(item, "archive")}>Archive</button><button onClick={() => void act(item, "escalate")}>Escalate</button>{(item.kind === "post" || item.kind === "comment") && <><button type="button" onClick={() => void contentAct(item, "flag")}>Flag for removal</button><button type="button" onClick={() => setDeleteTarget(item)}>Delete</button></>}</div>{deleteTarget?.id === item.id && deleteTarget.kind === item.kind && <div className="commune-delete-confirm"><h3>Delete/remove this Commune content?</h3><p>This removes the item from public views and leaves admin-only History evidence.</p><div className="button-row"><button type="button" onClick={() => void contentAct(item, "delete")}>Yes, delete/remove</button><button type="button" onClick={() => setDeleteTarget(null)}>No, keep it</button></div></div>}</article>)}</div>{!items.length && <p>Moderation items will appear here for authorized roles when account-backed Commune tables are active.</p>}<p className="message">{message}</p></section>;
 }
 
+function proposalStatusLabel(status: string) {
+  return status.replace(/_/g, " ");
+}
+
+function CodeRevisionProposalWorkspace({ account, onMessage }: { account: { signedIn: boolean; userId: string | null; isModerator: boolean }; onMessage: (message: string) => void }) {
+  const location = useLocation();
+  const isTroubleshootingWorkbench = /\/commune\/troubleshooting-grove\/review$/.test(location.pathname);
+  const proposalNoun = isTroubleshootingWorkbench ? "fix" : "revision";
+  const proposalPlural = isTroubleshootingWorkbench ? "proposed fixes" : "revision proposals";
+  const params = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const queryPostId = params.get("post");
+  const querySnippetId = params.get("snippet");
+  const queryProposalId = params.get("proposal");
+  const [snippets, setSnippets] = useState<CommuneCodeSnippet[]>([]);
+  const [selectedSnippetId, setSelectedSnippetId] = useState<string | null>(querySnippetId);
+  const [proposals, setProposals] = useState<CodeRevisionProposal[]>([]);
+  const [selectedProposalId, setSelectedProposalId] = useState<string | null>(queryProposalId);
+  const [proposalForm, setProposalForm] = useState({ sourceSnippetId: "", codeText: "", language: "text", fileName: "snippet.txt", changeSummary: "", explanation: "" });
+  const [decisionNote, setDecisionNote] = useState("");
+  const [proposalMessage, setProposalMessage] = useState(isTroubleshootingWorkbench ? "Troubleshooting workbench loads from a public reproduction snippet. Public code stays stable until the original post author accepts a proposed fix." : "Proposal workspace loads from a public Coding Cornucopia post snippet. Public code stays stable until the original post author accepts a revision.");
+  const activeSnippet = snippets.find((snippet) => snippet.id === selectedSnippetId) ?? snippets[0] ?? null;
+  const selectedProposal = selectedProposalId ? proposals.find((proposal) => proposal.id === selectedProposalId) ?? null : proposals[0] ?? null;
+  const proposalDiagnostics = runStaticCodingDiagnostics({ language: proposalForm.language, fileName: proposalForm.fileName, code: proposalForm.codeText });
+  const draftDiff = activeSnippet ? buildPatchOrDiffPreview(activeSnippet.code_text, proposalForm.codeText) : null;
+  const selectedDiff = selectedProposal ? buildPatchOrDiffPreview(selectedProposal.base_code_text, selectedProposal.proposed_code_text) : null;
+  const canDecide = Boolean(selectedProposal && account.userId && selectedProposal.original_author_user_id === account.userId && ["submitted", "needs_changes"].includes(selectedProposal.proposal_status));
+  const canWithdraw = Boolean(selectedProposal && account.userId && selectedProposal.proposer_user_id === account.userId && ["draft", "submitted", "needs_changes"].includes(selectedProposal.proposal_status));
+  const hasProposalContext = Boolean(queryPostId || queryProposalId);
+
+  const refreshProposals = useCallback(async () => {
+    if (!queryPostId && !queryProposalId) return;
+    if (queryProposalId) {
+      const proposalResult = await listCodeRevisionProposals({ proposalId: queryProposalId });
+      logCommuneDiagnostics("code-revision-proposal", proposalResult.warnings);
+      setProposals(proposalResult.proposals);
+      const proposal = proposalResult.proposals[0];
+      if (proposal) {
+        const snippetResult = await loadCodeSnippets(proposal.post_id);
+        logCommuneDiagnostics("code-revision-proposal-snippet", snippetResult.warnings);
+        setSnippets(snippetResult.snippets);
+        setSelectedSnippetId(proposal.code_snippet_id);
+        setSelectedProposalId(proposal.id);
+      } else if (proposalResult.warnings.length) {
+        setProposalMessage(isTroubleshootingWorkbench ? "Troubleshooting proposed-fix records are not active yet or this proposal is private to its participants." : "Coding Cornucopia proposal records are not active yet or this proposal is private to its participants.");
+      }
+      return;
+    }
+    if (!queryPostId) return;
+    const [snippetResult, proposalResult] = await Promise.all([
+      loadCodeSnippets(queryPostId),
+      listCodeRevisionProposals({ postId: queryPostId, codeSnippetId: querySnippetId ?? undefined })
+    ]);
+    logCommuneDiagnostics("code-revision-proposals", [...snippetResult.warnings, ...proposalResult.warnings]);
+    setSnippets(snippetResult.snippets);
+    setProposals(proposalResult.proposals);
+    setSelectedSnippetId((current) => current && snippetResult.snippets.some((snippet) => snippet.id === current) ? current : querySnippetId ?? snippetResult.snippets[0]?.id ?? null);
+    setSelectedProposalId((current) => current && proposalResult.proposals.some((proposal) => proposal.id === current) ? current : proposalResult.proposals[0]?.id ?? null);
+    if (proposalResult.warnings.length) setProposalMessage("Author-controlled proposal records are not active until the latest Coding Cornucopia migration is applied.");
+  }, [queryPostId, queryProposalId, querySnippetId]);
+
+  useEffect(() => { void refreshProposals(); }, [refreshProposals]);
+  useEffect(() => {
+    if (!activeSnippet || proposalForm.sourceSnippetId === activeSnippet.id) return;
+    setProposalForm({
+      sourceSnippetId: activeSnippet.id,
+      codeText: activeSnippet.code_text,
+      language: activeSnippet.language ?? "text",
+      fileName: activeSnippet.file_name ?? "snippet.txt",
+      changeSummary: "",
+      explanation: ""
+    });
+  }, [activeSnippet?.id, activeSnippet?.code_text, activeSnippet?.language, activeSnippet?.file_name, proposalForm.sourceSnippetId]);
+
+  async function submitProposal() {
+    if (!activeSnippet) return setProposalMessage(isTroubleshootingWorkbench ? "Choose an attached reproduction snippet before proposing a fix." : "Choose an attached code snippet before proposing a revision.");
+    const result = await submitCodeRevisionProposal({
+      postId: activeSnippet.post_id,
+      codeSnippetId: activeSnippet.id,
+      proposedCodeText: proposalForm.codeText,
+      language: proposalForm.language,
+      fileName: proposalForm.fileName,
+      changeSummary: proposalForm.changeSummary,
+      explanation: proposalForm.explanation
+    });
+    setProposalMessage(cleanCommuneMessage(result.message, "Coding Cornucopia proposal storage is not active yet."));
+    onMessage(result.message);
+    if (result.ok) {
+      setSelectedProposalId(result.proposalId ?? null);
+      setProposalForm((current) => ({ ...current, changeSummary: "", explanation: "" }));
+      await refreshProposals();
+    }
+  }
+
+  async function decideProposal(decision: "accepted" | "rejected" | "needs_changes" | "hidden_by_moderation") {
+    if (!selectedProposal) return;
+    const result = await decideCodeRevisionProposal(selectedProposal.id, decision, decisionNote);
+    setProposalMessage(cleanCommuneMessage(result.message, "Coding Cornucopia proposal decision storage is not active yet."));
+    onMessage(result.message);
+    if (result.ok) {
+      setDecisionNote("");
+      await refreshProposals();
+    }
+  }
+
+  async function withdrawProposal() {
+    if (!selectedProposal) return;
+    const result = await withdrawCodeRevisionProposal(selectedProposal.id);
+    setProposalMessage(cleanCommuneMessage(result.message, "Coding Cornucopia proposal withdrawal is not active yet."));
+    onMessage(result.message);
+    if (result.ok) await refreshProposals();
+  }
+
+  if (!hasProposalContext) return null;
+
+  return <section className="commune-proposal-workspace">
+    <div className="section-heading section-heading--inline">
+      <div>
+        <p className="eyebrow">{isTroubleshootingWorkbench ? "Troubleshooting workbench" : "Author-controlled revisions"}</p>
+        <h3>{isTroubleshootingWorkbench ? "Propose fixes without overwriting the public reproduction" : "Propose changes without overwriting public code"}</h3>
+        <p>Community members can submit proposed {proposalPlural}. The original post author accepts, rejects, or asks for changes; moderators enforce safety without silently taking authorship control.</p>
+      </div>
+      <button type="button" onClick={() => void refreshProposals()}>Refresh proposals</button>
+    </div>
+    <StatusBadges labels={["stable public snapshot", "proposals only", "author approval", "version history", "sandbox success is not trust"]} />
+    <p className="boundary-note">Rejected proposals preserve the original public code. Accepted proposals update the attached snippet and keep proposal attribution/history. Live session edits do not auto-publish.</p>
+    {!account.signedIn && <p className="message">Sign in to propose revisions, withdraw your proposal, or decide proposals on your own posts.</p>}
+    {!snippets.length && <p className="commune-empty-state">No public code snippet is available for this proposal context yet.</p>}
+    {snippets.length > 1 && <label><span>Attached snippet</span><select value={activeSnippet?.id ?? ""} onChange={(event) => setSelectedSnippetId(event.target.value)}>{snippets.map((snippet) => <option key={snippet.id} value={snippet.id}>{snippet.file_name ?? "snippet"} · v{snippet.accepted_version_number ?? 1}</option>)}</select></label>}
+    {activeSnippet && <div className="commune-proposal-grid">
+      <article className="commune-code-preview">
+        <div className="addon-card__topline"><strong>Current accepted snapshot v{activeSnippet.accepted_version_number ?? 1}</strong><span>{activeSnippet.file_name ?? "snippet"}</span></div>
+        <CodeWorkspaceEditor value={activeSnippet.code_text} language={activeSnippet.language} readOnly minHeight="280px" />
+        <CodingSandboxRunPanel snapshotId={activeSnippet.accepted_revision_id ?? activeSnippet.id} sourceType="commune_post_snippet" sourceId={activeSnippet.id} postId={activeSnippet.post_id} language={activeSnippet.language ?? "text"} fileName={activeSnippet.file_name} code={activeSnippet.code_text} signedIn={account.signedIn} runLabel="Run current accepted snapshot in sandbox" />
+        <p className="boundary-note">This is the public code right now. Proposal drafts below do not change it.</p>
+      </article>
+      <article className="commune-code-preview">
+        <div className="addon-card__topline"><strong>{isTroubleshootingWorkbench ? "Proposed fix draft" : "Proposed revision draft"}</strong><span>{proposalForm.fileName || "snippet"}</span></div>
+        <div className="commune-form-grid"><label><span>Language</span><select value={normalizeCodingLanguage(proposalForm.language)} onChange={(event) => setProposalForm({ ...proposalForm, language: event.target.value })}>{codingLanguageOptions().map((language) => <option key={language.value} value={language.value}>{language.label}</option>)}</select></label><label><span>Filename</span><input value={proposalForm.fileName} onChange={(event) => setProposalForm({ ...proposalForm, fileName: event.target.value })} /></label><label className="wide-field"><span>Change summary</span><input value={proposalForm.changeSummary} onChange={(event) => setProposalForm({ ...proposalForm, changeSummary: event.target.value })} placeholder="What changed and why?" /></label><label className="wide-field"><span>Optional explanation</span><textarea rows={3} value={proposalForm.explanation} onChange={(event) => setProposalForm({ ...proposalForm, explanation: event.target.value })} /></label></div>
+        <CodeWorkspaceEditor value={proposalForm.codeText} language={proposalForm.language} onChange={(value) => setProposalForm({ ...proposalForm, codeText: value })} minHeight="320px" />
+        {draftDiff && <StatusBadges labels={[draftDiff.changed ? "changed" : "unchanged", `${draftDiff.oldLineCount} -> ${draftDiff.newLineCount} lines`, `${draftDiff.sizeDelta >= 0 ? "+" : ""}${draftDiff.sizeDelta} chars`]} />}
+        <DiagnosticsList diagnostics={proposalDiagnostics} />
+        <CodingSandboxRunPanel snapshotId={proposalDraftSnapshotId(activeSnippet.id, proposalForm)} sourceType="commune_post_snippet" sourceId={activeSnippet.id} postId={activeSnippet.post_id} language={proposalForm.language} fileName={proposalForm.fileName} code={proposalForm.codeText} signedIn={account.signedIn} runLabel={isTroubleshootingWorkbench ? "Run proposed fix in sandbox" : "Run proposed revision in sandbox"} />
+        <div className="button-row"><button className="button-primary" type="button" disabled={!account.signedIn || !draftDiff?.changed} onClick={() => void submitProposal()}>{isTroubleshootingWorkbench ? "Submit proposed fix" : "Submit proposed revision"}</button><button type="button" onClick={() => setProposalForm({ sourceSnippetId: activeSnippet.id, codeText: activeSnippet.code_text, language: activeSnippet.language ?? "text", fileName: activeSnippet.file_name ?? "snippet.txt", changeSummary: "", explanation: "" })}>Reset to current snapshot</button></div>
+        <p className="boundary-note">Run the proposed {proposalNoun} before submitting if you want sandbox evidence. Running does not submit the proposal, update public code, install anything, or mark this code safe.</p>
+        <p className="boundary-note">Submitting sends a private signal to the original poster. It does not publish, install, execute, or mark this code safe.</p>
+      </article>
+    </div>}
+    <div className="commune-proposal-grid">
+      <article>
+        <h3>{isTroubleshootingWorkbench ? "Proposed fixes" : "Revision proposals"}</h3>
+        {!proposals.length && <p className="commune-empty-state">No proposals are visible for this snippet yet.</p>}
+        {proposals.map((proposal) => <button type="button" className={selectedProposal?.id === proposal.id ? "commune-room-button commune-room-button--active" : "commune-room-button"} key={proposal.id} onClick={() => setSelectedProposalId(proposal.id)}><strong>{proposal.change_summary}</strong><span>{proposalStatusLabel(proposal.proposal_status)} · {proposal.submitted_at ? new Date(proposal.submitted_at).toLocaleString() : "submitted"}</span></button>)}
+      </article>
+      {selectedProposal && <article className="commune-proposal-detail">
+        <div className="addon-card__topline"><strong>{selectedProposal.change_summary}</strong><span>{proposalStatusLabel(selectedProposal.proposal_status)}</span></div>
+        <p>{selectedProposal.explanation || "No proposer explanation supplied."}</p>
+        {selectedDiff && <StatusBadges labels={[selectedDiff.changed ? "changed" : "unchanged", `${selectedDiff.oldLineCount} -> ${selectedDiff.newLineCount} lines`, `${selectedDiff.sizeDelta >= 0 ? "+" : ""}${selectedDiff.sizeDelta} chars`, selectedProposal.base_snapshot_label ?? "base snapshot"]} />}
+        <div className="commune-proposal-compare">
+          <article><h4>Original/current base</h4><CodeWorkspaceEditor value={selectedProposal.base_code_text} language={selectedProposal.language} readOnly minHeight="260px" /></article>
+          <article><h4>Proposed code</h4><CodeWorkspaceEditor value={selectedProposal.proposed_code_text} language={selectedProposal.language} readOnly minHeight="260px" /></article>
+        </div>
+        <DiagnosticsList diagnostics={runStaticCodingDiagnostics({ language: selectedProposal.language, fileName: selectedProposal.file_name, code: selectedProposal.proposed_code_text })} />
+        <CodingSandboxRunPanel snapshotId={`proposal-${selectedProposal.id}`} sourceType="commune_post_snippet" sourceId={selectedProposal.code_snippet_id} postId={selectedProposal.post_id} language={selectedProposal.language ?? "text"} fileName={selectedProposal.file_name} code={selectedProposal.proposed_code_text} signedIn={account.signedIn} runLabel="Run proposed revision in sandbox" />
+        <label><span>Decision note</span><input value={decisionNote} onChange={(event) => setDecisionNote(event.target.value)} placeholder="Optional note for proposer/history" /></label>
+        <div className="button-row">{canDecide && <><button className="button-primary" type="button" onClick={() => void decideProposal("accepted")}>{isTroubleshootingWorkbench ? "Accept fix" : "Accept revision"}</button><button type="button" onClick={() => void decideProposal("needs_changes")}>Ask for changes</button><button type="button" onClick={() => void decideProposal("rejected")}>{isTroubleshootingWorkbench ? "Reject fix" : "Reject revision"}</button></>}{canWithdraw && <button type="button" onClick={() => void withdrawProposal()}>Withdraw my proposal</button>}{account.isModerator && ["submitted", "needs_changes"].includes(selectedProposal.proposal_status) && <button type="button" onClick={() => void decideProposal("hidden_by_moderation")}>Hide unsafe proposal</button>}</div>
+        <p className="boundary-note">Author approval is separate from moderator safety enforcement. Sandbox success is evidence, not trust, Marketplace readiness, or approval.</p>
+      </article>}
+    </div>
+    <p className="message">{proposalMessage}</p>
+  </section>;
+}
+
 function CollaborativeCodeReviewPanel() {
+  const location = useLocation();
+  const workbenchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const proposalContextActive = Boolean(workbenchParams.get("post") || workbenchParams.get("proposal"));
   const [published, setPublished] = useState<CodeDocument[]>([]);
   const [mine, setMine] = useState<CodeDocument[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -1665,13 +1957,19 @@ function CollaborativeCodeReviewPanel() {
   const canEditSelected = account.signedIn && (!selected || selected.owner_user_id === account.userId || account.isModerator);
 
   const refreshDocuments = useCallback(async () => {
+    if (proposalContextActive) {
+      const accountState = await loadCodeReviewAccount();
+      logCommuneDiagnostics("code-review-account", accountState.warnings);
+      setAccount({ signedIn: accountState.signedIn, userId: accountState.userId, isModerator: accountState.isModerator });
+      return;
+    }
     const [publicDocs, myDocs, accountState] = await Promise.all([listPublishedCodeDocuments(), listMyCodeDocuments(), loadCodeReviewAccount()]);
     logCommuneDiagnostics("code-review", [...publicDocs.warnings, ...myDocs.warnings, ...accountState.warnings]);
     setPublished(publicDocs.documents);
     setMine(myDocs.documents);
     setAccount({ signedIn: accountState.signedIn, userId: accountState.userId, isModerator: accountState.isModerator });
     if (publicDocs.warnings.length || myDocs.warnings.length) setMessage("Collaborative code review tables are not active yet. You can still use local code snippets, post drafts, and sandbox request drafts.");
-  }, []);
+  }, [proposalContextActive]);
 
   const refreshSelected = useCallback(async (documentId: string) => {
     const [versionResult, annotationResult, sessionResult] = await Promise.all([listDocumentVersions(documentId), listAnnotations(documentId), import("./communeCodeReviewApi").then((api) => api.getCodeSession(documentId))]);
@@ -1769,10 +2067,16 @@ function CollaborativeCodeReviewPanel() {
   const currentDiagnostics = runStaticCodingDiagnostics({ language: form.language, fileName: form.fileName, code: form.text });
 
   return <section className="section-card commune-code-review-card" id="commune-code-review">
-    <div className="section-heading section-heading--inline"><div><p className="eyebrow">Coding Cornucopia Workbench</p><h2>Shared code documents, snapshots, diagnostics, and governed sandbox runs</h2><p>Code here is text for discussion and review. Real execution is allowed only from explicit snapshots through the configured isolated sandbox service.</p></div><button type="button" onClick={() => void refreshDocuments()}>Refresh</button></div>
+    <div className="section-heading section-heading--inline"><div><p className="eyebrow">Coding Cornucopia Workbench</p><h2>{proposalContextActive ? "Proposal revision workbench" : "Shared code documents, snapshots, diagnostics, and governed sandbox runs"}</h2><p>{proposalContextActive ? "Current accepted snapshot, proposed revision draft, sandbox diagnostics, and submission stay together here. The general document workbench is separate." : "Code here is text for discussion and review. Real execution is allowed only from explicit snapshots through the configured isolated sandbox service."}</p></div>{proposalContextActive ? <Link className="button-link" to="/commune/coding-cornucopia/review">Open general document workbench</Link> : <button type="button" onClick={() => void refreshDocuments()}>Refresh</button>}</div>
     <StatusBadges labels={["CodeMirror editor", "manual snapshots", "line annotations", "simple edit lock", "static diagnostics", "snapshot sandbox runs", "no terminal"]} />
     <p className="boundary-note">Do not paste credentials, private local Elysia logs, private files, vault data, tokens, or secrets. Coding Cornucopia documents are cloud-hosted community data. Successful sandbox output is evidence, not approval or trust.</p>
-    <div className="commune-code-review-layout">
+    <CodeRevisionProposalWorkspace account={account} onMessage={setMessage} />
+    {proposalContextActive ? <section className="commune-proposal-route-note">
+      <p className="eyebrow">Separate workspace hidden</p>
+      <h3>General documents are not shown on proposal routes</h3>
+      <p>The active flow is: current accepted snapshot, proposed revision draft, run proposed revision, then submit proposal. Opening the general document workbench will not submit or overwrite this proposal.</p>
+      <Link className="button-link" to="/commune/coding-cornucopia/review">Open general Coding Cornucopia documents</Link>
+    </section> : <div className="commune-code-review-layout">
       <aside className="commune-code-doc-list"><h3>Documents</h3>{!documents.length && <p className="commune-empty-state">No code review documents yet.</p>}{documents.map((document) => <button type="button" className={selected?.id === document.id ? "commune-room-button commune-room-button--active" : "commune-room-button"} key={document.id} onClick={() => setSelectedId(document.id)}><strong>{document.title}</strong><span>{document.language} · {document.visibility_state} · {new Date(document.updated_at).toLocaleDateString()}</span></button>)}<button type="button" onClick={() => { setSelectedId(null); setForm({ title: "", language: "text", fileName: "review.txt", summary: "", text: "" }); setVersions([]); setAnnotations([]); setSession(null); }}>New document</button></aside>
       <div className="commune-code-workbench">
         <div className="commune-form-grid"><label><span>Title</span><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label><label><span>Language</span><select value={normalizeCodingLanguage(form.language)} onChange={(event) => setForm({ ...form, language: event.target.value })}>{codingLanguageOptions().map((language) => <option key={language.value} value={language.value}>{language.label}</option>)}</select></label><label><span>Filename</span><input value={form.fileName} onChange={(event) => setForm({ ...form, fileName: event.target.value })} /></label><label><span>Summary</span><input value={form.summary} onChange={(event) => setForm({ ...form, summary: event.target.value })} /></label><label className="wide-field"><span>Code text</span><CodeWorkspaceEditor value={form.text} language={form.language} onChange={(value) => setForm({ ...form, text: value })} minHeight="420px" /></label></div>
@@ -1782,10 +2086,10 @@ function CollaborativeCodeReviewPanel() {
         <label><span>Snapshot summary</span><input value={snapshotSummary} onChange={(event) => setSnapshotSummary(event.target.value)} /></label>
         {account.isModerator && <div className="commune-moderator-controls"><label><span>Moderation reason</span><input value={moderationReason} onChange={(event) => setModerationReason(event.target.value)} /></label><button type="button" disabled={!selected} onClick={() => void publishOrModerate("publish")}>Publish</button><button type="button" disabled={!selected} onClick={() => void publishOrModerate("archive")}>Archive</button><button type="button" disabled={!selected} onClick={() => void publishOrModerate("hide")}>Hide</button><button type="button" disabled={!selected} onClick={() => void publishOrModerate("remove")}>Remove</button></div>}
         <section className="commune-code-preview"><div className="addon-card__topline"><strong>{getCodingLanguagePolicy(form.language).label}</strong><span>{form.fileName || "untitled"}</span></div><CodeWorkspaceEditor value={form.text} language={form.language} readOnly minHeight="280px" /><DiagnosticsList diagnostics={currentDiagnostics} /><div className="button-row"><button type="button" onClick={() => void copyText(form.text, setMessage)}>Copy code text</button><button type="button" onClick={() => downloadText(`${slug(form.title || "code-review")}.txt`, form.text, "text/plain")}>Export text</button><Link className="button-link" to="/commune/rooms/coding-cornucopia">Create Commune code post from this document</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request" onClick={prepareSandboxFromSelected}>Prepare sandbox review request</Link></div><p className="boundary-note">Static diagnostics are local text checks. Create a manual snapshot before asking the configured sandbox to execute anything.</p></section>
-        <section className="commune-info-grid"><article><h3>Manual snapshots</h3>{!versions.length && <p>No snapshots yet. Sandbox runs require a saved manual snapshot.</p>}{versions.map((version) => <details key={version.id}><summary>v{version.version_number}: {version.change_summary ?? "Snapshot"}</summary><p>{new Date(version.created_at).toLocaleString()}</p><CodeWorkspaceEditor value={version.snapshot_text} language={form.language} readOnly minHeight="220px" /><div className="button-row"><button type="button" onClick={() => void copyText(version.snapshot_text, setMessage)}>Copy snapshot</button></div><CodingSandboxRunPanel snapshotId={version.id} sourceType="commune_code_version" sourceId={selected?.id ?? null} language={form.language} fileName={form.fileName} code={version.snapshot_text} /></details>)}</article><article><h3>Line annotations</h3><div className="commune-form-grid"><label><span>Line start</span><input type="number" min="1" value={annotation.lineStart} onChange={(event) => setAnnotation({ ...annotation, lineStart: Number(event.target.value) })} /></label><label><span>Line end</span><input type="number" min="1" value={annotation.lineEnd} onChange={(event) => setAnnotation({ ...annotation, lineEnd: Number(event.target.value) })} /></label><label className="wide-field"><span>Comment</span><input value={annotation.comment} onChange={(event) => setAnnotation({ ...annotation, comment: event.target.value })} /></label></div><button type="button" disabled={!selected || !account.signedIn} onClick={() => void addAnnotation()}>Add annotation</button>{annotations.map((item) => <article className="review-list-item" key={item.id}><strong>Lines {item.line_start}-{item.line_end}</strong><StatusBadges labels={[item.annotation_status, item.visibility_state]} /><p>{item.comment}</p><div className="button-row"><button type="button" onClick={() => void annotationAction(item, "resolve")}>Resolve</button><button type="button" onClick={() => void annotationAction(item, "report")}>Report annotation</button>{account.isModerator && <><button type="button" onClick={() => void annotationAction(item, "hide")}>Hide</button><button type="button" onClick={() => void annotationAction(item, "remove")}>Remove</button></>}</div></article>)}</article></section>
+        <section className="commune-info-grid"><article><h3>Manual snapshots</h3>{!versions.length && <p>No snapshots yet. Sandbox runs require a saved manual snapshot.</p>}{versions.map((version) => <details key={version.id}><summary>v{version.version_number}: {version.change_summary ?? "Snapshot"}</summary><p>{new Date(version.created_at).toLocaleString()}</p><CodeWorkspaceEditor value={version.snapshot_text} language={form.language} readOnly minHeight="220px" /><div className="button-row"><button type="button" onClick={() => void copyText(version.snapshot_text, setMessage)}>Copy snapshot</button></div><CodingSandboxRunPanel snapshotId={version.id} sourceType="commune_code_version" sourceId={selected?.id ?? null} codeDocumentId={selected?.id ?? null} codeVersionId={version.id} language={form.language} fileName={form.fileName} code={version.snapshot_text} signedIn={account.signedIn} /></details>)}</article><article><h3>Line annotations</h3><div className="commune-form-grid"><label><span>Line start</span><input type="number" min="1" value={annotation.lineStart} onChange={(event) => setAnnotation({ ...annotation, lineStart: Number(event.target.value) })} /></label><label><span>Line end</span><input type="number" min="1" value={annotation.lineEnd} onChange={(event) => setAnnotation({ ...annotation, lineEnd: Number(event.target.value) })} /></label><label className="wide-field"><span>Comment</span><input value={annotation.comment} onChange={(event) => setAnnotation({ ...annotation, comment: event.target.value })} /></label></div><button type="button" disabled={!selected || !account.signedIn} onClick={() => void addAnnotation()}>Add annotation</button>{annotations.map((item) => <article className="review-list-item" key={item.id}><strong>Lines {item.line_start}-{item.line_end}</strong><StatusBadges labels={[item.annotation_status, item.visibility_state]} /><p>{item.comment}</p><div className="button-row"><button type="button" onClick={() => void annotationAction(item, "resolve")}>Resolve</button><button type="button" onClick={() => void annotationAction(item, "report")}>Report annotation</button>{account.isModerator && <><button type="button" onClick={() => void annotationAction(item, "hide")}>Hide</button><button type="button" onClick={() => void annotationAction(item, "remove")}>Remove</button></>}</div></article>)}</article></section>
         <section className="commune-report-panel"><h3>Report document</h3><p>Reports are private to moderators/admins. Reporting does not automatically remove content.</p><label><span>Reason</span><select value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value as typeof codeReviewReportReasons[number] })}>{codeReviewReportReasons.map((reason) => <option key={reason} value={reason}>{reason.replace(/_/g, " ")}</option>)}</select></label><label><span>Detail</span><input value={report.detail} onChange={(event) => setReport({ ...report, detail: event.target.value })} /></label><button type="button" disabled={!selected || !account.signedIn} onClick={() => void reportDocument()}>Report code document</button></section>
       </div>
-    </div>
+    </div>}
     <p className="message">{message}</p>
     {!account.signedIn && <p className="boundary-note">Sign in to create documents, save snapshots, annotate lines, or report code review content.</p>}
   </section>;
@@ -1938,7 +2242,7 @@ export default function CommunePage() {
   }
 
   const isRoomNew = Boolean(effectiveRoomSlug) && mode === "new";
-  const routeMode = /\/commune\/(coding-cornucopia|code-sharing)\/review$/.test(location.pathname) ? "code-review" : /\/commune\/(coding-cornucopia|code-sharing)\/sandbox-request$/.test(location.pathname) ? "sandbox-review" : !isRoomNew && ["new", "repository-showcase", "troubleshooting", "sandbox-review", "moderation", "realtime"].includes(mode || "") ? mode : "";
+  const routeMode = /\/commune\/(coding-cornucopia|code-sharing|troubleshooting-grove)\/review$/.test(location.pathname) ? "code-review" : /\/commune\/(coding-cornucopia|code-sharing|troubleshooting-grove)\/sandbox-request$/.test(location.pathname) ? "sandbox-review" : !isRoomNew && ["new", "repository-showcase", "troubleshooting", "sandbox-review", "moderation", "realtime"].includes(mode || "") ? mode : "";
   const activeActionKind = mode === "troubleshooting" ? "troubleshooting" : mode === "repository-showcase" ? "repository" : routeMode === "sandbox-review" || mode === "sandbox-review" ? "sandbox" : mode === "moderation" ? "moderation" : "";
   const isLobby = !postId && !routeMode && !roomSlug;
   const isRoom = !postId && !routeMode && Boolean(effectiveRoomSlug);

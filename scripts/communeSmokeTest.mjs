@@ -29,6 +29,9 @@ const sandboxBuilder = await read("src/shared/sandbox/sandboxHandoffBuilder.ts")
 const languagePolicies = await read("src/pages/The-Elysia-Commune/codeLanguagePolicies.ts");
 const diagnosticTypes = await read("src/pages/The-Elysia-Commune/codeDiagnosticTypes.ts");
 const sandboxClient = await read("src/pages/The-Elysia-Commune/codingSandboxClient.ts");
+const commonsPage = await read("src/pages/The-Commons-Circle/index.tsx");
+const commonsApi = await read("src/pages/The-Commons-Circle/commonsCircleApi.ts");
+const signalConsolePage = await read("src/pages/The-Commons-Circle/SignalConsolePage.tsx");
 const sandboxRunner = await read("services/sandbox-runner/runner.mjs");
 const sandboxServer = await read("services/sandbox-runner/server.mjs");
 const sandboxBoundaryDoc = await read("docs/security/coding-cornucopia-sandbox-boundary.md");
@@ -42,12 +45,28 @@ const commentNotificationRepairMigration = await read("supabase/migrations/2026_
 const roomPostMediaPolicyRepairMigration = await read("supabase/migrations/2026_06_23_commune_room_post_admin_and_media_policy_repair.sql");
 const publishedMediaDisplayPolicyMigration = await read("supabase/migrations/2026_06_24_commune_published_media_display_policy.sql");
 const codingRunsMigration = await read("supabase/migrations/2026_06_24_coding_cornucopia_runs_and_diagnostics.sql");
+const codeProposalMigration = await read("supabase/migrations/2026_06_25_coding_cornucopia_author_revision_proposals.sql");
+const runResultRecordingMigration = await read("supabase/migrations/2026_06_25_coding_cornucopia_run_result_recording.sql");
 const communeCommentSchemaCoverage = `${migration}\n${commentDirectPublishMigration}\n${commentSchemaRepairMigration}\n${commentNotificationRepairMigration}`;
 const styles = await read("src/styles.css");
 
-for (const route of ["/commune", "commune/new", "commune/:roomSlug", "commune/:roomSlug/new", "commune/repository-showcase", "commune/repository-showcase/new", "commune/troubleshooting", "commune/sandbox-review", "commune/coding-cornucopia/review", "commune/coding-cornucopia/sandbox-request", "commune/code-sharing/review", "commune/code-sharing/sandbox-request", "commune/realtime", "commune/moderation"]) {
+for (const route of ["/commune", "commune/new", "commune/:roomSlug", "commune/:roomSlug/new", "commune/repository-showcase", "commune/repository-showcase/new", "commune/troubleshooting", "commune/troubleshooting-grove/review", "commune/troubleshooting-grove/sandbox-request", "commune/sandbox-review", "commune/coding-cornucopia/review", "commune/coding-cornucopia/sandbox-request", "commune/code-sharing/review", "commune/code-sharing/sandbox-request", "commune/realtime", "commune/moderation"]) {
   assert(app.includes(route.replace(/^\//, "")) || app.includes(route), `Missing Commune route: ${route}`);
 }
+assert(app.includes('path="commons-circle/signals"'), "Signal Console route missing.");
+assert(commonsApi.includes("loadSignalConsole") && commonsApi.includes("codeProposalCount"), "Commons Circle Signal Console loader should expose proposal signal counts.");
+assert(commonsApi.includes("commune_code_revision_proposals") && commonsApi.includes("original_author_user_id.eq") && commonsApi.includes("proposer_user_id.eq"), "Signal Console should load direct Coding Cornucopia proposal records for both authors and proposers.");
+assert(commonsApi.includes("needsMyReview") && commonsApi.includes("mySubmittedProposals") && commonsApi.includes("codeProposalActivity"), "Signal Console loader should split direct proposal activity into review and submitted sections.");
+assert(commonsApi.includes("source_room") && commonsApi.includes("troubleshooting_grove") && commonsApi.includes("/commune/troubleshooting-grove/review") && commonsApi.includes("?proposal=${proposal.id}"), "Signal Console should distinguish Troubleshooting Grove proposed fixes from Coding Cornucopia revisions.");
+assert(signalConsolePage.includes("Signal Console") && signalConsolePage.includes("Coding Cornucopia proposals"), "Signal Console page should prioritize Coding Cornucopia proposal signals.");
+assert(signalConsolePage.includes("Troubleshooting Grove proposed fix") && signalConsolePage.includes("Open proposed fix workbench"), "Signal Console should label troubleshooting proposed fixes distinctly.");
+assert(signalConsolePage.includes("Needs my review") && signalConsolePage.includes("My submitted proposals") && signalConsolePage.includes("Recent Coding Cornucopia proposal activity"), "Signal Console should distinguish direct proposal activity sections.");
+assert(commonsApi.includes("/commune/coding-cornucopia/review") && commonsApi.includes("?proposal=${proposal.id}") && signalConsolePage.includes("Open proposal in Coding Workbench"), "Signal Console proposal cards should link to the Coding Cornucopia proposal workbench.");
+assert(signalConsolePage.includes("same-user testing proposals") && signalConsolePage.includes("No notification rows yet"), "Signal Console should explain proposal fallback when user_notifications rows are absent.");
+assert(signalConsolePage.includes("Author approval boundary") && signalConsolePage.includes("public code changes only after the original post author accepts"), "Signal Console should preserve author approval doctrine.");
+assert(signalConsolePage.includes("Sandbox diagnostics are evidence for review"), "Signal Console should preserve sandbox-is-not-approval doctrine.");
+assert(commonsPage.includes("Signal Feed"), "Commons Circle preview signal feed should remain available.");
+assert(commonsPage.includes("Open Signal Console") && commonsPage.includes("/commons-circle/signals"), "Commons Circle preview should link to the full Signal Console.");
 
 for (const roomSlug of ["media-garden", "troubleshooting-grove", "coding-cornucopia", "code-sharing", "repository-showcase", "community-network", "job-post", "official-updates", "research-notes", "elysia-iteration-showcase"]) {
   assert(page.includes(roomSlug), `Missing Commune room slug: ${roomSlug}`);
@@ -91,6 +110,11 @@ assert(page.includes("Admins can publish room posts directly. Attachments still 
 assert(page.includes("Video uploads are not enabled for this room yet."), "Room composer should clearly reject unsupported video uploads instead of implying video support.");
 for (const roomNativeField of ["Issue type", "Affected area", "Expected behavior", "Actual behavior", "Known workaround", "Introduction type", "Collaboration interest", "Role interest", "Project circle/topic", "Paid / volunteer status", "Compensation clarity", "Location / remote / hybrid", "Contact path", "Research question / topic", "Citation notes", "Evidence summary", "Interpretation", "Uncertainty", "Iteration type", "Version / build label", "What changed", "Known limitations", "Official notice type", "Audit-safe note"]) {
   assert(page.includes(roomNativeField), `Missing room-native composer field/copy: ${roomNativeField}`);
+}
+assert(page.includes('form.postType === "code_sharing" || form.postType === "troubleshooting"'), "Troubleshooting Grove should reuse optional code/reproduction snippet composer support.");
+assert(page.includes("Code / reproduction snippet optional") && page.includes("minimal redacted reproduction"), "Troubleshooting Grove composer should include redacted optional reproduction snippet copy.");
+for (const troubleshootingCodeWarning of [".env files", "private logs", "local Elysia memory", "vault data", "credentials"]) {
+  assert(page.includes(troubleshootingCodeWarning), `Troubleshooting Grove code warning missing: ${troubleshootingCodeWarning}`);
 }
 assert(page.includes("function splitPostSections"), "Post detail should parse room-native structured body sections.");
 assert(page.includes("commune-room-native-details"), "Post detail should render room-native sections instead of flattening all fields into the body.");
@@ -153,6 +177,13 @@ assert(page.includes("Acquire edit lock"), "Code review edit lock action missing
 assert(page.includes("Report code document"), "Code review report action missing.");
 assert(page.includes("Create Commune code post from this document"), "Code review Commune post linkage missing.");
 assert(page.includes("Run snapshot in sandbox"), "Coding Cornucopia snapshot sandbox run action missing.");
+assert(page.includes('runLabel="Run in sandbox"'), "Published attached snippets should expose a Run in sandbox action.");
+assert(page.includes('snapshotId={snippet.accepted_revision_id ?? snippet.id}'), "Attached snippets should run the explicit accepted snapshot.");
+assert(page.includes('runLabel="Run current accepted snapshot in sandbox"'), "Workbench current accepted snapshot should expose a governed sandbox run action.");
+assert(page.includes('runLabel="Run proposed revision in sandbox"'), "Proposal snapshots should expose a governed sandbox run action.");
+assert(page.includes('runLabel={isTroubleshootingWorkbench ? "Run proposed fix in sandbox" : "Run proposed revision in sandbox"}'), "Troubleshooting Grove proposed fixes should reuse sandbox runs with troubleshooting-specific copy.");
+assert(page.includes("proposalDraftSnapshotId(activeSnippet.id, proposalForm)"), "Editable proposal drafts should run from an explicit draft snapshot id.");
+assert(page.includes("Running does not submit the proposal, update public code, install anything, or mark this code safe."), "Proposal draft sandbox run copy must keep run separate from submit/approval.");
 assert(sandboxClient.includes("VITE_CODING_SANDBOX_ENDPOINT"), "Coding Cornucopia sandbox endpoint fail-closed copy missing.");
 assert(page.includes("No terminal") && page.includes("No package install"), "Coding Cornucopia must preserve no-terminal/no-package-install boundary copy.");
 assert(!page.includes("dangerouslySetInnerHTML"), "Commune page must not render chat/code with dangerouslySetInnerHTML.");
@@ -216,6 +247,41 @@ const postAdminIndex = page.indexOf("<AdminContentControls targetType=\"post\"",
 assert(postTagIndex > -1 && postMediaIndex > postTagIndex && postMediaIndex < postReactionIndex && postMediaIndex < postAdminIndex, "Commune post media should render after post body/tags and before reactions/admin moderation.");
 assert(page.includes("commune-media-lightbox") && page.includes("Attachment unavailable or still under review."), "Commune post media display should include read-only preview and unavailable copy.");
 assert(styles.includes(".commune-media-section") && styles.includes("object-fit: contain"), "Commune media display styling should keep images contained, not cropped.");
+assert(page.includes("commune-code-section") && page.includes("Code attached to this post"), "Coding Cornucopia snippets should render as attached post content.");
+assert(page.includes("Code attached for troubleshooting") && page.includes("Reproduction snippet"), "Troubleshooting Grove snippets should render as attached reproduction code in the post flow.");
+assert(page.includes('postType={post.post_type}'), "Attached code snippets should receive post type context for room-native labels.");
+assert(page.includes("Coding Cornucopia snippet") && page.includes("attached by {authorLink(authorUsername)}"), "Coding Cornucopia snippets should carry post-author attachment attribution.");
+assert(page.includes("current accepted snapshot v"), "Coding Cornucopia public snippets should show accepted snapshot/version language.");
+assert(page.includes("Propose edit") && page.includes("View proposals"), "Coding Cornucopia post snippets should link into author-controlled proposal workflows.");
+assert(page.includes("Propose fix") && page.includes("View proposed fixes") && page.includes("/commune/troubleshooting-grove/review"), "Troubleshooting Grove snippets should link into proposed-fix workflows.");
+assert(page.includes("function CodeRevisionProposalWorkspace"), "Coding Cornucopia Workbench should include the proposal workspace.");
+assert(page.includes("Propose changes without overwriting public code"), "Proposal workspace should make the no-overwrite boundary clear.");
+assert(page.includes("Propose fixes without overwriting the public reproduction"), "Troubleshooting Grove workbench should make the no-overwrite proposed-fix boundary clear.");
+assert(page.includes("Submit proposed revision"), "Proposal workspace should let signed-in users submit proposed revisions.");
+assert(page.includes("Submit proposed fix"), "Troubleshooting Grove workbench should let signed-in users submit proposed fixes.");
+assert(page.indexOf("Run proposed revision in sandbox") < page.indexOf("Submit proposed revision"), "Draft sandbox run should appear before submit in the proposed revision panel.");
+assert(page.includes("Accept revision") && page.includes("Reject revision") && page.includes("Ask for changes"), "Original poster approval controls should exist for code revision proposals.");
+assert(page.includes("Accept fix") && page.includes("Reject fix"), "Troubleshooting Grove workbench should expose author accept/reject controls for proposed fixes.");
+assert(page.includes("Hide unsafe proposal"), "Moderator safety controls should remain distinct from author approval.");
+assert(page.includes("Rejected proposals preserve the original public code"), "Rejected proposal copy should promise stable public code.");
+assert(page.includes("Sandbox success is evidence, not trust"), "Proposal workspace should preserve sandbox-is-not-trust doctrine.");
+assert(page.includes("proposalContextActive") && page.includes("General documents are not shown on proposal routes"), "Proposal routes should hide or clearly separate the lower general document workbench.");
+assert(styles.includes(".commune-proposal-route-note"), "Proposal route note styling missing.");
+assert(codeReviewApi.includes("submitCodeRevisionProposal") && codeReviewApi.includes("decideCodeRevisionProposal") && codeReviewApi.includes("withdrawCodeRevisionProposal"), "Code review API should expose proposal submit/decide/withdraw helpers.");
+assert(codeReviewApi.includes("The public attached code stays unchanged until the original post author accepts it"), "Proposal submit copy should keep public code stable until author acceptance.");
+assert(accountApi.includes("accepted_version_number"), "Commune code snippet type should include accepted snapshot version metadata.");
+assert(codeProposalMigration.includes("commune_code_revision_proposals"), "Author-controlled code revision proposal migration missing.");
+assert(codeProposalMigration.includes("submit_commune_code_revision_proposal"), "Proposal submission RPC missing.");
+assert(codeProposalMigration.includes("decide_commune_code_revision_proposal"), "Author decision RPC missing.");
+assert(codeProposalMigration.includes("Only the original post author can accept, reject, or request changes"), "Migration should enforce original-author approval for code replacement.");
+assert(codeProposalMigration.includes("proposal_status in ('draft','submitted','needs_changes','accepted','rejected','withdrawn','hidden_by_moderation')"), "Proposal migration should define full revision status lifecycle.");
+assert(codeProposalMigration.includes("accepted_revision_id") && codeProposalMigration.includes("accepted_version_number"), "Accepted revisions should update the public snippet version metadata.");
+assert(codeProposalMigration.includes("commune_code_revision_proposed"), "Proposal submission should create a private signal for the original poster.");
+assert(codeProposalMigration.includes("public attached code remains unchanged") || codeProposalMigration.includes("public attached code now points"), "Proposal decisions should notify without implying sandbox trust.");
+const postCodeIndex = page.indexOf("<AttachedCodeSnippets", postTagIndex);
+assert(postCodeIndex > postTagIndex && postCodeIndex < postReactionIndex && postCodeIndex < postAdminIndex, "Coding Cornucopia snippets should render after post body/tags and before reactions/admin moderation.");
+assert(!page.includes("Inert public code display"), "Coding Cornucopia snippets should not render in a detached lower post-detail section.");
+assert(styles.includes(".commune-code-section") && styles.includes(".commune-code-list"), "Coding Cornucopia attached snippet styling missing.");
 assert(accountApi.includes("loadCommuneReactionSummary"), "Commune reaction-count loader missing.");
 assert(accountApi.includes("setCommuneReaction"), "Commune reaction setter missing.");
 assert(accountApi.includes("clearCommuneReaction"), "Commune reaction removal helper missing.");
@@ -327,10 +393,14 @@ assert(languagePolicies.includes("CodingLanguagePolicy") && languagePolicies.inc
 assert(languagePolicies.includes("shell") && languagePolicies.includes("Disabled by default"), "Shell must remain disabled by default.");
 assert(diagnosticTypes.includes("runStaticCodingDiagnostics") && diagnosticTypes.includes("secret_scan_warning") && diagnosticTypes.includes("sandbox_internal_failure"), "Coding Cornucopia structured diagnostics missing.");
 assert(sandboxClient.includes("VITE_CODING_SANDBOX_ENDPOINT") && sandboxClient.includes("sandbox_unavailable") && sandboxClient.includes("policy_blocked"), "Coding Cornucopia frontend sandbox client must fail closed.");
+assert(sandboxClient.includes('policy.status !== "active_sandbox" && policy.status !== "static_diagnostics"'), "Sandbox client should allow static diagnostic languages through the runner while blocking future/disabled languages.");
+assert(accountApi.includes("recordCodingSandboxRunResult") && accountApi.includes("record_commune_sandbox_run_result"), "Coding Cornucopia sandbox result recording helper missing.");
 assert(sandboxRunner.includes("createAndRunSnapshotRun") && sandboxRunner.includes("runContainerJob") && sandboxRunner.includes("Snapshot run"), "Sandbox runner snapshot execution path missing.");
 assert(sandboxServer.includes("/v1/runs") && sandboxServer.includes("--confirm-service-execution"), "Sandbox runner service endpoint must require explicit service confirmation.");
 assert(codingRunsMigration.includes("commune_sandbox_runs") && codingRunsMigration.includes("commune_code_diagnostics"), "Coding Cornucopia run/diagnostic migration missing.");
 assert(codingRunsMigration.includes("commune_language_policies") && codingRunsMigration.includes("commune_sandbox_policies"), "Coding Cornucopia policy tables missing.");
+assert(runResultRecordingMigration.includes("record_commune_sandbox_run_result") && runResultRecordingMigration.includes("commune_code_diagnostics"), "Coding Cornucopia run result recording migration missing.");
+assert(runResultRecordingMigration.includes("~ '^[0-9]+$'"), "Sandbox result recording should guard diagnostic line/column casts.");
 assert(sandboxBoundaryDoc.includes("Snapshot Rule") && sandboxBoundaryDoc.includes("Developer Forge and Marketplace approval remain separate"), "Coding Cornucopia sandbox boundary doc missing snapshot/trust separation.");
 assert(sandboxThreatDoc.includes("Required Production Controls") && sandboxThreatDoc.includes("Shell"), "Coding Cornucopia threat model missing production controls.");
 assert(sandboxContractDoc.includes("POST /v1/runs") && sandboxContractDoc.includes("VITE_CODING_SANDBOX_ENDPOINT"), "Coding Cornucopia sandbox API contract missing.");

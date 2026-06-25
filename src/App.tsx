@@ -25,6 +25,7 @@ const CommonsCirclePage = lazy(() => import("./pages/The-Commons-Circle"));
 const CommonsCircleAdminConsolePage = lazy(() => import("./pages/The-Commons-Circle/CommonsCircleAdminConsolePage"));
 const CommonsCircleSetupPage = lazy(() => import("./pages/The-Commons-Circle/CommonsCircleSetupPage"));
 const SavedShelvesPage = lazy(() => import("./pages/The-Commons-Circle/SavedShelvesPage"));
+const SignalConsolePage = lazy(() => import("./pages/The-Commons-Circle/SignalConsolePage"));
 const PublicCommonsProfilePage = lazy(() => import("./pages/Public-Commons-Profile"));
 const StoryPage = lazy(() => import("./pages/The-Story-of-Elysia"));
 const AboutPage = lazy(() => import("./pages/About-Elysia-Ecobotics"));
@@ -107,6 +108,8 @@ export default function App() {
             <Route path="commune/repository-showcase" element={<CommunePage />} />
             <Route path="commune/repository-showcase/new" element={<CommunePage />} />
             <Route path="commune/troubleshooting" element={<CommunePage />} />
+            <Route path="commune/troubleshooting-grove/review" element={<CommunePage />} />
+            <Route path="commune/troubleshooting-grove/sandbox-request" element={<CommunePage />} />
             <Route path="commune/sandbox-review" element={<CommunePage />} />
             <Route path="commune/coding-cornucopia/review" element={<CommunePage />} />
             <Route path="commune/coding-cornucopia/sandbox-request" element={<CommunePage />} />
@@ -118,6 +121,7 @@ export default function App() {
             <Route path="commons-circle" element={<CommonsCirclePage />} />
             <Route path="commons-circle/admin-console" element={<CommonsCircleAdminConsolePage />} />
             <Route path="commons-circle/saved-shelves" element={<SavedShelvesPage />} />
+            <Route path="commons-circle/signals" element={<SignalConsolePage />} />
             <Route path="commons-circle/onboarding" element={<Navigate to="/commons-circle/setup/profile" replace />} />
             <Route path="commons-circle/setup/:step" element={<CommonsCircleSetupPage />} />
             <Route path="commons-circle/:publicHandle" element={<PublicCommonsProfilePage />} />

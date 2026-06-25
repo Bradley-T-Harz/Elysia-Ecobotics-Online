@@ -54,15 +54,15 @@ export async function requestSandboxRun(request: SandboxRunRequest): Promise<San
       message: "Sandbox service unavailable. Configure VITE_CODING_SANDBOX_ENDPOINT and deploy the isolated runner service."
     };
   }
-  if (policy.status !== "active_sandbox") {
+  if (policy.status !== "active_sandbox" && policy.status !== "static_diagnostics") {
     return {
       ok: false,
       status: "policy_blocked",
       language,
       file: request.fileName ?? null,
       snapshotId: request.snapshotId,
-      diagnostics: [fallbackDiagnostic(`${policy.label} is not active for sandbox execution.`, language, "unsupported_language")],
-      message: `${policy.label} is not active for sandbox execution.`
+      diagnostics: [fallbackDiagnostic(`${policy.label} is not enabled for this sandbox policy.`, language, "unsupported_language")],
+      message: `${policy.label} is not enabled for this sandbox policy.`
     };
   }
 

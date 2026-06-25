@@ -78,12 +78,19 @@ export async function runContainerJob(job, runtime, inputDirectory) {
   await writeAuditEvent(job.job_id, "job_started", "Container job started with network disabled and read-only root filesystem.", { engine: engine.bin, image: runtime.image });
   const child = spawn(engine.bin, args, { stdio: ["ignore", "pipe", "pipe"], shell: false, env: { PATH: process.env.PATH || "" } });
   let timedOut = false;
+  let stdoutWrite = Promise.resolve();
+  let stderrWrite = Promise.resolve();
   const timeoutMs = Math.max(1, Number(job.resource_limits.timeout_seconds || defaultLimits.timeoutSeconds)) * 1000;
   const timer = setTimeout(() => { timedOut = true; child.kill("SIGKILL"); }, timeoutMs);
-  child.stdout?.on("data", (chunk) => { void appendLimited(stdoutPath(job.job_id), String(chunk), maxOutputBytes); });
-  child.stderr?.on("data", (chunk) => { void appendLimited(stderrPath(job.job_id), String(chunk), maxOutputBytes); });
+  child.stdout?.on("data", (chunk) => {
+    stdoutWrite = stdoutWrite.then(() => appendLimited(stdoutPath(job.job_id), String(chunk), maxOutputBytes));
+  });
+  child.stderr?.on("data", (chunk) => {
+    stderrWrite = stderrWrite.then(() => appendLimited(stderrPath(job.job_id), String(chunk), maxOutputBytes));
+  });
   const exitCode = await new Promise((resolve) => child.on("close", (code) => resolve(code ?? 1)));
   clearTimeout(timer);
+  await Promise.allSettled([stdoutWrite, stderrWrite]);
   const finished = new Date().toISOString();
   const status = timedOut ? "timed_out" : exitCode === 0 ? "succeeded" : "failed";
   const finalJob = { ...await readJob(job.job_id), status, finished_at: finished, exit_code: exitCode, timed_out: timedOut, stdout_path: fileURLToPath(stdoutPath(job.job_id)), stderr_path: fileURLToPath(stderrPath(job.job_id)) };

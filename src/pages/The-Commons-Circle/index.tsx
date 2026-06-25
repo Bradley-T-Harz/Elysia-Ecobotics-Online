@@ -181,6 +181,7 @@ export default function CommonsCirclePage() {
   const localLivingCount = homebase?.localLiving.savedSourceIds.length ?? 0;
   const shouldPromptSync = Boolean(homebase?.signedIn && localLivingCount > 0 && syncChoice.choice !== "synced" && syncChoice.choice !== "keep_local");
   const unreadCount = homebase?.notifications.filter((notice) => !notice.read_at).length ?? 0;
+  const codeProposalSignalCount = homebase?.notifications.filter((notice) => /code_revision|proposal/i.test(`${notice.notification_type ?? ""} ${notice.source_type ?? ""}`)).length ?? 0;
   const homeStyle = { "--commons-accent": savedCustomization.accent_color || "#8ee8dc" } as CSSProperties;
   const homebaseClasses = `page-stack commons-circle-page commons-homebase ${customizationClass(savedCustomization)}`;
   const previewStyle = { "--commons-accent": customizationDraft.accent_color || "#8ee8dc" } as CSSProperties;
@@ -366,6 +367,9 @@ export default function CommonsCirclePage() {
         <article className="section-card commons-signal-feed">
           <p className="eyebrow">Signal Feed</p>
           <h2>Notifications and review signals</h2>
+          <dl className="mini-facts"><MiniFact label="Unread" value={unreadCount} /><MiniFact label="Code proposals" value={codeProposalSignalCount} /></dl>
+          <p className="boundary-note">This is a preview. The full private Signal Console handles Coding Cornucopia proposal decisions, accepted/rejected outcomes, sandbox signals, and review notices.</p>
+          <Link className="button-link button-link--primary" to="/commons-circle/signals">Open Signal Console</Link>
           {!homebase?.notifications.length && <EmptyState>No notifications yet. Review status, followed threads, and marketplace updates will appear here when account-backed events exist.</EmptyState>}
           {homebase?.notifications.map((notice) => <div className="commons-preview-card" key={notice.id}><strong>{notice.title}</strong><p>{notice.body || notice.notification_type || "Account signal"}</p><span>{notice.read_at ? "read" : "unread"}</span><div className="button-row"><button type="button" onClick={async () => { polishedActionMessages("notification-read", await markNotificationRead(notice.id), "Notification actions are not active yet.").forEach(pushMessage); await refreshHomebase(); }}>Mark read</button>{notice.action_url && <a className="button-link" href={notice.action_url}>Open</a>}</div></div>)}
           {homebase?.notifications.length ? <button type="button" onClick={async () => { polishedActionMessages("notifications-read-all", await markAllNotificationsRead(), "Notification actions are not active yet.").forEach(pushMessage); await refreshHomebase(); }}>Mark all read</button> : null}

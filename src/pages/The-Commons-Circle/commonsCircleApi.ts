@@ -54,7 +54,27 @@ export type SavedCitationPreview = { id?: string; source_id: string; citation_te
 export type SourceCollectionPreview = { id?: string; title: string; description?: string | null; visibility: string; source_count: number; created_at?: string | null; source_ids?: string[] };
 export type CommuneShelfPreview = { id: string; title: string; status: string; type: string; updated_at?: string; source: "local" | "account"; target_id?: string | null };
 export type FollowedThreadPreview = { id: string; title: string; unread_count?: number; muted?: boolean; source: "local" | "account" };
-export type NotificationPreview = { id: string; title: string; body?: string | null; action_url?: string | null; read_at?: string | null; created_at?: string | null; notification_type?: string | null };
+export type NotificationPreview = { id: string; title: string; body?: string | null; action_url?: string | null; read_at?: string | null; created_at?: string | null; notification_type?: string | null; source_type?: string | null; source_id?: string | null };
+export type CodeProposalSignalStatus = "draft" | "submitted" | "needs_changes" | "accepted" | "rejected" | "withdrawn" | "hidden_by_moderation";
+export type CodeProposalSignalPreview = {
+  id: string;
+  post_id: string;
+  code_snippet_id: string;
+  proposer_user_id: string;
+  original_author_user_id: string;
+  change_summary: string;
+  explanation?: string | null;
+  proposal_status: CodeProposalSignalStatus;
+  submitted_at?: string | null;
+  decided_at?: string | null;
+  withdrawn_at?: string | null;
+  hidden_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  action_url: string;
+  source_room: "coding_cornucopia" | "troubleshooting_grove";
+  post_title?: string | null;
+};
 export type BadgeDefinition = { badge_key: string; name: string; description: string; badge_type: string; category?: string | null; rarity: string; is_active?: boolean; icon_path?: string | null; tags?: string[]; authority?: boolean; authority_linked?: boolean | null; award_mode?: string | null; rule_summary?: string | null; is_manual_only?: boolean | null; sort_order?: number | null; note?: string; default_status?: string };
 export type BadgeAwardRow = { badge_key: string; awarded_at?: string | null; award_reason?: string | null; award_source?: string | null; evidence_type?: string | null; evidence_id?: string | null; visibility?: "public" | "private" | null; revoked_at?: string | null };
 export type UserBadge = BadgeDefinition & BadgeAwardRow & { visibility?: "public" | "private" | null; earned: true };
@@ -91,6 +111,19 @@ export type CommonsHomebaseData = {
   localLiving: LocalLivingSnapshot;
   localCommuneDrafts: CommuneShelfPreview[];
   localFollowedThreads: FollowedThreadPreview[];
+};
+
+export type SignalConsoleData = {
+  signedIn: boolean;
+  supabaseConfigured: boolean;
+  userId: string | null;
+  warnings: string[];
+  signals: NotificationPreview[];
+  codeProposalActivity: CodeProposalSignalPreview[];
+  needsMyReview: CodeProposalSignalPreview[];
+  mySubmittedProposals: CodeProposalSignalPreview[];
+  unreadCount: number;
+  codeProposalCount: number;
 };
 
 export type PublicCommonsProfile = {
@@ -261,7 +294,9 @@ const tableReadinessLabels: Record<string, string> = {
   "Saved Living Library sources": "No account-backed Living Library saves yet.",
   "Saved citations": "No account-backed saved citations yet.",
   "Saved add-ons": "No account-backed Marketplace saves yet.",
-  "Public profile fields": "Optional public profile fields are not active yet."
+  "Public profile fields": "Optional public profile fields are not active yet.",
+  "Coding Cornucopia proposal activity": "Coding Cornucopia proposal activity is not configured yet.",
+  "Coding Cornucopia proposal posts": "Coding Cornucopia proposal post details are not configured yet."
 };
 
 function logBackendDetail(label: string, message: string) {
@@ -415,7 +450,7 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
     safeQuery<Array<{ collection_id: string; source_id: string }>>(warnings, "Source collection items", supabase.from("user_source_collection_items").select("collection_id, source_id"), []),
     safeQuery<Array<{ id: string; post_id?: string | null; draft_id?: string | null; saved_at?: string | null; notes?: string | null }>>(warnings, "Saved Commune posts", supabase.from("user_saved_commune_posts").select("id, post_id, draft_id, saved_at, notes").eq("user_id", userId).order("saved_at", { ascending: false }).limit(200), []),
     safeQuery<Array<{ id: string; thread_id: string; followed_at?: string | null; last_read_at?: string | null; muted?: boolean | null }>>(warnings, "Followed Commune threads", supabase.from("user_followed_commune_threads").select("id, thread_id, followed_at, last_read_at, muted").eq("user_id", userId).order("followed_at", { ascending: false }).limit(200), []),
-    safeQuery<NotificationPreview[]>(warnings, "Notifications", supabase.from("user_notifications").select("id, title, body, action_url, read_at, created_at, notification_type").eq("user_id", userId).order("created_at", { ascending: false }).limit(12), []),
+    safeQuery<NotificationPreview[]>(warnings, "Notifications", supabase.from("user_notifications").select("id, title, body, action_url, read_at, created_at, notification_type, source_type, source_id").eq("user_id", userId).order("created_at", { ascending: false }).limit(12), []),
     safeQuery<BadgeDefinition[]>(warnings, "Badge definitions", supabase.from("badge_definitions").select("badge_key, name, description, badge_type, icon_path, category, rarity, sort_order, authority_linked, award_mode, rule_summary, is_manual_only, is_active").eq("is_active", true).order("sort_order", { ascending: true }), plannedBadges),
     safeQuery<BadgeAwardRow[]>(warnings, "User badges", supabase.from("user_badges").select("badge_key, awarded_at, award_reason, award_source, evidence_type, evidence_id, visibility, revoked_at").eq("user_id", userId).is("revoked_at", null), [])
   ]);
@@ -470,6 +505,44 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
     localLiving,
     localCommuneDrafts: localCommune,
     localFollowedThreads: localThreads
+  };
+}
+
+export async function loadSignalConsole(): Promise<SignalConsoleData> {
+  const warnings: string[] = [];
+  if (!hasSupabaseConfig || !supabase) return { signedIn: false, supabaseConfigured: false, userId: null, warnings: [supabaseNotConfiguredMessage], signals: [], codeProposalActivity: [], needsMyReview: [], mySubmittedProposals: [], unreadCount: 0, codeProposalCount: 0 };
+  const { data: auth } = await supabase.auth.getUser();
+  const userId = auth.user?.id ?? null;
+  if (!userId) return { signedIn: false, supabaseConfigured: true, userId: null, warnings: [], signals: [], codeProposalActivity: [], needsMyReview: [], mySubmittedProposals: [], unreadCount: 0, codeProposalCount: 0 };
+  const signals = await safeQuery<NotificationPreview[]>(warnings, "Notifications", supabase.from("user_notifications").select("id, title, body, action_url, read_at, created_at, notification_type, source_type, source_id").eq("user_id", userId).order("created_at", { ascending: false }).limit(100), []);
+  const codeProposalActivityRows = await safeQuery<Omit<CodeProposalSignalPreview, "action_url" | "source_room" | "post_title">[]>(warnings, "Coding Cornucopia proposal activity", supabase.from("commune_code_revision_proposals").select("id, post_id, code_snippet_id, proposer_user_id, original_author_user_id, change_summary, explanation, proposal_status, submitted_at, decided_at, withdrawn_at, hidden_at, created_at, updated_at").or(`original_author_user_id.eq.${userId},proposer_user_id.eq.${userId}`).order("created_at", { ascending: false }).limit(100), []);
+  const proposalPostIds = Array.from(new Set(codeProposalActivityRows.map((proposal) => proposal.post_id).filter(Boolean)));
+  const proposalPosts = proposalPostIds.length
+    ? await safeQuery<Array<{ id: string; post_type?: string | null; title?: string | null }>>(warnings, "Coding Cornucopia proposal posts", supabase.from("commune_posts").select("id, post_type, title").in("id", proposalPostIds), [])
+    : [];
+  const proposalPostById = new Map(proposalPosts.map((post) => [post.id, post]));
+  const codeProposalActivity = codeProposalActivityRows.map((proposal) => ({
+    ...proposal,
+    source_room: proposalPostById.get(proposal.post_id)?.post_type === "troubleshooting" ? "troubleshooting_grove" as const : "coding_cornucopia" as const,
+    post_title: proposalPostById.get(proposal.post_id)?.title ?? null,
+    action_url: `${proposalPostById.get(proposal.post_id)?.post_type === "troubleshooting" ? "/commune/troubleshooting-grove/review" : "/commune/coding-cornucopia/review"}?proposal=${proposal.id}`
+  }));
+  const needsMyReview = codeProposalActivity.filter((proposal) => proposal.original_author_user_id === userId && ["submitted", "needs_changes"].includes(proposal.proposal_status));
+  const mySubmittedProposals = codeProposalActivity.filter((proposal) => proposal.proposer_user_id === userId);
+  const proposalNotificationIds = signals
+    .filter((signal) => /code_revision|proposal/i.test(`${signal.notification_type ?? ""} ${signal.source_type ?? ""}`))
+    .map((signal) => signal.source_id || signal.id);
+  return {
+    signedIn: true,
+    supabaseConfigured: true,
+    userId,
+    warnings,
+    signals,
+    codeProposalActivity,
+    needsMyReview,
+    mySubmittedProposals,
+    unreadCount: signals.filter((signal) => !signal.read_at).length,
+    codeProposalCount: new Set([...codeProposalActivity.map((proposal) => proposal.id), ...proposalNotificationIds]).size
   };
 }
 

@@ -3028,6 +3028,23 @@ code { color: var(--teal); overflow-wrap: anywhere; }
     linear-gradient(135deg, rgba(13, 23, 31, 0.9), rgba(7, 13, 20, 0.84));
 }
 
+.commune-code-section {
+  display: grid;
+  gap: 0.8rem;
+  margin: 1rem 0;
+  padding: 0.9rem;
+  border: 1px solid rgba(142, 232, 220, 0.22);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 90% 8%, rgba(216, 182, 111, 0.1), transparent 12rem),
+    linear-gradient(135deg, rgba(13, 23, 31, 0.9), rgba(7, 13, 20, 0.84));
+}
+
+.commune-code-list {
+  display: grid;
+  gap: 0.9rem;
+}
+
 .commune-media-attribution {
   margin: 0.25rem 0 0.5rem;
   color: var(--muted);
@@ -3654,6 +3671,84 @@ code { color: var(--teal); overflow-wrap: anywhere; }
   background: rgba(5, 13, 21, 0.62);
 }
 
+.commune-proposal-workspace,
+.commune-proposal-detail {
+  display: grid;
+  gap: 0.85rem;
+  border: 1px solid rgba(216, 182, 111, 0.3);
+  border-radius: 18px;
+  padding: 1rem;
+  background:
+    radial-gradient(circle at 94% 8%, rgba(216, 182, 111, 0.11), transparent 14rem),
+    rgba(5, 13, 21, 0.66);
+}
+
+.commune-proposal-route-note {
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid rgba(142, 232, 220, 0.2);
+  border-radius: 16px;
+  padding: 1rem;
+  background: rgba(4, 11, 18, 0.48);
+}
+
+.commune-proposal-grid,
+.commune-proposal-compare {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+  align-items: start;
+}
+
+.commune-proposal-compare article {
+  min-width: 0;
+}
+
+.commune-proposal-detail h4 {
+  margin: 0 0 0.45rem;
+}
+
+.commons-signal-console .mini-facts {
+  margin: 1rem 0;
+}
+
+.commons-signal-list {
+  display: grid;
+  gap: 0.85rem;
+  margin-top: 1rem;
+}
+
+.commons-signal-card {
+  display: grid;
+  gap: 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--commons-accent, #8ee8dc) 20%, rgba(216, 226, 232, 0.12));
+  border-radius: 16px;
+  padding: 0.95rem;
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--commons-accent, #8ee8dc) 8%, transparent), transparent 12rem),
+    rgba(4, 11, 17, 0.64);
+}
+
+.commons-signal-card--unread {
+  border-color: color-mix(in srgb, var(--commons-accent, #8ee8dc) 48%, rgba(216, 182, 111, 0.32));
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.2);
+}
+
+.commons-signal-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.commons-signal-meta span {
+  border: 1px solid color-mix(in srgb, var(--commons-accent, #8ee8dc) 24%, rgba(255, 255, 255, 0.1));
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  color: var(--commons-muted, var(--muted));
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 0.86rem;
+}
+
 .commune-chat-message details {
   border-top: 1px solid rgba(142, 232, 220, 0.16);
   margin-top: 0.6rem;
@@ -3670,7 +3765,9 @@ code { color: var(--teal); overflow-wrap: anywhere; }
 
 @media (max-width: 860px) {
   .commune-chat-layout,
-  .commune-code-review-layout {
+  .commune-code-review-layout,
+  .commune-proposal-grid,
+  .commune-proposal-compare {
     grid-template-columns: 1fr;
   }
 

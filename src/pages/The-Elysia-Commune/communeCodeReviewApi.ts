@@ -5,6 +5,7 @@ import { communeReportReasons, scanCommuneTextForSecrets } from "./communeSafety
 export type CodeDocumentVisibility = "draft" | "submitted" | "published" | "flagged" | "hidden" | "removed" | "archived";
 export type CodeDocumentReviewStatus = "draft" | "open_for_review" | "changes_requested" | "resolved" | "archived" | "security_hold";
 export type CodeAnnotationStatus = "open" | "addressed" | "resolved" | "archived";
+export type CodeRevisionProposalStatus = "draft" | "submitted" | "needs_changes" | "accepted" | "rejected" | "withdrawn" | "hidden_by_moderation";
 
 export type CodeReviewAccount = { signedIn: boolean; userId: string | null; isModerator: boolean; roles: AppRole[]; warnings: string[] };
 export type CodeDocument = { id: string; owner_user_id: string; title: string; slug?: string | null; language: string; file_name?: string | null; current_text: string; summary?: string | null; visibility_state: CodeDocumentVisibility; review_status: CodeDocumentReviewStatus; linked_commune_post_id?: string | null; linked_sandbox_request_id?: string | null; created_at: string; updated_at: string; published_at?: string | null; archived_at?: string | null; hidden_at?: string | null; removed_at?: string | null; moderation_reason?: string | null };
@@ -12,6 +13,31 @@ export type CodeDocumentVersion = { id: string; document_id: string; created_by?
 export type CodeAnnotation = { id: string; document_id: string; author_user_id: string; line_start: number; line_end: number; comment: string; visibility_state: "published" | "flagged" | "hidden" | "removed" | "archived"; annotation_status: CodeAnnotationStatus; created_at: string; updated_at?: string | null; hidden_at?: string | null; removed_at?: string | null; moderation_reason?: string | null };
 export type CodeSession = { id: string; document_id: string; room_slug?: string | null; status: "open" | "locked" | "paused" | "closed" | "archived"; active_editor_user_id?: string | null; edit_lock_expires_at?: string | null; created_at: string; updated_at: string };
 export type CodeReport = { id: string; document_id?: string | null; annotation_id?: string | null; reporter_user_id?: string | null; reason: string; detail?: string | null; report_status: string; created_at: string; reviewed_at?: string | null; reviewed_by?: string | null; reviewer_note?: string | null; document?: CodeDocument | null; annotation?: CodeAnnotation | null };
+export type CodeRevisionProposal = {
+  id: string;
+  post_id: string;
+  code_snippet_id: string;
+  proposer_user_id: string;
+  original_author_user_id: string;
+  base_code_text: string;
+  proposed_code_text: string;
+  language?: string | null;
+  file_name?: string | null;
+  change_summary: string;
+  explanation?: string | null;
+  base_snapshot_label?: string | null;
+  proposal_status: CodeRevisionProposalStatus;
+  sandbox_summary?: Record<string, unknown> | null;
+  accepted_version_number?: number | null;
+  decision_by?: string | null;
+  decision_note?: string | null;
+  submitted_at?: string | null;
+  decided_at?: string | null;
+  withdrawn_at?: string | null;
+  hidden_at?: string | null;
+  created_at: string;
+  updated_at?: string | null;
+};
 
 export const codeReviewLanguages = ["text", "typescript", "javascript", "python", "json", "markdown", "css", "html", "sql", "bash", "yaml", "toml"] as const;
 export const codeReviewReportReasons = [...communeReportReasons];
@@ -25,6 +51,7 @@ function isModeratorRole(roles: AppRole[], isAdmin: boolean) {
 export function formatSafeCodeReviewError(error?: { message?: string } | null) {
   if (!error?.message) return "Code review action could not be completed.";
   if (import.meta.env.DEV) console.warn("[Commune code review]", error.message);
+  if (/submit_commune_code_revision_proposal|decide_commune_code_revision_proposal|commune_code_revision_proposals/i.test(error.message)) return "Coding Cornucopia revision proposals are not active until the latest Supabase migration is applied.";
   if (/schema cache|Could not find|does not exist|relation/i.test(error.message)) return "Collaborative code review tables are not active until the latest Supabase migration is applied.";
   if (/permission denied|row-level security|violates row-level security|JWT/i.test(error.message)) return "Your current account cannot use that code review action yet.";
   if (/check constraint|code_documents/i.test(error.message)) return "Code review content was blocked by safety limits.";
@@ -72,6 +99,63 @@ export function buildPatchOrDiffPreview(oldText: string, newText: string) {
   const oldLines = splitCodeIntoLines(oldText);
   const newLines = splitCodeIntoLines(newText);
   return { oldLineCount: oldLines.length, newLineCount: newLines.length, changed: oldText !== newText, sizeDelta: newText.length - oldText.length };
+}
+
+export async function listCodeRevisionProposals(input: { postId?: string; codeSnippetId?: string; proposalId?: string } = {}): Promise<{ proposals: CodeRevisionProposal[]; warnings: string[] }> {
+  if (!hasSupabaseConfig || !supabase) return { proposals: [], warnings: [supabaseNotConfiguredMessage] };
+  let query = supabase.from("commune_code_revision_proposals").select("*").order("created_at", { ascending: false }).limit(80);
+  if (input.proposalId) query = query.eq("id", input.proposalId);
+  if (input.postId) query = query.eq("post_id", input.postId);
+  if (input.codeSnippetId) query = query.eq("code_snippet_id", input.codeSnippetId);
+  const { data, error } = await query;
+  return { proposals: (data ?? []) as CodeRevisionProposal[], warnings: error ? [formatSafeCodeReviewError(error)] : [] };
+}
+
+export async function submitCodeRevisionProposal(input: { postId: string; codeSnippetId: string; proposedCodeText: string; language?: string | null; fileName?: string | null; changeSummary: string; explanation?: string | null }): Promise<{ ok: boolean; message: string; proposalId?: string }> {
+  if (!hasSupabaseConfig || !supabase) return { ok: false, message: "Coding Cornucopia revision proposals are not active yet." };
+  const account = await accountState();
+  if (!account.userId) return { ok: false, message: "Sign in before proposing a Coding Cornucopia revision." };
+  const validation = validateCodeDocumentInput({ title: input.changeSummary, language: input.language ?? "text", fileName: input.fileName ?? "", text: input.proposedCodeText, summary: input.explanation ?? "" });
+  if (!validation.ok) return { ok: false, message: validation.message ?? "Revision proposal blocked by Coding Cornucopia safety limits." };
+  const { data, error } = await supabase.rpc("submit_commune_code_revision_proposal", {
+    p_post_id: input.postId,
+    p_code_snippet_id: input.codeSnippetId,
+    p_proposed_code_text: validation.text,
+    p_language: validation.language,
+    p_file_name: validation.fileName || null,
+    p_change_summary: validation.title,
+    p_explanation: input.explanation?.trim() || null
+  });
+  if (error) return { ok: false, message: formatSafeCodeReviewError(error) };
+  return { ok: true, message: "Revision proposal submitted. The public attached code stays unchanged until the original post author accepts it.", proposalId: data as string };
+}
+
+export async function decideCodeRevisionProposal(proposalId: string, decision: Extract<CodeRevisionProposalStatus, "accepted" | "rejected" | "needs_changes" | "hidden_by_moderation">, decisionNote?: string): Promise<{ ok: boolean; message: string }> {
+  if (!hasSupabaseConfig || !supabase) return { ok: false, message: "Coding Cornucopia revision proposals are not active yet." };
+  const { error } = await supabase.rpc("decide_commune_code_revision_proposal", {
+    p_proposal_id: proposalId,
+    p_decision: decision,
+    p_decision_note: decisionNote?.trim() || null
+  });
+  if (error) return { ok: false, message: formatSafeCodeReviewError(error) };
+  return {
+    ok: true,
+    message: decision === "accepted"
+      ? "Revision accepted. The public attached code now uses the accepted snapshot, with version history preserved."
+      : decision === "needs_changes"
+        ? "Changes requested. The public attached code remains unchanged."
+        : decision === "hidden_by_moderation"
+          ? "Proposal hidden by moderation. The public attached code remains unchanged."
+          : "Revision rejected. The public attached code remains unchanged."
+  };
+}
+
+export async function withdrawCodeRevisionProposal(proposalId: string): Promise<{ ok: boolean; message: string }> {
+  if (!hasSupabaseConfig || !supabase) return { ok: false, message: "Coding Cornucopia revision proposals are not active yet." };
+  const account = await accountState();
+  if (!account.userId) return { ok: false, message: "Sign in before withdrawing a proposal." };
+  const { error } = await supabase.from("commune_code_revision_proposals").update({ proposal_status: "withdrawn", withdrawn_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", proposalId).eq("proposer_user_id", account.userId);
+  return error ? { ok: false, message: formatSafeCodeReviewError(error) } : { ok: true, message: "Revision proposal withdrawn. The public attached code remains unchanged." };
 }
 
 async function accountState(): Promise<CodeReviewAccount> {

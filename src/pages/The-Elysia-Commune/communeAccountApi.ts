@@ -1,5 +1,6 @@
 import { createReviewHistoryItem, createReviewItem, loadCurrentRoleState, type AppRole } from "../../shared/review/reviewClient";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
+import type { SandboxRunResult } from "./codeDiagnosticTypes";
 import { communeFallbackCategories, communeReportReasons, parseCommuneTags, scanCommuneTextForSecrets, validateCommuneMediaFile } from "./communeSafety";
 
 export type CommunePostType = "media_garden" | "troubleshooting" | "code_sharing" | "repository_showcase" | "community_network" | "job_post" | "official_update" | "research_note" | "elysia_iteration_showcase";
@@ -13,7 +14,23 @@ export type CommuneModerationItem = { id: string; kind: "post" | "comment" | "up
 export type CommuneAccountState = { signedIn: boolean; userId: string | null; username: string | null; roles: AppRole[]; isAdmin: boolean; isModerator: boolean; warnings: string[] };
 export type LoadCommuneData = { rooms: CommuneRoom[]; posts: CommunePost[]; comments: CommuneComment[]; threads: CommuneThread[]; media: CommuneMediaAttachment[]; savedPostIds: string[]; followedThreadIds: string[]; account: CommuneAccountState; warnings: string[] };
 export type CommuneCategory = { id: string; slug: string; title: string; description?: string | null; sort_order?: number | null; is_active?: boolean | null };
-export type CommuneCodeSnippet = { id: string; post_id: string; author_user_id: string; language?: string | null; file_name?: string | null; code_text: string; secret_scan_status?: string | null; sandbox_warning_acknowledged?: boolean | null; created_at?: string | null };
+export type CommuneCodeSnippet = {
+  id: string;
+  post_id: string;
+  author_user_id: string;
+  language?: string | null;
+  file_name?: string | null;
+  code_text: string;
+  secret_scan_status?: string | null;
+  sandbox_warning_acknowledged?: boolean | null;
+  accepted_revision_id?: string | null;
+  accepted_version_number?: number | null;
+  accepted_revision_proposer_user_id?: string | null;
+  accepted_revision_summary?: string | null;
+  accepted_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
 export type CommuneReactionTargetType = "post" | "comment";
 export type CommuneReaction = "helpful" | "caution";
 export type CommuneReactionSummary = { helpful: number; caution: number; viewerReaction: CommuneReaction | null };
@@ -70,6 +87,7 @@ async function accountState(): Promise<CommuneAccountState> {
 function friendlyError(message: string, fallbackMessage: string) {
   if (import.meta.env.DEV) console.warn("[Commune backend]", message);
   if (/commune_content_reactions|commune_content_reaction_counts/i.test(message)) return "Commune community signals are not active yet. Apply `2026_06_21_commune_content_reactions.sql` in Supabase, then try again.";
+  if (/record_commune_sandbox_run_result|commune_sandbox_runs|commune_code_diagnostics/i.test(message)) return "Coding Cornucopia sandbox result recording is not active until the latest Supabase migration is applied.";
   if (/commune_thread_participant_approvals/i.test(message)) return "Commune thread participation approvals are not active yet. Apply `2026_06_21_commune_thread_participant_approvals.sql` in Supabase, then try again.";
   if (/commune_comments/i.test(message) && /author_username|published_at|updated_at|hidden_at|hidden_by|moderation_reason|schema cache|Could not find|does not exist|relation/i.test(message)) return "Comment could not be saved because the live comments table is missing a required column. Apply `2026_06_22_commune_comments_schema_drift_repair.sql` in Supabase, then refresh and try again.";
   if (/user_notifications|user_followed_commune_threads|notify_commune_published_comment|commune_notify_published_comment|muted/i.test(message)) return "Comment could not be saved because the published-comment notification dependency is missing or drifted. Apply `2026_06_22_commune_comment_notification_dependency_repair.sql` in Supabase, then refresh and try again.";
@@ -594,6 +612,49 @@ export async function loadCodeSnippets(postId: string): Promise<{ snippets: Comm
   if (!supabase) return { snippets: [], warnings: [supabaseNotConfiguredMessage] };
   const { data, error } = await supabase.from("commune_code_snippets").select("*").eq("post_id", postId).order("created_at");
   return { snippets: (data ?? []) as CommuneCodeSnippet[], warnings: error ? [friendlyError(error.message, "Code snippets are not active yet.")] : [] };
+}
+
+export async function recordCodingSandboxRunResult(input: {
+  snapshotId: string;
+  sourceType: "commune_post_snippet" | "commune_code_document" | "commune_code_version";
+  sourceId?: string | null;
+  postId?: string | null;
+  codeDocumentId?: string | null;
+  codeVersionId?: string | null;
+  language: string;
+  fileName?: string | null;
+  requestPayload?: Record<string, unknown>;
+  result: SandboxRunResult;
+}): Promise<{ ok: boolean; message: string; runId?: string }> {
+  if (!hasSupabaseConfig || !supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId) return { ok: false, message: "Sign in to record Coding Cornucopia sandbox diagnostics." };
+  const { data, error } = await supabase.rpc("record_commune_sandbox_run_result", {
+    p_snapshot_id: input.result.snapshotId ?? input.snapshotId,
+    p_source_type: input.sourceType,
+    p_source_id: input.sourceId ?? null,
+    p_post_id: input.postId ?? null,
+    p_code_document_id: input.codeDocumentId ?? null,
+    p_code_version_id: input.codeVersionId ?? null,
+    p_language: input.result.language ?? input.language,
+    p_file_name: input.result.file ?? input.fileName ?? null,
+    p_status: input.result.status,
+    p_request_payload: input.requestPayload ?? {},
+    p_result_summary: {
+      ok: input.result.ok,
+      status: input.result.status,
+      runner_run_id: input.result.runId ?? null,
+      message: input.result.message,
+      diagnostics_count: input.result.diagnostics.length
+    },
+    p_stdout_preview: input.result.stdout ?? "",
+    p_stderr_preview: input.result.stderr ?? "",
+    p_exit_code: input.result.exitCode ?? null,
+    p_duration_ms: input.result.durationMs ?? null,
+    p_diagnostics: input.result.diagnostics
+  });
+  if (error) return { ok: false, message: friendlyError(error.message, "Coding Cornucopia sandbox result recording is not active until the latest Supabase migration is applied.") };
+  return { ok: true, message: "Sandbox run result recorded privately for Coding Cornucopia review history.", runId: typeof data === "string" ? data : undefined };
 }
 
 export async function loadCommuneModerationQueue(): Promise<{ items: CommuneModerationItem[]; warnings: string[] }> {
