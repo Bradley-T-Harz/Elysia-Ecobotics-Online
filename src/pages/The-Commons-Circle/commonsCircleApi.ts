@@ -76,6 +76,26 @@ export type CodeProposalSignalPreview = {
   source_room: "coding_cornucopia" | "troubleshooting_grove";
   post_title?: string | null;
 };
+export type TroubleshootingSignalPreview = {
+  id: string;
+  post_id?: string | null;
+  thread_id?: string | null;
+  author_user_id?: string | null;
+  issue_type?: string | null;
+  affected_area?: string | null;
+  troubleshooting_status?: string | null;
+  accepted_resolution_kind?: string | null;
+  accepted_summary?: string | null;
+  accepted_at?: string | null;
+  resolved_at?: string | null;
+  closed_at?: string | null;
+  archived_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  post_title?: string | null;
+  action_url: string;
+  role_context: "owner" | "reviewer" | "resolution";
+};
 export type RepositoryShowcaseSignalPreview = {
   id: string;
   post_id?: string | null;
@@ -170,6 +190,10 @@ export type SignalConsoleData = {
   codeProposalActivity: CodeProposalSignalPreview[];
   needsMyReview: CodeProposalSignalPreview[];
   mySubmittedProposals: CodeProposalSignalPreview[];
+  troubleshootingActivity: TroubleshootingSignalPreview[];
+  myTroubleshootingIssues: TroubleshootingSignalPreview[];
+  troubleshootingNeedingReview: TroubleshootingSignalPreview[];
+  troubleshootingResolutionActivity: TroubleshootingSignalPreview[];
   repositoryShowcaseActivity: RepositoryShowcaseSignalPreview[];
   myRepositoryShowcases: RepositoryShowcaseSignalPreview[];
   repositoryShowcasesNeedingReview: RepositoryShowcaseSignalPreview[];
@@ -183,6 +207,7 @@ export type SignalConsoleData = {
   officialUpdatesNeedingAttention: OfficialUpdateSignalPreview[];
   unreadCount: number;
   codeProposalCount: number;
+  troubleshootingCount: number;
   repositoryShowcaseCount: number;
   iterationShowcaseCount: number;
   officialUpdateCount: number;
@@ -359,6 +384,9 @@ const tableReadinessLabels: Record<string, string> = {
   "Public profile fields": "Optional public profile fields are not active yet.",
   "Coding Cornucopia proposal activity": "Coding Cornucopia proposal activity is not configured yet.",
   "Coding Cornucopia proposal posts": "Coding Cornucopia proposal post details are not configured yet.",
+  "Troubleshooting Grove activity": "Troubleshooting Grove structured activity is not configured yet.",
+  "Troubleshooting Grove review activity": "Troubleshooting Grove review activity is not configured yet.",
+  "Troubleshooting Grove linked posts": "Troubleshooting Grove linked post details are not configured yet.",
   "Repository Showcase activity": "Repository Showcase activity is not configured yet.",
   "Repository Showcase review activity": "Repository Showcase review activity is not configured yet.",
   "Official Update activity": "Official Update structured activity is not configured yet.",
@@ -576,7 +604,7 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
 
 export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const warnings: string[] = [];
-  const empty = { signals: [], codeProposalActivity: [], needsMyReview: [], mySubmittedProposals: [], repositoryShowcaseActivity: [], myRepositoryShowcases: [], repositoryShowcasesNeedingReview: [], repositorySandboxActivity: [], iterationShowcaseActivity: [], myIterationShowcases: [], iterationShowcasesNeedingReview: [], iterationSandboxActivity: [], officialUpdateActivity: [], myOfficialUpdates: [], officialUpdatesNeedingAttention: [], unreadCount: 0, codeProposalCount: 0, repositoryShowcaseCount: 0, iterationShowcaseCount: 0, officialUpdateCount: 0 };
+  const empty = { signals: [], codeProposalActivity: [], needsMyReview: [], mySubmittedProposals: [], troubleshootingActivity: [], myTroubleshootingIssues: [], troubleshootingNeedingReview: [], troubleshootingResolutionActivity: [], repositoryShowcaseActivity: [], myRepositoryShowcases: [], repositoryShowcasesNeedingReview: [], repositorySandboxActivity: [], iterationShowcaseActivity: [], myIterationShowcases: [], iterationShowcasesNeedingReview: [], iterationSandboxActivity: [], officialUpdateActivity: [], myOfficialUpdates: [], officialUpdatesNeedingAttention: [], unreadCount: 0, codeProposalCount: 0, troubleshootingCount: 0, repositoryShowcaseCount: 0, iterationShowcaseCount: 0, officialUpdateCount: 0 };
   if (!hasSupabaseConfig || !supabase) return { signedIn: false, supabaseConfigured: false, userId: null, warnings: [supabaseNotConfiguredMessage], ...empty };
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth.user?.id ?? null;
@@ -601,6 +629,23 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const roleState = await loadCurrentRoleState();
   warnings.push(...roleState.warnings);
   const canReviewCommune = roleState.isAdmin || canReviewDomain(roleState.roles, "commune");
+  type TroubleshootingSignalRow = Omit<TroubleshootingSignalPreview, "action_url" | "role_context" | "post_title">;
+  const troubleshootingSelect = "id, post_id, thread_id, author_user_id, issue_type, affected_area, troubleshooting_status, accepted_resolution_kind, accepted_summary, accepted_at, resolved_at, closed_at, archived_at, created_at, updated_at";
+  const myTroubleshootingRows = await safeQuery<TroubleshootingSignalRow[]>(warnings, "Troubleshooting Grove activity", supabase.from("commune_troubleshooting_posts").select(troubleshootingSelect).eq("author_user_id", userId).order("updated_at", { ascending: false }).limit(100), []);
+  const reviewTroubleshootingRows = canReviewCommune
+    ? await safeQuery<TroubleshootingSignalRow[]>(warnings, "Troubleshooting Grove review activity", supabase.from("commune_troubleshooting_posts").select(troubleshootingSelect).in("troubleshooting_status", ["needs_information", "fix_proposed", "in_progress"]).order("updated_at", { ascending: false }).limit(100), [])
+    : [];
+  const troubleshootingPostIds = Array.from(new Set([...myTroubleshootingRows, ...reviewTroubleshootingRows].map((row) => row.post_id).filter(Boolean) as string[]));
+  const troubleshootingPosts = troubleshootingPostIds.length
+    ? await safeQuery<Array<{ id: string; title?: string | null }>>(warnings, "Troubleshooting Grove linked posts", supabase.from("commune_posts").select("id, title").in("id", troubleshootingPostIds), [])
+    : [];
+  const troubleshootingTitleByPostId = new Map(troubleshootingPosts.map((post) => [post.id, post.title ?? null]));
+  const mapTroubleshooting = (row: TroubleshootingSignalRow, role: TroubleshootingSignalPreview["role_context"]): TroubleshootingSignalPreview => ({ ...row, post_title: row.post_id ? troubleshootingTitleByPostId.get(row.post_id) ?? null : null, action_url: row.post_id ? "/commune/posts/" + row.post_id : "/commune/troubleshooting", role_context: role });
+  const myTroubleshootingIssues = myTroubleshootingRows.map((row) => mapTroubleshooting(row, row.accepted_summary || row.resolved_at || row.closed_at ? "resolution" : "owner"));
+  const troubleshootingNeedingReview = reviewTroubleshootingRows.map((row) => mapTroubleshooting(row, "reviewer"));
+  const troubleshootingResolutionActivity = [...myTroubleshootingIssues, ...troubleshootingNeedingReview]
+    .filter((row) => Boolean(row.accepted_summary || row.accepted_at || row.resolved_at || row.troubleshooting_status === "resolved" || row.troubleshooting_status === "workaround_found"));
+  const troubleshootingActivity = Array.from(new Map([...myTroubleshootingIssues, ...troubleshootingNeedingReview, ...troubleshootingResolutionActivity].map((row) => [row.role_context + ":" + row.id, row])).values());
   const repoSelect = "id, user_id, post_id, repository_url, project_name, status, sandbox_review_requested, sandbox_review_status, sandbox_review_request_id, created_at, updated_at";
   const myRepoRows = await safeQuery<RepositoryShowcaseSignalRow[]>(warnings, "Repository Showcase activity", supabase.from("commune_repository_showcases").select(repoSelect).eq("user_id", userId).order("updated_at", { ascending: false }).limit(100), []);
   const reviewRepoRows = canReviewCommune
@@ -665,6 +710,10 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
     codeProposalActivity,
     needsMyReview,
     mySubmittedProposals,
+    troubleshootingActivity,
+    myTroubleshootingIssues,
+    troubleshootingNeedingReview,
+    troubleshootingResolutionActivity,
     repositoryShowcaseActivity,
     myRepositoryShowcases,
     repositoryShowcasesNeedingReview,
@@ -678,6 +727,7 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
     officialUpdatesNeedingAttention,
     unreadCount: signals.filter((signal) => !signal.read_at).length,
     codeProposalCount: new Set([...codeProposalActivity.map((proposal) => proposal.id), ...proposalNotificationIds]).size,
+    troubleshootingCount: new Set(troubleshootingActivity.map((item) => item.id)).size,
     repositoryShowcaseCount: new Set(repositoryShowcaseActivity.map((item) => item.id)).size,
     iterationShowcaseCount: new Set(iterationShowcaseActivity.map((item) => item.id)).size,
     officialUpdateCount: new Set(officialUpdateActivity.map((item) => item.id)).size

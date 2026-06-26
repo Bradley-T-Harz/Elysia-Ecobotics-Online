@@ -46,8 +46,11 @@ import {
   submitOfficialUpdate,
   submitRepositoryShowcase,
   submitSandboxReview,
+  submitTroubleshootingPost,
   updateOfficialCodeSnippet,
   updateOfficialUpdateMetadata,
+  updateTroubleshootingStatus,
+  markTroubleshootingResolved,
   type CommuneComment,
   type CommuneCategory,
   type CommuneCodeSnippet,
@@ -66,6 +69,9 @@ import {
   type OfficialUpdateStatus,
   type OfficialUpdateType,
   type RepositoryShowcaseMetadata,
+  type TroubleshootingMetadata,
+  type TroubleshootingResolutionKind,
+  type TroubleshootingStatus,
   type CommuneThread
 } from "./communeAccountApi";
 import { communeFallbackCategories, formatCommuneTag, formatCommuneTags, inertCodeSnippetLabel, parseCommuneTags, scanCommuneTextForSecrets, validateCommuneMediaFile } from "./communeSafety";
@@ -701,6 +707,21 @@ const officialUpdateTypeOptions: Array<{ value: OfficialUpdateType; label: strin
 
 const officialStatusOptions: OfficialUpdateStatus[] = ["published", "updated", "corrected", "retracted", "archived", "resolved", "monitoring"];
 const officialSeverityOptions: OfficialUpdateSeverity[] = ["info", "notice", "important", "urgent", "critical"];
+const troubleshootingStatusOptions: Array<{ value: TroubleshootingStatus; label: string }> = [
+  { value: "open", label: "Open" },
+  { value: "needs_information", label: "Needs information" },
+  { value: "in_progress", label: "In progress" },
+  { value: "workaround_found", label: "Workaround found" },
+  { value: "fix_proposed", label: "Fix proposed" },
+  { value: "resolved", label: "Resolved" },
+  { value: "closed", label: "Closed" },
+  { value: "archived", label: "Archived" }
+];
+const troubleshootingResolutionOptions: Array<{ value: TroubleshootingResolutionKind; label: string }> = [
+  { value: "comment", label: "Accepted comment" },
+  { value: "workaround", label: "Accepted workaround" },
+  { value: "manual_note", label: "Manual resolution note" }
+];
 
 const futureSupportTables = [
   "commune_post_saves",
@@ -977,6 +998,31 @@ function matchesSearch(values: string[], search: string) {
   return !query || values.some((value) => normalize(value).includes(query));
 }
 
+function troubleshootingStatusLabel(status?: string | null) {
+  return (status || "open").replace(/_/g, " ");
+}
+
+function troubleshootingSearchValues(item?: TroubleshootingMetadata | null) {
+  if (!item) return [];
+  return [
+    item.issue_type,
+    item.affected_area ?? "",
+    item.environment_os ?? "",
+    item.environment_browser ?? "",
+    item.app_version ?? "",
+    item.environment_notes ?? "",
+    item.steps_to_reproduce ?? "",
+    item.expected_result ?? "",
+    item.actual_result ?? "",
+    item.error_message ?? "",
+    item.redacted_logs ?? "",
+    item.workaround ?? "",
+    item.troubleshooting_status,
+    item.accepted_resolution_kind ?? "",
+    item.accepted_summary ?? ""
+  ];
+}
+
 function matchesCategory(typeName: string, category: string) {
   return category === "All" || typeName === category;
 }
@@ -1161,30 +1207,34 @@ function AdminContentControls({ targetType, targetId, isModerator, onChanged, on
   </div>;
 }
 
-function PostCard({ post, saved, onSave, signedIn, officialUpdate }: { post: CommunePost; saved: boolean; onSave: (id: string) => void; signedIn: boolean; officialUpdate?: OfficialUpdateMetadata | null }) {
+function PostCard({ post, saved, onSave, signedIn, officialUpdate, troubleshooting }: { post: CommunePost; saved: boolean; onSave: (id: string) => void; signedIn: boolean; officialUpdate?: OfficialUpdateMetadata | null; troubleshooting?: TroubleshootingMetadata | null }) {
   const officialLabels = officialUpdate ? ["Official", officialUpdate.update_type.replace(/_/g, " "), officialUpdate.official_status, officialUpdate.severity, officialUpdate.pinned ? "Pinned" : "", officialUpdate.important ? "Important" : ""].filter(Boolean) : [];
-  return <article className={post.post_type === "official_update" ? "commune-post-card commune-official-card" : "commune-post-card"}><div className="addon-card__topline"><StatusBadges labels={officialLabels.length ? officialLabels : [post.post_type, post.status]} /></div><h3><Link to={`/commune/posts/${post.id}`}>{post.title}</Link></h3><p>{officialUpdate?.summary || post.excerpt || post.body.slice(0, 180)}</p><p>{post.post_type === "official_update" ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>} · {post.published_at ? new Date(post.published_at).toLocaleDateString() : "public date unavailable"}</p><TagChips tags={(post.tags ?? []).slice(0, 5)} /><ReactionBar targetType="post" targetId={post.id} signedIn={signedIn} /><div className="button-row"><Link className="button-link" to={`/commune/posts/${post.id}`}>Read</Link><button type="button" onClick={() => onSave(post.id)}>{saved ? "Saved" : "Save post"}</button></div></article>;
+  const troubleshootingLabels = troubleshooting ? ["Troubleshooting Grove", troubleshooting.issue_type, troubleshooting.troubleshooting_status, troubleshooting.affected_area ?? ""].filter(Boolean) : [];
+  return <article className={post.post_type === "official_update" ? "commune-post-card commune-official-card" : "commune-post-card"}><div className="addon-card__topline"><StatusBadges labels={officialLabels.length ? officialLabels : troubleshootingLabels.length ? troubleshootingLabels : [post.post_type, post.status]} /></div><h3><Link to={`/commune/posts/${post.id}`}>{post.title}</Link></h3><p>{officialUpdate?.summary || post.excerpt || post.body.slice(0, 180)}</p>{troubleshooting?.accepted_summary && <p className="boundary-note">Accepted {troubleshooting.accepted_resolution_kind?.replace(/_/g, " ") ?? "resolution"}: {troubleshooting.accepted_summary}</p>}<p>{post.post_type === "official_update" ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>} · {post.published_at ? new Date(post.published_at).toLocaleDateString() : "public date unavailable"}</p><TagChips tags={(post.tags ?? []).slice(0, 5)} /><ReactionBar targetType="post" targetId={post.id} signedIn={signedIn} /><div className="button-row"><Link className="button-link" to={`/commune/posts/${post.id}`}>Read</Link><button type="button" onClick={() => onSave(post.id)}>{saved ? "Saved" : "Save post"}</button></div></article>;
 }
 
-function CommunityFeed({ posts, savedPostIds, onSave, filters, signedIn }: { posts: CommunePost[]; savedPostIds: string[]; onSave: (id: string) => void; filters: CommuneFilters; signedIn: boolean }) {
+function CommunityFeed({ posts, savedPostIds, onSave, filters, signedIn, troubleshootingPosts }: { posts: CommunePost[]; savedPostIds: string[]; onSave: (id: string) => void; filters: CommuneFilters; signedIn: boolean; troubleshootingPosts?: TroubleshootingMetadata[] }) {
+  const troubleshootingByPostId = new Map((troubleshootingPosts ?? []).map((item) => [item.post_id, item]));
   const filteredPosts = posts.filter((post) => {
     const type = postTypes.find((item) => item.backendValue === post.post_type);
-    const labels = [post.status, post.visibility, type?.name ?? post.post_type, ...(post.tags ?? [])];
-    return matchesCategory(type?.name ?? post.post_type, filters.category) && matchesSearch([post.title, post.excerpt ?? "", post.body, ...(post.tags ?? [])], filters.search) && matchesStatus(labels, filters.status) && matchesSafety(labels, filters.safety);
+    const troubleshooting = troubleshootingByPostId.get(post.id);
+    const labels = [post.status, post.visibility, type?.name ?? post.post_type, ...(post.tags ?? []), ...(troubleshooting ? [troubleshooting.issue_type, troubleshooting.troubleshooting_status, troubleshooting.affected_area ?? ""] : [])];
+    return matchesCategory(type?.name ?? post.post_type, filters.category) && matchesSearch([post.title, post.excerpt ?? "", post.body, ...(post.tags ?? []), ...troubleshootingSearchValues(troubleshooting)], filters.search) && matchesStatus(labels, filters.status) && matchesSafety(labels, filters.safety);
   });
   const emptyCards = postTypes.filter((type) => matchesCategory(type.name, filters.category) && matchesSearch([type.name, type.purpose], filters.search) && matchesStatus([...type.currentStatus, "needs backend"], filters.status) && matchesSafety([...type.currentStatus, type.cautions], filters.safety)).slice(0, 5);
   return <section className="section-card commune-feed" id="commune-feed">
     <p className="eyebrow">Community Feed</p>
     <h2>{filteredPosts.length ? `${filteredPosts.length} published item${filteredPosts.length === 1 ? "" : "s"}` : "No published Commune posts yet"}</h2>
     <p className="boundary-note">Only posts approved/published by moderation are public here. Drafts and pending requests remain private to their owner and reviewers.</p>
-    {filteredPosts.length ? <div className="commune-feed-grid">{filteredPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} signedIn={signedIn} />)}</div> : <div className="commune-feed-grid">{emptyCards.map((type) => <article className="commune-feed-card" key={type.id}><div className="commune-author-sigil" aria-hidden="true">{type.name.slice(0, 1)}</div><p className="eyebrow">{type.name}</p><h3>No {type.name} posts yet.</h3><p>{type.purpose}</p><Link className="button-link" to={roomPathForType(type)}>Enter room</Link></article>)}</div>}
+    {filteredPosts.length ? <div className="commune-feed-grid">{filteredPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} signedIn={signedIn} troubleshooting={troubleshootingByPostId.get(post.id)} />)}</div> : <div className="commune-feed-grid">{emptyCards.map((type) => <article className="commune-feed-card" key={type.id}><div className="commune-author-sigil" aria-hidden="true">{type.name.slice(0, 1)}</div><p className="eyebrow">{type.name}</p><h3>No {type.name} posts yet.</h3><p>{type.purpose}</p><Link className="button-link" to={roomPathForType(type)}>Enter room</Link></article>)}</div>}
   </section>;
 }
 
-function RoomPage({ roomSlug, roomId, posts, officialUpdates, savedPostIds, onSave, localDrafts, categories, onRefresh, signedIn, isAdmin, focusComposer = false }: { roomSlug: string; roomId?: string; posts: CommunePost[]; officialUpdates: OfficialUpdateMetadata[]; savedPostIds: string[]; onSave: (id: string) => void; localDrafts: ReturnType<typeof useLocalDraftState>; categories: CommuneCategory[]; onRefresh: () => Promise<void>; signedIn: boolean; isAdmin: boolean; focusComposer?: boolean }) {
+function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPosts, savedPostIds, onSave, localDrafts, categories, onRefresh, signedIn, isAdmin, focusComposer = false }: { roomSlug: string; roomId?: string; posts: CommunePost[]; officialUpdates: OfficialUpdateMetadata[]; troubleshootingPosts: TroubleshootingMetadata[]; savedPostIds: string[]; onSave: (id: string) => void; localDrafts: ReturnType<typeof useLocalDraftState>; categories: CommuneCategory[]; onRefresh: () => Promise<void>; signedIn: boolean; isAdmin: boolean; focusComposer?: boolean }) {
   const normalizedRoomSlug = normalizeCommuneRoomSlug(roomSlug) ?? roomSlug;
   const type = postTypeByRoomSlug.get(normalizedRoomSlug);
   const officialByPostId = new Map(officialUpdates.map((item) => [item.post_id, item]));
+  const troubleshootingByPostId = new Map(troubleshootingPosts.map((item) => [item.post_id, item]));
   const roomPosts = type ? posts.filter((post) => post.post_type === type.backendValue).sort((left, right) => {
     if (type.backendValue !== "official_update") return 0;
     const leftMeta = officialByPostId.get(left.id);
@@ -1221,7 +1271,7 @@ function RoomPage({ roomSlug, roomId, posts, officialUpdates, savedPostIds, onSa
       <p className="eyebrow">{type.name} Posts</p>
       <h2>{roomPosts.length ? `${roomPosts.length} published item${roomPosts.length === 1 ? "" : "s"}` : `No published ${type.name} posts yet`}</h2>
       <p className="boundary-note">This room follows the Commune model: room posts become threads, and replies appear after moderation.</p>
-      {roomPosts.length ? <div className="commune-feed-grid">{roomPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} signedIn={signedIn} officialUpdate={officialByPostId.get(post.id)} />)}</div> : <p className="commune-empty-state">Published posts will appear here after moderation. Start with a careful draft when you are ready.</p>}
+      {roomPosts.length ? <div className="commune-feed-grid">{roomPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} signedIn={signedIn} officialUpdate={officialByPostId.get(post.id)} troubleshooting={troubleshootingByPostId.get(post.id)} />)}</div> : <p className="commune-empty-state">Published posts will appear here after moderation. Start with a careful draft when you are ready.</p>}
     </section>
     {type.backendValue === "repository_showcase" && (focusComposer ? <RepositoryShowcaseForm localDrafts={localDrafts} roomId={roomId} onRefresh={onRefresh} isAdmin={isAdmin} /> : <section className="section-card commune-repo-card"><p className="eyebrow">Repository Showcase</p><h2>Metadata only, never execution</h2><p>A public repo is not automatically safe, compatible, licensed, or free of secrets. The website does not fetch, clone, build, run, or validate repositories from this room.</p><Link className="button-link button-link--primary" to="/commune/repository-showcase/new">Open repository showcase form</Link></section>)}
     {type.backendValue === "code_sharing" && <section className="section-card commune-sandbox-card coding-cornucopia-tools"><p className="eyebrow">Coding Cornucopia Tools</p><h2>Collaborative code review, snapshots, diagnostics, and sandbox-gated runs.</h2><p>Shared code is public knowledge, not automatic trust. The browser page never executes snippets; configured sandbox runs use explicit snapshots, network-disabled containers, resource limits, and audit records.</p><StatusBadges labels={["CodeMirror editor", "Static diagnostics", "Snapshot runs", "No terminal", "No package install", "Marketplace separate"]} /><div className="button-row"><Link className="button-link" to="/commune/coding-cornucopia/review">Open Coding Workbench</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Prepare Sandbox Review Request</Link></div></section>}
@@ -1231,11 +1281,11 @@ function RoomPage({ roomSlug, roomId, posts, officialUpdates, savedPostIds, onSa
 }
 
 function useCommuneLoad(roomSlug?: string, postId?: string) {
-  const [state, setState] = useState({ rooms: [] as CommuneRoom[], posts: [] as CommunePost[], comments: [] as CommuneComment[], threads: [] as CommuneThread[], media: [] as CommuneMediaAttachment[], repositoryShowcases: [] as RepositoryShowcaseMetadata[], iterationShowcases: [] as ElysiaIterationShowcaseMetadata[], officialUpdates: [] as OfficialUpdateMetadata[], officialCodeSnippets: [] as OfficialUpdateCodeSnippet[], savedPostIds: [] as string[], followedThreadIds: [] as string[], signedIn: false, isAdmin: false, isModerator: false, accountReady: false });
+  const [state, setState] = useState({ rooms: [] as CommuneRoom[], posts: [] as CommunePost[], comments: [] as CommuneComment[], threads: [] as CommuneThread[], media: [] as CommuneMediaAttachment[], troubleshootingPosts: [] as TroubleshootingMetadata[], repositoryShowcases: [] as RepositoryShowcaseMetadata[], iterationShowcases: [] as ElysiaIterationShowcaseMetadata[], officialUpdates: [] as OfficialUpdateMetadata[], officialCodeSnippets: [] as OfficialUpdateCodeSnippet[], savedPostIds: [] as string[], followedThreadIds: [] as string[], signedIn: false, userId: null as string | null, isAdmin: false, isModerator: false, accountReady: false });
   const refresh = useCallback(async () => {
     const result = await loadCommuneData(roomSlug, postId);
     logCommuneDiagnostics("load", [...result.account.warnings, ...result.warnings]);
-    setState({ rooms: result.rooms, posts: result.posts, comments: result.comments, threads: result.threads, media: result.media, repositoryShowcases: result.repositoryShowcases, iterationShowcases: result.iterationShowcases, officialUpdates: result.officialUpdates, officialCodeSnippets: result.officialCodeSnippets, savedPostIds: result.savedPostIds, followedThreadIds: result.followedThreadIds, signedIn: result.account.signedIn, isAdmin: result.account.isAdmin, isModerator: result.account.isModerator, accountReady: !result.warnings.some(isBackendDiagnostic) });
+    setState({ rooms: result.rooms, posts: result.posts, comments: result.comments, threads: result.threads, media: result.media, troubleshootingPosts: result.troubleshootingPosts, repositoryShowcases: result.repositoryShowcases, iterationShowcases: result.iterationShowcases, officialUpdates: result.officialUpdates, officialCodeSnippets: result.officialCodeSnippets, savedPostIds: result.savedPostIds, followedThreadIds: result.followedThreadIds, signedIn: result.account.signedIn, userId: result.account.userId, isAdmin: result.account.isAdmin, isModerator: result.account.isModerator, accountReady: !result.warnings.some(isBackendDiagnostic) });
   }, [roomSlug, postId]);
   useEffect(() => { void refresh(); }, [refresh]);
   return { state, refresh };
@@ -1286,11 +1336,14 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     os: "",
     browser: "",
     version: "",
+    environmentNotes: "",
     stepsTried: "",
     issueType: "",
     affectedArea: "",
     expectedBehavior: "",
     actualBehavior: "",
+    errorMessage: "",
+    redactedLogs: "",
     workaround: "",
     issueStatus: "Open",
     codeLanguage: "",
@@ -1379,6 +1432,9 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     form.title,
     form.summary,
     form.body,
+    form.environmentNotes,
+    form.errorMessage,
+    form.redactedLogs,
     form.codeFileName,
     form.codeText,
     form.repositoryUrl,
@@ -1427,9 +1483,12 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       sectionBlock("Issue type", form.issueType),
       sectionBlock("Affected area", form.affectedArea),
       sectionBlock("Environment", [`OS: ${form.os}`, `Browser/app: ${form.browser}`, `Elysia version: ${form.version}`].filter((line) => !line.endsWith(": ")).join("\n")),
+      sectionBlock("Environment notes", form.environmentNotes),
       sectionBlock("Steps tried / reproduce", form.stepsTried),
       sectionBlock("Expected behavior", form.expectedBehavior),
       sectionBlock("Actual behavior", form.actualBehavior),
+      sectionBlock("Error message", form.errorMessage),
+      sectionBlock("Redacted logs", form.redactedLogs),
       sectionBlock("Known workaround", form.workaround),
       sectionBlock("Issue status", form.issueStatus)
     ].filter(Boolean);
@@ -1821,6 +1880,48 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       setMessage(result.message);
       return;
     }
+    if (showTroubleshootingFields) {
+      const body = form.codeText ? `${bodyBase}\n\nCode/reproduction snippet attached separately for inert display and governed sandbox diagnostics.` : bodyBase;
+      const result = await submitTroubleshootingPost({
+        title: form.title,
+        summary: form.summary,
+        body,
+        tags: form.tags,
+        links: form.links,
+        roomId: form.roomId || defaultRoomId,
+        upload: file,
+        acknowledgement: form.acknowledgement,
+        issueType: form.issueType,
+        affectedArea: form.affectedArea,
+        environmentOs: form.os,
+        environmentBrowser: form.browser,
+        appVersion: form.version,
+        environmentNotes: form.environmentNotes,
+        stepsToReproduce: form.stepsTried,
+        expectedResult: form.expectedBehavior,
+        actualResult: form.actualBehavior,
+        errorMessage: form.errorMessage,
+        redactedLogs: form.redactedLogs,
+        workaround: form.workaround,
+        troubleshootingStatus: form.issueStatus,
+        codeText: form.codeText,
+        codeLanguage: form.codeLanguage,
+        codeFileName: form.codeFileName,
+        codeAcknowledged: form.stepsCodeAck
+      });
+      if (result.ok) {
+        setMessage(result.message);
+        await onRefresh?.();
+        return;
+      }
+      if (isBackendDiagnostic(result.message)) {
+        saveLocal("pending_moderator_review_local");
+        setMessage("Saved locally in this browser. Troubleshooting Grove structured backend is not active yet.");
+        return;
+      }
+      setMessage(cleanCommuneMessage(result.message, "Saved locally in this browser. Troubleshooting Grove backend review queue is not active yet."));
+      return;
+    }
     const body = form.codeText ? `${bodyBase}\n\nCode snippet attached separately for inert display.` : bodyBase;
     const result = await submitCommunePost({ ...form, body, roomId: form.roomId || defaultRoomId, upload: file, sandboxRequested: form.sandboxRequested });
     if (result.ok) {
@@ -1855,7 +1956,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       <label><span>Links</span><input value={form.links} onChange={(event) => setForm({ ...form, links: event.target.value })} /></label>
       {showRepositoryField && <label><span>Repository URL optional</span><input value={form.repositoryUrl} onChange={(event) => setForm({ ...form, repositoryUrl: event.target.value })} /></label>}
       {showAttachmentField && <><label><span>Attachment optional</span><input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.md,.csv,.json" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></label><p className="boundary-note">Supported attachments: PNG, JPEG, WebP, PDF, TXT, Markdown, CSV, and JSON. Images are supported now. Video uploads are not enabled for this room yet. Video support is planned.</p>{showOfficialFields && <p className="boundary-note">Official attachments must not expose private admin pages, Supabase keys, service-role keys, .env files, local paths, private user data, hidden moderator notes, credentials, logs, vaults, or local Elysia data.</p>}</>}
-      {showTroubleshootingFields && <><label><span>Issue type</span><input value={form.issueType} onChange={(event) => setForm({ ...form, issueType: event.target.value })} placeholder="bug, install issue, known issue, workaround" /></label><label><span>Affected area</span><input value={form.affectedArea} onChange={(event) => setForm({ ...form, affectedArea: event.target.value })} /></label><label><span>OS</span><input value={form.os} onChange={(event) => setForm({ ...form, os: event.target.value })} /></label><label><span>Browser/app</span><input value={form.browser} onChange={(event) => setForm({ ...form, browser: event.target.value })} /></label><label><span>Elysia version optional</span><input value={form.version} onChange={(event) => setForm({ ...form, version: event.target.value })} /></label><label><span>Status</span><select value={form.issueStatus} onChange={(event) => setForm({ ...form, issueStatus: event.target.value })}>{["Open", "Known issue", "Resolved", "Needs info"].map((value) => <option key={value}>{value}</option>)}</select></label><label className="wide-field"><span>Steps to reproduce / tried</span><textarea rows={4} value={form.stepsTried} onChange={(event) => setForm({ ...form, stepsTried: event.target.value })} /></label><label className="wide-field"><span>Expected behavior</span><textarea rows={3} value={form.expectedBehavior} onChange={(event) => setForm({ ...form, expectedBehavior: event.target.value })} /></label><label className="wide-field"><span>Actual behavior</span><textarea rows={3} value={form.actualBehavior} onChange={(event) => setForm({ ...form, actualBehavior: event.target.value })} /></label><label className="wide-field"><span>Known workaround</span><textarea rows={3} value={form.workaround} onChange={(event) => setForm({ ...form, workaround: event.target.value })} /></label></>}
+      {showTroubleshootingFields && <><label><span>Issue type</span><input value={form.issueType} onChange={(event) => setForm({ ...form, issueType: event.target.value })} placeholder="bug, install issue, known issue, workaround" /></label><label><span>Affected area</span><input value={form.affectedArea} onChange={(event) => setForm({ ...form, affectedArea: event.target.value })} /></label><label><span>OS</span><input value={form.os} onChange={(event) => setForm({ ...form, os: event.target.value })} /></label><label><span>Browser/app</span><input value={form.browser} onChange={(event) => setForm({ ...form, browser: event.target.value })} /></label><label><span>Elysia version optional</span><input value={form.version} onChange={(event) => setForm({ ...form, version: event.target.value })} /></label><label><span>Status</span><select value={form.issueStatus} onChange={(event) => setForm({ ...form, issueStatus: event.target.value })}>{["Open", "Needs information", "In progress", "Workaround found", "Fix proposed", "Resolved", "Closed", "Archived"].map((value) => <option key={value}>{value}</option>)}</select></label><label className="wide-field"><span>Environment notes</span><textarea rows={3} value={form.environmentNotes} onChange={(event) => setForm({ ...form, environmentNotes: event.target.value })} placeholder="Public-safe version/build context only. No private machine inventories or local paths." /></label><label className="wide-field"><span>Steps to reproduce / tried</span><textarea rows={4} value={form.stepsTried} onChange={(event) => setForm({ ...form, stepsTried: event.target.value })} /></label><label className="wide-field"><span>Expected behavior</span><textarea rows={3} value={form.expectedBehavior} onChange={(event) => setForm({ ...form, expectedBehavior: event.target.value })} /></label><label className="wide-field"><span>Actual behavior</span><textarea rows={3} value={form.actualBehavior} onChange={(event) => setForm({ ...form, actualBehavior: event.target.value })} /></label><label className="wide-field"><span>Error message</span><textarea rows={3} value={form.errorMessage} onChange={(event) => setForm({ ...form, errorMessage: event.target.value })} placeholder="Paste only the public-safe error message. Redact tokens, paths, emails, IDs, and account data." /></label><label className="wide-field"><span>Redacted logs</span><textarea rows={4} value={form.redactedLogs} onChange={(event) => setForm({ ...form, redactedLogs: event.target.value })} placeholder="Logs must be redacted. No .env, credentials, API keys, local Elysia memory/logs/vaults, or private user data." /></label><label className="wide-field"><span>Known workaround</span><textarea rows={3} value={form.workaround} onChange={(event) => setForm({ ...form, workaround: event.target.value })} /></label><p className="wide-field boundary-note">Troubleshooting Grove is public support context. Redact logs, screenshots, private paths, account details, credentials, tokens, .env contents, private local Elysia data, and sensitive user/customer data before submitting.</p></>}
       {showCommunityFields && <><label><span>Introduction type</span><input value={form.introductionType} onChange={(event) => setForm({ ...form, introductionType: event.target.value })} placeholder="intro, collaboration, project circle" /></label><label><span>Role interest</span><input value={form.roleInterest} onChange={(event) => setForm({ ...form, roleInterest: event.target.value })} /></label><label><span>Project circle/topic</span><input value={form.projectCircle} onChange={(event) => setForm({ ...form, projectCircle: event.target.value })} /></label><label><span>Availability / involvement level</span><input value={form.involvementLevel} onChange={(event) => setForm({ ...form, involvementLevel: event.target.value })} /></label><label className="wide-field"><span>Collaboration interest</span><textarea rows={4} value={form.collaborationInterest} onChange={(event) => setForm({ ...form, collaborationInterest: event.target.value })} /></label><label className="wide-field"><span>Public contact preference</span><input value={form.publicContactPreference} onChange={(event) => setForm({ ...form, publicContactPreference: event.target.value })} placeholder="public replies, website form, Commons profile link" /></label><label className="wide-field"><span>Boundary note</span><textarea rows={3} value={form.communityBoundary} onChange={(event) => setForm({ ...form, communityBoundary: event.target.value })} placeholder="No private-contact pressure; keep coordination public and respectful." /></label></>}
       {showJobFields && <><label><span>Role title</span><input value={form.roleTitle} onChange={(event) => setForm({ ...form, roleTitle: event.target.value })} /></label><label><span>Organization / project</span><input value={form.organizationProject} onChange={(event) => setForm({ ...form, organizationProject: event.target.value })} /></label><label><span>Paid / volunteer status</span><select value={form.payStatus} onChange={(event) => setForm({ ...form, payStatus: event.target.value })}><option value="">Select status</option>{["Paid", "Volunteer", "Stipend", "Unpaid", "Mixed / explain clearly"].map((value) => <option key={value}>{value}</option>)}</select></label><label><span>Location / remote / hybrid</span><input value={form.locationMode} onChange={(event) => setForm({ ...form, locationMode: event.target.value })} /></label><label><span>Time commitment</span><input value={form.timeCommitment} onChange={(event) => setForm({ ...form, timeCommitment: event.target.value })} /></label><label><span>Deadline</span><input value={form.deadline} onChange={(event) => setForm({ ...form, deadline: event.target.value })} /></label><label className="wide-field"><span>Compensation clarity</span><textarea rows={3} value={form.compensationClarity} onChange={(event) => setForm({ ...form, compensationClarity: event.target.value })} /></label><label className="wide-field"><span>Contact path</span><input value={form.contactPath} onChange={(event) => setForm({ ...form, contactPath: event.target.value })} placeholder="Public application/contact path; no sensitive data requests in comments" /></label><label className="wide-field"><span>Requirements / skills</span><textarea rows={4} value={form.requirementsSkills} onChange={(event) => setForm({ ...form, requirementsSkills: event.target.value })} /></label><label className="wide-field"><span>Safety notes</span><textarea rows={3} value={form.jobSafetyNotes} onChange={(event) => setForm({ ...form, jobSafetyNotes: event.target.value })} placeholder="No SSNs, bank details, identity documents, or private-contact pressure." /></label></>}
       {showResearchFields && <><label><span>Research question / topic</span><input value={form.researchQuestion} onChange={(event) => setForm({ ...form, researchQuestion: event.target.value })} /></label><label><span>Domain</span><input value={form.researchDomain} onChange={(event) => setForm({ ...form, researchDomain: event.target.value })} /></label><label><span>Confidence / evidence strength</span><select value={form.evidenceStrength} onChange={(event) => setForm({ ...form, evidenceStrength: event.target.value })}><option value="">Select strength</option>{["Early note", "Anecdotal observation", "Multiple sources", "Strong source trail", "Uncertain / needs review"].map((value) => <option key={value}>{value}</option>)}</select></label><label><span>Living Library source link</span><input value={form.livingLibraryLink} onChange={(event) => setForm({ ...form, livingLibraryLink: event.target.value })} /></label><label className="wide-field"><span>Citation notes</span><textarea rows={3} value={form.citationNotes} onChange={(event) => setForm({ ...form, citationNotes: event.target.value })} /></label><label className="wide-field"><span>Evidence summary</span><textarea rows={4} value={form.evidenceSummary} onChange={(event) => setForm({ ...form, evidenceSummary: event.target.value })} /></label><label className="wide-field"><span>Observation</span><textarea rows={4} value={form.observation} onChange={(event) => setForm({ ...form, observation: event.target.value })} /></label><label className="wide-field"><span>Interpretation</span><textarea rows={4} value={form.interpretation} onChange={(event) => setForm({ ...form, interpretation: event.target.value })} /></label><label className="wide-field"><span>Uncertainty</span><textarea rows={3} value={form.uncertainty} onChange={(event) => setForm({ ...form, uncertainty: event.target.value })} /></label></>}
@@ -2480,6 +2581,82 @@ function AttachedCodeSnippets({ snippets, authorUsername, signedIn, postType, on
   </div>;
 }
 
+function TroubleshootingResolutionControls({ post, troubleshooting, comments, userId, isModerator, onMessage, onChanged }: { post: CommunePost; troubleshooting?: TroubleshootingMetadata | null; comments: CommuneComment[]; userId?: string | null; isModerator: boolean; onMessage: (message: string) => void; onChanged: () => Promise<void> }) {
+  const [status, setStatus] = useState<TroubleshootingStatus>(troubleshooting?.troubleshooting_status ?? "open");
+  const [summary, setSummary] = useState(troubleshooting?.accepted_summary ?? "");
+  const [resolutionKind, setResolutionKind] = useState<TroubleshootingResolutionKind>(troubleshooting?.accepted_resolution_kind ?? "manual_note");
+  const [commentId, setCommentId] = useState(troubleshooting?.accepted_comment_id ?? "");
+  const canManage = Boolean(troubleshooting && userId && (isModerator || troubleshooting.author_user_id === userId || post.user_id === userId));
+  useEffect(() => {
+    setStatus(troubleshooting?.troubleshooting_status ?? "open");
+    setSummary(troubleshooting?.accepted_summary ?? "");
+    setResolutionKind(troubleshooting?.accepted_resolution_kind ?? "manual_note");
+    setCommentId(troubleshooting?.accepted_comment_id ?? "");
+  }, [troubleshooting?.accepted_comment_id, troubleshooting?.accepted_resolution_kind, troubleshooting?.accepted_summary, troubleshooting?.troubleshooting_status]);
+  if (!troubleshooting) return <p className="boundary-note">This legacy troubleshooting post has no structured sidecar record yet. It still remains public and moderator-governed through the Commune post/thread model.</p>;
+  if (!canManage) return <p className="boundary-note">The original poster controls accepted fixes and status changes. Moderators can still enforce safety through moderation controls.</p>;
+  async function updateStatusOnly() {
+    const result = await updateTroubleshootingStatus({ postId: post.id, status, summary });
+    onMessage(cleanCommuneMessage(result.message, "Troubleshooting status could not be updated until the structured workflow migration is active."));
+    if (result.ok) await onChanged();
+  }
+  async function saveResolution() {
+    const result = await markTroubleshootingResolved({ postId: post.id, resolutionKind, summary, commentId: commentId || null, status: resolutionKind === "workaround" ? "workaround_found" : "resolved" });
+    onMessage(cleanCommuneMessage(result.message, "Troubleshooting resolution could not be saved until the structured workflow migration is active."));
+    if (result.ok) await onChanged();
+  }
+  return <div className="commune-troubleshooting-controls">
+    <p className="eyebrow">Author resolution controls</p>
+    <p className="boundary-note">Use these controls to record support progress without changing the public reproduction snippet unless a proposed fix is accepted in the workbench. Sandbox success remains evidence, not approval.</p>
+    <div className="commune-form-grid">
+      <label><span>Status</span><select value={status} onChange={(event) => setStatus(event.target.value as TroubleshootingStatus)}>{troubleshootingStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+      <label><span>Accepted resolution kind</span><select value={resolutionKind} onChange={(event) => setResolutionKind(event.target.value as TroubleshootingResolutionKind)}>{troubleshootingResolutionOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+      <label><span>Resolved by comment optional</span><select value={commentId} onChange={(event) => setCommentId(event.target.value)}><option value="">No comment selected</option>{comments.map((item) => <option key={item.id} value={item.id}>{(item.body || "Comment").slice(0, 80)}</option>)}</select></label>
+      <label className="wide-field"><span>Accepted fix/workaround summary</span><textarea rows={3} value={summary} onChange={(event) => setSummary(event.target.value)} placeholder="Short public summary of the accepted workaround, fix, or requested next step." /></label>
+    </div>
+    <div className="button-row"><button type="button" onClick={() => void updateStatusOnly()}>Update status</button><button type="button" onClick={() => void saveResolution()}>Record accepted fix/workaround</button></div>
+  </div>;
+}
+
+function TroubleshootingDetail({ post, troubleshooting, parsedBody, comments, userId, isModerator, onMessage, onChanged }: { post: CommunePost; troubleshooting?: TroubleshootingMetadata | null; parsedBody: ReturnType<typeof splitPostSections>; comments: CommuneComment[]; userId?: string | null; isModerator: boolean; onMessage: (message: string) => void; onChanged: () => Promise<void> }) {
+  const section = (heading: string) => repoSectionValue(parsedBody, heading);
+  const value = (metadataValue?: string | null, fallbackHeading?: string) => String(metadataValue ?? "").trim() || (fallbackHeading ? section(fallbackHeading) : "");
+  const issueType = value(troubleshooting?.issue_type, "Issue type") || "other";
+  const status = value(troubleshooting?.troubleshooting_status, "Issue status") || "open";
+  const fields = [
+    ["Affected area", value(troubleshooting?.affected_area, "Affected area")],
+    ["Operating system", value(troubleshooting?.environment_os, "OS")],
+    ["Browser / app", value(troubleshooting?.environment_browser, "Browser/app")],
+    ["Elysia version", value(troubleshooting?.app_version, "Elysia version optional") || section("Elysia version")],
+    ["Environment notes", value(troubleshooting?.environment_notes, "Environment notes")],
+    ["Steps to reproduce / tried", value(troubleshooting?.steps_to_reproduce, "Steps to reproduce / tried")],
+    ["Expected result", value(troubleshooting?.expected_result, "Expected behavior")],
+    ["Actual result", value(troubleshooting?.actual_result, "Actual behavior")],
+    ["Error message", value(troubleshooting?.error_message, "Error message")],
+    ["Redacted logs", value(troubleshooting?.redacted_logs, "Redacted logs")],
+    ["Known workaround", value(troubleshooting?.workaround, "Known workaround")]
+  ].filter(([, body]) => body);
+  return <div className="commune-troubleshooting-detail">
+    <p className="eyebrow">Troubleshooting Grove detail</p>
+    <div className="commune-info-grid">
+      <article className="commune-repo-identity-card">
+        <h3>{post.title}</h3>
+        <dl className="mini-facts">
+          <div><dt>Issue type</dt><dd>{issueType.replace(/_/g, " ")}</dd></div>
+          <div><dt>Status</dt><dd>{status.replace(/_/g, " ")}</dd></div>
+          <div><dt>Affected area</dt><dd>{value(troubleshooting?.affected_area, "Affected area") || "Not supplied"}</dd></div>
+          <div><dt>Environment</dt><dd>{[value(troubleshooting?.environment_os, "OS"), value(troubleshooting?.environment_browser, "Browser/app"), value(troubleshooting?.app_version, "Elysia version optional")].filter(Boolean).join(" · ") || "Not supplied"}</dd></div>
+        </dl>
+      </article>
+      <WarningCallout title="Troubleshooting safety boundary"><p>Troubleshooting Grove is public diagnostic support. Logs, snippets, links, and screenshots must be redacted before sharing. Sandbox diagnostics are evidence only; they do not prove safety, trust, compatibility, or Marketplace readiness.</p></WarningCallout>
+    </div>
+    {parsedBody.intro && <p className="commune-post-body">{parsedBody.intro}</p>}
+    {fields.length > 0 && <div className="commune-room-native-details"><p className="eyebrow">Structured issue report</p><div className="commune-room-native-grid">{fields.map(([heading, body]) => <article className="commune-room-native-field" key={heading}><h3>{heading}</h3><p>{body}</p></article>)}</div></div>}
+    {troubleshooting?.accepted_summary && <article className="commune-room-native-field commune-troubleshooting-resolution"><h3>Accepted fix / workaround</h3><p>{troubleshooting.accepted_summary}</p><p className="boundary-note">{troubleshooting.accepted_resolution_kind?.replace(/_/g, " ") ?? "resolution"} · recorded {troubleshooting.accepted_at ? new Date(troubleshooting.accepted_at).toLocaleString() : "time unavailable"}</p></article>}
+    <TroubleshootingResolutionControls post={post} troubleshooting={troubleshooting} comments={comments} userId={userId} isModerator={isModerator} onMessage={onMessage} onChanged={onChanged} />
+  </div>;
+}
+
 function RepositoryShowcaseDetail({ post, showcase, parsedBody }: { post: CommunePost; showcase?: RepositoryShowcaseMetadata | null; parsedBody: ReturnType<typeof splitPostSections> }) {
   const section = (heading: string) => repoSectionValue(parsedBody, heading);
   const value = (metadataValue?: string | null, fallbackHeading?: string) => String(metadataValue ?? "").trim() || (fallbackHeading ? section(fallbackHeading) : "");
@@ -2772,14 +2949,16 @@ function PostDetail({ postId }: { postId: string }) {
   }
   if (!post) return <section className="section-card"><h2>Post not found</h2><p>This post is not public, does not exist, or is still awaiting moderation.</p><p className="boundary-note">Account-backed posts may also be unavailable while Commune backend tables are being prepared.</p><Link className="button-link" to="/commune">Back to Commune</Link></section>;
   const parsedBody = splitPostSections(post.body);
+  const troubleshooting = state.troubleshootingPosts.find((item) => item.post_id === post.id) ?? null;
   const repositoryShowcase = state.repositoryShowcases.find((item) => item.post_id === post.id) ?? null;
   const iterationShowcase = state.iterationShowcases.find((item) => item.post_id === post.id) ?? null;
   const isRepositoryShowcase = post.post_type === "repository_showcase";
   const isIterationShowcase = post.post_type === "elysia_iteration_showcase";
   const isOfficialUpdate = post.post_type === "official_update";
+  const isTroubleshooting = post.post_type === "troubleshooting";
   const commentsLocked = isOfficialUpdate && officialUpdate?.comments_enabled === false;
   return <>
-    <section className={isOfficialUpdate ? "section-card commune-post-detail commune-official-post-detail" : "section-card commune-post-detail"}><p className="eyebrow">{post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>{isOfficialUpdate ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>}</p><StatusBadges labels={[post.status, post.visibility]} />{!isRepositoryShowcase && !isIterationShowcase && !isOfficialUpdate && parsedBody.intro && <p className="commune-post-body">{parsedBody.intro}</p>}{!isRepositoryShowcase && !isIterationShowcase && !isOfficialUpdate && parsedBody.sections.length > 0 && <div className="commune-room-native-details"><p className="eyebrow">Room-native details</p><div className="commune-room-native-grid">{parsedBody.sections.map((section) => <article className="commune-room-native-field" key={section.heading}><h3>{section.heading}</h3><p>{section.body}</p></article>)}</div></div>}{isRepositoryShowcase && <RepositoryShowcaseDetail post={post} showcase={repositoryShowcase} parsedBody={parsedBody} />}{isIterationShowcase && <ElysiaIterationShowcaseDetail post={post} iteration={iterationShowcase} parsedBody={parsedBody} />}{isOfficialUpdate && <OfficialUpdateDetail post={post} officialUpdate={officialUpdate} parsedBody={parsedBody} />}<TagChips tags={post.tags} />{attachments.length > 0 && <div className="commune-media-section"><p className="eyebrow">Attached media</p><p className="commune-media-attribution">Attached to this post by {isOfficialUpdate ? "Elysia Ecobotics Official" : authorLink(post.author_username)}.</p><p className="boundary-note">Published attachments are read-only and remain governed by Commune moderation and safety policies.</p><div className="commune-media-grid">{attachments.map((item) => <article className="commune-media-card" key={item.id}>{item.media_kind === "image" && item.signed_url ? <button className="commune-media-image-button" type="button" onClick={() => setActiveMedia(item)}><img src={item.signed_url} alt={`Attached media: ${item.file_name}`} loading="lazy" /></button> : <div className="commune-media-unavailable"><strong>{item.file_name}</strong><p>{item.signed_url ? "This attachment can be opened from its signed public review URL." : "Attachment unavailable or still under review."}</p></div>}<div className="commune-media-meta"><strong>{item.file_name}</strong><span>{item.mime_type ?? item.media_kind}{item.file_size ? ` · ${item.file_size} bytes` : ""}</span></div></article>)}</div></div>}{isOfficialUpdate ? <OfficialCodeSnippets officialUpdate={officialUpdate} officialCodeSnippets={officialCodeSnippets} fallbackSnippets={snippets} isAdmin={state.isAdmin} onMessage={setMessage} onChanged={refresh} /> : <AttachedCodeSnippets snippets={snippets} authorUsername={post.author_username} postType={post.post_type} signedIn={state.signedIn} onMessage={setMessage} />}{isOfficialUpdate && state.isAdmin && <OfficialUpdateAdminPanel officialUpdate={officialUpdate} postId={post.id} onMessage={setMessage} onChanged={refresh} />}<ReactionBar targetType="post" targetId={post.id} signedIn={state.signedIn} onMessage={setMessage} /><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div><AdminContentControls targetType="post" targetId={post.id} isModerator={state.isModerator} onChanged={refresh} onMessage={setMessage} /></section>
+    <section className={isOfficialUpdate ? "section-card commune-post-detail commune-official-post-detail" : "section-card commune-post-detail"}><p className="eyebrow">{post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>{isOfficialUpdate ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>}</p><StatusBadges labels={[post.status, post.visibility]} />{!isRepositoryShowcase && !isIterationShowcase && !isOfficialUpdate && !isTroubleshooting && parsedBody.intro && <p className="commune-post-body">{parsedBody.intro}</p>}{!isRepositoryShowcase && !isIterationShowcase && !isOfficialUpdate && !isTroubleshooting && parsedBody.sections.length > 0 && <div className="commune-room-native-details"><p className="eyebrow">Room-native details</p><div className="commune-room-native-grid">{parsedBody.sections.map((section) => <article className="commune-room-native-field" key={section.heading}><h3>{section.heading}</h3><p>{section.body}</p></article>)}</div></div>}{isRepositoryShowcase && <RepositoryShowcaseDetail post={post} showcase={repositoryShowcase} parsedBody={parsedBody} />}{isIterationShowcase && <ElysiaIterationShowcaseDetail post={post} iteration={iterationShowcase} parsedBody={parsedBody} />}{isOfficialUpdate && <OfficialUpdateDetail post={post} officialUpdate={officialUpdate} parsedBody={parsedBody} />}{isTroubleshooting && <TroubleshootingDetail post={post} troubleshooting={troubleshooting} parsedBody={parsedBody} comments={state.comments} userId={state.userId} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}<TagChips tags={post.tags} />{attachments.length > 0 && <div className="commune-media-section"><p className="eyebrow">Attached media</p><p className="commune-media-attribution">Attached to this post by {isOfficialUpdate ? "Elysia Ecobotics Official" : authorLink(post.author_username)}.</p><p className="boundary-note">Published attachments are read-only and remain governed by Commune moderation and safety policies.</p><div className="commune-media-grid">{attachments.map((item) => <article className="commune-media-card" key={item.id}>{item.media_kind === "image" && item.signed_url ? <button className="commune-media-image-button" type="button" onClick={() => setActiveMedia(item)}><img src={item.signed_url} alt={`Attached media: ${item.file_name}`} loading="lazy" /></button> : <div className="commune-media-unavailable"><strong>{item.file_name}</strong><p>{item.signed_url ? "This attachment can be opened from its signed public review URL." : "Attachment unavailable or still under review."}</p></div>}<div className="commune-media-meta"><strong>{item.file_name}</strong><span>{item.mime_type ?? item.media_kind}{item.file_size ? ` · ${item.file_size} bytes` : ""}</span></div></article>)}</div></div>}{isOfficialUpdate ? <OfficialCodeSnippets officialUpdate={officialUpdate} officialCodeSnippets={officialCodeSnippets} fallbackSnippets={snippets} isAdmin={state.isAdmin} onMessage={setMessage} onChanged={refresh} /> : <AttachedCodeSnippets snippets={snippets} authorUsername={post.author_username} postType={post.post_type} signedIn={state.signedIn} onMessage={setMessage} />}{isOfficialUpdate && state.isAdmin && <OfficialUpdateAdminPanel officialUpdate={officialUpdate} postId={post.id} onMessage={setMessage} onChanged={refresh} />}<ReactionBar targetType="post" targetId={post.id} signedIn={state.signedIn} onMessage={setMessage} /><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div><AdminContentControls targetType="post" targetId={post.id} isModerator={state.isModerator} onChanged={refresh} onMessage={setMessage} /></section>
     {activeMedia?.signed_url && <div className="commune-media-lightbox" role="dialog" aria-modal="true" aria-label={`Attachment preview: ${activeMedia.file_name}`} onClick={() => setActiveMedia(null)}><div className="commune-media-lightbox-panel" onClick={(event) => event.stopPropagation()}><button className="commune-media-lightbox-close" type="button" onClick={() => setActiveMedia(null)}>Close</button><img src={activeMedia.signed_url} alt={`Attached media: ${activeMedia.file_name}`} /></div></div>}
     <section className="section-card"><p className="eyebrow">Comments</p><h2>Comments and replies</h2><p className="boundary-note">{commentsLocked ? "Comments are locked for this Official Update. Existing public comments remain visible unless moderated, but new public comments are disabled by an administrator." : state.isAdmin ? "Admin comments publish directly and remain auditable." : "First participation in a post/thread is reviewed. After approval in that thread, later comments and replies can publish directly while remaining reportable and removable."}</p>{!thread && <p className="boundary-note">This published post is missing its discussion thread. Submitting a comment will try to repair the thread with normal account permissions before saving.</p>}{topLevelComments.map((item) => renderComment(item))}{!topLevelComments.length && <p>Moderated comments will appear here once the backend tables are active and replies are approved.</p>}{commentsLocked ? <p className="message">Comments are locked for this official update.</p> : <><label><span>Comment on this post</span><textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><div className="button-row"><button type="button" disabled={commentSubmitting} onClick={() => void submitThreadComment()}>{commentSubmitting ? "Submitting comment..." : "Submit comment"}</button></div></>}<p className="message">{commentStatus}</p></section>
     <section className="section-card"><p className="eyebrow">Report</p><h2>Report this post</h2><p>Reports are reviewed by moderators/administrators. Reporting does not automatically remove content unless urgent automated controls are later added. Ratings do not replace reports or moderation.</p><label><span>Report type</span><select value={report.type} onChange={(event) => setReport({ ...report, type: event.target.value })}>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span>Reason</span><textarea rows={3} value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value })} /></label><button type="button" onClick={() => void reportPost()}>Send report</button><p className="message">{message}</p></section>
@@ -3323,12 +3502,12 @@ export default function CommunePage() {
     {mode === "realtime" && <RealtimeFoundationPanel />}
     {routeMode === "code-review" && <CollaborativeCodeReviewPanel />}
     {postId && <PostDetail postId={postId} />}
-    {isRoom && effectiveRoomSlug && <RoomPage roomSlug={effectiveRoomSlug} roomId={selectedRoom?.id} posts={state.posts} officialUpdates={state.officialUpdates} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} localDrafts={localDrafts} categories={categories} onRefresh={refresh} signedIn={state.signedIn} isAdmin={state.isAdmin} focusComposer={isRoomNew} />}
+    {isRoom && effectiveRoomSlug && <RoomPage roomSlug={effectiveRoomSlug} roomId={selectedRoom?.id} posts={state.posts} officialUpdates={state.officialUpdates} troubleshootingPosts={state.troubleshootingPosts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} localDrafts={localDrafts} categories={categories} onRefresh={refresh} signedIn={state.signedIn} isAdmin={state.isAdmin} focusComposer={isRoomNew} />}
 
     {isLobby && <>
       <RedactionPanel />
       <RoomCards />
-      <CommunityFeed posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} filters={filters} signedIn={state.signedIn} />
+      <CommunityFeed posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} filters={filters} signedIn={state.signedIn} troubleshootingPosts={state.troubleshootingPosts} />
       <CommuneSideChannelPanel />
       <LocalDraftStudio localDrafts={localDrafts} filters={filters} />
     </>}

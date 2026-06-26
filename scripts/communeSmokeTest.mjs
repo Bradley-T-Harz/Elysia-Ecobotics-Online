@@ -50,6 +50,7 @@ const runResultRecordingMigration = await read("supabase/migrations/2026_06_25_c
 const repositoryMetadataMigration = await read("supabase/migrations/2026_06_26_repository_showcase_structured_metadata.sql");
 const iterationMetadataMigration = await read("supabase/migrations/2026_06_26_elysia_iteration_showcase_structured_metadata.sql");
 const officialUpdateMigration = await read("supabase/migrations/2026_06_26_official_update_structured_workflow.sql");
+const troubleshootingWorkflowMigration = await read("supabase/migrations/2026_06_26_troubleshooting_grove_structured_workflow.sql");
 const repositoryPolicyDoc = await read("docs/commune/repo-showcase-policy.md");
 const repositoryBoundaryDoc = await read("docs/security/repository-showcase-boundary.md");
 const repositoryContractDoc = await read("docs/api/repository-showcase-contract.md");
@@ -59,6 +60,9 @@ const iterationContractDoc = await read("docs/api/elysia-iteration-showcase-cont
 const officialUpdatePolicyDoc = await read("docs/commune/official-update-policy.md");
 const officialUpdateBoundaryDoc = await read("docs/security/official-update-boundary.md");
 const officialUpdateContractDoc = await read("docs/api/official-update-contract.md");
+const troubleshootingPolicyDoc = await read("docs/commune/troubleshooting-grove-policy.md");
+const troubleshootingBoundaryDoc = await read("docs/security/troubleshooting-grove-boundary.md");
+const troubleshootingContractDoc = await read("docs/api/troubleshooting-grove-contract.md");
 const communeCommentSchemaCoverage = `${migration}\n${commentDirectPublishMigration}\n${commentSchemaRepairMigration}\n${commentNotificationRepairMigration}`;
 const styles = await read("src/styles.css");
 
@@ -73,6 +77,9 @@ assert(commonsApi.includes("ElysiaIterationShowcaseSignalPreview") && commonsApi
 assert(commonsApi.includes("iterationShowcasesNeedingReview") && commonsApi.includes("iterationSandboxActivity") && commonsApi.includes("/commune/elysia-iteration-showcase/sandbox-request?"), "Signal Console should split Elysia Iteration Showcase review and selected-artifact sandbox activity.");
 assert(commonsApi.includes("OfficialUpdateSignalPreview") && commonsApi.includes("commune_official_updates") && commonsApi.includes("officialUpdateActivity"), "Signal Console should load direct Official Update lifecycle records.");
 assert(commonsApi.includes("officialUpdatesNeedingAttention") && commonsApi.includes("officialUpdateCount") && commonsApi.includes("/commune/official-updates"), "Signal Console should split Official Update admin/reviewer attention activity.");
+assert(commonsApi.includes("TroubleshootingSignalPreview") && commonsApi.includes("commune_troubleshooting_posts") && commonsApi.includes("troubleshootingActivity"), "Signal Console should load direct Troubleshooting Grove issue activity records.");
+assert(commonsApi.includes("myTroubleshootingIssues") && commonsApi.includes("troubleshootingNeedingReview") && commonsApi.includes("troubleshootingResolutionActivity"), "Signal Console should split Troubleshooting Grove owner, reviewer, and accepted resolution activity.");
+assert(commonsApi.includes("troubleshootingCount") && commonsApi.includes("/commune/posts/"), "Signal Console should count and link direct Troubleshooting Grove issue activity.");
 assert(commonsApi.includes("commune_code_revision_proposals") && commonsApi.includes("original_author_user_id.eq") && commonsApi.includes("proposer_user_id.eq"), "Signal Console should load direct Coding Cornucopia proposal records for both authors and proposers.");
 assert(commonsApi.includes("needsMyReview") && commonsApi.includes("mySubmittedProposals") && commonsApi.includes("codeProposalActivity"), "Signal Console loader should split direct proposal activity into review and submitted sections.");
 assert(commonsApi.includes("source_room") && commonsApi.includes("troubleshooting_grove") && commonsApi.includes("/commune/troubleshooting-grove/review") && commonsApi.includes("?proposal="), "Signal Console should distinguish Troubleshooting Grove proposed fixes from Coding Cornucopia revisions.");
@@ -84,6 +91,8 @@ assert(signalConsolePage.includes("Official Update") && signalConsolePage.includ
 assert(signalConsolePage.includes("Official Update activity") && signalConsolePage.includes("My official updates") && signalConsolePage.includes("Critical official notices"), "Signal Console should render Official Update lifecycle sections.");
 assert(signalConsolePage.includes("Official Updates are admin-only public records") && signalConsolePage.includes("Community users cannot submit, self-assign, impersonate"), "Signal Console should preserve Official Update authority boundary copy.");
 assert(signalConsolePage.includes("Troubleshooting Grove proposed fix") && signalConsolePage.includes("Open proposed fix workbench"), "Signal Console should label troubleshooting proposed fixes distinctly.");
+assert(signalConsolePage.includes("Troubleshooting Grove activity") && signalConsolePage.includes("My troubleshooting issues") && signalConsolePage.includes("Issues needing review or follow-up") && signalConsolePage.includes("Accepted fixes and workarounds"), "Signal Console should render Troubleshooting Grove issue/status/resolution activity sections.");
+assert(signalConsolePage.includes("support issue records") && signalConsolePage.includes("original authors retain control over accepted fixes"), "Signal Console should preserve Troubleshooting Grove author-control copy.");
 assert(signalConsolePage.includes("Needs my review") && signalConsolePage.includes("My submitted proposals") && signalConsolePage.includes("Recent Coding Cornucopia proposal activity"), "Signal Console should distinguish direct proposal activity sections.");
 assert(commonsApi.includes("/commune/coding-cornucopia/review") && commonsApi.includes("?proposal=") && signalConsolePage.includes("Open proposal in Coding Workbench"), "Signal Console proposal cards should link to the Coding Cornucopia proposal workbench.");
 assert(signalConsolePage.includes("same-user testing proposals") && signalConsolePage.includes("No notification rows yet"), "Signal Console should explain proposal fallback when user_notifications rows are absent.");
@@ -91,6 +100,7 @@ assert(signalConsolePage.includes("Author approval boundary") && signalConsolePa
 assert(signalConsolePage.includes("Sandbox diagnostics are evidence for review"), "Signal Console should preserve sandbox-is-not-approval doctrine.");
 assert(commonsPage.includes("Signal Feed"), "Commons Circle preview signal feed should remain available.");
 assert(commonsPage.includes("Open Signal Console") && commonsPage.includes("/commons-circle/signals"), "Commons Circle preview should link to the full Signal Console.");
+assert(commonsPage.includes("Troubleshooting Grove proposed fixes/status updates"), "Commons Circle signal preview should mention Troubleshooting Grove support activity.");
 
 for (const roomSlug of ["media-garden", "troubleshooting-grove", "coding-cornucopia", "code-sharing", "repository-showcase", "community-network", "job-post", "official-updates", "research-notes", "elysia-iteration-showcase"]) {
   assert(page.includes(roomSlug), `Missing Commune room slug: ${roomSlug}`);
@@ -142,8 +152,19 @@ assert(page.includes("Publish Official Update") && page.includes("Official Updat
 assert(page.includes("Official code preview") && page.includes("No workbench, sandbox run, proposal, install, deploy, or Local Elysia execution controls are exposed"), "Official Update composer should preview official code as read-only/copy-only.");
 assert(page.includes('form.postType === "code_sharing" || form.postType === "troubleshooting"'), "Troubleshooting Grove should reuse optional code/reproduction snippet composer support.");
 assert(page.includes("Code / reproduction snippet optional") && page.includes("minimal redacted reproduction"), "Troubleshooting Grove composer should include redacted optional reproduction snippet copy.");
+assert(page.includes("Environment notes") && page.includes("Error message") && page.includes("Redacted logs"), "Troubleshooting Grove composer should include environment notes, error message, and redacted logs fields.");
+assert(page.includes("submitTroubleshootingPost") && page.includes("stepsToReproduce: form.stepsTried") && page.includes("redactedLogs: form.redactedLogs"), "Troubleshooting Grove composer should submit through the structured troubleshooting helper.");
+assert(accountApi.includes("export async function submitTroubleshootingPost") && accountApi.includes("commune_troubleshooting_posts") && accountApi.includes("createCodeSnippet"), "Troubleshooting Grove API should persist structured metadata and optional reproduction snippets.");
+assert(accountApi.includes("updateTroubleshootingStatus") && accountApi.includes("markTroubleshootingResolved"), "Troubleshooting Grove API should support status and accepted fix/workaround updates.");
+assert(page.includes("Troubleshooting Grove detail") && page.includes("Structured issue report") && page.includes("Accepted fix / workaround"), "Troubleshooting Grove post detail should render structured support panels.");
+assert(page.includes("Author resolution controls") && page.includes("Record accepted fix/workaround"), "Troubleshooting Grove post detail should expose author-controlled resolution controls.");
+assert(page.includes("Code attached for troubleshooting") && page.includes("Reproduction snippet") && page.includes("Propose fix"), "Troubleshooting Grove detail should keep reproduction snippets attached to the post flow with propose-fix affordances.");
+assert(page.includes("Open troubleshooting workbench") && page.includes("/commune/troubleshooting-grove/review"), "Troubleshooting Grove code snippets should route to the troubleshooting workbench.");
 for (const troubleshootingCodeWarning of [".env files", "private logs", "local Elysia memory", "vault data", "credentials"]) {
   assert(page.includes(troubleshootingCodeWarning), `Troubleshooting Grove code warning missing: ${troubleshootingCodeWarning}`);
+}
+for (const troubleshootingStatus of ["Needs information", "In progress", "Workaround found", "Fix proposed", "Resolved", "Closed", "Archived"]) {
+  assert(page.includes(troubleshootingStatus), `Troubleshooting Grove status option missing: ${troubleshootingStatus}`);
 }
 assert(page.includes("function splitPostSections"), "Post detail should parse room-native structured body sections.");
 assert(page.includes("commune-room-native-details"), "Post detail should render room-native sections instead of flattening all fields into the body.");
@@ -267,6 +288,14 @@ assert(officialUpdateMigration.includes("read-only official code") && officialUp
 assert(officialUpdatePolicyDoc.includes("Only authorized administrators") && officialUpdatePolicyDoc.includes("Official code examples are public text only"), "Official Update policy doc missing admin-only/read-only code doctrine.");
 assert(officialUpdateBoundaryDoc.includes("must not perform") && officialUpdateBoundaryDoc.includes("Public code workbench editing") && officialUpdateBoundaryDoc.includes("Sandbox execution from public Official Update code"), "Official Update security boundary doc missing no-workbench/no-sandbox prohibitions.");
 assert(officialUpdateContractDoc.includes("submitOfficialUpdate") && officialUpdateContractDoc.includes("commune_official_updates") && officialUpdateContractDoc.includes("Signal Console"), "Official Update API contract doc missing helper/table/signal contract.");
+assert(troubleshootingWorkflowMigration.includes("commune_troubleshooting_posts") && troubleshootingWorkflowMigration.includes("issue_type") && troubleshootingWorkflowMigration.includes("accepted_proposal_id"), "Troubleshooting Grove structured workflow migration missing sidecar table or accepted fix fields.");
+assert(troubleshootingWorkflowMigration.includes("public can read published troubleshooting metadata") && troubleshootingWorkflowMigration.includes("authors update troubleshooting status and resolution") && troubleshootingWorkflowMigration.includes("reviewers manage troubleshooting metadata"), "Troubleshooting Grove migration should enforce public/author/reviewer RLS boundaries.");
+assert(troubleshootingWorkflowMigration.includes("Troubleshooting Grove proposed fix") && troubleshootingWorkflowMigration.includes("/commune/troubleshooting-grove/review") && troubleshootingWorkflowMigration.includes("v_review_path || '?proposal='"), "Troubleshooting Grove migration should make shared proposal notifications room-aware.");
+assert(troubleshootingWorkflowMigration.includes("troubleshooting_status = 'resolved'") && troubleshootingWorkflowMigration.includes("accepted_resolution_kind = 'proposal'"), "Troubleshooting Grove accepted fixes should update structured resolution/status fields.");
+assert(troubleshootingPolicyDoc.includes("bug reports") && troubleshootingPolicyDoc.includes("accepted fix/workaround summary") && troubleshootingPolicyDoc.includes("Original authors control accepted fixes"), "Troubleshooting Grove policy doc missing support identity or author-control doctrine.");
+assert(troubleshootingBoundaryDoc.includes("no browser/frontend execution") && troubleshootingBoundaryDoc.includes("no Supabase/Postgres execution") && troubleshootingBoundaryDoc.includes("no Local Elysia execution"), "Troubleshooting Grove security boundary doc missing execution prohibitions.");
+assert(troubleshootingBoundaryDoc.includes("sandbox success is evidence only") || troubleshootingBoundaryDoc.includes("Sandbox success is evidence only"), "Troubleshooting Grove security boundary doc should preserve sandbox-is-not-trust doctrine.");
+assert(troubleshootingContractDoc.includes("commune_troubleshooting_posts") && troubleshootingContractDoc.includes("commune_code_revision_proposals") && troubleshootingContractDoc.includes("Signal Console"), "Troubleshooting Grove API contract doc missing structured row/proposal/signal contract.");
 assert(accountApi.includes('post_type: "repository_showcase"'), "Repository Showcase should create/link a normal Commune post.");
 assert(accountApi.includes("Repository showcase submitted as a normal Commune post for moderation"), "Repository Showcase should enter the normal Commune moderation flow.");
 assert(accountApi.includes("repository_metadata_only"), "Repository Showcase post safety acknowledgements should preserve metadata-only boundaries.");

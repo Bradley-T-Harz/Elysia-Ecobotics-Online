@@ -14,6 +14,39 @@ export type OfficialUpdateType = "release_note" | "roadmap_update" | "governance
 export type OfficialUpdateStatus = "draft" | "published" | "updated" | "corrected" | "retracted" | "archived" | "resolved" | "monitoring";
 export type OfficialUpdateSeverity = "info" | "notice" | "important" | "urgent" | "critical";
 export type OfficialCorrectionStatus = "none" | "corrected" | "retracted" | "superseded";
+export type TroubleshootingIssueType = "bug" | "install_issue" | "account_auth" | "deployment" | "supabase_rls" | "cloudflare" | "frontend_ui" | "backend_api" | "sandbox_runner" | "marketplace" | "commune" | "profile" | "documentation" | "other";
+export type TroubleshootingStatus = "open" | "needs_information" | "in_progress" | "workaround_found" | "fix_proposed" | "resolved" | "closed" | "archived";
+export type TroubleshootingResolutionKind = "comment" | "proposal" | "workaround" | "admin_resolution" | "manual_note";
+export type TroubleshootingMetadata = {
+  id: string;
+  post_id: string;
+  thread_id?: string | null;
+  author_user_id?: string | null;
+  issue_type: TroubleshootingIssueType;
+  affected_area?: string | null;
+  environment_os?: string | null;
+  environment_browser?: string | null;
+  app_version?: string | null;
+  environment_notes?: string | null;
+  steps_to_reproduce?: string | null;
+  expected_result?: string | null;
+  actual_result?: string | null;
+  error_message?: string | null;
+  redacted_logs?: string | null;
+  workaround?: string | null;
+  troubleshooting_status: TroubleshootingStatus;
+  accepted_comment_id?: string | null;
+  accepted_proposal_id?: string | null;
+  accepted_resolution_kind?: TroubleshootingResolutionKind | null;
+  accepted_summary?: string | null;
+  accepted_by?: string | null;
+  accepted_at?: string | null;
+  resolved_at?: string | null;
+  closed_at?: string | null;
+  archived_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
 export type OfficialUpdateMetadata = {
   id: string;
   post_id: string;
@@ -129,7 +162,7 @@ export type ElysiaIterationShowcaseMetadata = {
 };
 export type CommuneModerationItem = { id: string; kind: "post" | "comment" | "upload" | "repo" | "iteration" | "sandbox" | "report"; title: string; status: string; created_at?: string | null; summary?: string | null };
 export type CommuneAccountState = { signedIn: boolean; userId: string | null; username: string | null; roles: AppRole[]; isAdmin: boolean; isModerator: boolean; warnings: string[] };
-export type LoadCommuneData = { rooms: CommuneRoom[]; posts: CommunePost[]; comments: CommuneComment[]; threads: CommuneThread[]; media: CommuneMediaAttachment[]; repositoryShowcases: RepositoryShowcaseMetadata[]; iterationShowcases: ElysiaIterationShowcaseMetadata[]; officialUpdates: OfficialUpdateMetadata[]; officialCodeSnippets: OfficialUpdateCodeSnippet[]; savedPostIds: string[]; followedThreadIds: string[]; account: CommuneAccountState; warnings: string[] };
+export type LoadCommuneData = { rooms: CommuneRoom[]; posts: CommunePost[]; comments: CommuneComment[]; threads: CommuneThread[]; media: CommuneMediaAttachment[]; troubleshootingPosts: TroubleshootingMetadata[]; repositoryShowcases: RepositoryShowcaseMetadata[]; iterationShowcases: ElysiaIterationShowcaseMetadata[]; officialUpdates: OfficialUpdateMetadata[]; officialCodeSnippets: OfficialUpdateCodeSnippet[]; savedPostIds: string[]; followedThreadIds: string[]; account: CommuneAccountState; warnings: string[] };
 export type CommuneCategory = { id: string; slug: string; title: string; description?: string | null; sort_order?: number | null; is_active?: boolean | null };
 export type CommuneCodeSnippet = {
   id: string;
@@ -176,6 +209,7 @@ const canonicalCommuneTables = {
   rooms: "commune_rooms",
   savedPosts: "user_saved_commune_posts",
   followedThreads: "user_followed_commune_threads",
+  troubleshootingPosts: "commune_troubleshooting_posts",
   repositoryShowcases: "commune_repository_showcases",
   iterationShowcases: "commune_iteration_showcases",
   officialUpdates: "commune_official_updates",
@@ -221,6 +255,7 @@ function friendlyError(message: string, fallbackMessage: string) {
   if (import.meta.env.DEV) console.warn("[Commune backend]", message);
   if (/commune_content_reactions|commune_content_reaction_counts/i.test(message)) return "Commune community signals are not active yet. Apply `2026_06_21_commune_content_reactions.sql` in Supabase, then try again.";
   if (/record_commune_sandbox_run_result|commune_sandbox_runs|commune_code_diagnostics/i.test(message)) return "Coding Cornucopia sandbox result recording is not active until the latest Supabase migration is applied.";
+  if (/commune_troubleshooting_posts/i.test(message)) return "Troubleshooting Grove structured metadata is not active until `2026_06_26_troubleshooting_grove_structured_workflow.sql` is applied in Supabase.";
   if (/commune_official_updates|commune_official_update_code_snippets|commune_official_update_events/i.test(message)) return "Official Update structured metadata is not active until `2026_06_26_official_update_structured_workflow.sql` is applied in Supabase.";
   if (/commune_thread_participant_approvals/i.test(message)) return "Commune thread participation approvals are not active yet. Apply `2026_06_21_commune_thread_participant_approvals.sql` in Supabase, then try again.";
   if (/commune_comments/i.test(message) && /author_username|published_at|updated_at|hidden_at|hidden_by|moderation_reason|schema cache|Could not find|does not exist|relation/i.test(message)) return "Comment could not be saved because the live comments table is missing a required column. Apply `2026_06_22_commune_comments_schema_drift_repair.sql` in Supabase, then refresh and try again.";
@@ -312,10 +347,81 @@ async function publishPostAttachments(postId: string) {
 
 const repositoryShowcaseSelect = "id,user_id,post_id,repository_url,repository_host,project_name,project_summary,provider,default_branch,commit_sha,license,manifest_status,elysia_compatibility,short_description,readme_preview,file_tree_preview,screenshot_notes_or_urls,risk_flags,sandbox_review_requested,sandbox_review_status,sandbox_review_request_id,status,import_source,imported_metadata,imported_at,redaction_notes,created_at,updated_at";
 const repositoryShowcaseFallbackSelect = "id,user_id,post_id,repository_url,repository_host,project_name,project_summary,license,sandbox_review_requested,status,created_at,updated_at";
+const troubleshootingSelect = "id,post_id,thread_id,author_user_id,issue_type,affected_area,environment_os,environment_browser,app_version,environment_notes,steps_to_reproduce,expected_result,actual_result,error_message,redacted_logs,workaround,troubleshooting_status,accepted_comment_id,accepted_proposal_id,accepted_resolution_kind,accepted_summary,accepted_by,accepted_at,resolved_at,closed_at,archived_at,created_at,updated_at";
 const iterationShowcaseSelect = "id,post_id,author_user_id,iteration_type,version_build_label,what_changed,why_it_matters,known_limitations,next_step,related_repo_url,provider,branch,commit_sha,release_tag,pull_request_url,developer_forge_link,marketplace_link,testing_status,compatibility_note,sandbox_review_requested,sandbox_review_status,sandbox_review_request_id,risk_flags,import_source,imported_metadata,imported_at,redaction_notes,status,created_at,updated_at";
 const iterationShowcaseFallbackSelect = "id,post_id,author_user_id,iteration_type,version_build_label,what_changed,why_it_matters,known_limitations,next_step,sandbox_review_requested,status,created_at,updated_at";
 const officialUpdateSelect = "id,post_id,admin_user_id,brand_author_name,update_type,official_status,severity,audience,summary,effective_date,release_version,affected_systems,related_room_slug,related_repo_url,related_migration,related_links,known_limitations,migration_required,user_action_required,pinned,important,comments_enabled,correction_note,correction_status,supersedes_update_id,superseded_by_update_id,published_at,corrected_at,retracted_at,archived_at,created_at,updated_at";
 const officialCodeSelect = "id,official_update_id,post_id,admin_user_id,language,file_name,code_text,context_note,correction_note,sort_order,public_visible,edited_by,edited_at,created_at,updated_at";
+
+const troubleshootingIssueTypes: TroubleshootingIssueType[] = ["bug", "install_issue", "account_auth", "deployment", "supabase_rls", "cloudflare", "frontend_ui", "backend_api", "sandbox_runner", "marketplace", "commune", "profile", "documentation", "other"];
+const troubleshootingStatuses: TroubleshootingStatus[] = ["open", "needs_information", "in_progress", "workaround_found", "fix_proposed", "resolved", "closed", "archived"];
+const troubleshootingResolutionKinds: TroubleshootingResolutionKind[] = ["comment", "proposal", "workaround", "admin_resolution", "manual_note"];
+
+function normalizeTroubleshootingIssueType(value?: string | null): TroubleshootingIssueType {
+  const normalized = String(value ?? "").toLowerCase().replace(/[\s-]+/g, "_");
+  return troubleshootingIssueTypes.includes(normalized as TroubleshootingIssueType) ? normalized as TroubleshootingIssueType : "other";
+}
+
+function normalizeTroubleshootingStatus(value?: string | null): TroubleshootingStatus {
+  const normalized = String(value ?? "").toLowerCase().replace(/[\s-]+/g, "_");
+  if (normalized === "known_issue") return "in_progress";
+  if (normalized === "needs_info") return "needs_information";
+  return troubleshootingStatuses.includes(normalized as TroubleshootingStatus) ? normalized as TroubleshootingStatus : "open";
+}
+
+function normalizeTroubleshootingResolutionKind(value?: string | null): TroubleshootingResolutionKind | null {
+  const normalized = String(value ?? "").toLowerCase().replace(/[\s-]+/g, "_");
+  return troubleshootingResolutionKinds.includes(normalized as TroubleshootingResolutionKind) ? normalized as TroubleshootingResolutionKind : null;
+}
+
+function normalizeTroubleshooting(row: Partial<TroubleshootingMetadata>): TroubleshootingMetadata {
+  return {
+    id: String(row.id ?? ""),
+    post_id: String(row.post_id ?? ""),
+    thread_id: row.thread_id ?? null,
+    author_user_id: row.author_user_id ?? null,
+    issue_type: normalizeTroubleshootingIssueType(row.issue_type),
+    affected_area: row.affected_area ?? null,
+    environment_os: row.environment_os ?? null,
+    environment_browser: row.environment_browser ?? null,
+    app_version: row.app_version ?? null,
+    environment_notes: row.environment_notes ?? null,
+    steps_to_reproduce: row.steps_to_reproduce ?? null,
+    expected_result: row.expected_result ?? null,
+    actual_result: row.actual_result ?? null,
+    error_message: row.error_message ?? null,
+    redacted_logs: row.redacted_logs ?? null,
+    workaround: row.workaround ?? null,
+    troubleshooting_status: normalizeTroubleshootingStatus(row.troubleshooting_status),
+    accepted_comment_id: row.accepted_comment_id ?? null,
+    accepted_proposal_id: row.accepted_proposal_id ?? null,
+    accepted_resolution_kind: normalizeTroubleshootingResolutionKind(row.accepted_resolution_kind),
+    accepted_summary: row.accepted_summary ?? null,
+    accepted_by: row.accepted_by ?? null,
+    accepted_at: row.accepted_at ?? null,
+    resolved_at: row.resolved_at ?? null,
+    closed_at: row.closed_at ?? null,
+    archived_at: row.archived_at ?? null,
+    created_at: row.created_at ?? null,
+    updated_at: row.updated_at ?? null
+  };
+}
+
+async function loadTroubleshootingForPosts(postIds: string[]): Promise<TroubleshootingMetadata[]> {
+  if (!supabase || !postIds.length) return [];
+  const { data, error } = await supabase.from(canonicalCommuneTables.troubleshootingPosts).select(troubleshootingSelect).in("post_id", postIds);
+  if (error) {
+    if (import.meta.env.DEV) console.warn("[Troubleshooting Grove structured load]", error.message);
+    return [];
+  }
+  return ((data ?? []) as Partial<TroubleshootingMetadata>[]).map(normalizeTroubleshooting).filter((row) => row.id && row.post_id);
+}
+
+export async function loadTroubleshootingForPost(postId: string): Promise<{ troubleshooting: TroubleshootingMetadata | null; warnings: string[] }> {
+  if (!supabase) return { troubleshooting: null, warnings: [supabaseNotConfiguredMessage] };
+  const rows = await loadTroubleshootingForPosts([postId]);
+  return { troubleshooting: rows[0] ?? null, warnings: [] };
+}
 
 function normalizeRepositoryShowcase(row: Partial<RepositoryShowcaseMetadata>): RepositoryShowcaseMetadata {
   return {
@@ -529,7 +635,7 @@ export async function loadCategories(): Promise<{ categories: CommuneCategory[];
 
 export async function loadCommuneData(roomSlug?: string, postId?: string): Promise<LoadCommuneData> {
   const account = await accountState();
-  if (!hasSupabaseConfig || !supabase) return { rooms: [], posts: [], comments: [], threads: [], media: [], repositoryShowcases: [], iterationShowcases: [], officialUpdates: [], officialCodeSnippets: [], savedPostIds: [], followedThreadIds: [], account, warnings: [supabaseNotConfiguredMessage] };
+  if (!hasSupabaseConfig || !supabase) return { rooms: [], posts: [], comments: [], threads: [], media: [], troubleshootingPosts: [], repositoryShowcases: [], iterationShowcases: [], officialUpdates: [], officialCodeSnippets: [], savedPostIds: [], followedThreadIds: [], account, warnings: [supabaseNotConfiguredMessage] };
   const warnings = [...account.warnings];
   const roomsQuery = supabase.from(canonicalCommuneTables.rooms).select("id, slug, name, description, room_type, requires_moderation").order("name");
   const { data: rooms, error: roomError } = await roomsQuery;
@@ -556,6 +662,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
   const { data: comments, error: commentError } = await commentQuery;
   if (commentError) warnings.push(commentError.message);
   const media = await loadPublishedMediaForPosts(postIds);
+  const troubleshootingPosts = await loadTroubleshootingForPosts(postIds);
   const repositoryShowcases = await loadRepositoryShowcasesForPosts(postIds);
   const iterationShowcases = await loadIterationShowcasesForPosts(postIds);
   const officialUpdates = await loadOfficialUpdatesForPosts(postIds);
@@ -570,7 +677,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
     savedPostIds = (saves ?? []).map((row) => row.post_id).filter(Boolean) as string[];
     followedThreadIds = (follows ?? []).map((row) => row.thread_id).filter(Boolean) as string[];
   }
-  return { rooms: (rooms ?? []) as CommuneRoom[], posts: (posts ?? []) as CommunePost[], comments: (comments ?? []) as CommuneComment[], threads: (threads ?? []) as CommuneThread[], media, repositoryShowcases, iterationShowcases, officialUpdates, officialCodeSnippets, savedPostIds, followedThreadIds, account, warnings };
+  return { rooms: (rooms ?? []) as CommuneRoom[], posts: (posts ?? []) as CommunePost[], comments: (comments ?? []) as CommuneComment[], threads: (threads ?? []) as CommuneThread[], media, troubleshootingPosts, repositoryShowcases, iterationShowcases, officialUpdates, officialCodeSnippets, savedPostIds, followedThreadIds, account, warnings };
 }
 
 export async function ensureCommuneThreadForPost(post: CommunePost): Promise<{ ok: boolean; thread?: CommuneThread; message: string }> {
@@ -851,6 +958,197 @@ export async function updateOfficialCodeSnippet(input: { id: string; officialUpd
   return { ok: true, message: "Official code correction saved and audit history updated. Public users still only get read/copy access." };
 }
 
+async function notifyTroubleshootingAuthor(input: { userId?: string | null; actorId?: string | null; postId: string; sourceId?: string | null; title: string; body: string; type: string }) {
+  if (!supabase || !input.userId || input.userId === input.actorId) return;
+  const { error } = await supabase.from("user_notifications").insert({
+    user_id: input.userId,
+    notification_type: input.type,
+    source_type: canonicalCommuneTables.troubleshootingPosts,
+    source_id: input.sourceId || input.postId,
+    title: input.title,
+    body: input.body,
+    action_url: "/commune/posts/" + input.postId
+  });
+  if (error && import.meta.env.DEV) console.warn("[Troubleshooting Grove notification]", error.message);
+}
+
+export async function submitTroubleshootingPost(input: {
+  title: string;
+  summary: string;
+  body: string;
+  tags: string;
+  links: string;
+  roomId?: string;
+  upload?: File | null;
+  acknowledgement: boolean;
+  issueType: string;
+  affectedArea?: string;
+  environmentOs?: string;
+  environmentBrowser?: string;
+  appVersion?: string;
+  environmentNotes?: string;
+  stepsToReproduce?: string;
+  expectedResult?: string;
+  actualResult?: string;
+  errorMessage?: string;
+  redactedLogs?: string;
+  workaround?: string;
+  troubleshootingStatus?: string;
+  codeText?: string;
+  codeLanguage?: string;
+  codeFileName?: string;
+  codeAcknowledged?: boolean;
+}): Promise<{ ok: boolean; message: string; id?: string; postId?: string }> {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId) return { ok: false, message: "Sign in to submit a Troubleshooting Grove post." };
+  if (!input.acknowledgement) return { ok: false, message: "Confirm the Troubleshooting Grove safety acknowledgements before submitting." };
+  if (input.codeText?.trim() && !input.codeAcknowledged) return { ok: false, message: "Acknowledge that troubleshooting code is inert redacted text and not execution permission before submitting." };
+  if (input.upload) {
+    const media = validateCommuneMediaFile(input.upload);
+    if (!media.ok) return { ok: false, message: media.message };
+  }
+  const secretScan = scanCommuneTextForSecrets([
+    input.title,
+    input.summary,
+    input.body,
+    input.tags,
+    input.links,
+    input.issueType,
+    input.affectedArea ?? "",
+    input.environmentOs ?? "",
+    input.environmentBrowser ?? "",
+    input.appVersion ?? "",
+    input.environmentNotes ?? "",
+    input.stepsToReproduce ?? "",
+    input.expectedResult ?? "",
+    input.actualResult ?? "",
+    input.errorMessage ?? "",
+    input.redactedLogs ?? "",
+    input.workaround ?? "",
+    input.codeFileName ?? "",
+    input.codeText ?? ""
+  ].join("\n"));
+  if (secretScan.blocked) return { ok: false, message: "Troubleshooting post blocked because it appears to contain private or secret material: " + secretScan.warnings.join(", ") + ". Redact it before submitting." };
+  const postId = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const tags = parseCommuneTags(input.tags);
+  const links = splitList(input.links);
+  const adminDirectPublish = account.isAdmin;
+  const { error: postError } = await supabase.from(canonicalCommuneTables.posts).insert({
+    id: postId,
+    user_id: account.userId,
+    author_username: account.username,
+    post_type: "troubleshooting",
+    title: input.title.trim(),
+    body: input.body.trim(),
+    excerpt: excerpt(input.summary || input.body),
+    tags,
+    links,
+    status: adminDirectPublish ? "published" : "pending_review",
+    moderation_status: adminDirectPublish ? "approved" : "pending_review",
+    published_at: adminDirectPublish ? now : null,
+    safety_acknowledgements: { public_boundary: true, no_secrets: true, no_execution: true, redacted_logs: true, troubleshooting: true }
+  });
+  if (postError) return { ok: false, message: friendlyError(postError.message, "Troubleshooting Grove post creation is blocked by the current Commune post policy.") };
+  const { data: thread } = await supabase.from(canonicalCommuneTables.threads).insert({
+    post_id: postId,
+    room_id: input.roomId || null,
+    title: input.title.trim(),
+    created_by: account.userId,
+    visibility: "public",
+    status: "open"
+  }).select("id").single();
+  const threadId = (thread as { id?: string } | null)?.id ?? null;
+  const structuredPayload = {
+    post_id: postId,
+    thread_id: threadId,
+    author_user_id: account.userId,
+    issue_type: normalizeTroubleshootingIssueType(input.issueType),
+    affected_area: input.affectedArea || null,
+    environment_os: input.environmentOs || null,
+    environment_browser: input.environmentBrowser || null,
+    app_version: input.appVersion || null,
+    environment_notes: input.environmentNotes || null,
+    steps_to_reproduce: input.stepsToReproduce || null,
+    expected_result: input.expectedResult || null,
+    actual_result: input.actualResult || null,
+    error_message: input.errorMessage || null,
+    redacted_logs: input.redactedLogs || null,
+    workaround: input.workaround || null,
+    troubleshooting_status: normalizeTroubleshootingStatus(input.troubleshootingStatus),
+    updated_at: now
+  };
+  const { data, error: troubleshootingError } = await supabase.from(canonicalCommuneTables.troubleshootingPosts).insert(structuredPayload).select("id").single();
+  if (troubleshootingError || !data) return { ok: false, postId, message: friendlyError(troubleshootingError?.message ?? "Troubleshooting metadata insert did not return a row.", "Troubleshooting Grove post saved, but structured metadata could not be saved. Apply the Troubleshooting Grove migration, then repair this post.") };
+  const troubleshootingId = (data as { id: string }).id;
+  if (input.codeText?.trim()) {
+    const snippet = await createCodeSnippet({ postId, language: input.codeLanguage ?? "text", fileName: input.codeFileName ?? "", codeText: input.codeText, sandboxAcknowledged: Boolean(input.codeAcknowledged) });
+    if (!snippet.ok) return { ok: false, id: troubleshootingId, postId, message: `Troubleshooting metadata saved, but reproduction snippet failed: ${snippet.message}` };
+  }
+  if (input.upload) {
+    const upload = await uploadCommuneAttachment(input.upload, { postId, role: "troubleshooting_attachment", publishImmediately: adminDirectPublish });
+    if (!upload.ok) return { ok: false, id: troubleshootingId, postId, message: `Troubleshooting post saved, but upload failed: ${upload.message}` };
+  }
+  if (adminDirectPublish) {
+    await grantThreadParticipationApproval({ threadId, postId, userId: account.userId, approvedBy: account.userId, source: "admin_direct_troubleshooting_post" });
+    await publishPostAttachments(postId);
+    await recordCommuneGovernanceEvent({ actorId: account.userId, targetType: "post", targetId: postId, action: "admin_troubleshooting_post_published", fromStatus: "draft", toStatus: "published", metadata: { post_type: "troubleshooting", troubleshooting_id: troubleshootingId, review_item_created: false } });
+    await createReviewHistoryItem({ domain: "commune", sourceTable: canonicalCommuneTables.troubleshootingPosts, sourceId: troubleshootingId, submittedBy: account.userId, title: input.title, summary: "Admin-published Troubleshooting Grove issue. Redacted diagnostic/support context only.", status: "approved", eventType: "admin_troubleshooting_direct_published", metadata: { post_id: postId, thread_id: threadId, issue_type: structuredPayload.issue_type } });
+    return { ok: true, id: troubleshootingId, postId, message: "Troubleshooting Grove post published with structured issue metadata, public thread, and support-safe diagnostic boundaries." };
+  }
+  await createReviewItem({ domain: "commune", sourceTable: canonicalCommuneTables.posts, sourceId: postId, submittedBy: account.userId, title: input.title.trim(), summary: excerpt(input.summary || input.body) });
+  return { ok: true, id: troubleshootingId, postId, message: "Troubleshooting Grove post submitted for moderation with structured issue metadata. It is not public until approved." };
+}
+
+export async function updateTroubleshootingStatus(input: { postId: string; status: TroubleshootingStatus; summary?: string }): Promise<{ ok: boolean; message: string }> {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId) return { ok: false, message: "Sign in to update troubleshooting status." };
+  const now = new Date().toISOString();
+  const patch: Record<string, unknown> = { troubleshooting_status: normalizeTroubleshootingStatus(input.status), updated_at: now };
+  if (input.status === "resolved") patch.resolved_at = now;
+  if (input.status === "closed") patch.closed_at = now;
+  if (input.status === "archived") patch.archived_at = now;
+  if (typeof input.summary === "string" && input.summary.trim()) {
+    patch.accepted_summary = input.summary.trim();
+    patch.accepted_resolution_kind = input.status === "workaround_found" ? "workaround" : "manual_note";
+    patch.accepted_by = account.userId;
+    patch.accepted_at = now;
+  }
+  const { data: existing } = await supabase.from(canonicalCommuneTables.troubleshootingPosts).select("id,author_user_id").eq("post_id", input.postId).maybeSingle();
+  const { error } = await supabase.from(canonicalCommuneTables.troubleshootingPosts).update(patch).eq("post_id", input.postId);
+  if (error) return { ok: false, message: friendlyError(error.message, "Troubleshooting Grove status could not be updated yet.") };
+  const row = existing as { id?: string; author_user_id?: string | null } | null;
+  await notifyTroubleshootingAuthor({ userId: row?.author_user_id ?? null, actorId: account.userId, postId: input.postId, sourceId: row?.id ?? null, title: "Troubleshooting status updated", body: `Your Troubleshooting Grove issue was marked ${input.status.replace(/_/g, " ")}.`, type: "troubleshooting_status_changed" });
+  return { ok: true, message: "Troubleshooting status updated." };
+}
+
+export async function markTroubleshootingResolved(input: { postId: string; resolutionKind: TroubleshootingResolutionKind; summary: string; commentId?: string | null; proposalId?: string | null; status?: TroubleshootingStatus }): Promise<{ ok: boolean; message: string }> {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId) return { ok: false, message: "Sign in to mark a troubleshooting resolution." };
+  if (!input.summary.trim()) return { ok: false, message: "Add a short accepted fix/workaround summary before marking a resolution." };
+  const now = new Date().toISOString();
+  const status = normalizeTroubleshootingStatus(input.status ?? (input.resolutionKind === "workaround" ? "workaround_found" : "resolved"));
+  const { data: existing } = await supabase.from(canonicalCommuneTables.troubleshootingPosts).select("id,author_user_id").eq("post_id", input.postId).maybeSingle();
+  const { error } = await supabase.from(canonicalCommuneTables.troubleshootingPosts).update({
+    troubleshooting_status: status,
+    accepted_comment_id: input.commentId || null,
+    accepted_proposal_id: input.proposalId || null,
+    accepted_resolution_kind: input.resolutionKind,
+    accepted_summary: input.summary.trim(),
+    accepted_by: account.userId,
+    accepted_at: now,
+    resolved_at: status === "resolved" ? now : null,
+    updated_at: now
+  }).eq("post_id", input.postId);
+  if (error) return { ok: false, message: friendlyError(error.message, "Troubleshooting resolution could not be saved yet.") };
+  const row = existing as { id?: string; author_user_id?: string | null } | null;
+  await notifyTroubleshootingAuthor({ userId: row?.author_user_id ?? null, actorId: account.userId, postId: input.postId, sourceId: row?.id ?? null, title: "Troubleshooting resolution recorded", body: `A ${input.resolutionKind.replace(/_/g, " ")} was recorded for your Troubleshooting Grove issue.`, type: "troubleshooting_resolution_recorded" });
+  return { ok: true, message: "Accepted troubleshooting fix/workaround recorded." };
+}
+
 export async function submitCommunePost(input: { postType: CommunePostType; roomId?: string; title: string; body: string; tags: string; links: string; repositoryUrl?: string; acknowledgement: boolean; upload?: File | null; sandboxRequested?: boolean }): Promise<{ ok: boolean; message: string; postId?: string }> {
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
@@ -1044,6 +1342,7 @@ export async function moderateCommuneContentTarget(input: { targetType: CommuneR
     if (mediaError && import.meta.env.DEV) console.warn("[Commune post media moderation]", mediaError.message);
     const postType = String((current as { post_type?: string } | null)?.post_type ?? "");
     const sidecarStatus = input.action === "delete" ? "rejected" : "needs_information";
+    if (postType === "troubleshooting") await supabase.from(canonicalCommuneTables.troubleshootingPosts).update({ troubleshooting_status: input.action === "delete" ? "archived" : "needs_information", updated_at: now, archived_at: input.action === "delete" ? now : null }).eq("post_id", input.targetId);
     if (postType === "repository_showcase") await supabase.from(canonicalCommuneTables.repositoryShowcases).update({ status: sidecarStatus, updated_at: now }).eq("post_id", input.targetId);
     if (postType === "elysia_iteration_showcase") await supabase.from(canonicalCommuneTables.iterationShowcases).update({ status: sidecarStatus, updated_at: now }).eq("post_id", input.targetId);
     if (postType === "official_update") await supabase.from(canonicalCommuneTables.officialUpdates).update({ official_status: input.action === "delete" ? "archived" : "updated", correction_status: input.action === "delete" ? "retracted" : "none", archived_at: input.action === "delete" ? now : null, updated_at: now }).eq("post_id", input.targetId);
@@ -1562,6 +1861,10 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
   if (item.kind === "post" && ownerRow.post_type === "repository_showcase") {
     const repoStatus = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "hide" ? "rejected" : action === "archive" ? "archived" : action === "escalate" ? "in_review" : "needs_information";
     await supabase.from(canonicalCommuneTables.repositoryShowcases).update({ status: repoStatus, updated_at: now }).eq("post_id", item.id);
+  }
+  if (item.kind === "post" && ownerRow.post_type === "troubleshooting") {
+    const troubleshootingStatus = action === "approve" ? "open" : action === "archive" ? "archived" : action === "reject" ? "archived" : action === "hide" ? "needs_information" : action === "escalate" ? "in_progress" : "needs_information";
+    await supabase.from(canonicalCommuneTables.troubleshootingPosts).update({ troubleshooting_status: troubleshootingStatus, updated_at: now, archived_at: troubleshootingStatus === "archived" ? now : null }).eq("post_id", item.id);
   }
   if (item.kind === "post" && ownerRow.post_type === "elysia_iteration_showcase") {
     const iterationStatus = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "hide" ? "rejected" : action === "archive" ? "archived" : action === "escalate" ? "in_review" : "needs_information";

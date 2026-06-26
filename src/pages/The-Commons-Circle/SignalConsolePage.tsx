@@ -3,11 +3,12 @@ import { Link } from "react-router-dom";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
-import { loadSignalConsole, markAllNotificationsRead, markNotificationRead, type CodeProposalSignalPreview, type CodeProposalSignalStatus, type ElysiaIterationShowcaseSignalPreview, type NotificationPreview, type OfficialUpdateSignalPreview, type RepositoryShowcaseSignalPreview, type SignalConsoleData } from "./commonsCircleApi";
+import { loadSignalConsole, markAllNotificationsRead, markNotificationRead, type CodeProposalSignalPreview, type CodeProposalSignalStatus, type ElysiaIterationShowcaseSignalPreview, type NotificationPreview, type OfficialUpdateSignalPreview, type RepositoryShowcaseSignalPreview, type SignalConsoleData, type TroubleshootingSignalPreview } from "./commonsCircleApi";
 
 function signalCategory(signal: NotificationPreview) {
   const text = `${signal.notification_type ?? ""} ${signal.source_type ?? ""}`;
   if (/official_update|official_security|official_notice/i.test(text)) return "Official Update";
+  if (/troubleshooting|fix_proposed|resolution/i.test(text)) return "Troubleshooting Grove";
   if (/code_revision|proposal/i.test(text)) return "Coding Cornucopia";
   if (/sandbox/i.test(text)) return "Sandbox";
   if (/comment|reply|thread/i.test(text)) return "Commune";
@@ -76,6 +77,24 @@ function ProposalSignalCard({ proposal, currentUserId, context }: { proposal: Co
     {proposal.post_title && <p className="boundary-note">Linked post: {proposal.post_title}</p>}
     <p className="boundary-note">Author approval remains separate from moderator safety enforcement. Sandbox success is evidence only, not trust, approval, or Marketplace readiness.</p>
     <div className="button-row"><Link className="button-link" to={proposal.action_url}>{isTroubleshooting ? "Open proposed fix workbench" : "Open proposal in Coding Workbench"}</Link></div>
+  </article>;
+}
+
+function troubleshootingSignalTime(signal: TroubleshootingSignalPreview) {
+  return signal.updated_at || signal.accepted_at || signal.resolved_at || signal.created_at || null;
+}
+
+function TroubleshootingSignalCard({ signal, context }: { signal: TroubleshootingSignalPreview; context: "mine" | "review" | "resolution" | "recent" }) {
+  const created = troubleshootingSignalTime(signal);
+  const title = signal.post_title || signal.affected_area || "Troubleshooting Grove activity";
+  const status = signal.troubleshooting_status ? signal.troubleshooting_status.replace(/_/g, " ") : "status unknown";
+  const roleLabel = signal.role_context === "reviewer" ? "Reviewer/moderator attention" : signal.role_context === "resolution" ? "Accepted fix/workaround activity" : "My troubleshooting issue";
+  return <article className={["commons-signal-card", context === "review" ? "commons-signal-card--unread" : ""].filter(Boolean).join(" ")}>
+    <div className="addon-card__topline"><strong>{title}</strong><span>{created ? new Date(created).toLocaleString() : "recent"}</span></div>
+    <div className="commons-signal-meta"><span>Troubleshooting Grove</span><span>{status}</span><span>{signal.issue_type?.replace(/_/g, " ") ?? "issue"}</span><span>{roleLabel}</span></div>
+    <p>{signal.accepted_summary || "Structured troubleshooting activity is connected to this Website Account. Proposed fixes remain author-controlled and moderator-governed."}</p>
+    <p className="boundary-note">Troubleshooting Grove keeps support context separate from Coding Cornucopia. Sandbox diagnostics are evidence only, and accepted fixes/workarounds preserve the public issue history.</p>
+    <div className="button-row"><Link className="button-link" to={signal.action_url}>Open troubleshooting issue</Link></div>
   </article>;
 }
 
@@ -158,6 +177,10 @@ export default function SignalConsolePage() {
   const proposalActivity = data?.codeProposalActivity ?? [];
   const needsMyReview = data?.needsMyReview ?? [];
   const mySubmittedProposals = data?.mySubmittedProposals ?? [];
+  const troubleshootingActivity = data?.troubleshootingActivity ?? [];
+  const myTroubleshootingIssues = data?.myTroubleshootingIssues ?? [];
+  const troubleshootingNeedingReview = data?.troubleshootingNeedingReview ?? [];
+  const troubleshootingResolutionActivity = data?.troubleshootingResolutionActivity ?? [];
   const repositoryShowcaseActivity = data?.repositoryShowcaseActivity ?? [];
   const myRepositoryShowcases = data?.myRepositoryShowcases ?? [];
   const repositoryShowcasesNeedingReview = data?.repositoryShowcasesNeedingReview ?? [];
@@ -169,7 +192,7 @@ export default function SignalConsolePage() {
   const officialUpdateActivity = data?.officialUpdateActivity ?? [];
   const myOfficialUpdates = data?.myOfficialUpdates ?? [];
   const officialUpdatesNeedingAttention = data?.officialUpdatesNeedingAttention ?? [];
-  const hasAnySignal = signals.length > 0 || proposalActivity.length > 0 || repositoryShowcaseActivity.length > 0 || iterationShowcaseActivity.length > 0 || officialUpdateActivity.length > 0;
+  const hasAnySignal = signals.length > 0 || proposalActivity.length > 0 || troubleshootingActivity.length > 0 || repositoryShowcaseActivity.length > 0 || iterationShowcaseActivity.length > 0 || officialUpdateActivity.length > 0;
 
   async function readOne(id: string) {
     const warnings = await markNotificationRead(id);
@@ -212,14 +235,23 @@ export default function SignalConsolePage() {
     </section>
     {data?.signedIn && <section className="section-card">
       <div className="section-heading section-heading--inline"><div><p className="eyebrow">Attention queue</p><h2>Signals that need review</h2></div><button type="button" disabled={!data.unreadCount} onClick={() => void readAll()}>Mark all read</button></div>
-      <dl className="mini-facts"><div><dt>Unread</dt><dd>{data.unreadCount}</dd></div><div><dt>Coding proposals</dt><dd>{data.codeProposalCount}</dd></div><div><dt>Repository showcases</dt><dd>{data.repositoryShowcaseCount}</dd></div><div><dt>Iteration showcases</dt><dd>{data.iterationShowcaseCount}</dd></div><div><dt>Official updates</dt><dd>{data.officialUpdateCount}</dd></div>{Object.entries(groupedCounts).slice(0, 4).map(([category, count]) => <div key={category}><dt>{category}</dt><dd>{count}</dd></div>)}</dl>
-      {!hasAnySignal && <p className="commons-empty-state">No signals yet. Code revision proposals, Repository Showcase submissions, Elysia Iteration Showcase progress posts, Official Update lifecycle activity, selected-artifact sandbox reviews, accepted/rejected outcomes, sandbox results, followed-thread updates, and review notices will appear here when account-backed events exist.</p>}
+      <dl className="mini-facts"><div><dt>Unread</dt><dd>{data.unreadCount}</dd></div><div><dt>Coding proposals</dt><dd>{data.codeProposalCount}</dd></div><div><dt>Troubleshooting</dt><dd>{data.troubleshootingCount}</dd></div><div><dt>Repository showcases</dt><dd>{data.repositoryShowcaseCount}</dd></div><div><dt>Iteration showcases</dt><dd>{data.iterationShowcaseCount}</dd></div><div><dt>Official updates</dt><dd>{data.officialUpdateCount}</dd></div>{Object.entries(groupedCounts).slice(0, 4).map(([category, count]) => <div key={category}><dt>{category}</dt><dd>{count}</dd></div>)}</dl>
+      {!hasAnySignal && <p className="commons-empty-state">No signals yet. Code revision proposals, Troubleshooting Grove support issues and proposed fixes, Repository Showcase submissions, Elysia Iteration Showcase progress posts, Official Update lifecycle activity, selected-artifact sandbox reviews, accepted/rejected outcomes, sandbox results, followed-thread updates, and review notices will appear here when account-backed events exist.</p>}
       <div className="section-heading"><p className="eyebrow">Coding Cornucopia proposals</p><h3>Needs my review</h3><p>Proposal activity is loaded directly from commune_code_revision_proposals, so same-user testing proposals still appear even when no notification row is created.</p></div>
       {!needsMyReview.length && <p className="commons-empty-state">No submitted or needs-changes Coding Cornucopia proposals are waiting on your author decision.</p>}
       <div className="commons-signal-list">{needsMyReview.map((proposal) => <ProposalSignalCard context="review" currentUserId={data.userId} key={`review-${proposal.id}`} proposal={proposal} />)}</div>
       <div className="section-heading"><p className="eyebrow">Coding Cornucopia proposals</p><h3>My submitted proposals</h3><p>Submitted, accepted, rejected, withdrawn, and needs-changes proposal records remain visible to the proposer without replacing public code.</p></div>
       {!mySubmittedProposals.length && <p className="commons-empty-state">You have not submitted any Coding Cornucopia revision proposals from this Website Account yet.</p>}
       <div className="commons-signal-list">{mySubmittedProposals.map((proposal) => <ProposalSignalCard context="submitted" currentUserId={data.userId} key={`submitted-${proposal.id}`} proposal={proposal} />)}</div>
+      <div className="section-heading"><p className="eyebrow">Troubleshooting Grove activity</p><h3>My troubleshooting issues</h3><p>Structured Troubleshooting Grove issue rows are loaded directly, so status changes, accepted workarounds, and same-account testing records can appear even before notification rows exist.</p></div>
+      {!myTroubleshootingIssues.length && <p className="commons-empty-state">You have not submitted any structured Troubleshooting Grove issues from this Website Account yet.</p>}
+      <div className="commons-signal-list">{myTroubleshootingIssues.map((signal) => <TroubleshootingSignalCard context="mine" key={`mine-troubleshooting-${signal.id}`} signal={signal} />)}</div>
+      <div className="section-heading"><p className="eyebrow">Troubleshooting Grove review</p><h3>Issues needing review or follow-up</h3><p>Authorized Commune reviewers can see needs-information, in-progress, and fix-proposed troubleshooting records while original authors retain control over accepted fixes.</p></div>
+      {!troubleshootingNeedingReview.length && <p className="commons-empty-state">No Troubleshooting Grove issue rows are waiting in your reviewer queue.</p>}
+      <div className="commons-signal-list">{troubleshootingNeedingReview.map((signal) => <TroubleshootingSignalCard context="review" key={`review-troubleshooting-${signal.id}`} signal={signal} />)}</div>
+      <div className="section-heading"><p className="eyebrow">Troubleshooting Grove resolutions</p><h3>Accepted fixes and workarounds</h3><p>Accepted fix/workaround signals point back to the public issue thread and keep resolution history separate from moderator safety actions.</p></div>
+      {!troubleshootingResolutionActivity.length && <p className="commons-empty-state">No accepted Troubleshooting Grove fix/workaround activity is connected to this Website Account yet.</p>}
+      <div className="commons-signal-list">{troubleshootingResolutionActivity.map((signal) => <TroubleshootingSignalCard context="resolution" key={`resolution-troubleshooting-${signal.role_context}-${signal.id}`} signal={signal} />)}</div>
       <div className="section-heading"><p className="eyebrow">Repository Showcase activity</p><h3>My repository showcases</h3><p>Repository Showcase activity is loaded directly from commune_repository_showcases, so local metadata submissions and selected-artifact sandbox requests can appear even before notification rows exist.</p></div>
       {!myRepositoryShowcases.length && <p className="commons-empty-state">You have not submitted Repository Showcase metadata from this Website Account yet.</p>}
       <div className="commons-signal-list">{myRepositoryShowcases.map((signal) => <RepositorySignalCard context="mine" key={`mine-repo-${signal.id}`} signal={signal} />)}</div>
@@ -245,11 +277,14 @@ export default function SignalConsolePage() {
       {!officialUpdatesNeedingAttention.length && <p className="commons-empty-state">No urgent Official Update lifecycle rows are waiting in your admin/reviewer attention queue.</p>}
       <div className="commons-signal-list">{officialUpdatesNeedingAttention.map((signal) => <OfficialUpdateSignalCard context="attention" key={`attention-official-${signal.id}`} signal={signal} />)}</div>
       <div className="section-heading"><p className="eyebrow">Account notifications</p><h3>Existing notification rows</h3><p>User notification rows still appear here when account-backed systems create them.</p></div>
-      {!signals.length && (proposalActivity.length > 0 || repositoryShowcaseActivity.length > 0 || iterationShowcaseActivity.length > 0 || officialUpdateActivity.length > 0) && <p className="commons-empty-state">No notification rows yet, but direct Coding Cornucopia proposal records, Repository Showcase activity, Elysia Iteration Showcase activity, and Official Update lifecycle activity are shown above.</p>}
+      {!signals.length && (proposalActivity.length > 0 || troubleshootingActivity.length > 0 || repositoryShowcaseActivity.length > 0 || iterationShowcaseActivity.length > 0 || officialUpdateActivity.length > 0) && <p className="commons-empty-state">No notification rows yet, but direct Coding Cornucopia proposal records, Troubleshooting Grove issue activity, Repository Showcase activity, Elysia Iteration Showcase activity, and Official Update lifecycle activity are shown above.</p>}
       <div className="commons-signal-list">{signals.map((signal) => <SignalCard key={signal.id} signal={signal} onRead={(id) => void readOne(id)} />)}</div>
       <div className="section-heading"><p className="eyebrow">Coding Cornucopia proposals</p><h3>Recent Coding Cornucopia proposal activity</h3><p>Recent participant-visible proposal records across author review and submitted-by-me activity.</p></div>
       {!proposalActivity.length && <p className="commons-empty-state">No direct Coding Cornucopia proposal records are connected to this Website Account yet.</p>}
       <div className="commons-signal-list">{proposalActivity.map((proposal) => <ProposalSignalCard context="recent" currentUserId={data.userId} key={`recent-${proposal.id}`} proposal={proposal} />)}</div>
+      <div className="section-heading"><p className="eyebrow">Troubleshooting Grove activity</p><h3>Recent troubleshooting issue activity</h3><p>Recent owner/reviewer-visible support issue records across status, proposed-fix, and resolution activity.</p></div>
+      {!troubleshootingActivity.length && <p className="commons-empty-state">No direct Troubleshooting Grove issue records are connected to this Website Account yet.</p>}
+      <div className="commons-signal-list">{troubleshootingActivity.map((signal) => <TroubleshootingSignalCard context="recent" key={`recent-troubleshooting-${signal.role_context}-${signal.id}`} signal={signal} />)}</div>
       <div className="section-heading"><p className="eyebrow">Official Update activity</p><h3>Recent official lifecycle activity</h3><p>Recent admin-visible Official Update records across my notices and critical lifecycle events.</p></div>
       {!officialUpdateActivity.length && <p className="commons-empty-state">No direct Official Update lifecycle records are connected to this Website Account yet.</p>}
       <div className="commons-signal-list">{officialUpdateActivity.map((signal) => <OfficialUpdateSignalCard context="recent" key={`recent-official-${signal.role_context}-${signal.id}`} signal={signal} />)}</div>
