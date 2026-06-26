@@ -76,6 +76,8 @@ Job Post is the public board. Work With Elysia Ecobotics is the private applicat
 
 Use Job Post for public listing details and public questions. Use Work With for resumes/CVs, private contact details, private application materials, private attachments, and administrator-review requests.
 
+The Work With/private application notice is system-owned and permanent. Normal Job Post authors cannot erase, weaken, or override the warning that resumes/CVs, identity documents, private contact details, SSNs, bank details, and private application materials belong in Work With Elysia Ecobotics or another safe application path, not public Job Post comments.
+
 ## Safety Rules
 
 Job Posts and public comments must not ask for or expose:

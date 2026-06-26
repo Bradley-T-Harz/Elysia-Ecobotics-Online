@@ -795,6 +795,7 @@ const jobAntiScamStatusOptions: Array<{ value: JobPostAntiScamReviewStatus; labe
   { value: "suspicious", label: "Suspicious / needs admin follow-up" },
   { value: "removed", label: "Removed" }
 ];
+const jobPrivateApplicationSystemNotice = "Use Work With Elysia Ecobotics for private application materials such as resumes/CVs. Do not post resumes, CVs, identity documents, private contact details, SSNs, bank details, or private application materials in public comments.";
 
 const researchEcologicalSubsystemOptions = [
   { value: "", label: "Not specified" },
@@ -1547,7 +1548,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     jobApplicationStatus: "open" as JobPostApplicationStatus,
     jobAntiScamReviewStatus: "not_reviewed" as JobPostAntiScamReviewStatus,
     jobWorkWithLinkEnabled: true,
-    jobPrivateApplicationNote: "Use Work With Elysia Ecobotics for private application materials such as resumes/CVs.",
+    jobPrivateApplicationNote: "",
     jobPublicCorrectionNote: "",
     researchQuestion: "",
     citationNotes: "",
@@ -1732,7 +1733,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       sectionBlock("Role summary", form.jobRoleSummary),
       sectionBlock("Application status", jobApplicationStatusLabel(form.jobApplicationStatus)),
       sectionBlock("Anti-scam review", jobAntiScamStatusLabel(form.jobAntiScamReviewStatus)),
-      sectionBlock("Work With private application path", form.jobWorkWithLinkEnabled ? "Enabled - private applications/resumes/CVs belong on Work With Elysia Ecobotics, not public Job Post comments." : "Not linked"),
+      sectionBlock("Work With private application path", "Enabled - private applications/resumes/CVs belong on Work With Elysia Ecobotics, not public Job Post comments."),
       sectionBlock("Job safety notes", form.jobSafetyNotes),
       sectionBlock("Public correction note", form.jobPublicCorrectionNote)
     ].filter(Boolean);
@@ -2281,9 +2282,8 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
         <label className="wide-field"><span>Contact / application path</span><input value={form.contactPath} onChange={(event) => setForm({ ...form, contactPath: event.target.value })} placeholder="Public application/contact path; no SSNs, bank details, IDs, resumes/CVs, or private details in comments" /></label>
         <label className="wide-field"><span>Requirements / skills</span><textarea rows={4} value={form.requirementsSkills} onChange={(event) => setForm({ ...form, requirementsSkills: event.target.value })} /></label>
         <label className="wide-field"><span>Safety notes</span><textarea rows={3} value={form.jobSafetyNotes} onChange={(event) => setForm({ ...form, jobSafetyNotes: event.target.value })} placeholder="No SSNs, bank details, identity documents, private addresses, private phone numbers, resumes/CVs, contracts, or private-contact pressure." /></label>
-        <label className="checkbox-line wide-field"><input type="checkbox" checked={form.jobWorkWithLinkEnabled} onChange={(event) => setForm({ ...form, jobWorkWithLinkEnabled: event.target.checked })} /><span>Link to Work With Elysia Ecobotics as the private application/intake path for resumes, CVs, and private contact materials.</span></label>
-        <label className="wide-field"><span>Private application note</span><input value={form.jobPrivateApplicationNote} onChange={(event) => setForm({ ...form, jobPrivateApplicationNote: event.target.value })} placeholder="Public-safe note explaining where private application materials belong." /></label>
-        {isAdmin && <><label><span>Application status</span><select value={form.jobApplicationStatus} onChange={(event) => setForm({ ...form, jobApplicationStatus: event.target.value as JobPostApplicationStatus })}>{jobApplicationStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label><span>Anti-scam review</span><select value={form.jobAntiScamReviewStatus} onChange={(event) => setForm({ ...form, jobAntiScamReviewStatus: event.target.value as JobPostAntiScamReviewStatus })}>{jobAntiScamStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label className="wide-field"><span>Public correction / clarification note</span><input value={form.jobPublicCorrectionNote} onChange={(event) => setForm({ ...form, jobPublicCorrectionNote: event.target.value })} placeholder="Public-safe admin clarification if needed" /></label></>}
+        <p className="wide-field boundary-note">{jobPrivateApplicationSystemNotice}</p>
+        {isAdmin && <><label className="wide-field"><span>Admin public-safe application clarification optional</span><input value={form.jobPrivateApplicationNote} onChange={(event) => setForm({ ...form, jobPrivateApplicationNote: event.target.value })} placeholder="Optional public-safe clarification; it does not replace the permanent system warning." /></label><label><span>Application status</span><select value={form.jobApplicationStatus} onChange={(event) => setForm({ ...form, jobApplicationStatus: event.target.value as JobPostApplicationStatus })}>{jobApplicationStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label><span>Anti-scam review</span><select value={form.jobAntiScamReviewStatus} onChange={(event) => setForm({ ...form, jobAntiScamReviewStatus: event.target.value as JobPostAntiScamReviewStatus })}>{jobAntiScamStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label className="wide-field"><span>Public correction / clarification note</span><input value={form.jobPublicCorrectionNote} onChange={(event) => setForm({ ...form, jobPublicCorrectionNote: event.target.value })} placeholder="Public-safe admin clarification if needed" /></label></>}
         <p className="wide-field boundary-note">Job Post is a public opportunity board. Normal users submit for mandatory admin approval before publication. Do not post resumes/CVs, identity documents, SSNs, bank details, tax forms, private addresses, private phone numbers, private application packets, or Work With uploads here.</p>
       </>}
       {showResearchFields && <>
@@ -3037,7 +3037,7 @@ function JobPostReviewControls({ jobPost, postId, isModerator, onMessage, onChan
 function JobPostDetail({ post, jobPost, parsedBody, isModerator, onMessage, onChanged }: { post: CommunePost; jobPost?: JobPostMetadata | null; parsedBody: ReturnType<typeof splitPostSections>; isModerator: boolean; onMessage: (message: string) => void; onChanged: () => Promise<void> }) {
   const section = (heading: string) => repoSectionValue(parsedBody, heading);
   const value = (metadataValue?: string | null, fallbackHeading?: string) => String(metadataValue ?? "").trim() || (fallbackHeading ? section(fallbackHeading) : "");
-  const workWithEnabled = jobPost?.work_with_link_enabled !== false && !/not linked/i.test(section("Work With private application path"));
+  const adminApplicationClarification = String(jobPost?.private_application_note ?? "").trim();
   const fields = [
     ["Role summary", value(jobPost?.role_summary, "Role summary") || parsedBody.intro],
     ["Compensation clarity", value(jobPost?.compensation_clarity, "Compensation clarity")],
@@ -3067,7 +3067,7 @@ function JobPostDetail({ post, jobPost, parsedBody, isModerator, onMessage, onCh
     </div>
     {fields.length > 0 && <div className="commune-room-native-details commune-job-native-details"><p className="eyebrow">Structured job listing</p><div className="commune-room-native-grid">{fields.map(([heading, body]) => <article className="commune-room-native-field" key={heading}><h3>{heading}</h3><p>{body}</p></article>)}</div></div>}
     <WarningCallout title="Anti-scam and privacy safety"><p>Do not share SSNs, bank details, identity documents, resumes/CVs, private addresses, private phone numbers, tax forms, contracts, private application packets, Work With uploads, or sensitive personal data in public Job Post comments. Use a safe public contact path or the private Work With intake when appropriate.</p></WarningCallout>
-    {workWithEnabled && <section className="commune-room-native-field commune-job-work-with"><h3>Private application path</h3><p>{jobPost?.private_application_note || "Use Work With Elysia Ecobotics for private application materials such as resumes/CVs and private contact details. Public Job Post comments should stay public-safe."}</p><div className="button-row"><Link className="button-link" to="/work-with-elysia-ecobotics">Open Work With Elysia Ecobotics</Link></div></section>}
+    <section className="commune-room-native-field commune-job-work-with"><h3>Private application path</h3><p>{jobPrivateApplicationSystemNotice}</p>{adminApplicationClarification && <p className="boundary-note">Admin clarification: {adminApplicationClarification}</p>}<div className="button-row"><Link className="button-link" to="/work-with-elysia-ecobotics">Open Work With Elysia Ecobotics</Link></div></section>
     <JobPostReviewControls jobPost={jobPost} postId={post.id} isModerator={isModerator} onMessage={onMessage} onChanged={onChanged} />
   </div>;
 }

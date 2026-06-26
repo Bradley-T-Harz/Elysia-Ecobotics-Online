@@ -299,6 +299,8 @@ comment on column public.commune_job_posts.anti_scam_review_status is
   'Reviewer/admin anti-scam state. Public users must not self-assign reviewed_clear or trust/safety claims.';
 comment on column public.commune_job_posts.work_with_link_enabled is
   'Public bridge flag to Work With Elysia Ecobotics. Work With remains private intake; Job Post remains public listing discussion.';
+comment on column public.commune_job_posts.private_application_note is
+  'Optional admin/reviewer public-safe clarification only. The permanent Work With/private application warning is system-owned UI copy, not author-editable metadata.';
 comment on function public.update_own_commune_job_post_application_status(uuid, uuid, text, text) is
   'Author-only status RPC for Job Post lifecycle fields. It does not update anti-scam review state or hidden reviewer notes.';
 grant select on public.commune_job_posts to anon, authenticated;

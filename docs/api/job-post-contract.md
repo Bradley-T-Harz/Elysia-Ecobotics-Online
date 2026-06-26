@@ -44,7 +44,7 @@ Normal users submit into `pending_review`; their Job Posts are not public until 
 - `application_status`
 - `anti_scam_review_status`
 - `work_with_link_enabled`
-- `private_application_note`
+- `private_application_note` as optional admin/reviewer-only public-safe clarification, never the permanent system warning
 - `public_correction_note`
 - reviewer and lifecycle timestamps
 
@@ -93,3 +93,5 @@ Room/feed filtering should include structured Job Post values in addition to tit
 ## Work With Bridge
 
 Job Post links to Work With Elysia Ecobotics for private application/intake material. Work With links back to the public Job Post board. Neither side should expose the other side's private data.
+
+The permanent Work With/private application warning is system-owned UI copy, not author-owned metadata. Normal Job Post authors cannot erase, weaken, or override it through the composer. The `private_application_note` field is only an optional public-safe admin/reviewer clarification layered after the permanent warning.
