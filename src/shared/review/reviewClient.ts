@@ -313,7 +313,7 @@ export async function loadReviewEvents(reviewItemId?: string): Promise<{ events:
 }
 
 function sourceStatusTable(sourceTable: string) {
-  if (["work_with_requests", "stewardship_recognition_requests", "commune_post_requests", "living_library_source_suggestions", "broken_link_reports", "addon_submissions", "library_source_submissions", "work_role_submissions", "content_reports"].includes(sourceTable)) return sourceTable;
+  if (["work_with_requests", "stewardship_recognition_requests", "commune_post_requests", "commune_job_posts", "living_library_source_suggestions", "broken_link_reports", "addon_submissions", "library_source_submissions", "work_role_submissions", "content_reports"].includes(sourceTable)) return sourceTable;
   return null;
 }
 

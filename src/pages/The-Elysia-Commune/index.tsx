@@ -43,11 +43,14 @@ import {
   submitCommunePost,
   submitComment,
   submitIterationShowcase,
+  submitJobPost,
   submitOfficialUpdate,
   submitResearchNotesPost,
   submitRepositoryShowcase,
   submitSandboxReview,
   submitTroubleshootingPost,
+  updateJobPostApplicationStatus,
+  updateJobPostReviewStatus,
   updateOfficialCodeSnippet,
   updateOfficialUpdateMetadata,
   updateResearchNotesReviewStatus,
@@ -65,6 +68,9 @@ import {
   type CommuneReactionTargetType,
   type CommuneRoom,
   type ElysiaIterationShowcaseMetadata,
+  type JobPostAntiScamReviewStatus,
+  type JobPostApplicationStatus,
+  type JobPostMetadata,
   type OfficialUpdateCodeSnippet,
   type OfficialUpdateMetadata,
   type OfficialUpdateSeverity,
@@ -338,11 +344,11 @@ const postTypes: CommunePostTypeCard[] = [
     id: "job-post",
     backendValue: "job_post",
     name: "Job Post",
-    purpose: "EcoSyneva/Elysia opportunities, community job posts, volunteer calls, research roles, and project needs.",
-    allowedContent: "Clear role summaries, paid/volunteer status, project needs, location/remote notes, and contact paths.",
-    cautions: "Jobs require anti-scam review, pay/volunteer clarity, location/remote clarity, and no sensitive personal data in public comments.",
+    purpose: "Public EcoSyneva, Elysia, and community opportunity listings, volunteer calls, paid roles, research roles, contributor needs, and project recruitment.",
+    allowedContent: "Clear role summaries, role type, paid/volunteer status, compensation clarity, location/remote notes, time commitment, safe contact paths, and project needs.",
+    cautions: "Normal-user Job Posts require admin approval before publication. No resumes/CVs, SSNs, bank details, identity documents, private addresses, private phone numbers, or private application data in public comments.",
     currentStatus: ["Local draft available", "Requires moderation", "Backend enhanced"],
-    futureFeatures: "Reviewed job posts, role labels, scam reporting, and pay/volunteer clarity requirements."
+    futureFeatures: "Structured anti-scam review, filled/closed listing states, Work With private intake bridge, and search over job metadata."
   },
   {
     id: "official-update",
@@ -745,6 +751,51 @@ const researchReviewStatusOptions: Array<{ value: ResearchReviewStatus; label: s
   { value: "corrected", label: "Corrected" },
   { value: "archived", label: "Archived" }
 ];
+const jobRoleTypeOptions: Array<{ value: JobPostMetadata["role_type"]; label: string }> = [
+  { value: "paid_role", label: "Paid role" },
+  { value: "volunteer_call", label: "Volunteer call" },
+  { value: "stipend_role", label: "Stipend role" },
+  { value: "contract", label: "Contract opportunity" },
+  { value: "internship", label: "Internship" },
+  { value: "research_role", label: "Research role" },
+  { value: "collaboration_role", label: "Collaboration role" },
+  { value: "contributor_call", label: "Contributor call" },
+  { value: "reviewer_moderator_need", label: "Reviewer / moderator need" },
+  { value: "other", label: "Other / explain clearly" }
+];
+const jobPaidStatusOptions: Array<{ value: JobPostMetadata["paid_volunteer_status"]; label: string }> = [
+  { value: "paid", label: "Paid" },
+  { value: "volunteer", label: "Volunteer" },
+  { value: "stipend", label: "Stipend" },
+  { value: "unpaid", label: "Unpaid" },
+  { value: "mixed", label: "Mixed / explain clearly" },
+  { value: "must_clarify", label: "Must clarify before approval" }
+];
+const jobLocationModeOptions: Array<{ value: JobPostMetadata["location_mode"]; label: string }> = [
+  { value: "remote", label: "Remote" },
+  { value: "hybrid", label: "Hybrid" },
+  { value: "local", label: "Local / onsite" },
+  { value: "field_based", label: "Field-based" },
+  { value: "unspecified", label: "Unspecified / clarify" }
+];
+const jobApplicationStatusOptions: Array<{ value: JobPostApplicationStatus; label: string }> = [
+  { value: "open", label: "Open" },
+  { value: "reviewing", label: "Reviewing applications" },
+  { value: "filled", label: "Filled" },
+  { value: "closed", label: "Closed" },
+  { value: "archived", label: "Archived" },
+  { value: "needs_clarification", label: "Needs clarification" }
+];
+const jobAntiScamStatusOptions: Array<{ value: JobPostAntiScamReviewStatus; label: string }> = [
+  { value: "not_reviewed", label: "Not reviewed" },
+  { value: "reviewed_clear", label: "Reviewed clear" },
+  { value: "needs_pay_clarification", label: "Needs pay clarification" },
+  { value: "needs_contact_clarification", label: "Needs contact clarification" },
+  { value: "needs_location_clarification", label: "Needs location clarification" },
+  { value: "suspicious", label: "Suspicious / needs admin follow-up" },
+  { value: "removed", label: "Removed" }
+];
+
 const researchEcologicalSubsystemOptions = [
   { value: "", label: "Not specified" },
   { value: "general", label: "General" },
@@ -1066,6 +1117,53 @@ function researchReviewStatusLabel(value?: string | null) {
   return researchReviewStatusOptions.find((option) => option.value === value)?.label ?? (value ? value.replace(/_/g, " ") : "submitted");
 }
 
+function jobRoleLabel(value?: string | null) {
+  return jobRoleTypeOptions.find((option) => option.value === value)?.label ?? (value ? value.replace(/_/g, " ") : "Role type not specified");
+}
+
+function jobPaidStatusLabel(value?: string | null) {
+  return jobPaidStatusOptions.find((option) => option.value === value)?.label ?? (value ? value.replace(/_/g, " ") : "Pay status not specified");
+}
+
+function jobLocationModeLabel(value?: string | null) {
+  return jobLocationModeOptions.find((option) => option.value === value)?.label ?? (value ? value.replace(/_/g, " ") : "Location not specified");
+}
+
+function jobApplicationStatusLabel(value?: string | null) {
+  return jobApplicationStatusOptions.find((option) => option.value === value)?.label ?? (value ? value.replace(/_/g, " ") : "open");
+}
+
+function jobAntiScamStatusLabel(value?: string | null) {
+  return jobAntiScamStatusOptions.find((option) => option.value === value)?.label ?? (value ? value.replace(/_/g, " ") : "not reviewed");
+}
+
+function jobSearchValues(item?: JobPostMetadata | null) {
+  if (!item) return [];
+  return [
+    item.role_title ?? "",
+    item.organization_project ?? "",
+    item.role_type,
+    jobRoleLabel(item.role_type),
+    item.paid_volunteer_status,
+    jobPaidStatusLabel(item.paid_volunteer_status),
+    item.location_mode,
+    jobLocationModeLabel(item.location_mode),
+    item.location_text ?? "",
+    item.time_commitment ?? "",
+    item.deadline ?? "",
+    item.compensation_clarity ?? "",
+    item.contact_path ?? "",
+    item.requirements_skills ?? "",
+    item.safety_notes ?? "",
+    item.role_summary ?? "",
+    item.application_status,
+    jobApplicationStatusLabel(item.application_status),
+    item.anti_scam_review_status,
+    jobAntiScamStatusLabel(item.anti_scam_review_status),
+    item.public_correction_note ?? ""
+  ];
+}
+
 function researchSearchValues(item?: ResearchNotesMetadata | null) {
   if (!item) return [];
   return [
@@ -1275,38 +1373,42 @@ function AdminContentControls({ targetType, targetId, isModerator, onChanged, on
   </div>;
 }
 
-function PostCard({ post, saved, onSave, signedIn, officialUpdate, troubleshooting, researchNote }: { post: CommunePost; saved: boolean; onSave: (id: string) => void; signedIn: boolean; officialUpdate?: OfficialUpdateMetadata | null; troubleshooting?: TroubleshootingMetadata | null; researchNote?: ResearchNotesMetadata | null }) {
+function PostCard({ post, saved, onSave, signedIn, officialUpdate, troubleshooting, jobPost, researchNote }: { post: CommunePost; saved: boolean; onSave: (id: string) => void; signedIn: boolean; officialUpdate?: OfficialUpdateMetadata | null; troubleshooting?: TroubleshootingMetadata | null; jobPost?: JobPostMetadata | null; researchNote?: ResearchNotesMetadata | null }) {
   const officialLabels = officialUpdate ? ["Official", officialUpdate.update_type.replace(/_/g, " "), officialUpdate.official_status, officialUpdate.severity, officialUpdate.pinned ? "Pinned" : "", officialUpdate.important ? "Important" : ""].filter(Boolean) : [];
   const troubleshootingLabels = troubleshooting ? ["Troubleshooting Grove", troubleshooting.issue_type, troubleshooting.troubleshooting_status, troubleshooting.affected_area ?? ""].filter(Boolean) : [];
   const researchLabels = researchNote ? ["Research Notes", researchEvidenceLabel(researchNote.evidence_strength), researchReviewStatusLabel(researchNote.review_status), researchNote.domain ?? ""].filter(Boolean) : [];
-  return <article className={post.post_type === "official_update" ? "commune-post-card commune-official-card" : "commune-post-card"}><div className="addon-card__topline"><StatusBadges labels={officialLabels.length ? officialLabels : troubleshootingLabels.length ? troubleshootingLabels : researchLabels.length ? researchLabels : [post.post_type, post.status]} /></div><h3><Link to={`/commune/posts/${post.id}`}>{post.title}</Link></h3><p>{officialUpdate?.summary || researchNote?.evidence_summary || post.excerpt || post.body.slice(0, 180)}</p>{troubleshooting?.accepted_summary && <p className="boundary-note">Accepted {troubleshooting.accepted_resolution_kind?.replace(/_/g, " ") ?? "resolution"}: {troubleshooting.accepted_summary}</p>}{researchNote?.uncertainty && <p className="boundary-note">Uncertainty: {researchNote.uncertainty.slice(0, 180)}</p>}<p>{post.post_type === "official_update" ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>} · {post.published_at ? new Date(post.published_at).toLocaleDateString() : "public date unavailable"}</p><TagChips tags={(post.tags ?? []).slice(0, 5)} /><ReactionBar targetType="post" targetId={post.id} signedIn={signedIn} /><div className="button-row"><Link className="button-link" to={`/commune/posts/${post.id}`}>Read</Link><button type="button" onClick={() => onSave(post.id)}>{saved ? "Saved" : "Save post"}</button></div></article>;
+  const jobLabels = jobPost ? ["Job Post", jobRoleLabel(jobPost.role_type), jobPaidStatusLabel(jobPost.paid_volunteer_status), jobApplicationStatusLabel(jobPost.application_status), jobAntiScamStatusLabel(jobPost.anti_scam_review_status)].filter(Boolean) : [];
+  return <article className={post.post_type === "official_update" ? "commune-post-card commune-official-card" : "commune-post-card"}><div className="addon-card__topline"><StatusBadges labels={officialLabels.length ? officialLabels : troubleshootingLabels.length ? troubleshootingLabels : researchLabels.length ? researchLabels : jobLabels.length ? jobLabels : [post.post_type, post.status]} /></div><h3><Link to={`/commune/posts/${post.id}`}>{post.title}</Link></h3><p>{officialUpdate?.summary || researchNote?.evidence_summary || jobPost?.role_summary || post.excerpt || post.body.slice(0, 180)}</p>{troubleshooting?.accepted_summary && <p className="boundary-note">Accepted {troubleshooting.accepted_resolution_kind?.replace(/_/g, " ") ?? "resolution"}: {troubleshooting.accepted_summary}</p>}{researchNote?.uncertainty && <p className="boundary-note">Uncertainty: {researchNote.uncertainty.slice(0, 180)}</p>}{jobPost && <p className="boundary-note">{jobPaidStatusLabel(jobPost.paid_volunteer_status)} · {jobLocationModeLabel(jobPost.location_mode)} · {jobApplicationStatusLabel(jobPost.application_status)}</p>}<p>{post.post_type === "official_update" ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>} · {post.published_at ? new Date(post.published_at).toLocaleDateString() : "public date unavailable"}</p><TagChips tags={(post.tags ?? []).slice(0, 5)} /><ReactionBar targetType="post" targetId={post.id} signedIn={signedIn} /><div className="button-row"><Link className="button-link" to={`/commune/posts/${post.id}`}>Read</Link><button type="button" onClick={() => onSave(post.id)}>{saved ? "Saved" : "Save post"}</button></div></article>;
 }
 
-function CommunityFeed({ posts, savedPostIds, onSave, filters, signedIn, troubleshootingPosts, researchNotes }: { posts: CommunePost[]; savedPostIds: string[]; onSave: (id: string) => void; filters: CommuneFilters; signedIn: boolean; troubleshootingPosts?: TroubleshootingMetadata[]; researchNotes?: ResearchNotesMetadata[] }) {
+function CommunityFeed({ posts, savedPostIds, onSave, filters, signedIn, troubleshootingPosts, jobPosts, researchNotes }: { posts: CommunePost[]; savedPostIds: string[]; onSave: (id: string) => void; filters: CommuneFilters; signedIn: boolean; troubleshootingPosts?: TroubleshootingMetadata[]; jobPosts?: JobPostMetadata[]; researchNotes?: ResearchNotesMetadata[] }) {
   const troubleshootingByPostId = new Map((troubleshootingPosts ?? []).map((item) => [item.post_id, item]));
+  const jobByPostId = new Map((jobPosts ?? []).map((item) => [item.post_id, item]));
   const researchByPostId = new Map((researchNotes ?? []).map((item) => [item.post_id, item]));
   const filteredPosts = posts.filter((post) => {
     const type = postTypes.find((item) => item.backendValue === post.post_type);
     const troubleshooting = troubleshootingByPostId.get(post.id);
     const researchNote = researchByPostId.get(post.id);
-    const labels = [post.status, post.visibility, type?.name ?? post.post_type, ...(post.tags ?? []), ...(troubleshooting ? [troubleshooting.issue_type, troubleshooting.troubleshooting_status, troubleshooting.affected_area ?? ""] : []), ...(researchNote ? [researchEvidenceLabel(researchNote.evidence_strength), researchNote.review_status, researchNote.domain ?? ""] : [])];
-    return matchesCategory(type?.name ?? post.post_type, filters.category) && matchesSearch([post.title, post.excerpt ?? "", post.body, ...(post.tags ?? []), ...troubleshootingSearchValues(troubleshooting), ...researchSearchValues(researchNote)], filters.search) && matchesStatus(labels, filters.status) && matchesSafety(labels, filters.safety);
+    const jobPost = jobByPostId.get(post.id);
+    const labels = [post.status, post.visibility, type?.name ?? post.post_type, ...(post.tags ?? []), ...(troubleshooting ? [troubleshooting.issue_type, troubleshooting.troubleshooting_status, troubleshooting.affected_area ?? ""] : []), ...(researchNote ? [researchEvidenceLabel(researchNote.evidence_strength), researchNote.review_status, researchNote.domain ?? ""] : []), ...(jobPost ? [jobPost.role_type, jobPost.paid_volunteer_status, jobPost.location_mode, jobPost.application_status, jobPost.anti_scam_review_status] : [])];
+    return matchesCategory(type?.name ?? post.post_type, filters.category) && matchesSearch([post.title, post.excerpt ?? "", post.body, ...(post.tags ?? []), ...troubleshootingSearchValues(troubleshooting), ...researchSearchValues(researchNote), ...jobSearchValues(jobPost)], filters.search) && matchesStatus(labels, filters.status) && matchesSafety(labels, filters.safety);
   });
   const emptyCards = postTypes.filter((type) => matchesCategory(type.name, filters.category) && matchesSearch([type.name, type.purpose], filters.search) && matchesStatus([...type.currentStatus, "needs backend"], filters.status) && matchesSafety([...type.currentStatus, type.cautions], filters.safety)).slice(0, 5);
   return <section className="section-card commune-feed" id="commune-feed">
     <p className="eyebrow">Community Feed</p>
     <h2>{filteredPosts.length ? `${filteredPosts.length} published item${filteredPosts.length === 1 ? "" : "s"}` : "No published Commune posts yet"}</h2>
     <p className="boundary-note">Only posts approved/published by moderation are public here. Drafts and pending requests remain private to their owner and reviewers.</p>
-    {filteredPosts.length ? <div className="commune-feed-grid">{filteredPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} signedIn={signedIn} troubleshooting={troubleshootingByPostId.get(post.id)} researchNote={researchByPostId.get(post.id)} />)}</div> : <div className="commune-feed-grid">{emptyCards.map((type) => <article className="commune-feed-card" key={type.id}><div className="commune-author-sigil" aria-hidden="true">{type.name.slice(0, 1)}</div><p className="eyebrow">{type.name}</p><h3>No {type.name} posts yet.</h3><p>{type.purpose}</p><Link className="button-link" to={roomPathForType(type)}>Enter room</Link></article>)}</div>}
+    {filteredPosts.length ? <div className="commune-feed-grid">{filteredPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} signedIn={signedIn} troubleshooting={troubleshootingByPostId.get(post.id)} jobPost={jobByPostId.get(post.id)} researchNote={researchByPostId.get(post.id)} />)}</div> : <div className="commune-feed-grid">{emptyCards.map((type) => <article className="commune-feed-card" key={type.id}><div className="commune-author-sigil" aria-hidden="true">{type.name.slice(0, 1)}</div><p className="eyebrow">{type.name}</p><h3>No {type.name} posts yet.</h3><p>{type.purpose}</p><Link className="button-link" to={roomPathForType(type)}>Enter room</Link></article>)}</div>}
   </section>;
 }
 
-function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPosts, researchNotes, savedPostIds, onSave, localDrafts, categories, onRefresh, signedIn, isAdmin, focusComposer = false }: { roomSlug: string; roomId?: string; posts: CommunePost[]; officialUpdates: OfficialUpdateMetadata[]; troubleshootingPosts: TroubleshootingMetadata[]; researchNotes: ResearchNotesMetadata[]; savedPostIds: string[]; onSave: (id: string) => void; localDrafts: ReturnType<typeof useLocalDraftState>; categories: CommuneCategory[]; onRefresh: () => Promise<void>; signedIn: boolean; isAdmin: boolean; focusComposer?: boolean }) {
+function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPosts, jobPosts, researchNotes, savedPostIds, onSave, localDrafts, categories, onRefresh, signedIn, isAdmin, focusComposer = false }: { roomSlug: string; roomId?: string; posts: CommunePost[]; officialUpdates: OfficialUpdateMetadata[]; troubleshootingPosts: TroubleshootingMetadata[]; jobPosts: JobPostMetadata[]; researchNotes: ResearchNotesMetadata[]; savedPostIds: string[]; onSave: (id: string) => void; localDrafts: ReturnType<typeof useLocalDraftState>; categories: CommuneCategory[]; onRefresh: () => Promise<void>; signedIn: boolean; isAdmin: boolean; focusComposer?: boolean }) {
   const normalizedRoomSlug = normalizeCommuneRoomSlug(roomSlug) ?? roomSlug;
   const type = postTypeByRoomSlug.get(normalizedRoomSlug);
   const officialByPostId = new Map(officialUpdates.map((item) => [item.post_id, item]));
   const troubleshootingByPostId = new Map(troubleshootingPosts.map((item) => [item.post_id, item]));
   const researchByPostId = new Map(researchNotes.map((item) => [item.post_id, item]));
+  const jobByPostId = new Map(jobPosts.map((item) => [item.post_id, item]));
   const roomPosts = type ? posts.filter((post) => post.post_type === type.backendValue).sort((left, right) => {
     if (type.backendValue !== "official_update") return 0;
     const leftMeta = officialByPostId.get(left.id);
@@ -1332,18 +1434,19 @@ function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPos
       <p><strong>Caution:</strong> {type.cautions}</p>
       <StatusBadges labels={type.currentStatus} />
       <div className="commune-action-row">
-        {roomPostComposer && <Link className="button-link button-link--primary" to={`/commune/${roomSlug}/new`}>{type.backendValue === "troubleshooting" ? "Create Troubleshooting Post" : `Create ${type.name} Post`}</Link>}
+        {roomPostComposer && <Link className="button-link button-link--primary" to={`/commune/${roomSlug}/new`}>{type.backendValue === "troubleshooting" ? "Create Troubleshooting Post" : type.backendValue === "job_post" ? "Create Job Post" : `Create ${type.name} Post`}</Link>}
         {type.backendValue === "repository_showcase" && <Link className="button-link button-link--primary" to="/commune/repository-showcase/new">Create Repository Showcase</Link>}
         {type.backendValue === "elysia_iteration_showcase" && <Link className="button-link" to="/commune/elysia-iteration-showcase/sandbox-request">Review selected iteration artifact</Link>}
         {type.backendValue === "code_sharing" && <><Link className="button-link button-link--primary" to="/commune/coding-cornucopia/new">Draft Coding Cornucopia Post</Link><Link className="button-link" to="/commune/coding-cornucopia/review">Open Coding Workbench</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Prepare Sandbox Review Request</Link></>}
         {type.backendValue === "official_update" && (isAdmin ? <Link className="button-link button-link--primary" to="/commune/official-updates/new">Publish Official Update</Link> : <a className="button-link button-link--primary" href="#commune-room-feed">Read official updates</a>)}
       </div>
     </section>
+    {type.backendValue === "job_post" && <section className="section-card commune-job-bridge"><p className="eyebrow">Public board, private applications separate</p><h2>Job Posts are public listings; Work With is the private intake path.</h2><p>Community members may submit public opportunities, but normal-user Job Posts require admin approval before publication. Do not ask for resumes, CVs, SSNs, bank details, IDs, private addresses, private phone numbers, or private applicant packets in public comments.</p><div className="button-row"><Link className="button-link" to="/work-with-elysia-ecobotics">Open Work With private intake</Link><Link className="button-link" to="/commune/rooms/job-post">Browse public Job Posts</Link></div></section>}
     <section className="section-card commune-feed" id="commune-room-feed">
       <p className="eyebrow">{type.name} Posts</p>
       <h2>{roomPosts.length ? `${roomPosts.length} published item${roomPosts.length === 1 ? "" : "s"}` : `No published ${type.name} posts yet`}</h2>
       <p className="boundary-note">This room follows the Commune model: room posts become threads, and replies appear after moderation.</p>
-      {roomPosts.length ? <div className="commune-feed-grid">{roomPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} signedIn={signedIn} officialUpdate={officialByPostId.get(post.id)} troubleshooting={troubleshootingByPostId.get(post.id)} researchNote={researchByPostId.get(post.id)} />)}</div> : <p className="commune-empty-state">Published posts will appear here after moderation. Start with a careful draft when you are ready.</p>}
+      {roomPosts.length ? <div className="commune-feed-grid">{roomPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} signedIn={signedIn} officialUpdate={officialByPostId.get(post.id)} troubleshooting={troubleshootingByPostId.get(post.id)} jobPost={jobByPostId.get(post.id)} researchNote={researchByPostId.get(post.id)} />)}</div> : <p className="commune-empty-state">Published posts will appear here after moderation. Start with a careful draft when you are ready.</p>}
     </section>
     {type.backendValue === "repository_showcase" && (focusComposer ? <RepositoryShowcaseForm localDrafts={localDrafts} roomId={roomId} onRefresh={onRefresh} isAdmin={isAdmin} /> : <section className="section-card commune-repo-card"><p className="eyebrow">Repository Showcase</p><h2>Metadata only, never execution</h2><p>A public repo is not automatically safe, compatible, licensed, or free of secrets. The website does not fetch, clone, build, run, or validate repositories from this room.</p><Link className="button-link button-link--primary" to="/commune/repository-showcase/new">Open repository showcase form</Link></section>)}
     {type.backendValue === "code_sharing" && <section className="section-card commune-sandbox-card coding-cornucopia-tools"><p className="eyebrow">Coding Cornucopia Tools</p><h2>Collaborative code review, snapshots, diagnostics, and sandbox-gated runs.</h2><p>Shared code is public knowledge, not automatic trust. The browser page never executes snippets; configured sandbox runs use explicit snapshots, network-disabled containers, resource limits, and audit records.</p><StatusBadges labels={["CodeMirror editor", "Static diagnostics", "Snapshot runs", "No terminal", "No package install", "Marketplace separate"]} /><div className="button-row"><Link className="button-link" to="/commune/coding-cornucopia/review">Open Coding Workbench</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Prepare Sandbox Review Request</Link></div></section>}
@@ -1353,11 +1456,11 @@ function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPos
 }
 
 function useCommuneLoad(roomSlug?: string, postId?: string) {
-  const [state, setState] = useState({ rooms: [] as CommuneRoom[], posts: [] as CommunePost[], comments: [] as CommuneComment[], threads: [] as CommuneThread[], media: [] as CommuneMediaAttachment[], troubleshootingPosts: [] as TroubleshootingMetadata[], researchNotes: [] as ResearchNotesMetadata[], repositoryShowcases: [] as RepositoryShowcaseMetadata[], iterationShowcases: [] as ElysiaIterationShowcaseMetadata[], officialUpdates: [] as OfficialUpdateMetadata[], officialCodeSnippets: [] as OfficialUpdateCodeSnippet[], savedPostIds: [] as string[], followedThreadIds: [] as string[], signedIn: false, userId: null as string | null, isAdmin: false, isModerator: false, accountReady: false });
+  const [state, setState] = useState({ rooms: [] as CommuneRoom[], posts: [] as CommunePost[], comments: [] as CommuneComment[], threads: [] as CommuneThread[], media: [] as CommuneMediaAttachment[], troubleshootingPosts: [] as TroubleshootingMetadata[], jobPosts: [] as JobPostMetadata[], researchNotes: [] as ResearchNotesMetadata[], repositoryShowcases: [] as RepositoryShowcaseMetadata[], iterationShowcases: [] as ElysiaIterationShowcaseMetadata[], officialUpdates: [] as OfficialUpdateMetadata[], officialCodeSnippets: [] as OfficialUpdateCodeSnippet[], savedPostIds: [] as string[], followedThreadIds: [] as string[], signedIn: false, userId: null as string | null, isAdmin: false, isModerator: false, accountReady: false });
   const refresh = useCallback(async () => {
     const result = await loadCommuneData(roomSlug, postId);
     logCommuneDiagnostics("load", [...result.account.warnings, ...result.warnings]);
-    setState({ rooms: result.rooms, posts: result.posts, comments: result.comments, threads: result.threads, media: result.media, troubleshootingPosts: result.troubleshootingPosts, researchNotes: result.researchNotes, repositoryShowcases: result.repositoryShowcases, iterationShowcases: result.iterationShowcases, officialUpdates: result.officialUpdates, officialCodeSnippets: result.officialCodeSnippets, savedPostIds: result.savedPostIds, followedThreadIds: result.followedThreadIds, signedIn: result.account.signedIn, userId: result.account.userId, isAdmin: result.account.isAdmin, isModerator: result.account.isModerator, accountReady: !result.warnings.some(isBackendDiagnostic) });
+    setState({ rooms: result.rooms, posts: result.posts, comments: result.comments, threads: result.threads, media: result.media, troubleshootingPosts: result.troubleshootingPosts, jobPosts: result.jobPosts, researchNotes: result.researchNotes, repositoryShowcases: result.repositoryShowcases, iterationShowcases: result.iterationShowcases, officialUpdates: result.officialUpdates, officialCodeSnippets: result.officialCodeSnippets, savedPostIds: result.savedPostIds, followedThreadIds: result.followedThreadIds, signedIn: result.account.signedIn, userId: result.account.userId, isAdmin: result.account.isAdmin, isModerator: result.account.isModerator, accountReady: !result.warnings.some(isBackendDiagnostic) });
   }, [roomSlug, postId]);
   useEffect(() => { void refresh(); }, [refresh]);
   return { state, refresh };
@@ -1430,14 +1533,22 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     communityBoundary: "",
     roleTitle: "",
     organizationProject: "",
-    payStatus: "",
+    roleType: "paid_role",
+    payStatus: "must_clarify",
     compensationClarity: "",
-    locationMode: "",
+    locationMode: "unspecified",
+    locationDetails: "",
     timeCommitment: "",
     deadline: "",
     contactPath: "",
     requirementsSkills: "",
     jobSafetyNotes: "",
+    jobRoleSummary: "",
+    jobApplicationStatus: "open" as JobPostApplicationStatus,
+    jobAntiScamReviewStatus: "not_reviewed" as JobPostAntiScamReviewStatus,
+    jobWorkWithLinkEnabled: true,
+    jobPrivateApplicationNote: "Use Work With Elysia Ecobotics for private application materials such as resumes/CVs.",
+    jobPublicCorrectionNote: "",
     researchQuestion: "",
     citationNotes: "",
     evidenceSummary: "",
@@ -1515,6 +1626,21 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     form.codeFileName,
     form.codeText,
     form.repositoryUrl,
+    form.roleTitle,
+    form.organizationProject,
+    form.roleType,
+    form.payStatus,
+    form.compensationClarity,
+    form.locationMode,
+    form.locationDetails,
+    form.timeCommitment,
+    form.deadline,
+    form.contactPath,
+    form.requirementsSkills,
+    form.jobSafetyNotes,
+    form.jobRoleSummary,
+    form.jobPrivateApplicationNote,
+    form.jobPublicCorrectionNote,
     form.researchQuestion,
     form.citationNotes,
     form.evidenceSummary,
@@ -1594,14 +1720,21 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     if (form.postType === "job_post") return [
       sectionBlock("Role title", form.roleTitle),
       sectionBlock("Organization / project", form.organizationProject),
-      sectionBlock("Paid / volunteer status", form.payStatus),
+      sectionBlock("Role type", jobRoleLabel(form.roleType)),
+      sectionBlock("Paid / volunteer status", jobPaidStatusLabel(form.payStatus)),
       sectionBlock("Compensation clarity", form.compensationClarity),
-      sectionBlock("Location / remote / hybrid", form.locationMode),
+      sectionBlock("Location / remote / hybrid", jobLocationModeLabel(form.locationMode)),
+      sectionBlock("Location details", form.locationDetails),
       sectionBlock("Time commitment", form.timeCommitment),
       sectionBlock("Deadline", form.deadline),
       sectionBlock("Contact path", form.contactPath),
       sectionBlock("Requirements / skills", form.requirementsSkills),
-      sectionBlock("Job safety notes", form.jobSafetyNotes)
+      sectionBlock("Role summary", form.jobRoleSummary),
+      sectionBlock("Application status", jobApplicationStatusLabel(form.jobApplicationStatus)),
+      sectionBlock("Anti-scam review", jobAntiScamStatusLabel(form.jobAntiScamReviewStatus)),
+      sectionBlock("Work With private application path", form.jobWorkWithLinkEnabled ? "Enabled - private applications/resumes/CVs belong on Work With Elysia Ecobotics, not public Job Post comments." : "Not linked"),
+      sectionBlock("Job safety notes", form.jobSafetyNotes),
+      sectionBlock("Public correction note", form.jobPublicCorrectionNote)
     ].filter(Boolean);
     if (form.postType === "research_note") return [
       sectionBlock("Research question / topic", form.researchQuestion),
@@ -1975,6 +2108,48 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       setMessage(result.message);
       return;
     }
+    if (showJobFields) {
+      const result = await submitJobPost({
+        title: form.title,
+        summary: form.summary,
+        body: bodyBase,
+        tags: form.tags,
+        links: form.links,
+        roomId: form.roomId || defaultRoomId,
+        upload: file,
+        acknowledgement: form.acknowledgement,
+        roleTitle: form.roleTitle,
+        organizationProject: form.organizationProject,
+        roleType: form.roleType,
+        paidVolunteerStatus: form.payStatus,
+        locationMode: form.locationMode,
+        locationText: form.locationDetails,
+        timeCommitment: form.timeCommitment,
+        deadline: form.deadline,
+        compensationClarity: form.compensationClarity,
+        contactPath: form.contactPath,
+        requirementsSkills: form.requirementsSkills,
+        safetyNotes: form.jobSafetyNotes,
+        roleSummary: form.jobRoleSummary || form.body,
+        applicationStatus: form.jobApplicationStatus,
+        antiScamReviewStatus: form.jobAntiScamReviewStatus,
+        workWithLinkEnabled: form.jobWorkWithLinkEnabled,
+        privateApplicationNote: form.jobPrivateApplicationNote,
+        publicCorrectionNote: form.jobPublicCorrectionNote
+      });
+      if (result.ok) {
+        setMessage(result.message);
+        await onRefresh?.();
+        return;
+      }
+      if (isBackendDiagnostic(result.message)) {
+        saveLocal("pending_moderator_review_local");
+        setMessage("Saved locally in this browser. Job Post structured backend is not active yet.");
+        return;
+      }
+      setMessage(cleanCommuneMessage(result.message, "Saved locally in this browser. Job Post backend review queue is not active yet."));
+      return;
+    }
     if (showResearchFields) {
       const result = await submitResearchNotesPost({
         title: form.title,
@@ -2092,7 +2267,25 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       {showAttachmentField && <><label><span>Attachment optional</span><input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.md,.csv,.json" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></label><p className="boundary-note">Supported attachments: PNG, JPEG, WebP, PDF, TXT, Markdown, CSV, and JSON. Images are supported now. Video uploads are not enabled for this room yet. Video support is planned.</p>{showOfficialFields && <p className="boundary-note">Official attachments must not expose private admin pages, Supabase keys, service-role keys, .env files, local paths, private user data, hidden moderator notes, credentials, logs, vaults, or local Elysia data.</p>}</>}
       {showTroubleshootingFields && <><label><span>Issue type</span><input value={form.issueType} onChange={(event) => setForm({ ...form, issueType: event.target.value })} placeholder="bug, install issue, known issue, workaround" /></label><label><span>Affected area</span><input value={form.affectedArea} onChange={(event) => setForm({ ...form, affectedArea: event.target.value })} /></label><label><span>OS</span><input value={form.os} onChange={(event) => setForm({ ...form, os: event.target.value })} /></label><label><span>Browser/app</span><input value={form.browser} onChange={(event) => setForm({ ...form, browser: event.target.value })} /></label><label><span>Elysia version optional</span><input value={form.version} onChange={(event) => setForm({ ...form, version: event.target.value })} /></label><label><span>Status</span><select value={form.issueStatus} onChange={(event) => setForm({ ...form, issueStatus: event.target.value })}>{["Open", "Needs information", "In progress", "Workaround found", "Fix proposed", "Resolved", "Closed", "Archived"].map((value) => <option key={value}>{value}</option>)}</select></label><label className="wide-field"><span>Environment notes</span><textarea rows={3} value={form.environmentNotes} onChange={(event) => setForm({ ...form, environmentNotes: event.target.value })} placeholder="Public-safe version/build context only. No private machine inventories or local paths." /></label><label className="wide-field"><span>Steps to reproduce / tried</span><textarea rows={4} value={form.stepsTried} onChange={(event) => setForm({ ...form, stepsTried: event.target.value })} /></label><label className="wide-field"><span>Expected behavior</span><textarea rows={3} value={form.expectedBehavior} onChange={(event) => setForm({ ...form, expectedBehavior: event.target.value })} /></label><label className="wide-field"><span>Actual behavior</span><textarea rows={3} value={form.actualBehavior} onChange={(event) => setForm({ ...form, actualBehavior: event.target.value })} /></label><label className="wide-field"><span>Error message</span><textarea rows={3} value={form.errorMessage} onChange={(event) => setForm({ ...form, errorMessage: event.target.value })} placeholder="Paste only the public-safe error message. Redact tokens, paths, emails, IDs, and account data." /></label><label className="wide-field"><span>Redacted logs</span><textarea rows={4} value={form.redactedLogs} onChange={(event) => setForm({ ...form, redactedLogs: event.target.value })} placeholder="Logs must be redacted. No .env, credentials, API keys, local Elysia memory/logs/vaults, or private user data." /></label><label className="wide-field"><span>Known workaround</span><textarea rows={3} value={form.workaround} onChange={(event) => setForm({ ...form, workaround: event.target.value })} /></label><p className="wide-field boundary-note">Troubleshooting Grove is public support context. Redact logs, screenshots, private paths, account details, credentials, tokens, .env contents, private local Elysia data, and sensitive user/customer data before submitting.</p></>}
       {showCommunityFields && <><label><span>Introduction type</span><input value={form.introductionType} onChange={(event) => setForm({ ...form, introductionType: event.target.value })} placeholder="intro, collaboration, project circle" /></label><label><span>Role interest</span><input value={form.roleInterest} onChange={(event) => setForm({ ...form, roleInterest: event.target.value })} /></label><label><span>Project circle/topic</span><input value={form.projectCircle} onChange={(event) => setForm({ ...form, projectCircle: event.target.value })} /></label><label><span>Availability / involvement level</span><input value={form.involvementLevel} onChange={(event) => setForm({ ...form, involvementLevel: event.target.value })} /></label><label className="wide-field"><span>Collaboration interest</span><textarea rows={4} value={form.collaborationInterest} onChange={(event) => setForm({ ...form, collaborationInterest: event.target.value })} /></label><label className="wide-field"><span>Public contact preference</span><input value={form.publicContactPreference} onChange={(event) => setForm({ ...form, publicContactPreference: event.target.value })} placeholder="public replies, website form, Commons profile link" /></label><label className="wide-field"><span>Boundary note</span><textarea rows={3} value={form.communityBoundary} onChange={(event) => setForm({ ...form, communityBoundary: event.target.value })} placeholder="No private-contact pressure; keep coordination public and respectful." /></label></>}
-      {showJobFields && <><label><span>Role title</span><input value={form.roleTitle} onChange={(event) => setForm({ ...form, roleTitle: event.target.value })} /></label><label><span>Organization / project</span><input value={form.organizationProject} onChange={(event) => setForm({ ...form, organizationProject: event.target.value })} /></label><label><span>Paid / volunteer status</span><select value={form.payStatus} onChange={(event) => setForm({ ...form, payStatus: event.target.value })}><option value="">Select status</option>{["Paid", "Volunteer", "Stipend", "Unpaid", "Mixed / explain clearly"].map((value) => <option key={value}>{value}</option>)}</select></label><label><span>Location / remote / hybrid</span><input value={form.locationMode} onChange={(event) => setForm({ ...form, locationMode: event.target.value })} /></label><label><span>Time commitment</span><input value={form.timeCommitment} onChange={(event) => setForm({ ...form, timeCommitment: event.target.value })} /></label><label><span>Deadline</span><input value={form.deadline} onChange={(event) => setForm({ ...form, deadline: event.target.value })} /></label><label className="wide-field"><span>Compensation clarity</span><textarea rows={3} value={form.compensationClarity} onChange={(event) => setForm({ ...form, compensationClarity: event.target.value })} /></label><label className="wide-field"><span>Contact path</span><input value={form.contactPath} onChange={(event) => setForm({ ...form, contactPath: event.target.value })} placeholder="Public application/contact path; no sensitive data requests in comments" /></label><label className="wide-field"><span>Requirements / skills</span><textarea rows={4} value={form.requirementsSkills} onChange={(event) => setForm({ ...form, requirementsSkills: event.target.value })} /></label><label className="wide-field"><span>Safety notes</span><textarea rows={3} value={form.jobSafetyNotes} onChange={(event) => setForm({ ...form, jobSafetyNotes: event.target.value })} placeholder="No SSNs, bank details, identity documents, or private-contact pressure." /></label></>}
+      {showJobFields && <>
+        <label><span>Role title</span><input value={form.roleTitle} onChange={(event) => setForm({ ...form, roleTitle: event.target.value })} /></label>
+        <label><span>Organization / project</span><input value={form.organizationProject} onChange={(event) => setForm({ ...form, organizationProject: event.target.value })} /></label>
+        <label><span>Role type</span><select value={form.roleType} onChange={(event) => setForm({ ...form, roleType: event.target.value })}>{jobRoleTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+        <label><span>Paid / volunteer status</span><select value={form.payStatus} onChange={(event) => setForm({ ...form, payStatus: event.target.value })}>{jobPaidStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+        <label><span>Location / remote / hybrid</span><select value={form.locationMode} onChange={(event) => setForm({ ...form, locationMode: event.target.value })}>{jobLocationModeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+        <label><span>Time commitment</span><input value={form.timeCommitment} onChange={(event) => setForm({ ...form, timeCommitment: event.target.value })} /></label>
+        <label><span>Deadline</span><input type="date" value={form.deadline} onChange={(event) => setForm({ ...form, deadline: event.target.value })} /></label>
+        <label className="wide-field"><span>Location details</span><input value={form.locationDetails} onChange={(event) => setForm({ ...form, locationDetails: event.target.value })} placeholder="Public-safe city/region, remote time zone, field area, or clarify if unknown" /></label>
+        <label className="wide-field"><span>Role summary</span><textarea rows={4} value={form.jobRoleSummary} onChange={(event) => setForm({ ...form, jobRoleSummary: event.target.value })} placeholder="Summarize the role or public opportunity without requesting private applicant data." /></label>
+        <label className="wide-field"><span>Compensation clarity</span><textarea rows={3} value={form.compensationClarity} onChange={(event) => setForm({ ...form, compensationClarity: event.target.value })} placeholder="Pay/range/stipend/volunteer clarity is required before public approval." /></label>
+        <label className="wide-field"><span>Contact / application path</span><input value={form.contactPath} onChange={(event) => setForm({ ...form, contactPath: event.target.value })} placeholder="Public application/contact path; no SSNs, bank details, IDs, resumes/CVs, or private details in comments" /></label>
+        <label className="wide-field"><span>Requirements / skills</span><textarea rows={4} value={form.requirementsSkills} onChange={(event) => setForm({ ...form, requirementsSkills: event.target.value })} /></label>
+        <label className="wide-field"><span>Safety notes</span><textarea rows={3} value={form.jobSafetyNotes} onChange={(event) => setForm({ ...form, jobSafetyNotes: event.target.value })} placeholder="No SSNs, bank details, identity documents, private addresses, private phone numbers, resumes/CVs, contracts, or private-contact pressure." /></label>
+        <label className="checkbox-line wide-field"><input type="checkbox" checked={form.jobWorkWithLinkEnabled} onChange={(event) => setForm({ ...form, jobWorkWithLinkEnabled: event.target.checked })} /><span>Link to Work With Elysia Ecobotics as the private application/intake path for resumes, CVs, and private contact materials.</span></label>
+        <label className="wide-field"><span>Private application note</span><input value={form.jobPrivateApplicationNote} onChange={(event) => setForm({ ...form, jobPrivateApplicationNote: event.target.value })} placeholder="Public-safe note explaining where private application materials belong." /></label>
+        {isAdmin && <><label><span>Application status</span><select value={form.jobApplicationStatus} onChange={(event) => setForm({ ...form, jobApplicationStatus: event.target.value as JobPostApplicationStatus })}>{jobApplicationStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label><span>Anti-scam review</span><select value={form.jobAntiScamReviewStatus} onChange={(event) => setForm({ ...form, jobAntiScamReviewStatus: event.target.value as JobPostAntiScamReviewStatus })}>{jobAntiScamStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label className="wide-field"><span>Public correction / clarification note</span><input value={form.jobPublicCorrectionNote} onChange={(event) => setForm({ ...form, jobPublicCorrectionNote: event.target.value })} placeholder="Public-safe admin clarification if needed" /></label></>}
+        <p className="wide-field boundary-note">Job Post is a public opportunity board. Normal users submit for mandatory admin approval before publication. Do not post resumes/CVs, identity documents, SSNs, bank details, tax forms, private addresses, private phone numbers, private application packets, or Work With uploads here.</p>
+      </>}
       {showResearchFields && <>
         <label><span>Research question / topic</span><input value={form.researchQuestion} onChange={(event) => setForm({ ...form, researchQuestion: event.target.value })} /></label>
         <label><span>Domain</span><input value={form.researchDomain} onChange={(event) => setForm({ ...form, researchDomain: event.target.value })} placeholder="ecology, robotics, restoration, AI, public policy" /></label>
@@ -2150,7 +2343,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
         <label className="checkbox-line"><input type="checkbox" checked={form.officialCommentsEnabled} onChange={(event) => setForm({ ...form, officialCommentsEnabled: event.target.checked })} /><span>Comments enabled for this official update</span></label>
         <label className="wide-field"><span>Audit-safe note / correction note</span><textarea rows={3} value={form.officialAuditNote} onChange={(event) => setForm({ ...form, officialAuditNote: event.target.value })} placeholder="Public correction/update context if relevant." /></label>
       </>}
-      <label className="wide-field"><span>{form.postType === "code_sharing" ? "Discussion / explanation" : showResearchFields ? "Context / discussion" : showJobFields ? "Role summary" : "Body"}</span><textarea rows={8} value={form.body} onChange={(event) => setForm({ ...form, body: event.target.value })} /></label>
+      <label className="wide-field"><span>{form.postType === "code_sharing" ? "Discussion / explanation" : showResearchFields ? "Context / discussion" : showJobFields ? "Public details / questions" : "Body"}</span><textarea rows={8} value={form.body} onChange={(event) => setForm({ ...form, body: event.target.value })} /></label>
       {showCodeFields && <><label><span>Code language</span><select value={normalizeCodingLanguage(form.codeLanguage)} onChange={(event) => setForm({ ...form, codeLanguage: event.target.value })}>{codingLanguageOptions().map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label><span>Code filename</span><input value={form.codeFileName} onChange={(event) => setForm({ ...form, codeFileName: event.target.value })} placeholder={showTroubleshootingFields ? "reproduction.js, failing-test.py" : "snippet.ts"} /></label><label className="wide-field"><span>{codeSectionTitle}</span><CodeWorkspaceEditor value={form.codeText} language={form.codeLanguage} onChange={(value) => setForm({ ...form, codeText: value })} minHeight="260px" /></label><p className="wide-field boundary-note">{codeSafetyCopy}</p></>}
       {showOfficialFields && <>
         <label><span>Official code language</span><select value={normalizeCodingLanguage(form.officialCodeLanguage)} onChange={(event) => setForm({ ...form, officialCodeLanguage: event.target.value })}>{codingLanguageOptions().map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
@@ -2807,6 +3000,78 @@ function TroubleshootingDetail({ post, troubleshooting, parsedBody, comments, us
   </div>;
 }
 
+
+function JobPostReviewControls({ jobPost, postId, isModerator, onMessage, onChanged }: { jobPost?: JobPostMetadata | null; postId: string; isModerator: boolean; onMessage: (message: string) => void; onChanged: () => Promise<void> }) {
+  const [applicationStatus, setApplicationStatus] = useState<JobPostApplicationStatus>(jobPost?.application_status ?? "open");
+  const [reviewStatus, setReviewStatus] = useState<JobPostAntiScamReviewStatus>(jobPost?.anti_scam_review_status ?? "not_reviewed");
+  const [publicCorrectionNote, setPublicCorrectionNote] = useState(jobPost?.public_correction_note ?? "");
+  useEffect(() => {
+    setApplicationStatus(jobPost?.application_status ?? "open");
+    setReviewStatus(jobPost?.anti_scam_review_status ?? "not_reviewed");
+    setPublicCorrectionNote(jobPost?.public_correction_note ?? "");
+  }, [jobPost?.anti_scam_review_status, jobPost?.application_status, jobPost?.public_correction_note]);
+  if (!jobPost) return <p className="boundary-note">This legacy Job Post has no structured sidecar record yet. It still remains public and moderator-governed through the Commune post/thread model.</p>;
+  async function saveApplicationStatus() {
+    const result = await updateJobPostApplicationStatus({ jobPostId: jobPost?.id, postId, applicationStatus, publicCorrectionNote });
+    onMessage(cleanCommuneMessage(result.message, "Job Post listing status could not be updated until the structured workflow migration is active."));
+    if (result.ok) await onChanged();
+  }
+  async function saveReviewStatus() {
+    const result = await updateJobPostReviewStatus({ jobPostId: jobPost?.id, postId, antiScamReviewStatus: reviewStatus, publicCorrectionNote });
+    onMessage(cleanCommuneMessage(result.message, "Job Post anti-scam review state could not be updated until the structured workflow migration is active."));
+    if (result.ok) await onChanged();
+  }
+  return <div className="commune-troubleshooting-controls commune-job-review-controls">
+    <p className="eyebrow">Job Post controls</p>
+    <p className="boundary-note">Listing status is public. Anti-scam review states are reviewer/admin controlled. Private admin notes stay out of public profiles and public detail pages.</p>
+    <div className="commune-form-grid">
+      <label><span>Application status</span><select value={applicationStatus} onChange={(event) => setApplicationStatus(event.target.value as JobPostApplicationStatus)}>{jobApplicationStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+      {isModerator && <label><span>Anti-scam review</span><select value={reviewStatus} onChange={(event) => setReviewStatus(event.target.value as JobPostAntiScamReviewStatus)}>{jobAntiScamStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
+      <label className="wide-field"><span>Public correction / clarification note</span><textarea rows={3} value={publicCorrectionNote} onChange={(event) => setPublicCorrectionNote(event.target.value)} placeholder="Public-safe correction or clarification, if needed." /></label>
+      {isModerator && <p className="wide-field boundary-note">Hidden reviewer notes belong in Admin Review history, not the public Job Post metadata table. Use public correction notes only when the note is safe for readers.</p>}
+    </div>
+    <div className="button-row"><button type="button" onClick={() => void saveApplicationStatus()}>Save listing status</button>{isModerator && <button type="button" onClick={() => void saveReviewStatus()}>Save anti-scam review</button>}</div>
+  </div>;
+}
+
+function JobPostDetail({ post, jobPost, parsedBody, isModerator, onMessage, onChanged }: { post: CommunePost; jobPost?: JobPostMetadata | null; parsedBody: ReturnType<typeof splitPostSections>; isModerator: boolean; onMessage: (message: string) => void; onChanged: () => Promise<void> }) {
+  const section = (heading: string) => repoSectionValue(parsedBody, heading);
+  const value = (metadataValue?: string | null, fallbackHeading?: string) => String(metadataValue ?? "").trim() || (fallbackHeading ? section(fallbackHeading) : "");
+  const workWithEnabled = jobPost?.work_with_link_enabled !== false && !/not linked/i.test(section("Work With private application path"));
+  const fields = [
+    ["Role summary", value(jobPost?.role_summary, "Role summary") || parsedBody.intro],
+    ["Compensation clarity", value(jobPost?.compensation_clarity, "Compensation clarity")],
+    ["Location details", value(jobPost?.location_text, "Location details")],
+    ["Time commitment", value(jobPost?.time_commitment, "Time commitment")],
+    ["Deadline", value(jobPost?.deadline, "Deadline")],
+    ["Contact / application path", value(jobPost?.contact_path, "Contact path")],
+    ["Requirements / skills", value(jobPost?.requirements_skills, "Requirements / skills")],
+    ["Safety notes", value(jobPost?.safety_notes, "Job safety notes")],
+    ["Public correction / clarification", value(jobPost?.public_correction_note, "Public correction note")]
+  ].filter(([, body]) => body);
+  return <div className="commune-job-detail">
+    <p className="eyebrow">Job Post detail</p>
+    <div className="commune-info-grid">
+      <article className="commune-repo-identity-card">
+        <h3>{value(jobPost?.role_title, "Role title") || post.title}</h3>
+        <dl className="mini-facts">
+          <div><dt>Organization / project</dt><dd>{value(jobPost?.organization_project, "Organization / project") || "Not supplied"}</dd></div>
+          <div><dt>Role type</dt><dd>{jobRoleLabel(jobPost?.role_type || section("Role type"))}</dd></div>
+          <div><dt>Pay / volunteer</dt><dd>{jobPaidStatusLabel(jobPost?.paid_volunteer_status || section("Paid / volunteer status"))}</dd></div>
+          <div><dt>Location</dt><dd>{jobLocationModeLabel(jobPost?.location_mode || section("Location / remote / hybrid"))}</dd></div>
+          <div><dt>Status</dt><dd>{jobApplicationStatusLabel(jobPost?.application_status || section("Application status"))}</dd></div>
+          <div><dt>Anti-scam review</dt><dd>{jobAntiScamStatusLabel(jobPost?.anti_scam_review_status || section("Anti-scam review"))}</dd></div>
+        </dl>
+      </article>
+      <WarningCallout title="Public opportunity boundary"><p>Job Posts are public, admin-approved opportunity listings and public questions. They are not private applications, resume/CV intake, payroll, contracts, identity verification, or Work With private request storage.</p></WarningCallout>
+    </div>
+    {fields.length > 0 && <div className="commune-room-native-details commune-job-native-details"><p className="eyebrow">Structured job listing</p><div className="commune-room-native-grid">{fields.map(([heading, body]) => <article className="commune-room-native-field" key={heading}><h3>{heading}</h3><p>{body}</p></article>)}</div></div>}
+    <WarningCallout title="Anti-scam and privacy safety"><p>Do not share SSNs, bank details, identity documents, resumes/CVs, private addresses, private phone numbers, tax forms, contracts, private application packets, Work With uploads, or sensitive personal data in public Job Post comments. Use a safe public contact path or the private Work With intake when appropriate.</p></WarningCallout>
+    {workWithEnabled && <section className="commune-room-native-field commune-job-work-with"><h3>Private application path</h3><p>{jobPost?.private_application_note || "Use Work With Elysia Ecobotics for private application materials such as resumes/CVs and private contact details. Public Job Post comments should stay public-safe."}</p><div className="button-row"><Link className="button-link" to="/work-with-elysia-ecobotics">Open Work With Elysia Ecobotics</Link></div></section>}
+    <JobPostReviewControls jobPost={jobPost} postId={post.id} isModerator={isModerator} onMessage={onMessage} onChanged={onChanged} />
+  </div>;
+}
+
 function ResearchNotesReviewControls({ researchNote, postId, isModerator, onMessage, onChanged }: { researchNote?: ResearchNotesMetadata | null; postId: string; isModerator: boolean; onMessage: (message: string) => void; onChanged: () => Promise<void> }) {
   const [reviewStatus, setReviewStatus] = useState<ResearchReviewStatus>(researchNote?.review_status ?? "submitted");
   const [correctionNote, setCorrectionNote] = useState(researchNote?.correction_note ?? "");
@@ -3178,6 +3443,7 @@ function PostDetail({ postId }: { postId: string }) {
   const parsedBody = splitPostSections(post.body);
   const troubleshooting = state.troubleshootingPosts.find((item) => item.post_id === post.id) ?? null;
   const researchNote = state.researchNotes.find((item) => item.post_id === post.id) ?? null;
+  const jobPost = state.jobPosts.find((item) => item.post_id === post.id) ?? null;
   const repositoryShowcase = state.repositoryShowcases.find((item) => item.post_id === post.id) ?? null;
   const iterationShowcase = state.iterationShowcases.find((item) => item.post_id === post.id) ?? null;
   const isRepositoryShowcase = post.post_type === "repository_showcase";
@@ -3185,9 +3451,10 @@ function PostDetail({ postId }: { postId: string }) {
   const isOfficialUpdate = post.post_type === "official_update";
   const isTroubleshooting = post.post_type === "troubleshooting";
   const isResearchNotes = post.post_type === "research_note";
+  const isJobPost = post.post_type === "job_post";
   const commentsLocked = isOfficialUpdate && officialUpdate?.comments_enabled === false;
   return <>
-    <section className={isOfficialUpdate ? "section-card commune-post-detail commune-official-post-detail" : "section-card commune-post-detail"}><p className="eyebrow">{post.post_type === "research_note" ? "Research Notes" : post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>{isOfficialUpdate ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>}</p><StatusBadges labels={[post.status, post.visibility]} />{!isRepositoryShowcase && !isIterationShowcase && !isOfficialUpdate && !isTroubleshooting && !isResearchNotes && parsedBody.intro && <p className="commune-post-body">{parsedBody.intro}</p>}{!isRepositoryShowcase && !isIterationShowcase && !isOfficialUpdate && !isTroubleshooting && !isResearchNotes && parsedBody.sections.length > 0 && <div className="commune-room-native-details"><p className="eyebrow">Room-native details</p><div className="commune-room-native-grid">{parsedBody.sections.map((section) => <article className="commune-room-native-field" key={section.heading}><h3>{section.heading}</h3><p>{section.body}</p></article>)}</div></div>}{isRepositoryShowcase && <RepositoryShowcaseDetail post={post} showcase={repositoryShowcase} parsedBody={parsedBody} />}{isIterationShowcase && <ElysiaIterationShowcaseDetail post={post} iteration={iterationShowcase} parsedBody={parsedBody} />}{isOfficialUpdate && <OfficialUpdateDetail post={post} officialUpdate={officialUpdate} parsedBody={parsedBody} />}{isTroubleshooting && <TroubleshootingDetail post={post} troubleshooting={troubleshooting} parsedBody={parsedBody} comments={state.comments} userId={state.userId} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}{isResearchNotes && <ResearchNotesDetail post={post} researchNote={researchNote} parsedBody={parsedBody} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}<TagChips tags={post.tags} />{attachments.length > 0 && <div className="commune-media-section"><p className="eyebrow">Attached media</p><p className="commune-media-attribution">Attached to this post by {isOfficialUpdate ? "Elysia Ecobotics Official" : authorLink(post.author_username)}.</p><p className="boundary-note">Published attachments are read-only and remain governed by Commune moderation and safety policies.</p><div className="commune-media-grid">{attachments.map((item) => <article className="commune-media-card" key={item.id}>{item.media_kind === "image" && item.signed_url ? <button className="commune-media-image-button" type="button" onClick={() => setActiveMedia(item)}><img src={item.signed_url} alt={`Attached media: ${item.file_name}`} loading="lazy" /></button> : <div className="commune-media-unavailable"><strong>{item.file_name}</strong><p>{item.signed_url ? "This attachment can be opened from its signed public review URL." : "Attachment unavailable or still under review."}</p></div>}<div className="commune-media-meta"><strong>{item.file_name}</strong><span>{item.mime_type ?? item.media_kind}{item.file_size ? ` · ${item.file_size} bytes` : ""}</span></div></article>)}</div></div>}{isOfficialUpdate ? <OfficialCodeSnippets officialUpdate={officialUpdate} officialCodeSnippets={officialCodeSnippets} fallbackSnippets={snippets} isAdmin={state.isAdmin} onMessage={setMessage} onChanged={refresh} /> : <AttachedCodeSnippets snippets={snippets} authorUsername={post.author_username} postType={post.post_type} signedIn={state.signedIn} onMessage={setMessage} />}{isOfficialUpdate && state.isAdmin && <OfficialUpdateAdminPanel officialUpdate={officialUpdate} postId={post.id} onMessage={setMessage} onChanged={refresh} />}<ReactionBar targetType="post" targetId={post.id} signedIn={state.signedIn} onMessage={setMessage} /><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div><AdminContentControls targetType="post" targetId={post.id} isModerator={state.isModerator} onChanged={refresh} onMessage={setMessage} /></section>
+    <section className={isOfficialUpdate ? "section-card commune-post-detail commune-official-post-detail" : "section-card commune-post-detail"}><p className="eyebrow">{post.post_type === "research_note" ? "Research Notes" : post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>{isOfficialUpdate ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>}</p><StatusBadges labels={[post.status, post.visibility]} />{!isRepositoryShowcase && !isIterationShowcase && !isOfficialUpdate && !isTroubleshooting && !isResearchNotes && !isJobPost && parsedBody.intro && <p className="commune-post-body">{parsedBody.intro}</p>}{!isRepositoryShowcase && !isIterationShowcase && !isOfficialUpdate && !isTroubleshooting && !isResearchNotes && !isJobPost && parsedBody.sections.length > 0 && <div className="commune-room-native-details"><p className="eyebrow">Room-native details</p><div className="commune-room-native-grid">{parsedBody.sections.map((section) => <article className="commune-room-native-field" key={section.heading}><h3>{section.heading}</h3><p>{section.body}</p></article>)}</div></div>}{isRepositoryShowcase && <RepositoryShowcaseDetail post={post} showcase={repositoryShowcase} parsedBody={parsedBody} />}{isIterationShowcase && <ElysiaIterationShowcaseDetail post={post} iteration={iterationShowcase} parsedBody={parsedBody} />}{isOfficialUpdate && <OfficialUpdateDetail post={post} officialUpdate={officialUpdate} parsedBody={parsedBody} />}{isTroubleshooting && <TroubleshootingDetail post={post} troubleshooting={troubleshooting} parsedBody={parsedBody} comments={state.comments} userId={state.userId} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}{isResearchNotes && <ResearchNotesDetail post={post} researchNote={researchNote} parsedBody={parsedBody} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}{isJobPost && <JobPostDetail post={post} jobPost={jobPost} parsedBody={parsedBody} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}<TagChips tags={post.tags} />{attachments.length > 0 && <div className="commune-media-section"><p className="eyebrow">Attached media</p><p className="commune-media-attribution">Attached to this post by {isOfficialUpdate ? "Elysia Ecobotics Official" : authorLink(post.author_username)}.</p><p className="boundary-note">Published attachments are read-only and remain governed by Commune moderation and safety policies.</p><div className="commune-media-grid">{attachments.map((item) => <article className="commune-media-card" key={item.id}>{item.media_kind === "image" && item.signed_url ? <button className="commune-media-image-button" type="button" onClick={() => setActiveMedia(item)}><img src={item.signed_url} alt={`Attached media: ${item.file_name}`} loading="lazy" /></button> : <div className="commune-media-unavailable"><strong>{item.file_name}</strong><p>{item.signed_url ? "This attachment can be opened from its signed public review URL." : "Attachment unavailable or still under review."}</p></div>}<div className="commune-media-meta"><strong>{item.file_name}</strong><span>{item.mime_type ?? item.media_kind}{item.file_size ? ` · ${item.file_size} bytes` : ""}</span></div></article>)}</div></div>}{isOfficialUpdate ? <OfficialCodeSnippets officialUpdate={officialUpdate} officialCodeSnippets={officialCodeSnippets} fallbackSnippets={snippets} isAdmin={state.isAdmin} onMessage={setMessage} onChanged={refresh} /> : <AttachedCodeSnippets snippets={snippets} authorUsername={post.author_username} postType={post.post_type} signedIn={state.signedIn} onMessage={setMessage} />}{isOfficialUpdate && state.isAdmin && <OfficialUpdateAdminPanel officialUpdate={officialUpdate} postId={post.id} onMessage={setMessage} onChanged={refresh} />}<ReactionBar targetType="post" targetId={post.id} signedIn={state.signedIn} onMessage={setMessage} /><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div><AdminContentControls targetType="post" targetId={post.id} isModerator={state.isModerator} onChanged={refresh} onMessage={setMessage} /></section>
     {activeMedia?.signed_url && <div className="commune-media-lightbox" role="dialog" aria-modal="true" aria-label={`Attachment preview: ${activeMedia.file_name}`} onClick={() => setActiveMedia(null)}><div className="commune-media-lightbox-panel" onClick={(event) => event.stopPropagation()}><button className="commune-media-lightbox-close" type="button" onClick={() => setActiveMedia(null)}>Close</button><img src={activeMedia.signed_url} alt={`Attached media: ${activeMedia.file_name}`} /></div></div>}
     <section className="section-card"><p className="eyebrow">Comments</p><h2>Comments and replies</h2><p className="boundary-note">{commentsLocked ? "Comments are locked for this Official Update. Existing public comments remain visible unless moderated, but new public comments are disabled by an administrator." : state.isAdmin ? "Admin comments publish directly and remain auditable." : "First participation in a post/thread is reviewed. After approval in that thread, later comments and replies can publish directly while remaining reportable and removable."}</p>{!thread && <p className="boundary-note">This published post is missing its discussion thread. Submitting a comment will try to repair the thread with normal account permissions before saving.</p>}{topLevelComments.map((item) => renderComment(item))}{!topLevelComments.length && <p>Moderated comments will appear here once the backend tables are active and replies are approved.</p>}{commentsLocked ? <p className="message">Comments are locked for this official update.</p> : <><label><span>Comment on this post</span><textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><div className="button-row"><button type="button" disabled={commentSubmitting} onClick={() => void submitThreadComment()}>{commentSubmitting ? "Submitting comment..." : "Submit comment"}</button></div></>}<p className="message">{commentStatus}</p></section>
     <section className="section-card"><p className="eyebrow">Report</p><h2>Report this post</h2><p>Reports are reviewed by moderators/administrators. Reporting does not automatically remove content unless urgent automated controls are later added. Ratings do not replace reports or moderation.</p><label><span>Report type</span><select value={report.type} onChange={(event) => setReport({ ...report, type: event.target.value })}>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span>Reason</span><textarea rows={3} value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value })} /></label><button type="button" onClick={() => void reportPost()}>Send report</button><p className="message">{message}</p></section>
@@ -3731,12 +3998,12 @@ export default function CommunePage() {
     {mode === "realtime" && <RealtimeFoundationPanel />}
     {routeMode === "code-review" && <CollaborativeCodeReviewPanel />}
     {postId && <PostDetail postId={postId} />}
-    {isRoom && effectiveRoomSlug && <RoomPage roomSlug={effectiveRoomSlug} roomId={selectedRoom?.id} posts={state.posts} officialUpdates={state.officialUpdates} troubleshootingPosts={state.troubleshootingPosts} researchNotes={state.researchNotes} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} localDrafts={localDrafts} categories={categories} onRefresh={refresh} signedIn={state.signedIn} isAdmin={state.isAdmin} focusComposer={isRoomNew} />}
+    {isRoom && effectiveRoomSlug && <RoomPage roomSlug={effectiveRoomSlug} roomId={selectedRoom?.id} posts={state.posts} officialUpdates={state.officialUpdates} troubleshootingPosts={state.troubleshootingPosts} jobPosts={state.jobPosts} researchNotes={state.researchNotes} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} localDrafts={localDrafts} categories={categories} onRefresh={refresh} signedIn={state.signedIn} isAdmin={state.isAdmin} focusComposer={isRoomNew} />}
 
     {isLobby && <>
       <RedactionPanel />
       <RoomCards />
-      <CommunityFeed posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} filters={filters} signedIn={state.signedIn} troubleshootingPosts={state.troubleshootingPosts} researchNotes={state.researchNotes} />
+      <CommunityFeed posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} filters={filters} signedIn={state.signedIn} troubleshootingPosts={state.troubleshootingPosts} jobPosts={state.jobPosts} researchNotes={state.researchNotes} />
       <CommuneSideChannelPanel />
       <LocalDraftStudio localDrafts={localDrafts} filters={filters} />
     </>}

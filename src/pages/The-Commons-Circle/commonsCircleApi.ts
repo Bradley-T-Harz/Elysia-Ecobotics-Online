@@ -145,6 +145,24 @@ export type ElysiaIterationShowcaseSignalPreview = {
   action_url: string;
   role_context: "owner" | "reviewer" | "sandbox";
 };
+export type JobPostSignalPreview = {
+  id: string;
+  post_id?: string | null;
+  thread_id?: string | null;
+  author_user_id?: string | null;
+  role_title?: string | null;
+  organization_project?: string | null;
+  role_type?: string | null;
+  paid_volunteer_status?: string | null;
+  location_mode?: string | null;
+  application_status?: string | null;
+  anti_scam_review_status?: string | null;
+  public_correction_note?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  action_url: string;
+  role_context: "owner" | "reviewer" | "status";
+};
 export type OfficialUpdateSignalPreview = {
   id: string;
   post_id?: string | null;
@@ -226,6 +244,10 @@ export type SignalConsoleData = {
   myIterationShowcases: ElysiaIterationShowcaseSignalPreview[];
   iterationShowcasesNeedingReview: ElysiaIterationShowcaseSignalPreview[];
   iterationSandboxActivity: ElysiaIterationShowcaseSignalPreview[];
+  jobPostActivity: JobPostSignalPreview[];
+  myJobPosts: JobPostSignalPreview[];
+  jobPostsNeedingReview: JobPostSignalPreview[];
+  jobPostStatusActivity: JobPostSignalPreview[];
   officialUpdateActivity: OfficialUpdateSignalPreview[];
   myOfficialUpdates: OfficialUpdateSignalPreview[];
   officialUpdatesNeedingAttention: OfficialUpdateSignalPreview[];
@@ -235,6 +257,7 @@ export type SignalConsoleData = {
   researchNotesCount: number;
   repositoryShowcaseCount: number;
   iterationShowcaseCount: number;
+  jobPostCount: number;
   officialUpdateCount: number;
 };
 
@@ -629,7 +652,7 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
 
 export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const warnings: string[] = [];
-  const empty = { signals: [], codeProposalActivity: [], needsMyReview: [], mySubmittedProposals: [], troubleshootingActivity: [], myTroubleshootingIssues: [], troubleshootingNeedingReview: [], troubleshootingResolutionActivity: [], researchNotesActivity: [], myResearchNotes: [], researchNotesNeedingReview: [], researchClarificationActivity: [], repositoryShowcaseActivity: [], myRepositoryShowcases: [], repositoryShowcasesNeedingReview: [], repositorySandboxActivity: [], iterationShowcaseActivity: [], myIterationShowcases: [], iterationShowcasesNeedingReview: [], iterationSandboxActivity: [], officialUpdateActivity: [], myOfficialUpdates: [], officialUpdatesNeedingAttention: [], unreadCount: 0, codeProposalCount: 0, troubleshootingCount: 0, researchNotesCount: 0, repositoryShowcaseCount: 0, iterationShowcaseCount: 0, officialUpdateCount: 0 };
+  const empty = { signals: [], codeProposalActivity: [], needsMyReview: [], mySubmittedProposals: [], troubleshootingActivity: [], myTroubleshootingIssues: [], troubleshootingNeedingReview: [], troubleshootingResolutionActivity: [], researchNotesActivity: [], myResearchNotes: [], researchNotesNeedingReview: [], researchClarificationActivity: [], repositoryShowcaseActivity: [], myRepositoryShowcases: [], repositoryShowcasesNeedingReview: [], repositorySandboxActivity: [], iterationShowcaseActivity: [], myIterationShowcases: [], iterationShowcasesNeedingReview: [], iterationSandboxActivity: [], jobPostActivity: [], myJobPosts: [], jobPostsNeedingReview: [], jobPostStatusActivity: [], officialUpdateActivity: [], myOfficialUpdates: [], officialUpdatesNeedingAttention: [], unreadCount: 0, codeProposalCount: 0, troubleshootingCount: 0, researchNotesCount: 0, repositoryShowcaseCount: 0, iterationShowcaseCount: 0, jobPostCount: 0, officialUpdateCount: 0 };
   if (!hasSupabaseConfig || !supabase) return { signedIn: false, supabaseConfigured: false, userId: null, warnings: [supabaseNotConfiguredMessage], ...empty };
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth.user?.id ?? null;
@@ -732,6 +755,19 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const iterationSandboxActivity = [...myIterationShowcases, ...iterationShowcasesNeedingReview]
     .filter((row) => row.sandbox_review_requested || (row.sandbox_review_status && row.sandbox_review_status !== "not_requested"));
   const iterationShowcaseActivity = Array.from(new Map([...myIterationShowcases, ...iterationShowcasesNeedingReview, ...iterationSandboxActivity].map((row) => [row.role_context + ":" + row.id, row])).values());
+
+  type JobPostSignalRow = Omit<JobPostSignalPreview, "action_url" | "role_context">;
+  const jobSelect = "id, post_id, thread_id, author_user_id, role_title, organization_project, role_type, paid_volunteer_status, location_mode, application_status, anti_scam_review_status, public_correction_note, created_at, updated_at";
+  const myJobRows = await safeQuery<JobPostSignalRow[]>(warnings, "Job Post activity", supabase.from("commune_job_posts").select(jobSelect).eq("author_user_id", userId).order("updated_at", { ascending: false }).limit(100), []);
+  const reviewJobRows = canReviewCommune
+    ? await safeQuery<JobPostSignalRow[]>(warnings, "Job Post review activity", supabase.from("commune_job_posts").select(jobSelect).in("anti_scam_review_status", ["not_reviewed", "needs_pay_clarification", "needs_contact_clarification", "needs_location_clarification", "suspicious"]).order("updated_at", { ascending: false }).limit(100), [])
+    : [];
+  const mapJob = (row: JobPostSignalRow, role: JobPostSignalPreview["role_context"]): JobPostSignalPreview => ({ ...row, action_url: row.post_id ? "/commune/posts/" + row.post_id : "/commune/rooms/job-post", role_context: role });
+  const myJobPosts = myJobRows.map((row) => mapJob(row, ["filled", "closed", "archived", "needs_clarification"].includes(row.application_status ?? "") ? "status" : "owner"));
+  const jobPostsNeedingReview = reviewJobRows.map((row) => mapJob(row, "reviewer"));
+  const jobPostStatusActivity = [...myJobPosts, ...jobPostsNeedingReview]
+    .filter((row) => ["filled", "closed", "archived", "needs_clarification"].includes(row.application_status ?? "") || ["needs_pay_clarification", "needs_contact_clarification", "needs_location_clarification", "suspicious", "removed"].includes(row.anti_scam_review_status ?? "") || Boolean(row.public_correction_note));
+  const jobPostActivity = Array.from(new Map([...myJobPosts, ...jobPostsNeedingReview, ...jobPostStatusActivity].map((row) => [row.role_context + ":" + row.id, row])).values());
   type OfficialUpdateSignalRow = Omit<OfficialUpdateSignalPreview, "action_url" | "role_context">;
   const officialSelect = "id, post_id, admin_user_id, brand_author_name, update_type, official_status, severity, pinned, important, comments_enabled, correction_status, correction_note, published_at, updated_at";
   const myOfficialRows = await safeQuery<OfficialUpdateSignalRow[]>(warnings, "Official Update activity", supabase.from("commune_official_updates").select(officialSelect).eq("admin_user_id", userId).order("updated_at", { ascending: false }).limit(100), []);
@@ -770,6 +806,10 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
     myIterationShowcases,
     iterationShowcasesNeedingReview,
     iterationSandboxActivity,
+    jobPostActivity,
+    myJobPosts,
+    jobPostsNeedingReview,
+    jobPostStatusActivity,
     officialUpdateActivity,
     myOfficialUpdates,
     officialUpdatesNeedingAttention,
@@ -779,6 +819,7 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
     researchNotesCount: new Set(researchNotesActivity.map((item) => item.id)).size,
     repositoryShowcaseCount: new Set(repositoryShowcaseActivity.map((item) => item.id)).size,
     iterationShowcaseCount: new Set(iterationShowcaseActivity.map((item) => item.id)).size,
+    jobPostCount: new Set(jobPostActivity.map((item) => item.id)).size,
     officialUpdateCount: new Set(officialUpdateActivity.map((item) => item.id)).size
   };
 }

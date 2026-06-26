@@ -20,6 +20,11 @@ export type TroubleshootingResolutionKind = "comment" | "proposal" | "workaround
 export type ResearchEvidenceStrength = "preliminary" | "anecdotal" | "moderate" | "strong" | "mixed" | "needs_verification" | "unknown";
 export type ResearchReviewStatus = "submitted" | "published" | "needs_citation" | "needs_clarification" | "source_issue" | "overclaiming_evidence" | "corrected" | "archived";
 export type ResearchEcologicalSubsystem = "verdante" | "sylphora" | "ecotiva" | "aurania" | "terraflux" | "aquaria" | "aetheria" | "general" | "not_applicable";
+export type JobPostRoleType = "paid_role" | "volunteer_call" | "stipend_role" | "contract" | "internship" | "research_role" | "collaboration_role" | "contributor_call" | "reviewer_moderator_need" | "other";
+export type JobPostPaidVolunteerStatus = "paid" | "volunteer" | "stipend" | "unpaid" | "mixed" | "must_clarify";
+export type JobPostLocationMode = "remote" | "hybrid" | "local" | "field_based" | "unspecified";
+export type JobPostApplicationStatus = "open" | "reviewing" | "filled" | "closed" | "archived" | "needs_clarification";
+export type JobPostAntiScamReviewStatus = "not_reviewed" | "reviewed_clear" | "needs_pay_clarification" | "needs_contact_clarification" | "needs_location_clarification" | "suspicious" | "removed";
 export type TroubleshootingMetadata = {
   id: string;
   post_id: string;
@@ -45,6 +50,37 @@ export type TroubleshootingMetadata = {
   accepted_by?: string | null;
   accepted_at?: string | null;
   resolved_at?: string | null;
+  closed_at?: string | null;
+  archived_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+export type JobPostMetadata = {
+  id: string;
+  post_id: string;
+  thread_id?: string | null;
+  author_user_id?: string | null;
+  role_title?: string | null;
+  organization_project?: string | null;
+  role_type: JobPostRoleType;
+  paid_volunteer_status: JobPostPaidVolunteerStatus;
+  location_mode: JobPostLocationMode;
+  location_text?: string | null;
+  time_commitment?: string | null;
+  deadline?: string | null;
+  compensation_clarity?: string | null;
+  contact_path?: string | null;
+  requirements_skills?: string | null;
+  safety_notes?: string | null;
+  role_summary?: string | null;
+  application_status: JobPostApplicationStatus;
+  anti_scam_review_status: JobPostAntiScamReviewStatus;
+  work_with_link_enabled?: boolean | null;
+  private_application_note?: string | null;
+  public_correction_note?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  filled_at?: string | null;
   closed_at?: string | null;
   archived_at?: string | null;
   created_at?: string | null;
@@ -194,9 +230,9 @@ export type ElysiaIterationShowcaseMetadata = {
   created_at?: string | null;
   updated_at?: string | null;
 };
-export type CommuneModerationItem = { id: string; kind: "post" | "comment" | "upload" | "repo" | "iteration" | "sandbox" | "report"; title: string; status: string; created_at?: string | null; summary?: string | null };
+export type CommuneModerationItem = { id: string; kind: "post" | "comment" | "upload" | "repo" | "iteration" | "job" | "sandbox" | "report"; title: string; status: string; created_at?: string | null; summary?: string | null };
 export type CommuneAccountState = { signedIn: boolean; userId: string | null; username: string | null; roles: AppRole[]; isAdmin: boolean; isModerator: boolean; warnings: string[] };
-export type LoadCommuneData = { rooms: CommuneRoom[]; posts: CommunePost[]; comments: CommuneComment[]; threads: CommuneThread[]; media: CommuneMediaAttachment[]; troubleshootingPosts: TroubleshootingMetadata[]; researchNotes: ResearchNotesMetadata[]; repositoryShowcases: RepositoryShowcaseMetadata[]; iterationShowcases: ElysiaIterationShowcaseMetadata[]; officialUpdates: OfficialUpdateMetadata[]; officialCodeSnippets: OfficialUpdateCodeSnippet[]; savedPostIds: string[]; followedThreadIds: string[]; account: CommuneAccountState; warnings: string[] };
+export type LoadCommuneData = { rooms: CommuneRoom[]; posts: CommunePost[]; comments: CommuneComment[]; threads: CommuneThread[]; media: CommuneMediaAttachment[]; troubleshootingPosts: TroubleshootingMetadata[]; jobPosts: JobPostMetadata[]; researchNotes: ResearchNotesMetadata[]; repositoryShowcases: RepositoryShowcaseMetadata[]; iterationShowcases: ElysiaIterationShowcaseMetadata[]; officialUpdates: OfficialUpdateMetadata[]; officialCodeSnippets: OfficialUpdateCodeSnippet[]; savedPostIds: string[]; followedThreadIds: string[]; account: CommuneAccountState; warnings: string[] };
 export type CommuneCategory = { id: string; slug: string; title: string; description?: string | null; sort_order?: number | null; is_active?: boolean | null };
 export type CommuneCodeSnippet = {
   id: string;
@@ -244,6 +280,7 @@ const canonicalCommuneTables = {
   savedPosts: "user_saved_commune_posts",
   followedThreads: "user_followed_commune_threads",
   troubleshootingPosts: "commune_troubleshooting_posts",
+  jobPosts: "commune_job_posts",
   researchNotes: "commune_research_notes",
   repositoryShowcases: "commune_repository_showcases",
   iterationShowcases: "commune_iteration_showcases",
@@ -291,6 +328,7 @@ function friendlyError(message: string, fallbackMessage: string) {
   if (/commune_content_reactions|commune_content_reaction_counts/i.test(message)) return "Commune community signals are not active yet. Apply `2026_06_21_commune_content_reactions.sql` in Supabase, then try again.";
   if (/record_commune_sandbox_run_result|commune_sandbox_runs|commune_code_diagnostics/i.test(message)) return "Coding Cornucopia sandbox result recording is not active until the latest Supabase migration is applied.";
   if (/commune_troubleshooting_posts/i.test(message)) return "Troubleshooting Grove structured metadata is not active until `2026_06_26_troubleshooting_grove_structured_workflow.sql` is applied in Supabase.";
+  if (/commune_job_posts/i.test(message)) return "Job Post structured metadata is not active until `2026_06_26_job_post_structured_workflow.sql` is applied in Supabase.";
   if (/commune_research_notes/i.test(message)) return "Research Notes structured metadata is not active until `2026_06_26_research_notes_structured_workflow.sql` is applied in Supabase.";
   if (/commune_official_updates|commune_official_update_code_snippets|commune_official_update_events/i.test(message)) return "Official Update structured metadata is not active until `2026_06_26_official_update_structured_workflow.sql` is applied in Supabase.";
   if (/commune_thread_participant_approvals/i.test(message)) return "Commune thread participation approvals are not active yet. Apply `2026_06_21_commune_thread_participant_approvals.sql` in Supabase, then try again.";
@@ -384,6 +422,7 @@ async function publishPostAttachments(postId: string) {
 const repositoryShowcaseSelect = "id,user_id,post_id,repository_url,repository_host,project_name,project_summary,provider,default_branch,commit_sha,license,manifest_status,elysia_compatibility,short_description,readme_preview,file_tree_preview,screenshot_notes_or_urls,risk_flags,sandbox_review_requested,sandbox_review_status,sandbox_review_request_id,status,import_source,imported_metadata,imported_at,redaction_notes,created_at,updated_at";
 const repositoryShowcaseFallbackSelect = "id,user_id,post_id,repository_url,repository_host,project_name,project_summary,license,sandbox_review_requested,status,created_at,updated_at";
 const troubleshootingSelect = "id,post_id,thread_id,author_user_id,issue_type,affected_area,environment_os,environment_browser,app_version,environment_notes,steps_to_reproduce,expected_result,actual_result,error_message,redacted_logs,workaround,troubleshooting_status,accepted_comment_id,accepted_proposal_id,accepted_resolution_kind,accepted_summary,accepted_by,accepted_at,resolved_at,closed_at,archived_at,created_at,updated_at";
+const jobPostSelect = "id,post_id,thread_id,author_user_id,role_title,organization_project,role_type,paid_volunteer_status,location_mode,location_text,time_commitment,deadline,compensation_clarity,contact_path,requirements_skills,safety_notes,role_summary,application_status,anti_scam_review_status,work_with_link_enabled,private_application_note,public_correction_note,reviewed_by,reviewed_at,filled_at,closed_at,archived_at,created_at,updated_at";
 const researchNotesSelect = "id,post_id,thread_id,author_user_id,research_question,domain,evidence_strength,living_library_source_link,related_living_library_source_id,citation_notes,evidence_summary,observation,interpretation,uncertainty,context_discussion,source_links,geographic_scope,ecological_subsystem,method_type,data_type,ethics_note,review_status,correction_note,reviewed_by,reviewed_at,corrected_at,archived_at,created_at,updated_at";
 const iterationShowcaseSelect = "id,post_id,author_user_id,iteration_type,version_build_label,what_changed,why_it_matters,known_limitations,next_step,related_repo_url,provider,branch,commit_sha,release_tag,pull_request_url,developer_forge_link,marketplace_link,testing_status,compatibility_note,sandbox_review_requested,sandbox_review_status,sandbox_review_request_id,risk_flags,import_source,imported_metadata,imported_at,redaction_notes,status,created_at,updated_at";
 const iterationShowcaseFallbackSelect = "id,post_id,author_user_id,iteration_type,version_build_label,what_changed,why_it_matters,known_limitations,next_step,sandbox_review_requested,status,created_at,updated_at";
@@ -396,6 +435,11 @@ const troubleshootingResolutionKinds: TroubleshootingResolutionKind[] = ["commen
 const researchEvidenceStrengths: ResearchEvidenceStrength[] = ["preliminary", "anecdotal", "moderate", "strong", "mixed", "needs_verification", "unknown"];
 const researchReviewStatuses: ResearchReviewStatus[] = ["submitted", "published", "needs_citation", "needs_clarification", "source_issue", "overclaiming_evidence", "corrected", "archived"];
 const researchEcologicalSubsystems: ResearchEcologicalSubsystem[] = ["verdante", "sylphora", "ecotiva", "aurania", "terraflux", "aquaria", "aetheria", "general", "not_applicable"];
+const jobPostRoleTypes: JobPostRoleType[] = ["paid_role", "volunteer_call", "stipend_role", "contract", "internship", "research_role", "collaboration_role", "contributor_call", "reviewer_moderator_need", "other"];
+const jobPostPaidStatuses: JobPostPaidVolunteerStatus[] = ["paid", "volunteer", "stipend", "unpaid", "mixed", "must_clarify"];
+const jobPostLocationModes: JobPostLocationMode[] = ["remote", "hybrid", "local", "field_based", "unspecified"];
+const jobPostApplicationStatuses: JobPostApplicationStatus[] = ["open", "reviewing", "filled", "closed", "archived", "needs_clarification"];
+const jobPostAntiScamStatuses: JobPostAntiScamReviewStatus[] = ["not_reviewed", "reviewed_clear", "needs_pay_clarification", "needs_contact_clarification", "needs_location_clarification", "suspicious", "removed"];
 
 function normalizeTroubleshootingIssueType(value?: string | null): TroubleshootingIssueType {
   const normalized = String(value ?? "").toLowerCase().replace(/[\s-]+/g, "_");
@@ -412,6 +456,74 @@ function normalizeTroubleshootingStatus(value?: string | null): TroubleshootingS
 function normalizeTroubleshootingResolutionKind(value?: string | null): TroubleshootingResolutionKind | null {
   const normalized = String(value ?? "").toLowerCase().replace(/[\s-]+/g, "_");
   return troubleshootingResolutionKinds.includes(normalized as TroubleshootingResolutionKind) ? normalized as TroubleshootingResolutionKind : null;
+}
+
+
+function normalizeEnumValue<T extends string>(value: string | null | undefined, allowed: readonly T[], fallbackValue: T): T {
+  const normalized = String(value ?? "").trim().toLowerCase().replace(/[\s/-]+/g, "_");
+  return allowed.includes(normalized as T) ? normalized as T : fallbackValue;
+}
+
+function normalizeJobPostRoleType(value?: string | null): JobPostRoleType {
+  const normalized = String(value ?? "").trim().toLowerCase().replace(/[\s/-]+/g, "_");
+  const mapped = normalized === "paid" || normalized === "role" ? "paid_role" : normalized === "volunteer" ? "volunteer_call" : normalized === "reviewer" || normalized === "moderator" ? "reviewer_moderator_need" : normalized;
+  return jobPostRoleTypes.includes(mapped as JobPostRoleType) ? mapped as JobPostRoleType : "other";
+}
+
+function normalizeJobPaidStatus(value?: string | null): JobPostPaidVolunteerStatus {
+  const normalized = String(value ?? "").trim().toLowerCase().replace(/[\s/-]+/g, "_");
+  const mapped = normalized === "paid_volunteer" || normalized === "mixed_explain_clearly" ? "mixed" : normalized;
+  return jobPostPaidStatuses.includes(mapped as JobPostPaidVolunteerStatus) ? mapped as JobPostPaidVolunteerStatus : "must_clarify";
+}
+
+function normalizeJobPost(row: Partial<JobPostMetadata>): JobPostMetadata {
+  return {
+    id: String(row.id ?? ""),
+    post_id: String(row.post_id ?? ""),
+    thread_id: row.thread_id ?? null,
+    author_user_id: row.author_user_id ?? null,
+    role_title: row.role_title ?? null,
+    organization_project: row.organization_project ?? null,
+    role_type: normalizeJobPostRoleType(row.role_type),
+    paid_volunteer_status: normalizeJobPaidStatus(row.paid_volunteer_status),
+    location_mode: normalizeEnumValue(row.location_mode, jobPostLocationModes, "unspecified"),
+    location_text: row.location_text ?? null,
+    time_commitment: row.time_commitment ?? null,
+    deadline: row.deadline ?? null,
+    compensation_clarity: row.compensation_clarity ?? null,
+    contact_path: row.contact_path ?? null,
+    requirements_skills: row.requirements_skills ?? null,
+    safety_notes: row.safety_notes ?? null,
+    role_summary: row.role_summary ?? null,
+    application_status: normalizeEnumValue(row.application_status, jobPostApplicationStatuses, "open"),
+    anti_scam_review_status: normalizeEnumValue(row.anti_scam_review_status, jobPostAntiScamStatuses, "not_reviewed"),
+    work_with_link_enabled: row.work_with_link_enabled !== false,
+    private_application_note: row.private_application_note ?? null,
+    public_correction_note: row.public_correction_note ?? null,
+    reviewed_by: row.reviewed_by ?? null,
+    reviewed_at: row.reviewed_at ?? null,
+    filled_at: row.filled_at ?? null,
+    closed_at: row.closed_at ?? null,
+    archived_at: row.archived_at ?? null,
+    created_at: row.created_at ?? null,
+    updated_at: row.updated_at ?? null
+  };
+}
+
+async function loadJobPostsForPosts(postIds: string[]): Promise<JobPostMetadata[]> {
+  if (!supabase || !postIds.length) return [];
+  const { data, error } = await supabase.from(canonicalCommuneTables.jobPosts).select(jobPostSelect).in("post_id", postIds);
+  if (error) {
+    if (import.meta.env.DEV) console.warn("[Job Post structured load]", error.message);
+    return [];
+  }
+  return ((data ?? []) as Partial<JobPostMetadata>[]).map(normalizeJobPost).filter((row) => row.id && row.post_id);
+}
+
+export async function loadJobPostForPost(postId: string): Promise<{ jobPost: JobPostMetadata | null; warnings: string[] }> {
+  if (!supabase) return { jobPost: null, warnings: [supabaseNotConfiguredMessage] };
+  const rows = await loadJobPostsForPosts([postId]);
+  return { jobPost: rows[0] ?? null, warnings: [] };
 }
 
 function normalizeResearchEvidenceStrength(value?: string | null): ResearchEvidenceStrength {
@@ -752,7 +864,7 @@ export async function loadCategories(): Promise<{ categories: CommuneCategory[];
 
 export async function loadCommuneData(roomSlug?: string, postId?: string): Promise<LoadCommuneData> {
   const account = await accountState();
-  if (!hasSupabaseConfig || !supabase) return { rooms: [], posts: [], comments: [], threads: [], media: [], troubleshootingPosts: [], researchNotes: [], repositoryShowcases: [], iterationShowcases: [], officialUpdates: [], officialCodeSnippets: [], savedPostIds: [], followedThreadIds: [], account, warnings: [supabaseNotConfiguredMessage] };
+  if (!hasSupabaseConfig || !supabase) return { rooms: [], posts: [], comments: [], threads: [], media: [], troubleshootingPosts: [], jobPosts: [], researchNotes: [], repositoryShowcases: [], iterationShowcases: [], officialUpdates: [], officialCodeSnippets: [], savedPostIds: [], followedThreadIds: [], account, warnings: [supabaseNotConfiguredMessage] };
   const warnings = [...account.warnings];
   const roomsQuery = supabase.from(canonicalCommuneTables.rooms).select("id, slug, name, description, room_type, requires_moderation").order("name");
   const { data: rooms, error: roomError } = await roomsQuery;
@@ -780,6 +892,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
   if (commentError) warnings.push(commentError.message);
   const media = await loadPublishedMediaForPosts(postIds);
   const troubleshootingPosts = await loadTroubleshootingForPosts(postIds);
+  const jobPosts = await loadJobPostsForPosts(postIds);
   const researchNotes = await loadResearchNotesForPosts(postIds);
   const repositoryShowcases = await loadRepositoryShowcasesForPosts(postIds);
   const iterationShowcases = await loadIterationShowcasesForPosts(postIds);
@@ -795,7 +908,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
     savedPostIds = (saves ?? []).map((row) => row.post_id).filter(Boolean) as string[];
     followedThreadIds = (follows ?? []).map((row) => row.thread_id).filter(Boolean) as string[];
   }
-  return { rooms: (rooms ?? []) as CommuneRoom[], posts: (posts ?? []) as CommunePost[], comments: (comments ?? []) as CommuneComment[], threads: (threads ?? []) as CommuneThread[], media, troubleshootingPosts, researchNotes, repositoryShowcases, iterationShowcases, officialUpdates, officialCodeSnippets, savedPostIds, followedThreadIds, account, warnings };
+  return { rooms: (rooms ?? []) as CommuneRoom[], posts: (posts ?? []) as CommunePost[], comments: (comments ?? []) as CommuneComment[], threads: (threads ?? []) as CommuneThread[], media, troubleshootingPosts, jobPosts, researchNotes, repositoryShowcases, iterationShowcases, officialUpdates, officialCodeSnippets, savedPostIds, followedThreadIds, account, warnings };
 }
 
 export async function ensureCommuneThreadForPost(post: CommunePost): Promise<{ ok: boolean; thread?: CommuneThread; message: string }> {
@@ -1267,6 +1380,225 @@ export async function markTroubleshootingResolved(input: { postId: string; resol
   return { ok: true, message: "Accepted troubleshooting fix/workaround recorded." };
 }
 
+
+async function notifyJobPostAuthor(input: { userId?: string | null; actorId?: string | null; postId: string; sourceId?: string | null; title: string; body: string; type: string }) {
+  if (!supabase || !input.userId) return;
+  const { error } = await supabase.from("user_notifications").insert({
+    user_id: input.userId,
+    notification_type: input.type,
+    source_type: canonicalCommuneTables.jobPosts,
+    source_id: input.sourceId || input.postId,
+    title: input.title,
+    body: input.body,
+    action_url: "/commune/posts/" + input.postId
+  });
+  if (error && import.meta.env.DEV) console.warn("[Job Post notification]", error.message);
+}
+
+export async function submitJobPost(input: {
+  title: string;
+  summary: string;
+  body: string;
+  tags: string;
+  links: string;
+  roomId?: string;
+  upload?: File | null;
+  acknowledgement: boolean;
+  roleTitle?: string;
+  organizationProject?: string;
+  roleType?: string;
+  paidVolunteerStatus?: string;
+  locationMode?: string;
+  locationText?: string;
+  timeCommitment?: string;
+  deadline?: string;
+  compensationClarity?: string;
+  contactPath?: string;
+  requirementsSkills?: string;
+  safetyNotes?: string;
+  roleSummary?: string;
+  applicationStatus?: string;
+  antiScamReviewStatus?: string;
+  workWithLinkEnabled?: boolean;
+  privateApplicationNote?: string;
+  publicCorrectionNote?: string;
+}): Promise<{ ok: boolean; message: string; id?: string; postId?: string }> {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId) return { ok: false, message: "Sign in to submit a Job Post." };
+  if (!input.acknowledgement) return { ok: false, message: "Confirm the Job Post safety acknowledgements before submitting." };
+  const required = [
+    ["role title", input.roleTitle],
+    ["organization / project", input.organizationProject],
+    ["paid / volunteer status", input.paidVolunteerStatus],
+    ["location / remote / hybrid", input.locationMode],
+    ["contact/application path", input.contactPath],
+    ["role summary", input.roleSummary || input.body]
+  ].filter(([, value]) => !String(value ?? "").trim()).map(([label]) => label);
+  if (required.length) return { ok: false, message: "Job Posts need public clarity before submission: add " + required.join(", ") + "." };
+  if (input.upload) {
+    const media = validateCommuneMediaFile(input.upload);
+    if (!media.ok) return { ok: false, message: media.message };
+  }
+  const secretScan = scanCommuneTextForSecrets([
+    input.title,
+    input.summary,
+    input.body,
+    input.tags,
+    input.links,
+    input.roleTitle ?? "",
+    input.organizationProject ?? "",
+    input.roleType ?? "",
+    input.paidVolunteerStatus ?? "",
+    input.locationMode ?? "",
+    input.locationText ?? "",
+    input.timeCommitment ?? "",
+    input.deadline ?? "",
+    input.compensationClarity ?? "",
+    input.contactPath ?? "",
+    input.requirementsSkills ?? "",
+    input.safetyNotes ?? "",
+    input.roleSummary ?? "",
+    input.privateApplicationNote ?? "",
+    input.publicCorrectionNote ?? ""
+  ].join("\n"));
+  if (secretScan.blocked) return { ok: false, message: "Job Post blocked because it appears to contain private or secret material: " + secretScan.warnings.join(", ") + ". Remove it before submitting." };
+  const now = new Date().toISOString();
+  const postId = crypto.randomUUID();
+  const adminDirectPublish = account.isAdmin;
+  const tags = parseCommuneTags(input.tags);
+  const links = splitList(input.links);
+  const body = input.body.trim();
+  const { error: postError } = await supabase.from(canonicalCommuneTables.posts).insert({
+    id: postId,
+    user_id: account.userId,
+    author_username: account.username,
+    post_type: "job_post",
+    title: input.title.trim(),
+    body,
+    excerpt: excerpt(input.summary || input.roleSummary || body),
+    tags,
+    links,
+    status: adminDirectPublish ? "published" : "pending_review",
+    moderation_status: adminDirectPublish ? "approved" : "pending_review",
+    published_at: adminDirectPublish ? now : null,
+    safety_acknowledgements: { public_boundary: true, no_secrets: true, admin_approval_required: true, job_public_board: true, no_private_applicant_data: true, work_with_private_path_separate: true }
+  });
+  if (postError) return { ok: false, message: friendlyError(postError.message, "This Job Post is blocked by the current Commune room-post policy. Normal users must submit for admin approval before publication.") };
+  const { data: thread } = await supabase.from(canonicalCommuneTables.threads).insert({
+    post_id: postId,
+    room_id: input.roomId || null,
+    title: input.title.trim(),
+    created_by: account.userId,
+    visibility: "public",
+    status: "open"
+  }).select("id").single();
+  const threadId = (thread as { id?: string } | null)?.id ?? null;
+  const structuredPayload = {
+    post_id: postId,
+    thread_id: threadId,
+    author_user_id: account.userId,
+    role_title: input.roleTitle || null,
+    organization_project: input.organizationProject || null,
+    role_type: normalizeJobPostRoleType(input.roleType),
+    paid_volunteer_status: normalizeJobPaidStatus(input.paidVolunteerStatus),
+    location_mode: normalizeEnumValue(input.locationMode, jobPostLocationModes, "unspecified"),
+    location_text: input.locationText || null,
+    time_commitment: input.timeCommitment || null,
+    deadline: input.deadline || null,
+    compensation_clarity: input.compensationClarity || null,
+    contact_path: input.contactPath || null,
+    requirements_skills: input.requirementsSkills || null,
+    safety_notes: input.safetyNotes || null,
+    role_summary: input.roleSummary || input.summary || null,
+    application_status: normalizeEnumValue(input.applicationStatus, jobPostApplicationStatuses, "open"),
+    anti_scam_review_status: adminDirectPublish ? normalizeEnumValue(input.antiScamReviewStatus, jobPostAntiScamStatuses, "reviewed_clear") : "not_reviewed",
+    work_with_link_enabled: input.workWithLinkEnabled !== false,
+    private_application_note: input.privateApplicationNote || null,
+    public_correction_note: input.publicCorrectionNote || null,
+    reviewed_by: adminDirectPublish ? account.userId : null,
+    reviewed_at: adminDirectPublish ? now : null,
+    updated_at: now
+  };
+  const { data, error: jobError } = await supabase.from(canonicalCommuneTables.jobPosts).insert(structuredPayload).select("id").single();
+  if (jobError || !data) return { ok: false, postId, message: friendlyError(jobError?.message ?? "Job Post metadata insert did not return a row.", "Job Post saved, but structured metadata could not be saved. Apply the Job Post structured workflow migration, then repair this post.") };
+  const jobPostId = (data as { id: string }).id;
+  if (input.upload) {
+    const upload = await uploadCommuneAttachment(input.upload, { postId, role: "job_post_attachment", publishImmediately: adminDirectPublish });
+    if (!upload.ok) return { ok: false, id: jobPostId, postId, message: `Job Post saved, but upload failed: ${upload.message}` };
+  }
+  if (adminDirectPublish) {
+    await grantThreadParticipationApproval({ threadId, postId, userId: account.userId, approvedBy: account.userId, source: "admin_direct_job_post" });
+    await publishPostAttachments(postId);
+    await recordCommuneGovernanceEvent({ actorId: account.userId, targetType: "post", targetId: postId, action: "admin_job_post_published", fromStatus: "draft", toStatus: "published", metadata: { post_type: "job_post", job_post_id: jobPostId, review_item_created: false } });
+    await createReviewHistoryItem({ domain: "commune", sourceTable: canonicalCommuneTables.jobPosts, sourceId: jobPostId, submittedBy: account.userId, title: input.title, summary: "Admin-published public Job Post. Anti-scam, pay/contact/location clarity, and Work With separation remain auditable.", status: "approved", eventType: "admin_job_post_direct_published", metadata: { post_id: postId, thread_id: threadId, role_type: structuredPayload.role_type } });
+    await notifyJobPostAuthor({ userId: account.userId, actorId: account.userId, postId, sourceId: jobPostId, title: "Job Post published", body: "Your Job Post is public with structured role metadata. Work With remains the private application path.", type: "job_post_published" });
+    return { ok: true, id: jobPostId, postId, message: "Job Post published directly by admin with structured role metadata, public thread, anti-scam review state, and Work With separation." };
+  }
+  await createReviewItem({ domain: "commune", sourceTable: canonicalCommuneTables.posts, sourceId: postId, submittedBy: account.userId, title: input.title.trim(), summary: excerpt(input.summary || input.roleSummary || body) });
+  await createReviewItem({ domain: "commune", sourceTable: canonicalCommuneTables.jobPosts, sourceId: jobPostId, submittedBy: account.userId, title: input.title.trim(), summary: "Job Post metadata awaiting admin approval. Check pay/volunteer clarity, location/remote clarity, contact path, scam risk, and no private applicant data." });
+  await notifyJobPostAuthor({ userId: account.userId, actorId: account.userId, postId, sourceId: jobPostId, title: "Job Post submitted for admin approval", body: "Your Job Post is pending admin approval and is not public yet. Work With remains the private application/intake path.", type: "job_post_submitted" });
+  return { ok: true, id: jobPostId, postId, message: "Job Post submitted for mandatory admin approval with structured role metadata. It is not public until approved." };
+}
+
+export async function updateJobPostApplicationStatus(input: { jobPostId?: string | null; postId?: string | null; applicationStatus: JobPostApplicationStatus; publicCorrectionNote?: string }): Promise<{ ok: boolean; message: string }> {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId) return { ok: false, message: "Sign in to update Job Post status." };
+  if (!input.jobPostId && !input.postId) return { ok: false, message: "Job Post status update needs a metadata id or post id." };
+  const existingQuery = supabase.from(canonicalCommuneTables.jobPosts).select("id,post_id,author_user_id");
+  const { data: existing } = input.jobPostId ? await existingQuery.eq("id", input.jobPostId).maybeSingle() : await existingQuery.eq("post_id", input.postId ?? "").maybeSingle();
+  const row = existing as { id?: string; post_id?: string | null; author_user_id?: string | null } | null;
+  if (!row || (!account.isModerator && row.author_user_id !== account.userId)) return { ok: false, message: "Only the Job Post author or a Commune reviewer/admin can update public listing status." };
+  const now = new Date().toISOString();
+  const status = normalizeEnumValue(input.applicationStatus, jobPostApplicationStatuses, "open");
+  let error: { message: string } | null = null;
+  if (account.isModerator) {
+    const patch: Record<string, unknown> = { application_status: status, public_correction_note: input.publicCorrectionNote || null, updated_at: now };
+    if (status === "filled") patch.filled_at = now;
+    if (status === "closed") patch.closed_at = now;
+    if (status === "archived") patch.archived_at = now;
+    const query = supabase.from(canonicalCommuneTables.jobPosts).update(patch);
+    const result = input.jobPostId ? await query.eq("id", input.jobPostId) : await query.eq("post_id", input.postId ?? "");
+    error = result.error;
+  } else {
+    const result = await supabase.rpc("update_own_commune_job_post_application_status", {
+      p_job_post_id: input.jobPostId ?? null,
+      p_post_id: input.postId ?? null,
+      p_application_status: status,
+      p_public_correction_note: input.publicCorrectionNote || null
+    });
+    error = result.error;
+  }
+  if (error) return { ok: false, message: friendlyError(error.message, "Job Post application status could not be updated yet.") };
+  await notifyJobPostAuthor({ userId: row.author_user_id, actorId: account.userId, postId: row.post_id ?? input.postId ?? "", sourceId: row.id, title: "Job Post listing status updated", body: `Job Post status is now ${status.replace(/_/g, " ")}.${input.publicCorrectionNote ? " Note: " + input.publicCorrectionNote : ""}`, type: "job_post_status_changed" });
+  return { ok: true, message: "Job Post listing status updated." };
+}
+
+export async function updateJobPostReviewStatus(input: { jobPostId?: string | null; postId?: string | null; antiScamReviewStatus: JobPostAntiScamReviewStatus; publicCorrectionNote?: string }): Promise<{ ok: boolean; message: string }> {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId || !account.isModerator) return { ok: false, message: "Job Post anti-scam review states require an assigned Commune reviewer/admin role." };
+  if (!input.jobPostId && !input.postId) return { ok: false, message: "Job Post anti-scam review update needs a metadata id or post id." };
+  const now = new Date().toISOString();
+  const status = normalizeEnumValue(input.antiScamReviewStatus, jobPostAntiScamStatuses, "not_reviewed");
+  const patch: Record<string, unknown> = {
+    anti_scam_review_status: status,
+    public_correction_note: input.publicCorrectionNote || null,
+    reviewed_by: account.userId,
+    reviewed_at: now,
+    updated_at: now
+  };
+  if (status === "removed") patch.application_status = "archived";
+  const query = supabase.from(canonicalCommuneTables.jobPosts).update(patch);
+  const { error } = input.jobPostId ? await query.eq("id", input.jobPostId) : await query.eq("post_id", input.postId ?? "");
+  if (error) return { ok: false, message: friendlyError(error.message, "Job Post anti-scam review status could not be updated yet.") };
+  const { data: existing } = await supabase.from(canonicalCommuneTables.jobPosts).select("id,post_id,author_user_id").eq(input.jobPostId ? "id" : "post_id", input.jobPostId || input.postId || "").maybeSingle();
+  const row = existing as { id?: string; post_id?: string | null; author_user_id?: string | null } | null;
+  await notifyJobPostAuthor({ userId: row?.author_user_id ?? null, actorId: account.userId, postId: row?.post_id ?? input.postId ?? "", sourceId: row?.id ?? input.jobPostId ?? null, title: "Job Post review state updated", body: `Job Post anti-scam review state is now ${status.replace(/_/g, " ")}.${input.publicCorrectionNote ? " Note: " + input.publicCorrectionNote : ""}`, type: "job_post_review_status_changed" });
+  return { ok: true, message: "Job Post anti-scam review state updated. Private admin clarification stays in review/history systems; public correction notes are safe to display." };
+}
+
 async function notifyResearchNotesAuthor(input: { userId?: string | null; postId: string; sourceId?: string | null; title: string; body: string; type: string }) {
   if (!supabase || !input.userId) return;
   const { error } = await supabase.from("user_notifications").insert({
@@ -1638,6 +1970,7 @@ export async function moderateCommuneContentTarget(input: { targetType: CommuneR
     const sidecarStatus = input.action === "delete" ? "rejected" : "needs_information";
     if (postType === "troubleshooting") await supabase.from(canonicalCommuneTables.troubleshootingPosts).update({ troubleshooting_status: input.action === "delete" ? "archived" : "needs_information", updated_at: now, archived_at: input.action === "delete" ? now : null }).eq("post_id", input.targetId);
     if (postType === "research_note") await supabase.from(canonicalCommuneTables.researchNotes).update({ review_status: input.action === "delete" ? "archived" : "needs_clarification", updated_at: now, archived_at: input.action === "delete" ? now : null }).eq("post_id", input.targetId);
+    if (postType === "job_post") await supabase.from(canonicalCommuneTables.jobPosts).update({ anti_scam_review_status: input.action === "delete" ? "removed" : "suspicious", application_status: input.action === "delete" ? "archived" : "needs_clarification", updated_at: now, archived_at: input.action === "delete" ? now : null }).eq("post_id", input.targetId);
     if (postType === "repository_showcase") await supabase.from(canonicalCommuneTables.repositoryShowcases).update({ status: sidecarStatus, updated_at: now }).eq("post_id", input.targetId);
     if (postType === "elysia_iteration_showcase") await supabase.from(canonicalCommuneTables.iterationShowcases).update({ status: sidecarStatus, updated_at: now }).eq("post_id", input.targetId);
     if (postType === "official_update") await supabase.from(canonicalCommuneTables.officialUpdates).update({ official_status: input.action === "delete" ? "archived" : "updated", correction_status: input.action === "delete" ? "retracted" : "none", archived_at: input.action === "delete" ? now : null, updated_at: now }).eq("post_id", input.targetId);
@@ -2085,22 +2418,24 @@ export async function loadCommuneModerationQueue(): Promise<{ items: CommuneMode
   const account = await accountState();
   if (!account.isModerator) return { items: [], warnings: ["Commune moderation requires administrator, moderator, commune_moderator, or guardian_reviewer role."] };
   const warnings: string[] = [];
-  const [posts, comments, uploads, repos, iterations, sandboxes, reports] = await Promise.all([
+  const [posts, comments, uploads, repos, iterations, jobs, sandboxes, reports] = await Promise.all([
     supabase.from("commune_posts").select("id,title,status,created_at,excerpt").in("status", ["pending_review", "in_review", "needs_information", "hidden"]).order("created_at", { ascending: false }).limit(30),
     supabase.from("commune_comments").select("id,body,status,created_at").in("status", ["pending_review", "hidden"]).order("created_at", { ascending: false }).limit(30),
     supabase.from(canonicalCommuneTables.media).select("id,file_name,visibility_state,created_at").in("visibility_state", ["submitted", "flagged", "hidden"]).order("created_at", { ascending: false }).limit(30),
     supabase.from(canonicalCommuneTables.repositoryShowcases).select("id,project_name,status,created_at,project_summary").in("status", ["pending_review", "in_review", "needs_information"]).order("created_at", { ascending: false }).limit(30),
     supabase.from(canonicalCommuneTables.iterationShowcases).select("id,post_id,iteration_type,version_build_label,status,created_at,what_changed").in("status", ["pending_review", "in_review", "needs_information"]).order("created_at", { ascending: false }).limit(30),
+    supabase.from(canonicalCommuneTables.jobPosts).select("id,post_id,role_title,organization_project,application_status,anti_scam_review_status,created_at,role_summary").in("anti_scam_review_status", ["not_reviewed", "needs_pay_clarification", "needs_contact_clarification", "needs_location_clarification", "suspicious"]).order("created_at", { ascending: false }).limit(30),
     supabase.from(canonicalCommuneTables.sandboxReviews).select("id,request_title,status,created_at,risk_notes").in("status", ["requested", "in_review", "needs_information"]).order("created_at", { ascending: false }).limit(30),
     supabase.from(canonicalCommuneTables.legacyReports).select("id,report_type,status,created_at,report_reason").in("status", ["pending_review", "in_review", "escalated"]).order("created_at", { ascending: false }).limit(30)
   ]);
-  for (const result of [posts, comments, uploads, repos, iterations, sandboxes, reports]) if (result.error) warnings.push(result.error.message);
+  for (const result of [posts, comments, uploads, repos, iterations, jobs, sandboxes, reports]) if (result.error) warnings.push(result.error.message);
   const items: CommuneModerationItem[] = [
     ...((posts.data ?? []) as Array<{ id: string; title: string; status: string; created_at?: string; excerpt?: string }>).map((row) => ({ id: row.id, kind: "post" as const, title: row.title, status: row.status, created_at: row.created_at, summary: row.excerpt })),
     ...((comments.data ?? []) as Array<{ id: string; body: string; status: string; created_at?: string }>).map((row) => ({ id: row.id, kind: "comment" as const, title: "Comment", status: row.status, created_at: row.created_at, summary: excerpt(row.body) })),
     ...((uploads.data ?? []) as Array<{ id: string; file_name: string; visibility_state: string; created_at?: string }>).map((row) => ({ id: row.id, kind: "upload" as const, title: row.file_name, status: row.visibility_state, created_at: row.created_at })),
     ...((repos.data ?? []) as Array<{ id: string; project_name: string; status: string; created_at?: string; project_summary?: string }>).map((row) => ({ id: row.id, kind: "repo" as const, title: row.project_name, status: row.status, created_at: row.created_at, summary: row.project_summary })),
     ...((iterations.data ?? []) as Array<{ id: string; post_id?: string; iteration_type?: string; version_build_label?: string; status: string; created_at?: string; what_changed?: string }>).map((row) => ({ id: row.id, kind: "iteration" as const, title: ["Elysia Iteration Showcase", row.iteration_type, row.version_build_label].filter(Boolean).join(" · "), status: row.status, created_at: row.created_at, summary: row.what_changed })),
+    ...((jobs.data ?? []) as Array<{ id: string; post_id?: string; role_title?: string; organization_project?: string; application_status?: string; anti_scam_review_status?: string; created_at?: string; role_summary?: string }>).map((row) => ({ id: row.id, kind: "job" as const, title: ["Job Post", row.role_title, row.organization_project].filter(Boolean).join(" · "), status: row.anti_scam_review_status || row.application_status || "not_reviewed", created_at: row.created_at, summary: row.role_summary })),
     ...((sandboxes.data ?? []) as Array<{ id: string; request_title: string; status: string; created_at?: string; risk_notes?: string }>).map((row) => ({ id: row.id, kind: "sandbox" as const, title: row.request_title, status: row.status, created_at: row.created_at, summary: row.risk_notes })),
     ...((reports.data ?? []) as Array<{ id: string; report_type: string; status: string; created_at?: string; report_reason?: string }>).map((row) => ({ id: row.id, kind: "report" as const, title: row.report_type, status: row.status, created_at: row.created_at, summary: row.report_reason }))
   ];
@@ -2112,12 +2447,12 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
   const account = await accountState();
   if (!account.userId || !account.isModerator) return { ok: false, message: "Commune moderation requires an assigned moderator/admin role." };
   const now = new Date().toISOString();
-  const table = item.kind === "post" ? canonicalCommuneTables.posts : item.kind === "comment" ? canonicalCommuneTables.comments : item.kind === "upload" ? canonicalCommuneTables.media : item.kind === "repo" ? canonicalCommuneTables.repositoryShowcases : item.kind === "iteration" ? canonicalCommuneTables.iterationShowcases : item.kind === "sandbox" ? canonicalCommuneTables.sandboxReviews : canonicalCommuneTables.legacyReports;
-  const ownerSelect = item.kind === "post" ? "user_id,title,post_type" : item.kind === "comment" ? "user_id,body,post_id,thread_id" : item.kind === "repo" ? "user_id,project_name,post_id" : item.kind === "iteration" ? "author_user_id,iteration_type,version_build_label,post_id" : item.kind === "sandbox" ? "user_id,request_title" : item.kind === "upload" ? "owner_user_id,file_name,post_id" : "reporter_user_id,report_type";
+  const table = item.kind === "post" ? canonicalCommuneTables.posts : item.kind === "comment" ? canonicalCommuneTables.comments : item.kind === "upload" ? canonicalCommuneTables.media : item.kind === "repo" ? canonicalCommuneTables.repositoryShowcases : item.kind === "iteration" ? canonicalCommuneTables.iterationShowcases : item.kind === "job" ? canonicalCommuneTables.jobPosts : item.kind === "sandbox" ? canonicalCommuneTables.sandboxReviews : canonicalCommuneTables.legacyReports;
+  const ownerSelect = item.kind === "post" ? "user_id,title,post_type" : item.kind === "comment" ? "user_id,body,post_id,thread_id" : item.kind === "repo" ? "user_id,project_name,post_id" : item.kind === "iteration" ? "author_user_id,iteration_type,version_build_label,post_id" : item.kind === "job" ? "author_user_id,role_title,organization_project,post_id" : item.kind === "sandbox" ? "user_id,request_title" : item.kind === "upload" ? "owner_user_id,file_name,post_id" : "reporter_user_id,report_type";
   const ownerResult = await supabase.from(table).select(ownerSelect).eq("id", item.id).maybeSingle();
   const ownerRow = (ownerResult.data ?? {}) as Record<string, unknown>;
   const targetUserId = String(ownerRow.user_id ?? ownerRow.author_user_id ?? ownerRow.owner_user_id ?? ownerRow.reporter_user_id ?? "");
-  const notificationTitle = String(ownerRow.title ?? ownerRow.project_name ?? ownerRow.iteration_type ?? ownerRow.request_title ?? ownerRow.file_name ?? ownerRow.report_type ?? item.title);
+  const notificationTitle = String(ownerRow.title ?? ownerRow.project_name ?? ownerRow.iteration_type ?? ownerRow.role_title ?? ownerRow.request_title ?? ownerRow.file_name ?? ownerRow.report_type ?? item.title);
   const postId = String(ownerRow.post_id ?? (item.kind === "post" ? item.id : ""));
   const update: Record<string, unknown> = {};
   if (item.kind === "post") {
@@ -2142,6 +2477,13 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
   } else if (item.kind === "iteration") {
     update.updated_at = now;
     update.status = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "hide" ? "rejected" : action === "archive" ? "archived" : action === "escalate" ? "in_review" : "needs_information";
+  } else if (item.kind === "job") {
+    update.updated_at = now;
+    update.anti_scam_review_status = action === "approve" ? "reviewed_clear" : action === "reject" || action === "hide" ? "removed" : action === "archive" ? "removed" : action === "escalate" ? "suspicious" : "needs_contact_clarification";
+    update.application_status = action === "archive" ? "archived" : action === "reject" || action === "hide" ? "closed" : action === "approve" ? "open" : "needs_clarification";
+    update.reviewed_by = account.userId;
+    update.reviewed_at = now;
+    if (reason) update.public_correction_note = reason;
   } else if (item.kind === "sandbox") {
     update.updated_at = now;
     update.status = action === "approve" ? "approved_for_local_sandbox" : action === "reject" ? "rejected" : action === "archive" ? "archived" : action === "escalate" ? "in_review" : "needs_information";
@@ -2169,7 +2511,12 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
     const iterationStatus = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "hide" ? "rejected" : action === "archive" ? "archived" : action === "escalate" ? "in_review" : "needs_information";
     await supabase.from(canonicalCommuneTables.iterationShowcases).update({ status: iterationStatus, updated_at: now }).eq("post_id", item.id);
   }
-  if ((item.kind === "repo" || item.kind === "iteration") && postId) {
+  if (item.kind === "post" && ownerRow.post_type === "job_post") {
+    const jobReviewStatus: JobPostAntiScamReviewStatus = action === "approve" ? "reviewed_clear" : action === "reject" || action === "hide" || action === "archive" ? "removed" : action === "escalate" ? "suspicious" : "needs_contact_clarification";
+    const jobApplicationStatus: JobPostApplicationStatus = action === "approve" ? "open" : action === "archive" ? "archived" : action === "reject" || action === "hide" ? "closed" : "needs_clarification";
+    await supabase.from(canonicalCommuneTables.jobPosts).update({ anti_scam_review_status: jobReviewStatus, application_status: jobApplicationStatus, reviewed_by: account.userId, reviewed_at: now, updated_at: now, public_correction_note: reason || null }).eq("post_id", item.id);
+  }
+  if ((item.kind === "repo" || item.kind === "iteration" || item.kind === "job") && postId) {
     const linkedPostUpdate: Record<string, unknown> = { updated_at: now };
     linkedPostUpdate.status = action === "approve" ? "published" : action === "reject" ? "removed_by_moderator" : action === "hide" ? "hidden" : action === "archive" ? "archived" : "needs_information";
     linkedPostUpdate.moderation_status = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "hide" ? "hidden" : action === "archive" ? "archived" : "needs_information";
@@ -2180,14 +2527,14 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
     } else {
       linkedPostUpdate.moderation_reason = reason || null;
     }
-    await supabase.from(canonicalCommuneTables.posts).update(linkedPostUpdate).eq("id", postId).eq("post_type", item.kind === "repo" ? "repository_showcase" : "elysia_iteration_showcase");
+    await supabase.from(canonicalCommuneTables.posts).update(linkedPostUpdate).eq("id", postId).eq("post_type", item.kind === "repo" ? "repository_showcase" : item.kind === "iteration" ? "elysia_iteration_showcase" : "job_post");
     const linkedReview = await supabase.from("review_items").select("id,status").eq("domain", "commune").eq("source_table", canonicalCommuneTables.posts).eq("source_id", postId).maybeSingle();
     if (!linkedReview.error && linkedReview.data) {
       const linkedReviewStatus = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "needs_information" ? "needs_information" : action === "archive" ? "archived" : "in_review";
       await supabase.from("review_items").update({ status: linkedReviewStatus, updated_at: now }).eq("id", (linkedReview.data as { id: string }).id);
     }
   }
-  const toStatus = String(update.status ?? update.visibility_state);
+  const toStatus = String(update.status ?? update.anti_scam_review_status ?? update.application_status ?? update.visibility_state);
   await supabase.from("commune_moderation_events").insert({ actor_id: account.userId, target_type: item.kind, target_id: item.id, action, from_status: item.status, to_status: toStatus, reason: reason || null, metadata: { source: "commune_moderation_ui" } });
   const reviewStatus = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "needs_information" ? "needs_information" : action === "archive" ? "archived" : "in_review";
   const reviewItem = await supabase.from("review_items").select("id,status").eq("domain", "commune").eq("source_table", table).eq("source_id", item.id).maybeSingle();
@@ -2201,9 +2548,9 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
       await grantThreadParticipationApproval({ threadId: (threadRow as { id?: string } | null)?.id ?? null, postId: item.id, userId: targetUserId, approvedBy: account.userId, source: "post_approval" });
       await publishPostAttachments(item.id);
     }
-    if ((item.kind === "repo" || item.kind === "iteration") && postId) {
+    if ((item.kind === "repo" || item.kind === "iteration" || item.kind === "job") && postId) {
       const { data: threadRow } = await supabase.from(canonicalCommuneTables.threads).select("id").eq("post_id", postId).maybeSingle();
-      await grantThreadParticipationApproval({ threadId: (threadRow as { id?: string } | null)?.id ?? null, postId, userId: targetUserId, approvedBy: account.userId, source: item.kind === "repo" ? "repository_showcase_approval" : "iteration_showcase_approval" });
+      await grantThreadParticipationApproval({ threadId: (threadRow as { id?: string } | null)?.id ?? null, postId, userId: targetUserId, approvedBy: account.userId, source: item.kind === "repo" ? "repository_showcase_approval" : item.kind === "iteration" ? "iteration_showcase_approval" : "job_post_approval" });
       await publishPostAttachments(postId);
     }
     if (item.kind === "comment") {

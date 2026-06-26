@@ -3459,3 +3459,51 @@ create policy "reviewers manage research notes metadata" on public.commune_resea
 
 grant select on table public.commune_research_notes to anon;
 grant select, insert, update on table public.commune_research_notes to authenticated;
+
+-- Job Post structured workflow policies.
+-- Canonical repair migration: supabase/migrations/2026_06_26_job_post_structured_workflow.sql
+alter table public.commune_job_posts enable row level security;
+
+drop policy if exists "public reads published job post metadata" on public.commune_job_posts;
+create policy "public reads published job post metadata" on public.commune_job_posts
+  for select to anon, authenticated
+  using (
+    exists (
+      select 1
+      from public.commune_posts p
+      where p.id = post_id
+        and p.post_type = 'job_post'
+        and p.status = 'published'
+        and p.visibility = 'public'
+    )
+    or author_user_id = auth.uid()
+    or public.current_user_can_review_domain('commune'::public.review_domain)
+  );
+
+drop policy if exists "signed users create own job post metadata" on public.commune_job_posts;
+create policy "signed users create own job post metadata" on public.commune_job_posts
+  for insert to authenticated
+  with check (
+    author_user_id = auth.uid()
+    and exists (
+      select 1
+      from public.commune_posts p
+      where p.id = post_id
+        and p.user_id = auth.uid()
+        and p.post_type = 'job_post'
+        and p.status in ('pending_review','published')
+        and (p.status <> 'published' or public.current_user_is_admin())
+    )
+  );
+
+drop policy if exists "reviewers manage job post metadata" on public.commune_job_posts;
+create policy "reviewers manage job post metadata" on public.commune_job_posts
+  for all to authenticated
+  using (public.current_user_can_review_domain('commune'::public.review_domain))
+  with check (public.current_user_can_review_domain('commune'::public.review_domain));
+
+revoke all on function public.update_own_commune_job_post_application_status(uuid, uuid, text, text) from public;
+grant execute on function public.update_own_commune_job_post_application_status(uuid, uuid, text, text) to authenticated;
+
+grant select on table public.commune_job_posts to anon;
+grant select, insert, update on table public.commune_job_posts to authenticated;

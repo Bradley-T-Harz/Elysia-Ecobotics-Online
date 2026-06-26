@@ -3900,3 +3900,19 @@ code { color: var(--teal); overflow-wrap: anywhere; }
 .commune-repo-sandbox-request textarea {
   max-width: 100%;
 }
+
+
+.commune-job-bridge,
+.work-job-post-bridge {
+  border-color: color-mix(in srgb, var(--color-accent, #4c8f72) 32%, rgba(255,255,255,0.2));
+}
+
+.commune-job-detail .commune-info-grid,
+.commune-job-native-details {
+  margin-top: var(--space-4, 1rem);
+}
+
+.commune-job-work-with {
+  margin-top: var(--space-4, 1rem);
+  border-left: 3px solid var(--color-accent, #4c8f72);
+}

@@ -3,10 +3,11 @@ import { Link } from "react-router-dom";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
-import { loadSignalConsole, markAllNotificationsRead, markNotificationRead, type CodeProposalSignalPreview, type CodeProposalSignalStatus, type ElysiaIterationShowcaseSignalPreview, type NotificationPreview, type OfficialUpdateSignalPreview, type RepositoryShowcaseSignalPreview, type ResearchNotesSignalPreview, type SignalConsoleData, type TroubleshootingSignalPreview } from "./commonsCircleApi";
+import { loadSignalConsole, markAllNotificationsRead, markNotificationRead, type CodeProposalSignalPreview, type CodeProposalSignalStatus, type ElysiaIterationShowcaseSignalPreview, type JobPostSignalPreview, type NotificationPreview, type OfficialUpdateSignalPreview, type RepositoryShowcaseSignalPreview, type ResearchNotesSignalPreview, type SignalConsoleData, type TroubleshootingSignalPreview } from "./commonsCircleApi";
 
 function signalCategory(signal: NotificationPreview) {
   const text = `${signal.notification_type ?? ""} ${signal.source_type ?? ""}`;
+  if (/job_post|job post|opportunity|anti_scam/i.test(text)) return "Job Post";
   if (/official_update|official_security|official_notice/i.test(text)) return "Official Update";
   if (/troubleshooting|fix_proposed|resolution/i.test(text)) return "Troubleshooting Grove";
   if (/research_notes|research_note|citation|source_issue|overclaim/i.test(text)) return "Research Notes";
@@ -164,6 +165,25 @@ function IterationSignalCard({ signal, context }: { signal: ElysiaIterationShowc
   </article>;
 }
 
+
+function jobPostSignalTime(signal: JobPostSignalPreview) {
+  return signal.updated_at || signal.created_at || null;
+}
+
+function JobPostSignalCard({ signal, context }: { signal: JobPostSignalPreview; context: "mine" | "review" | "status" | "recent" }) {
+  const created = jobPostSignalTime(signal);
+  const title = [signal.role_title || "Job Post", signal.organization_project].filter(Boolean).join(" · ");
+  const roleLabel = signal.role_context === "reviewer" ? "Admin approval / anti-scam review" : signal.role_context === "status" ? "Listing status activity" : "My public opportunity listing";
+  return <article className={["commons-signal-card", context === "review" ? "commons-signal-card--unread" : ""].filter(Boolean).join(" ")}>
+    <div className="addon-card__topline"><strong>{title}</strong><span>{created ? new Date(created).toLocaleString() : "recent"}</span></div>
+    <div className="commons-signal-meta"><span>Job Post</span><span>{repositoryStatusLabel(signal.application_status)}</span><span>{repositoryStatusLabel(signal.anti_scam_review_status)}</span><span>{repositoryStatusLabel(signal.paid_volunteer_status)}</span><span>{roleLabel}</span></div>
+    <p>{signal.public_correction_note || "Structured Job Post activity is connected to this Website Account. Normal-user listings require admin approval before becoming public."}</p>
+    <p className="boundary-note">Job Posts are public listings, not private applications. Work With Elysia Ecobotics remains the private intake path for resumes/CVs and private contact materials.</p>
+    <p className="boundary-note">No SSNs, bank details, identity documents, private addresses, private phone numbers, private applicant packets, Work With uploads, or hidden review notes are exposed here.</p>
+    <div className="button-row"><Link className="button-link" to={signal.action_url}>Open Job Post</Link><Link className="button-link" to="/work-with-elysia-ecobotics">Open Work With private intake</Link></div>
+  </article>;
+}
+
 function officialStatusLabel(status?: string | null) {
   return status ? status.replace(/_/g, " ") : "status unknown";
 }
@@ -221,10 +241,14 @@ export default function SignalConsolePage() {
   const myIterationShowcases = data?.myIterationShowcases ?? [];
   const iterationShowcasesNeedingReview = data?.iterationShowcasesNeedingReview ?? [];
   const iterationSandboxActivity = data?.iterationSandboxActivity ?? [];
+  const jobPostActivity = data?.jobPostActivity ?? [];
+  const myJobPosts = data?.myJobPosts ?? [];
+  const jobPostsNeedingReview = data?.jobPostsNeedingReview ?? [];
+  const jobPostStatusActivity = data?.jobPostStatusActivity ?? [];
   const officialUpdateActivity = data?.officialUpdateActivity ?? [];
   const myOfficialUpdates = data?.myOfficialUpdates ?? [];
   const officialUpdatesNeedingAttention = data?.officialUpdatesNeedingAttention ?? [];
-  const hasAnySignal = signals.length > 0 || proposalActivity.length > 0 || troubleshootingActivity.length > 0 || researchNotesActivity.length > 0 || repositoryShowcaseActivity.length > 0 || iterationShowcaseActivity.length > 0 || officialUpdateActivity.length > 0;
+  const hasAnySignal = signals.length > 0 || proposalActivity.length > 0 || troubleshootingActivity.length > 0 || researchNotesActivity.length > 0 || repositoryShowcaseActivity.length > 0 || iterationShowcaseActivity.length > 0 || jobPostActivity.length > 0 || officialUpdateActivity.length > 0;
 
   async function readOne(id: string) {
     const warnings = await markNotificationRead(id);
@@ -240,7 +264,7 @@ export default function SignalConsolePage() {
 
   return <div className="page-stack commons-circle-page commons-signal-console">
     <PageHero eyebrow="Commons Circle" title="Signal Console">
-      <p>Your private account-backed console for Coding Cornucopia proposals, Troubleshooting Grove proposed fixes, Research Notes citation/source activity, Repository Showcase metadata, Elysia Iteration Showcase progress posts, review outcomes, sandbox activity, followed thread updates, and other Commons signals.</p>
+      <p>Your private account-backed console for Coding Cornucopia proposals, Troubleshooting Grove proposed fixes, Research Notes citation/source activity, Repository Showcase metadata, Elysia Iteration Showcase progress posts, Job Post opportunity listings, review outcomes, sandbox activity, followed thread updates, and other Commons signals.</p>
       <p>No private local Elysia memory, files, logs, vaults, credentials, or machine data appear here.</p>
     </PageHero>
     {messages.length > 0 && <section className="message-stack" aria-live="polite">{messages.map((message, index) => <div className="message" key={`${message}-${index}`}>{message}</div>)}</section>}
@@ -248,6 +272,7 @@ export default function SignalConsolePage() {
       <WarningCallout title="Private account console"><p>Signals are visible only to the signed-in Website Account that owns them. Public profiles do not show this console.</p></WarningCallout>
       <WarningCallout title="Author approval boundary"><p>Coding Cornucopia proposals and Troubleshooting Grove proposed fixes can request code changes, but public code changes only after the original post author accepts the proposal.</p></WarningCallout>
       <WarningCallout title="Research Notes boundary"><p>Research Notes signals separate evidence, observation, interpretation, uncertainty, citations, and Living Library source links without exposing private research data or sensitive locations.</p></WarningCallout>
+      <WarningCallout title="Job Post boundary"><p>Job Post signals track public opportunity listings and admin approval. Work With remains the private application/intake path for resumes, CVs, and private contact details.</p></WarningCallout>
       <WarningCallout title="Sandbox boundary"><p>Sandbox diagnostics are evidence for review. Successful runs do not create trust, Marketplace approval, or installability.</p></WarningCallout>
       <WarningCallout title="Official authority boundary"><p>Official Update signals are brand-authoritative and admin-only. They do not create community edit rights, code workbenches, sandbox execution, or Marketplace approval.</p></WarningCallout>
     </section>
@@ -268,8 +293,8 @@ export default function SignalConsolePage() {
     </section>
     {data?.signedIn && <section className="section-card">
       <div className="section-heading section-heading--inline"><div><p className="eyebrow">Attention queue</p><h2>Signals that need review</h2></div><button type="button" disabled={!data.unreadCount} onClick={() => void readAll()}>Mark all read</button></div>
-      <dl className="mini-facts"><div><dt>Unread</dt><dd>{data.unreadCount}</dd></div><div><dt>Coding proposals</dt><dd>{data.codeProposalCount}</dd></div><div><dt>Troubleshooting</dt><dd>{data.troubleshootingCount}</dd></div><div><dt>Research Notes</dt><dd>{data.researchNotesCount}</dd></div><div><dt>Repository showcases</dt><dd>{data.repositoryShowcaseCount}</dd></div><div><dt>Iteration showcases</dt><dd>{data.iterationShowcaseCount}</dd></div><div><dt>Official updates</dt><dd>{data.officialUpdateCount}</dd></div>{Object.entries(groupedCounts).slice(0, 4).map(([category, count]) => <div key={category}><dt>{category}</dt><dd>{count}</dd></div>)}</dl>
-      {!hasAnySignal && <p className="commons-empty-state">No signals yet. Code revision proposals, Troubleshooting Grove support issues and proposed fixes, Research Notes citation/source review, Repository Showcase submissions, Elysia Iteration Showcase progress posts, Official Update lifecycle activity, selected-artifact sandbox reviews, accepted/rejected outcomes, sandbox results, followed-thread updates, and review notices will appear here when account-backed events exist.</p>}
+      <dl className="mini-facts"><div><dt>Unread</dt><dd>{data.unreadCount}</dd></div><div><dt>Coding proposals</dt><dd>{data.codeProposalCount}</dd></div><div><dt>Troubleshooting</dt><dd>{data.troubleshootingCount}</dd></div><div><dt>Research Notes</dt><dd>{data.researchNotesCount}</dd></div><div><dt>Repository showcases</dt><dd>{data.repositoryShowcaseCount}</dd></div><div><dt>Iteration showcases</dt><dd>{data.iterationShowcaseCount}</dd></div><div><dt>Job Posts</dt><dd>{data.jobPostCount}</dd></div><div><dt>Official updates</dt><dd>{data.officialUpdateCount}</dd></div>{Object.entries(groupedCounts).slice(0, 4).map(([category, count]) => <div key={category}><dt>{category}</dt><dd>{count}</dd></div>)}</dl>
+      {!hasAnySignal && <p className="commons-empty-state">No signals yet. Code revision proposals, Troubleshooting Grove support issues and proposed fixes, Research Notes citation/source review, Repository Showcase submissions, Elysia Iteration Showcase progress posts, Job Post admin approval/anti-scam activity, Official Update lifecycle activity, selected-artifact sandbox reviews, accepted/rejected outcomes, sandbox results, followed-thread updates, and review notices will appear here when account-backed events exist.</p>}
       <div className="section-heading"><p className="eyebrow">Coding Cornucopia proposals</p><h3>Needs my review</h3><p>Proposal activity is loaded directly from commune_code_revision_proposals, so same-user testing proposals still appear even when no notification row is created.</p></div>
       {!needsMyReview.length && <p className="commons-empty-state">No submitted or needs-changes Coding Cornucopia proposals are waiting on your author decision.</p>}
       <div className="commons-signal-list">{needsMyReview.map((proposal) => <ProposalSignalCard context="review" currentUserId={data.userId} key={`review-${proposal.id}`} proposal={proposal} />)}</div>
@@ -312,6 +337,16 @@ export default function SignalConsolePage() {
       <div className="section-heading"><p className="eyebrow">Elysia Iteration Showcase sandbox</p><h3>Selected-artifact sandbox review activity</h3><p>These signals link to the Elysia Iteration Showcase selected-artifact review route. They do not run or approve whole repositories, apps, or releases.</p></div>
       {!iterationSandboxActivity.length && <p className="commons-empty-state">No Elysia Iteration Showcase selected-artifact sandbox review activity is connected to this Website Account yet.</p>}
       <div className="commons-signal-list">{iterationSandboxActivity.map((signal) => <IterationSignalCard context="sandbox" key={`sandbox-iteration-${signal.role_context}-${signal.id}`} signal={signal} />)}</div>
+
+      <div className="section-heading"><p className="eyebrow">Job Post activity</p><h3>My Job Posts</h3><p>Structured Job Post rows are loaded directly, so public listings, admin approval outcomes, and same-account testing records can appear even before notification rows exist.</p></div>
+      {!myJobPosts.length && <p className="commons-empty-state">You have not submitted any structured Job Posts from this Website Account yet.</p>}
+      <div className="commons-signal-list">{myJobPosts.map((signal) => <JobPostSignalCard context="mine" key={`mine-job-${signal.id}`} signal={signal} />)}</div>
+      <div className="section-heading"><p className="eyebrow">Job Post review</p><h3>Listings needing admin approval or anti-scam follow-up</h3><p>Authorized Commune reviewers can see not-reviewed, suspicious, and needs-clarification Job Post rows without exposing hidden admin notes publicly.</p></div>
+      {!jobPostsNeedingReview.length && <p className="commons-empty-state">No Job Post rows are waiting in your reviewer queue.</p>}
+      <div className="commons-signal-list">{jobPostsNeedingReview.map((signal) => <JobPostSignalCard context="review" key={`review-job-${signal.id}`} signal={signal} />)}</div>
+      <div className="section-heading"><p className="eyebrow">Job Post status</p><h3>Filled, closed, clarification, and anti-scam activity</h3><p>Listing status and public-safe correction notes stay linked to the public Job Post while Work With private application materials remain separate.</p></div>
+      {!jobPostStatusActivity.length && <p className="commons-empty-state">No Job Post status or anti-scam activity is connected to this Website Account yet.</p>}
+      <div className="commons-signal-list">{jobPostStatusActivity.map((signal) => <JobPostSignalCard context="status" key={`status-job-${signal.role_context}-${signal.id}`} signal={signal} />)}</div>
       <div className="section-heading"><p className="eyebrow">Official Update activity</p><h3>My official updates</h3><p>Official Update activity is loaded directly from commune_official_updates so admin-authored notices, corrections, retractions, pins, and comment locks can appear even before notification rows exist.</p></div>
       {!myOfficialUpdates.length && <p className="commons-empty-state">No Official Update records are connected to your admin Website Account yet.</p>}
       <div className="commons-signal-list">{myOfficialUpdates.map((signal) => <OfficialUpdateSignalCard context="mine" key={`mine-official-${signal.id}`} signal={signal} />)}</div>
@@ -319,7 +354,7 @@ export default function SignalConsolePage() {
       {!officialUpdatesNeedingAttention.length && <p className="commons-empty-state">No urgent Official Update lifecycle rows are waiting in your admin/reviewer attention queue.</p>}
       <div className="commons-signal-list">{officialUpdatesNeedingAttention.map((signal) => <OfficialUpdateSignalCard context="attention" key={`attention-official-${signal.id}`} signal={signal} />)}</div>
       <div className="section-heading"><p className="eyebrow">Account notifications</p><h3>Existing notification rows</h3><p>User notification rows still appear here when account-backed systems create them.</p></div>
-      {!signals.length && (proposalActivity.length > 0 || troubleshootingActivity.length > 0 || researchNotesActivity.length > 0 || repositoryShowcaseActivity.length > 0 || iterationShowcaseActivity.length > 0 || officialUpdateActivity.length > 0) && <p className="commons-empty-state">No notification rows yet, but direct Coding Cornucopia proposal records, Troubleshooting Grove issue activity, Research Notes citation/source activity, Repository Showcase activity, Elysia Iteration Showcase activity, and Official Update lifecycle activity are shown above.</p>}
+      {!signals.length && (proposalActivity.length > 0 || troubleshootingActivity.length > 0 || researchNotesActivity.length > 0 || repositoryShowcaseActivity.length > 0 || iterationShowcaseActivity.length > 0 || jobPostActivity.length > 0 || officialUpdateActivity.length > 0) && <p className="commons-empty-state">No notification rows yet, but direct Coding Cornucopia proposal records, Troubleshooting Grove issue activity, Research Notes citation/source activity, Repository Showcase activity, Elysia Iteration Showcase activity, Job Post activity, and Official Update lifecycle activity are shown above.</p>}
       <div className="commons-signal-list">{signals.map((signal) => <SignalCard key={signal.id} signal={signal} onRead={(id) => void readOne(id)} />)}</div>
       <div className="section-heading"><p className="eyebrow">Coding Cornucopia proposals</p><h3>Recent Coding Cornucopia proposal activity</h3><p>Recent participant-visible proposal records across author review and submitted-by-me activity.</p></div>
       {!proposalActivity.length && <p className="commons-empty-state">No direct Coding Cornucopia proposal records are connected to this Website Account yet.</p>}
@@ -333,7 +368,7 @@ export default function SignalConsolePage() {
       <div className="section-heading"><p className="eyebrow">Official Update activity</p><h3>Recent official lifecycle activity</h3><p>Recent admin-visible Official Update records across my notices and critical lifecycle events.</p></div>
       {!officialUpdateActivity.length && <p className="commons-empty-state">No direct Official Update lifecycle records are connected to this Website Account yet.</p>}
       <div className="commons-signal-list">{officialUpdateActivity.map((signal) => <OfficialUpdateSignalCard context="recent" key={`recent-official-${signal.role_context}-${signal.id}`} signal={signal} />)}</div>
-      <p className="boundary-note">Coding Cornucopia proposal signals, Troubleshooting Grove activity, Research Notes activity, Repository Showcase activity, Elysia Iteration Showcase activity, and Official Update lifecycle activity are loaded from direct records where useful. Existing notification rows remain supported, and direct records cover same-user testing or cases where a notification was intentionally not created.</p>
+      <p className="boundary-note">Coding Cornucopia proposal signals, Troubleshooting Grove activity, Research Notes activity, Repository Showcase activity, Elysia Iteration Showcase activity, Job Post activity, and Official Update lifecycle activity are loaded from direct records where useful. Existing notification rows remain supported, and direct records cover same-user testing or cases where a notification was intentionally not created.</p>
     </section>}
   </div>;
 }
