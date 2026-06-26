@@ -27,6 +27,7 @@ import {
   loadCommuneModerationQueue,
   loadCommuneReactionSummary,
   loadCodeSnippets,
+  loadIterationShowcaseForContext,
   loadRepositoryShowcaseForContext,
   markThreadRead,
   moderateCommuneContentTarget,
@@ -34,11 +35,13 @@ import {
   postTypeOptions,
   recordCodingSandboxRunResult,
   reportCommuneContent,
+  requestIterationShowcaseSandboxReview,
   reportTypes,
   savePost,
   setCommuneReaction,
   submitCommunePost,
   submitComment,
+  submitIterationShowcase,
   submitRepositoryShowcase,
   submitSandboxReview,
   type CommuneComment,
@@ -52,6 +55,7 @@ import {
   type CommuneReactionSummary,
   type CommuneReactionTargetType,
   type CommuneRoom,
+  type ElysiaIterationShowcaseMetadata,
   type RepositoryShowcaseMetadata,
   type CommuneThread
 } from "./communeAccountApi";
@@ -196,6 +200,38 @@ type RepoShowcaseDraft = {
   createdAt: string;
 };
 
+type IterationShowcaseDraft = {
+  id: string;
+  schemaVersion?: string;
+  title: string;
+  summary: string;
+  tags: string;
+  links: string;
+  iterationType: string;
+  versionBuildLabel: string;
+  whatChanged: string;
+  whyItMatters: string;
+  knownLimitations: string;
+  nextStep: string;
+  body: string;
+  relatedRepoUrl: string;
+  provider: string;
+  branch: string;
+  commitSha: string;
+  releaseTag: string;
+  pullRequestUrl: string;
+  developerForgeLink: string;
+  marketplaceLink: string;
+  testingStatus: string;
+  compatibilityNote: string;
+  riskFlags: string[];
+  importSource?: string;
+  importedAt?: string | null;
+  importedMetadata?: Record<string, unknown>;
+  redactionNotes?: string;
+  createdAt: string;
+};
+
 type SandboxRequestDraft = {
   id: string;
   title: string;
@@ -222,6 +258,7 @@ const storageKeys = {
   postDrafts: "commune.postDrafts.v1",
   postRequests: "commune.postRequests.v1",
   repoShowcaseDrafts: "commune.repoShowcaseDrafts.v1",
+  iterationShowcaseDrafts: "commune.iterationShowcaseDrafts.v1",
   sandboxRequestDrafts: "commune.sandboxRequestDrafts.v1",
   savedPosts: "commune.savedPosts.v1",
   followedThreads: "commune.followedThreads.v1"
@@ -453,7 +490,7 @@ function proposalDraftSnapshotId(snippetId: string, input: { codeText: string; l
 
 function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeDocumentId, codeVersionId, language, fileName, code, signedIn = true, runLabel = "Run snapshot in sandbox" }: {
   snapshotId: string;
-  sourceType: "commune_post_snippet" | "commune_code_document" | "commune_code_version" | "repository_showcase_artifact";
+  sourceType: "commune_post_snippet" | "commune_code_document" | "commune_code_version" | "repository_showcase_artifact" | "iteration_showcase_artifact";
   sourceId?: string | null;
   postId?: string | null;
   codeDocumentId?: string | null;
@@ -624,6 +661,20 @@ const repoWarnings = [
   "Needs review"
 ];
 
+const iterationRiskFlags = [
+  "Contains unreleased feature",
+  "May expose private screenshot details",
+  "May include local path risk",
+  "Needs sandbox review",
+  "Add-on preview only",
+  "Not Marketplace approved",
+  "Not Developer Forge approved",
+  "Repo metadata unverified",
+  "Requires manual browser test",
+  "Requires Supabase migration",
+  "Requires external service"
+];
+
 const futureSupportTables = [
   "commune_post_saves",
   "commune_thread_follows",
@@ -767,6 +818,45 @@ function repoShowcaseManifest(draft: RepoShowcaseDraft) {
 
 function repoManifestJson(draft: RepoShowcaseDraft) {
   return JSON.stringify(repoShowcaseManifest(draft), null, 2);
+}
+
+function iterationShowcaseManifest(draft: IterationShowcaseDraft) {
+  return {
+    schema_version: "elysia_iteration_showcase_manifest.v1",
+    title: draft.title,
+    summary: draft.summary,
+    tags: draft.tags,
+    links: draft.links,
+    iteration_type: draft.iterationType,
+    version_build_label: draft.versionBuildLabel,
+    what_changed: draft.whatChanged,
+    why_it_matters: draft.whyItMatters,
+    known_limitations: draft.knownLimitations,
+    next_step: draft.nextStep,
+    body: draft.body,
+    related_repo_url: draft.relatedRepoUrl,
+    provider: draft.provider,
+    branch: draft.branch,
+    commit_sha: draft.commitSha,
+    release_tag: draft.releaseTag,
+    pull_request_url: draft.pullRequestUrl,
+    developer_forge_link: draft.developerForgeLink,
+    marketplace_link: draft.marketplaceLink,
+    testing_status: draft.testingStatus,
+    compatibility_note: draft.compatibilityNote,
+    risk_flags: draft.riskFlags,
+    import_source: draft.importSource ?? "manual",
+    imported_at: draft.importedAt ?? null,
+    imported_metadata: draft.importedMetadata ?? {},
+    screenshots_demo_notes: "",
+    generated_by: "Elysia Ecobotics Online Elysia Iteration Showcase",
+    generated_at: new Date().toISOString(),
+    redaction_notes: draft.redactionNotes ?? ""
+  };
+}
+
+function iterationManifestJson(draft: IterationShowcaseDraft) {
+  return JSON.stringify(iterationShowcaseManifest(draft), null, 2);
 }
 
 type ParsedGitHubRepoUrl = { owner: string; repo: string; cleanUrl: string };
@@ -1086,6 +1176,7 @@ function RoomPage({ roomSlug, roomId, posts, savedPostIds, onSave, localDrafts, 
       <div className="commune-action-row">
         {roomPostComposer && <Link className="button-link button-link--primary" to={`/commune/${roomSlug}/new`}>{type.backendValue === "troubleshooting" ? "Create Troubleshooting Post" : `Create ${type.name} Post`}</Link>}
         {type.backendValue === "repository_showcase" && <Link className="button-link button-link--primary" to="/commune/repository-showcase/new">Create Repository Showcase</Link>}
+        {type.backendValue === "elysia_iteration_showcase" && <Link className="button-link" to="/commune/elysia-iteration-showcase/sandbox-request">Review selected iteration artifact</Link>}
         {type.backendValue === "code_sharing" && <><Link className="button-link button-link--primary" to="/commune/coding-cornucopia/new">Draft Coding Cornucopia Post</Link><Link className="button-link" to="/commune/coding-cornucopia/review">Open Coding Workbench</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Prepare Sandbox Review Request</Link></>}
         {type.backendValue === "official_update" && (isAdmin ? <Link className="button-link button-link--primary" to="/commune/official-updates/new">Publish Official Update</Link> : <a className="button-link button-link--primary" href="#commune-room-feed">Read official updates</a>)}
       </div>
@@ -1104,11 +1195,11 @@ function RoomPage({ roomSlug, roomId, posts, savedPostIds, onSave, localDrafts, 
 }
 
 function useCommuneLoad(roomSlug?: string, postId?: string) {
-  const [state, setState] = useState({ rooms: [] as CommuneRoom[], posts: [] as CommunePost[], comments: [] as CommuneComment[], threads: [] as CommuneThread[], media: [] as CommuneMediaAttachment[], repositoryShowcases: [] as RepositoryShowcaseMetadata[], savedPostIds: [] as string[], followedThreadIds: [] as string[], signedIn: false, isAdmin: false, isModerator: false, accountReady: false });
+  const [state, setState] = useState({ rooms: [] as CommuneRoom[], posts: [] as CommunePost[], comments: [] as CommuneComment[], threads: [] as CommuneThread[], media: [] as CommuneMediaAttachment[], repositoryShowcases: [] as RepositoryShowcaseMetadata[], iterationShowcases: [] as ElysiaIterationShowcaseMetadata[], savedPostIds: [] as string[], followedThreadIds: [] as string[], signedIn: false, isAdmin: false, isModerator: false, accountReady: false });
   const refresh = useCallback(async () => {
     const result = await loadCommuneData(roomSlug, postId);
     logCommuneDiagnostics("load", [...result.account.warnings, ...result.warnings]);
-    setState({ rooms: result.rooms, posts: result.posts, comments: result.comments, threads: result.threads, media: result.media, repositoryShowcases: result.repositoryShowcases, savedPostIds: result.savedPostIds, followedThreadIds: result.followedThreadIds, signedIn: result.account.signedIn, isAdmin: result.account.isAdmin, isModerator: result.account.isModerator, accountReady: !result.warnings.some(isBackendDiagnostic) });
+    setState({ rooms: result.rooms, posts: result.posts, comments: result.comments, threads: result.threads, media: result.media, repositoryShowcases: result.repositoryShowcases, iterationShowcases: result.iterationShowcases, savedPostIds: result.savedPostIds, followedThreadIds: result.followedThreadIds, signedIn: result.account.signedIn, isAdmin: result.account.isAdmin, isModerator: result.account.isModerator, accountReady: !result.warnings.some(isBackendDiagnostic) });
   }, [roomSlug, postId]);
   useEffect(() => { void refresh(); }, [refresh]);
   return { state, refresh };
@@ -1118,16 +1209,19 @@ function useLocalDraftState() {
   const [postDrafts, setPostDrafts] = useState<PostDraft[]>(() => readStorage(storageKeys.postDrafts, []));
   const [postRequests, setPostRequests] = useState<PostDraft[]>(() => readStorage(storageKeys.postRequests, []));
   const [repoDrafts, setRepoDrafts] = useState<RepoShowcaseDraft[]>(() => readStorage(storageKeys.repoShowcaseDrafts, []));
+  const [iterationDrafts, setIterationDrafts] = useState<IterationShowcaseDraft[]>(() => readStorage(storageKeys.iterationShowcaseDrafts, []));
   const [sandboxDrafts, setSandboxDrafts] = useState<SandboxRequestDraft[]>(() => readStorage(storageKeys.sandboxRequestDrafts, []));
 
   return {
     postDrafts,
     postRequests,
     repoDrafts,
+    iterationDrafts,
     sandboxDrafts,
     updatePostDrafts(next: PostDraft[]) { setPostDrafts(next); writeStorage(storageKeys.postDrafts, next); },
     updatePostRequests(next: PostDraft[]) { setPostRequests(next); writeStorage(storageKeys.postRequests, next); },
     updateRepoDrafts(next: RepoShowcaseDraft[]) { setRepoDrafts(next); writeStorage(storageKeys.repoShowcaseDrafts, next); },
+    updateIterationDrafts(next: IterationShowcaseDraft[]) { setIterationDrafts(next); writeStorage(storageKeys.iterationShowcaseDrafts, next); },
     updateSandboxDrafts(next: SandboxRequestDraft[]) { setSandboxDrafts(next); writeStorage(storageKeys.sandboxRequestDrafts, next); }
   };
 }
@@ -1198,6 +1292,21 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     whyItMatters: "",
     knownLimitations: "",
     nextStep: "",
+    iterationRelatedRepoUrl: "",
+    iterationProvider: "",
+    iterationBranch: "",
+    iterationCommit: "",
+    iterationReleaseTag: "",
+    iterationPullRequestUrl: "",
+    iterationDeveloperForgeLink: "",
+    iterationMarketplaceLink: "",
+    iterationTestingStatus: "Not tested yet",
+    iterationCompatibilityNote: "",
+    iterationRiskFlags: [] as string[],
+    iterationImportSource: "manual",
+    iterationImportedAt: null as string | null,
+    iterationImportedMetadata: {} as Record<string, unknown>,
+    iterationRedactionNotes: "",
     officialNoticeType: "general announcement",
     officialVersion: "",
     officialAuditNote: "",
@@ -1206,9 +1315,24 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     sandboxRequested: false
   });
   const [file, setFile] = useState<File | null>(null);
+  const [iterationManifestInput, setIterationManifestInput] = useState("");
+  const [iterationImporting, setIterationImporting] = useState(false);
   const submitLabel = isAdmin ? "Publish as admin" : "Submit for moderation";
   const [message, setMessage] = useState(isAdmin ? "Admins can publish room posts directly. Attachments still follow Commune media safety rules." : "Signed-in users can submit posts for moderation. Local draft/export is available even when backend review is not active.");
-  const secretScan = scanCommuneTextForSecrets([form.title, form.body, form.codeFileName, form.codeText, form.repositoryUrl].join("\n"));
+  const secretScan = scanCommuneTextForSecrets([
+    form.title,
+    form.summary,
+    form.body,
+    form.codeFileName,
+    form.codeText,
+    form.repositoryUrl,
+    form.iterationRelatedRepoUrl,
+    form.iterationPullRequestUrl,
+    form.iterationDeveloperForgeLink,
+    form.iterationMarketplaceLink,
+    form.iterationRedactionNotes,
+    JSON.stringify(form.iterationImportedMetadata ?? {})
+  ].join("\n"));
   const fileValidation = file ? validateCommuneMediaFile(file) : null;
   const selectedPostTypeLabel = postTypeOptions.find((type) => type.value === form.postType)?.label ?? form.postType;
   const normalizedTags = parseCommuneTags(form.tags);
@@ -1320,8 +1444,191 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     };
   }
 
+  function buildIterationDraft(): IterationShowcaseDraft {
+    return {
+      id: "iteration-" + Date.now(),
+      schemaVersion: "elysia_iteration_showcase_manifest.v1",
+      title: form.title,
+      summary: form.summary,
+      tags: normalizedTags.map(formatCommuneTag).join(", "),
+      links: form.links,
+      iterationType: form.iterationType,
+      versionBuildLabel: form.versionLabel,
+      whatChanged: form.whatChanged,
+      whyItMatters: form.whyItMatters,
+      knownLimitations: form.knownLimitations,
+      nextStep: form.nextStep,
+      body: form.body,
+      relatedRepoUrl: form.iterationRelatedRepoUrl,
+      provider: form.iterationProvider,
+      branch: form.iterationBranch,
+      commitSha: form.iterationCommit,
+      releaseTag: form.iterationReleaseTag,
+      pullRequestUrl: form.iterationPullRequestUrl,
+      developerForgeLink: form.iterationDeveloperForgeLink,
+      marketplaceLink: form.iterationMarketplaceLink,
+      testingStatus: form.iterationTestingStatus,
+      compatibilityNote: form.iterationCompatibilityNote,
+      riskFlags: form.iterationRiskFlags,
+      importSource: form.iterationImportSource,
+      importedAt: form.iterationImportedAt,
+      importedMetadata: form.iterationImportedMetadata,
+      redactionNotes: form.iterationRedactionNotes,
+      createdAt: new Date().toISOString()
+    };
+  }
+
+  function toggleIterationRisk(label: string) {
+    setForm((current) => ({ ...current, iterationRiskFlags: current.iterationRiskFlags.includes(label) ? current.iterationRiskFlags.filter((item) => item !== label) : [...current.iterationRiskFlags, label] }));
+  }
+
+  function applyIterationManifestObject(raw: Record<string, unknown>) {
+    const encoded = JSON.stringify(raw);
+    if (encoded.length > 150000) { setMessage("Iteration manifest is too large. Keep imported metadata under 150 KB."); return; }
+    const scan = scanCommuneTextForSecrets(encoded);
+    if (scan.blocked) { setMessage("Iteration manifest import blocked because it appears to include private or secret material: " + scan.warnings.join(", ") + "."); return; }
+    const stringValue = (...keys: string[]) => keys.map((key) => raw[key]).find((value) => typeof value === "string") as string | undefined;
+    const importedRiskFlags = asStringList(raw.risk_flags ?? raw.warnings);
+    setForm((current) => ({
+      ...current,
+      title: stringValue("title") ?? current.title,
+      summary: stringValue("summary") ?? current.summary,
+      tags: stringValue("tags") ?? current.tags,
+      links: stringValue("links") ?? current.links,
+      iterationType: stringValue("iteration_type", "iterationType") ?? current.iterationType,
+      versionLabel: stringValue("version_build_label", "versionLabel", "version") ?? current.versionLabel,
+      whatChanged: stringValue("what_changed", "whatChanged") ?? current.whatChanged,
+      whyItMatters: stringValue("why_it_matters", "whyItMatters") ?? current.whyItMatters,
+      knownLimitations: stringValue("known_limitations", "knownLimitations") ?? current.knownLimitations,
+      nextStep: stringValue("next_step", "nextStep") ?? current.nextStep,
+      body: stringValue("body") ?? current.body,
+      iterationRelatedRepoUrl: stringValue("related_repo_url", "repoUrl", "repository_url") ?? current.iterationRelatedRepoUrl,
+      iterationProvider: stringValue("provider") ?? current.iterationProvider,
+      iterationBranch: stringValue("branch", "default_branch") ?? current.iterationBranch,
+      iterationCommit: stringValue("commit_sha", "commit") ?? current.iterationCommit,
+      iterationReleaseTag: stringValue("release_tag", "releaseTag") ?? current.iterationReleaseTag,
+      iterationPullRequestUrl: stringValue("pull_request_url", "pullRequestUrl") ?? current.iterationPullRequestUrl,
+      iterationDeveloperForgeLink: stringValue("developer_forge_link", "developerForgeLink") ?? current.iterationDeveloperForgeLink,
+      iterationMarketplaceLink: stringValue("marketplace_link", "marketplaceLink") ?? current.iterationMarketplaceLink,
+      iterationTestingStatus: stringValue("testing_status", "testingStatus") ?? current.iterationTestingStatus,
+      iterationCompatibilityNote: stringValue("compatibility_note", "compatibilityNote") ?? current.iterationCompatibilityNote,
+      iterationRiskFlags: importedRiskFlags.length ? importedRiskFlags : current.iterationRiskFlags,
+      iterationImportSource: stringValue("import_source") ?? "local_iteration_manifest",
+      iterationImportedAt: new Date().toISOString(),
+      iterationImportedMetadata: { source_manifest_schema: raw.schema_version ?? "unknown", generated_by: raw.generated_by ?? "manual", generated_at: raw.generated_at ?? null },
+      iterationRedactionNotes: stringValue("redaction_notes", "redactionNotes") ?? current.iterationRedactionNotes
+    }));
+    setMessage("Iteration manifest imported into the draft. Review and redact before publishing; nothing was submitted automatically.");
+  }
+
+  function importIterationManifestText(value = iterationManifestInput) {
+    try {
+      const parsed = JSON.parse(value) as Record<string, unknown>;
+      applyIterationManifestObject(parsed);
+    } catch {
+      setMessage("Iteration manifest JSON could not be parsed. Export JSON from this form or use schema_version elysia_iteration_showcase_manifest.v1.");
+    }
+  }
+
+  function importIterationManifestFile(file?: File | null) {
+    if (!file) return;
+    if (file.size > 150000) { setMessage("Iteration manifest file is too large. Keep local manifest files under 150 KB."); return; }
+    const reader = new FileReader();
+    reader.onload = () => { const value = String(reader.result ?? ""); setIterationManifestInput(value); importIterationManifestText(value); };
+    reader.readAsText(file);
+  }
+
+  async function importIterationGitHubMetadata() {
+    const parsed = parsePublicGitHubRepoUrl(form.iterationRelatedRepoUrl);
+    if (!parsed) { setMessage("Paste a public GitHub repo, commit, pull request, release, or branch URL. Private repos and GitHub account connection are not supported here."); return; }
+    setIterationImporting(true);
+    try {
+      const url = new URL(form.iterationRelatedRepoUrl.trim());
+      const parts = url.pathname.split("/").filter(Boolean);
+      const base = "https://api.github.com/repos/" + parsed.owner + "/" + parsed.repo;
+      const repoData = await fetch(base, { headers: { accept: "application/vnd.github+json" } }).then((response) => {
+        if (!response.ok) throw new Error(response.status === 403 ? "GitHub public API rate limit or access block reached." : "GitHub public metadata request failed with HTTP " + response.status + ".");
+        return response.json() as Promise<Record<string, unknown>>;
+      });
+      const defaultBranch = String(repoData.default_branch ?? "main");
+      let branch = defaultBranch;
+      let commitSha = "";
+      let releaseTag = "";
+      let pullRequestUrl = "";
+      let importedTitle = String(repoData.name ?? parsed.repo);
+      let importedSummary = String(repoData.description ?? "");
+      const pathKind = parts[2] ?? "";
+      if (pathKind === "commit" && parts[3]) commitSha = parts[3];
+      if (pathKind === "pull" && parts[3]) {
+        pullRequestUrl = `https://github.com/${parsed.owner}/${parsed.repo}/pull/${parts[3]}`;
+        const pr = await fetch(base + "/pulls/" + encodeURIComponent(parts[3]), { headers: { accept: "application/vnd.github+json" } }).then((response) => response.ok ? response.json() as Promise<Record<string, unknown>> : null);
+        if (pr) {
+          importedTitle = String(pr.title ?? importedTitle);
+          importedSummary = String(pr.body ?? importedSummary).slice(0, 2000);
+          commitSha = String((pr.head as { sha?: unknown } | undefined)?.sha ?? "");
+          branch = String((pr.head as { ref?: unknown } | undefined)?.ref ?? branch);
+        }
+      }
+      if (pathKind === "releases" && parts[3] === "tag" && parts[4]) {
+        releaseTag = decodeURIComponent(parts[4]);
+        const release = await fetch(base + "/releases/tags/" + encodeURIComponent(releaseTag), { headers: { accept: "application/vnd.github+json" } }).then((response) => response.ok ? response.json() as Promise<Record<string, unknown>> : null);
+        if (release) {
+          importedTitle = String(release.name ?? releaseTag);
+          importedSummary = String(release.body ?? importedSummary).slice(0, 2000);
+        }
+      }
+      if (pathKind === "tree" && parts[3]) branch = decodeURIComponent(parts.slice(3).join("/"));
+      const [readmeResult, commitResult, languagesResult] = await Promise.allSettled([
+        fetch(base + "/readme", { headers: { accept: "application/vnd.github.raw" } }).then((response) => response.ok ? response.text() : ""),
+        fetch(base + "/commits/" + encodeURIComponent(commitSha || branch)),
+        fetch(base + "/languages", { headers: { accept: "application/vnd.github+json" } }).then((response) => response.ok ? response.json() as Promise<Record<string, unknown>> : {})
+      ]);
+      if (!commitSha && commitResult.status === "fulfilled" && commitResult.value.ok) {
+        const commitData = await commitResult.value.json() as Record<string, unknown>;
+        commitSha = String(commitData.sha ?? "");
+      }
+      const readme = readmeResult.status === "fulfilled" ? truncateRepositoryText(readmeResult.value, 4000) : "";
+      const languages = languagesResult.status === "fulfilled" ? Object.keys(languagesResult.value) : [];
+      setForm((current) => ({
+        ...current,
+        title: current.title || importedTitle,
+        summary: current.summary || importedSummary.slice(0, 180),
+        iterationRelatedRepoUrl: parsed.cleanUrl,
+        iterationProvider: "GitHub",
+        iterationBranch: branch,
+        iterationCommit: commitSha.slice(0, 40),
+        iterationReleaseTag: releaseTag || current.iterationReleaseTag,
+        iterationPullRequestUrl: pullRequestUrl || current.iterationPullRequestUrl,
+        whatChanged: current.whatChanged || importedSummary || readme.slice(0, 1200),
+        iterationRiskFlags: Array.from(new Set([...current.iterationRiskFlags, "Repo metadata unverified"])),
+        iterationImportSource: "github_public_api",
+        iterationImportedAt: new Date().toISOString(),
+        iterationImportedMetadata: {
+          github_owner: parsed.owner,
+          github_repo: parsed.repo,
+          default_branch: defaultBranch,
+          primary_language: repoData.language ?? null,
+          languages,
+          topics: asStringList(repoData.topics),
+          stargazers_count: repoData.stargazers_count ?? null,
+          pushed_at: repoData.pushed_at ?? null,
+          readme_preview: readme
+        }
+      }));
+      setMessage("Imported public GitHub metadata into the iteration draft. Review, redact, and edit before submitting. The site did not clone, install, build, or run the repository.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "GitHub public metadata import failed. Manual entry remains available.");
+    } finally {
+      setIterationImporting(false);
+    }
+  }
+
   function saveLocal(status: CommuneStatus) {
     const draft = build(status);
+    if (showIterationFields) {
+      const iterationDraft = buildIterationDraft();
+      localDrafts.updateIterationDrafts([iterationDraft, ...localDrafts.iterationDrafts]);
+    }
     if (status === "pending_moderator_review_local") {
       localDrafts.updatePostRequests([draft, ...localDrafts.postRequests]);
       setMessage("Saved locally in this browser as a pending moderator-review draft. Backend review queue is not active yet.");
@@ -1345,6 +1652,51 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       return;
     }
     const bodyBase = composedBody();
+    if (showIterationFields) {
+      const result = await submitIterationShowcase({
+        title: form.title,
+        summary: form.summary,
+        body: bodyBase,
+        tags: form.tags,
+        links: form.links,
+        roomId: form.roomId || defaultRoomId,
+        upload: file,
+        iterationType: form.iterationType,
+        versionBuildLabel: form.versionLabel,
+        whatChanged: form.whatChanged,
+        whyItMatters: form.whyItMatters,
+        knownLimitations: form.knownLimitations,
+        nextStep: form.nextStep,
+        relatedRepoUrl: form.iterationRelatedRepoUrl,
+        provider: form.iterationProvider,
+        branch: form.iterationBranch,
+        commitSha: form.iterationCommit,
+        releaseTag: form.iterationReleaseTag,
+        pullRequestUrl: form.iterationPullRequestUrl,
+        developerForgeLink: form.iterationDeveloperForgeLink,
+        marketplaceLink: form.iterationMarketplaceLink,
+        testingStatus: form.iterationTestingStatus,
+        compatibilityNote: form.iterationCompatibilityNote,
+        riskFlags: form.iterationRiskFlags,
+        sandboxRequested: form.sandboxRequested,
+        importSource: form.iterationImportSource,
+        importedMetadata: form.iterationImportedMetadata,
+        importedAt: form.iterationImportedAt,
+        redactionNotes: form.iterationRedactionNotes
+      });
+      if (result.ok) {
+        setMessage(result.message);
+        await onRefresh?.();
+        return;
+      }
+      if (isBackendDiagnostic(result.message)) {
+        saveLocal("pending_moderator_review_local");
+        setMessage("Saved locally in this browser. Elysia Iteration Showcase structured backend is not active yet.");
+        return;
+      }
+      setMessage(result.message);
+      return;
+    }
     const body = form.codeText ? `${bodyBase}\n\nCode snippet attached separately for inert display.` : bodyBase;
     const result = await submitCommunePost({ ...form, body, roomId: form.roomId || defaultRoomId, upload: file, sandboxRequested: form.sandboxRequested });
     if (result.ok) {
@@ -1383,18 +1735,52 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       {showCommunityFields && <><label><span>Introduction type</span><input value={form.introductionType} onChange={(event) => setForm({ ...form, introductionType: event.target.value })} placeholder="intro, collaboration, project circle" /></label><label><span>Role interest</span><input value={form.roleInterest} onChange={(event) => setForm({ ...form, roleInterest: event.target.value })} /></label><label><span>Project circle/topic</span><input value={form.projectCircle} onChange={(event) => setForm({ ...form, projectCircle: event.target.value })} /></label><label><span>Availability / involvement level</span><input value={form.involvementLevel} onChange={(event) => setForm({ ...form, involvementLevel: event.target.value })} /></label><label className="wide-field"><span>Collaboration interest</span><textarea rows={4} value={form.collaborationInterest} onChange={(event) => setForm({ ...form, collaborationInterest: event.target.value })} /></label><label className="wide-field"><span>Public contact preference</span><input value={form.publicContactPreference} onChange={(event) => setForm({ ...form, publicContactPreference: event.target.value })} placeholder="public replies, website form, Commons profile link" /></label><label className="wide-field"><span>Boundary note</span><textarea rows={3} value={form.communityBoundary} onChange={(event) => setForm({ ...form, communityBoundary: event.target.value })} placeholder="No private-contact pressure; keep coordination public and respectful." /></label></>}
       {showJobFields && <><label><span>Role title</span><input value={form.roleTitle} onChange={(event) => setForm({ ...form, roleTitle: event.target.value })} /></label><label><span>Organization / project</span><input value={form.organizationProject} onChange={(event) => setForm({ ...form, organizationProject: event.target.value })} /></label><label><span>Paid / volunteer status</span><select value={form.payStatus} onChange={(event) => setForm({ ...form, payStatus: event.target.value })}><option value="">Select status</option>{["Paid", "Volunteer", "Stipend", "Unpaid", "Mixed / explain clearly"].map((value) => <option key={value}>{value}</option>)}</select></label><label><span>Location / remote / hybrid</span><input value={form.locationMode} onChange={(event) => setForm({ ...form, locationMode: event.target.value })} /></label><label><span>Time commitment</span><input value={form.timeCommitment} onChange={(event) => setForm({ ...form, timeCommitment: event.target.value })} /></label><label><span>Deadline</span><input value={form.deadline} onChange={(event) => setForm({ ...form, deadline: event.target.value })} /></label><label className="wide-field"><span>Compensation clarity</span><textarea rows={3} value={form.compensationClarity} onChange={(event) => setForm({ ...form, compensationClarity: event.target.value })} /></label><label className="wide-field"><span>Contact path</span><input value={form.contactPath} onChange={(event) => setForm({ ...form, contactPath: event.target.value })} placeholder="Public application/contact path; no sensitive data requests in comments" /></label><label className="wide-field"><span>Requirements / skills</span><textarea rows={4} value={form.requirementsSkills} onChange={(event) => setForm({ ...form, requirementsSkills: event.target.value })} /></label><label className="wide-field"><span>Safety notes</span><textarea rows={3} value={form.jobSafetyNotes} onChange={(event) => setForm({ ...form, jobSafetyNotes: event.target.value })} placeholder="No SSNs, bank details, identity documents, or private-contact pressure." /></label></>}
       {showResearchFields && <><label><span>Research question / topic</span><input value={form.researchQuestion} onChange={(event) => setForm({ ...form, researchQuestion: event.target.value })} /></label><label><span>Domain</span><input value={form.researchDomain} onChange={(event) => setForm({ ...form, researchDomain: event.target.value })} /></label><label><span>Confidence / evidence strength</span><select value={form.evidenceStrength} onChange={(event) => setForm({ ...form, evidenceStrength: event.target.value })}><option value="">Select strength</option>{["Early note", "Anecdotal observation", "Multiple sources", "Strong source trail", "Uncertain / needs review"].map((value) => <option key={value}>{value}</option>)}</select></label><label><span>Living Library source link</span><input value={form.livingLibraryLink} onChange={(event) => setForm({ ...form, livingLibraryLink: event.target.value })} /></label><label className="wide-field"><span>Citation notes</span><textarea rows={3} value={form.citationNotes} onChange={(event) => setForm({ ...form, citationNotes: event.target.value })} /></label><label className="wide-field"><span>Evidence summary</span><textarea rows={4} value={form.evidenceSummary} onChange={(event) => setForm({ ...form, evidenceSummary: event.target.value })} /></label><label className="wide-field"><span>Observation</span><textarea rows={4} value={form.observation} onChange={(event) => setForm({ ...form, observation: event.target.value })} /></label><label className="wide-field"><span>Interpretation</span><textarea rows={4} value={form.interpretation} onChange={(event) => setForm({ ...form, interpretation: event.target.value })} /></label><label className="wide-field"><span>Uncertainty</span><textarea rows={3} value={form.uncertainty} onChange={(event) => setForm({ ...form, uncertainty: event.target.value })} /></label></>}
-      {showIterationFields && <><label><span>Iteration type</span><select value={form.iterationType} onChange={(event) => setForm({ ...form, iterationType: event.target.value })}><option value="">Select type</option>{["Feature", "Demo", "Update", "Design note", "Add-on preview", "UI progress"].map((value) => <option key={value}>{value}</option>)}</select></label><label><span>Version / build label</span><input value={form.versionLabel} onChange={(event) => setForm({ ...form, versionLabel: event.target.value })} /></label><label className="wide-field"><span>What changed</span><textarea rows={4} value={form.whatChanged} onChange={(event) => setForm({ ...form, whatChanged: event.target.value })} /></label><label className="wide-field"><span>Why it matters</span><textarea rows={4} value={form.whyItMatters} onChange={(event) => setForm({ ...form, whyItMatters: event.target.value })} /></label><label className="wide-field"><span>Known limitations</span><textarea rows={3} value={form.knownLimitations} onChange={(event) => setForm({ ...form, knownLimitations: event.target.value })} /></label><label className="wide-field"><span>Next step</span><textarea rows={3} value={form.nextStep} onChange={(event) => setForm({ ...form, nextStep: event.target.value })} /></label></>}
+      {showIterationFields && <>
+        <label><span>Iteration type</span><select value={form.iterationType} onChange={(event) => setForm({ ...form, iterationType: event.target.value })}><option value="">Select type</option>{["UI update", "Feature demo", "Design progress", "Add-on preview", "Version note", "Bug fix", "Documentation update", "Sandbox/diagnostics update", "Marketplace preview", "Developer Forge preview", "Accessibility improvement", "Performance improvement", "Visual design pass"].map((value) => <option key={value}>{value}</option>)}</select></label>
+        <label><span>Version / build label</span><input value={form.versionLabel} onChange={(event) => setForm({ ...form, versionLabel: event.target.value })} /></label>
+        <label><span>Testing status</span><select value={form.iterationTestingStatus} onChange={(event) => setForm({ ...form, iterationTestingStatus: event.target.value })}>{["Not tested yet", "Manual browser test planned", "Manual browser test passed", "Sandbox evidence attached", "Needs reviewer feedback", "Blocked / needs migration", "External service required"].map((value) => <option key={value}>{value}</option>)}</select></label>
+        <label><span>Provider</span><select value={form.iterationProvider} onChange={(event) => setForm({ ...form, iterationProvider: event.target.value })}><option value="">Select provider</option>{["GitHub", "GitLab", "Codeberg", "Forgejo", "Local manifest", "Manual", "Other"].map((value) => <option key={value}>{value}</option>)}</select></label>
+        <label className="wide-field"><span>What changed</span><textarea rows={4} value={form.whatChanged} onChange={(event) => setForm({ ...form, whatChanged: event.target.value })} /></label>
+        <label className="wide-field"><span>Why it matters</span><textarea rows={4} value={form.whyItMatters} onChange={(event) => setForm({ ...form, whyItMatters: event.target.value })} /></label>
+        <label className="wide-field"><span>Known limitations</span><textarea rows={3} value={form.knownLimitations} onChange={(event) => setForm({ ...form, knownLimitations: event.target.value })} /></label>
+        <label className="wide-field"><span>Next step</span><textarea rows={3} value={form.nextStep} onChange={(event) => setForm({ ...form, nextStep: event.target.value })} /></label>
+        <label className="wide-field"><span>Related repo / source URL optional</span><input value={form.iterationRelatedRepoUrl} onChange={(event) => setForm({ ...form, iterationRelatedRepoUrl: event.target.value })} placeholder="https://github.com/owner/repo, commit, pull request, release, or branch URL" /></label>
+        <label><span>Branch</span><input value={form.iterationBranch} onChange={(event) => setForm({ ...form, iterationBranch: event.target.value })} /></label>
+        <label><span>Commit</span><input value={form.iterationCommit} onChange={(event) => setForm({ ...form, iterationCommit: event.target.value })} /></label>
+        <label><span>Release tag</span><input value={form.iterationReleaseTag} onChange={(event) => setForm({ ...form, iterationReleaseTag: event.target.value })} /></label>
+        <label><span>Pull request URL</span><input value={form.iterationPullRequestUrl} onChange={(event) => setForm({ ...form, iterationPullRequestUrl: event.target.value })} /></label>
+        <label><span>Developer Forge link optional</span><input value={form.iterationDeveloperForgeLink} onChange={(event) => setForm({ ...form, iterationDeveloperForgeLink: event.target.value })} /></label>
+        <label><span>Marketplace link optional</span><input value={form.iterationMarketplaceLink} onChange={(event) => setForm({ ...form, iterationMarketplaceLink: event.target.value })} /></label>
+        <label className="wide-field"><span>Compatibility note</span><textarea rows={3} value={form.iterationCompatibilityNote} onChange={(event) => setForm({ ...form, iterationCompatibilityNote: event.target.value })} placeholder="Describe compatibility carefully. Do not claim certification or Marketplace readiness." /></label>
+        <label className="wide-field"><span>Redaction notes</span><textarea rows={3} value={form.iterationRedactionNotes} onChange={(event) => setForm({ ...form, iterationRedactionNotes: event.target.value })} placeholder="Confirm screenshots, links, and notes were reviewed for private prompts, local paths, credentials, logs, or sealed memory." /></label>
+        <label className="checkbox-line wide-field"><input type="checkbox" checked={form.sandboxRequested} onChange={(event) => setForm({ ...form, sandboxRequested: event.target.checked })} /><span>Request Elysia Iteration Showcase selected-artifact sandbox review. This tests only a pasted snippet/config/manifest later; it does not run the full repository.</span></label>
+      </>}
       {showOfficialFields && <><label><span>Official notice type</span><select value={form.officialNoticeType} onChange={(event) => setForm({ ...form, officialNoticeType: event.target.value })}>{["release", "roadmap", "governance", "security", "general announcement"].map((value) => <option key={value}>{value}</option>)}</select></label><label><span>Version / tag optional</span><input value={form.officialVersion} onChange={(event) => setForm({ ...form, officialVersion: event.target.value })} /></label><label className="wide-field"><span>Audit-safe note</span><textarea rows={3} value={form.officialAuditNote} onChange={(event) => setForm({ ...form, officialAuditNote: event.target.value })} placeholder="Public correction/update context if relevant." /></label></>}
       <label className="wide-field"><span>{form.postType === "code_sharing" ? "Discussion / explanation" : showResearchFields ? "Context / discussion" : showJobFields ? "Role summary" : "Body"}</span><textarea rows={8} value={form.body} onChange={(event) => setForm({ ...form, body: event.target.value })} /></label>
       {showCodeFields && <><label><span>Code language</span><select value={normalizeCodingLanguage(form.codeLanguage)} onChange={(event) => setForm({ ...form, codeLanguage: event.target.value })}>{codingLanguageOptions().map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label><span>Code filename</span><input value={form.codeFileName} onChange={(event) => setForm({ ...form, codeFileName: event.target.value })} placeholder={showTroubleshootingFields ? "reproduction.js, failing-test.py" : "snippet.ts"} /></label><label className="wide-field"><span>{codeSectionTitle}</span><CodeWorkspaceEditor value={form.codeText} language={form.codeLanguage} onChange={(value) => setForm({ ...form, codeText: value })} minHeight="260px" /></label><p className="wide-field boundary-note">{codeSafetyCopy}</p></>}
     </div>
+    {showIterationFields && <section className="commune-repo-import-panel">
+      <p className="eyebrow">Iteration source import</p>
+      <h3>Import public metadata or a local iteration manifest</h3>
+      <p className="boundary-note">GitHub import uses public unauthenticated metadata only. There is no GitHub account connection, no private repo import, no clone, no build, no install, and no execution.</p>
+      <p className="boundary-note">Local iteration manifest import reads only the JSON file you choose or paste. The website does not inspect local repos, local Elysia files, logs, prompts, vaults, or machine data.</p>
+      <div className="button-row"><button type="button" disabled={iterationImporting || !form.iterationRelatedRepoUrl.trim()} onClick={() => void importIterationGitHubMetadata()}>{iterationImporting ? "Importing public metadata..." : "Import public GitHub metadata"}</button><button type="button" onClick={() => setIterationManifestInput(iterationManifestJson(buildIterationDraft()))}>Preview export JSON in import box</button></div>
+      <label><span>Paste local iteration manifest JSON</span><textarea rows={5} value={iterationManifestInput} onChange={(event) => setIterationManifestInput(event.target.value)} placeholder="Paste elysia-iteration-showcase.json or exported Iteration Showcase JSON here." /></label>
+      <div className="button-row"><button type="button" onClick={() => importIterationManifestText()}>Import pasted manifest</button><label className="button-link"><span>Upload JSON manifest</span><input className="sr-only" type="file" accept="application/json,.json" onChange={(event) => importIterationManifestFile(event.target.files?.[0])} /></label></div>
+      <p className="boundary-note">Review and redact imported fields before publishing. Import never submits automatically.</p>
+    </section>}
+    {showIterationFields && <div className="commune-checklist commune-warning-checks">
+      {iterationRiskFlags.map((item) => <label className="checkbox-line" key={item}><input type="checkbox" checked={form.iterationRiskFlags.includes(item)} onChange={() => toggleIterationRisk(item)} /><span>{item}</span></label>)}
+    </div>}
+    {showIterationFields && <WarningCallout title="Official Update / Forge / Marketplace boundary"><p>Elysia Iteration Showcase is public progress and demo context. It is not an official release, Developer Forge approval, Marketplace readiness, security certification, installability proof, compatibility certification, or production readiness claim.</p></WarningCallout>}
+    {showIterationFields && <p className="boundary-note">Screenshot/demo attachments are welcome when public-safe. Do not include private prompts, local paths, credentials, logs, admin screens, sealed memory, .env/API keys, or sensitive account details. Video upload remains planned, not enabled.</p>}
     <p className="boundary-note">Use hashtags, commas, or simple words. Tags help people find posts later.</p>
     <TagChips tags={normalizedTags} />
     {secretScan.warnings.length > 0 && <WarningCallout title="Secret warning"><p>{secretScan.blocked ? "Submission is blocked until private/secret material is removed." : "Review this content carefully before sharing."} Flags: {secretScan.warnings.join(", ")}.</p></WarningCallout>}
     {fileValidation && <p className={fileValidation.ok ? "boundary-note" : "message"}>{fileValidation.message}</p>}
     {form.codeText && <section className="commune-code-preview"><div className="addon-card__topline"><strong>{codePreviewTitle}</strong><span>{form.codeFileName || "snippet"}</span></div><CodeWorkspaceEditor value={form.codeText} language={form.codeLanguage} readOnly minHeight="220px" /><p className="boundary-note">{codeSafetyCopy}</p><p className="boundary-note">Code is inert unless it is sent to the governed sandbox runner. Sandbox success is evidence only, not approval, trust, Marketplace readiness, or permission to run code elsewhere.</p><DiagnosticsList diagnostics={runStaticCodingDiagnostics({ language: form.codeLanguage, fileName: form.codeFileName, code: form.codeText })} /></section>}
     <div className="commune-checklist">{routeAcknowledgements.map((item) => <label className="checkbox-line" key={item}><input type="checkbox" checked={form.acknowledgement} onChange={(event) => setForm({ ...form, acknowledgement: event.target.checked })} /><span>{item}</span></label>)}{showCodeFields && <><label className="checkbox-line"><input type="checkbox" checked={form.stepsCodeAck} onChange={(event) => setForm({ ...form, stepsCodeAck: event.target.checked })} /><span>{showTroubleshootingFields ? "Any troubleshooting code/reproduction snippet is inert redacted text until an explicit sandbox run. It is not execution permission." : "Any code snippet is inert text for discussion only. It is not execution permission."}</span></label><label className="checkbox-line"><input type="checkbox" checked={form.sandboxRequested} onChange={(event) => setForm({ ...form, sandboxRequested: event.target.checked })} /><span>{showTroubleshootingFields ? "Request sandbox review metadata for this reproduction case. This is not execution permission and does not prove the fix is safe." : "Request sandbox review for repository/code metadata. This is not execution permission."}</span></label></>}</div>
-    <div className="button-row"><button type="button" className="button-primary" onClick={() => void submit()}>{submitLabel}</button><button type="button" onClick={() => saveLocal("draft_local")}>Save local draft</button><button type="button" onClick={() => saveLocal("pending_moderator_review_local")}>Save local request</button><button type="button" onClick={() => downloadText(`${slug(form.title)}.md`, postMarkdown(build("draft_local")), "text/markdown")}>Export Markdown</button><button type="button" onClick={() => copyText(postMarkdown(build("draft_local")), setMessage)}>Copy Markdown</button><Link className="button-link" to="/commune">Back to Commune</Link></div>
+    <div className="button-row"><button type="button" className="button-primary" onClick={() => void submit()}>{submitLabel}</button><button type="button" onClick={() => saveLocal("draft_local")}>Save local draft</button><button type="button" onClick={() => saveLocal("pending_moderator_review_local")}>Save local request</button><button type="button" onClick={() => downloadText(`${slug(form.title)}.md`, postMarkdown(build("draft_local")), "text/markdown")}>Export Markdown</button>{showIterationFields && <button type="button" onClick={() => downloadText(`${slug(form.title)}-iteration-showcase.json`, iterationManifestJson(buildIterationDraft()), "application/json")}>Export JSON</button>}<button type="button" onClick={() => copyText(postMarkdown(build("draft_local")), setMessage)}>Copy Markdown</button><Link className="button-link" to="/commune">Back to Commune</Link></div>
     <p className="message">{message}</p>
   </section>;
 }
@@ -1792,14 +2178,77 @@ function RepositoryShowcaseSandboxRequestPanel({ signedIn }: { signedIn: boolean
   </section>;
 }
 
+function ElysiaIterationSandboxRequestPanel({ signedIn }: { signedIn: boolean }) {
+  const location = useLocation();
+  const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const postParam = query.get("post");
+  const iterationParam = query.get("iteration");
+  const [iteration, setIteration] = useState<ElysiaIterationShowcaseMetadata | null>(null);
+  const [contextWarnings, setContextWarnings] = useState<string[]>([]);
+  const [artifact, setArtifact] = useState({ fileName: "selected-iteration-artifact.js", language: "javascript", note: "", code: "" });
+  const [message, setMessage] = useState("Elysia Iteration Showcase sandbox review is selected-artifact only. The full repo, whole app, local machine, Local Elysia, install scripts, and shell are not run.");
+  useEffect(() => {
+    void loadIterationShowcaseForContext({ postId: postParam, iterationId: iterationParam }).then((result) => {
+      setIteration(result.iteration);
+      setContextWarnings(result.warnings);
+    });
+  }, [postParam, iterationParam]);
+  const snapshotId = "iteration-showcase-artifact-" + (iteration?.id ?? iterationParam ?? postParam ?? "manual") + "-" + stableSnapshotSuffix([artifact.language, artifact.fileName, artifact.code].join("\n---elysia-iteration-artifact---\n"));
+  async function requestReviewMetadata() {
+    if (!iteration && !postParam) { setMessage("Load or provide an Elysia Iteration Showcase before creating a sandbox review request."); return; }
+    const result = await requestIterationShowcaseSandboxReview({
+      iterationId: iteration?.id ?? iterationParam,
+      postId: iteration?.post_id ?? postParam,
+      title: iteration?.version_build_label ? `${iteration.iteration_type ?? "Iteration"} ${iteration.version_build_label}` : artifact.fileName,
+      relatedRepoUrl: iteration?.related_repo_url,
+      artifactFileName: artifact.fileName,
+      artifactNote: artifact.note,
+      knownLimitations: iteration?.known_limitations
+    });
+    setMessage(result.message);
+  }
+  return <section className="section-card commune-repo-sandbox-request commune-iteration-sandbox-request" id="commune-elysia-iteration-showcase-sandbox-request">
+    <p className="eyebrow">Elysia Iteration Showcase sandbox review</p>
+    <h2>Review one selected artifact from a progress/demo post</h2>
+    <p className="boundary-note">This route reviews a pasted snippet, config, manifest, or small public-safe artifact. It does not clone, install, build, run, trust, certify, approve, or publish a whole repository or Elysia iteration.</p>
+    {contextWarnings.length > 0 && <div className="message-stack">{contextWarnings.map((warning) => <p className="message" key={warning}>{warning}</p>)}</div>}
+    <section className="commune-info-grid">
+      <article className="commune-repo-identity-card">
+        <h3>{iteration?.iteration_type ?? "Elysia Iteration Showcase context"}</h3>
+        <dl className="mini-facts">
+          <div><dt>Version/build</dt><dd>{iteration?.version_build_label ?? "Not supplied"}</dd></div>
+          <div><dt>Related source</dt><dd>{iteration?.related_repo_url ?? "Manual selected artifact"}</dd></div>
+          <div><dt>Provider</dt><dd>{iteration?.provider ?? "Unknown"}</dd></div>
+          <div><dt>Branch</dt><dd>{iteration?.branch ?? "Not supplied"}</dd></div>
+          <div><dt>Commit</dt><dd>{iteration?.commit_sha ?? "Not supplied"}</dd></div>
+          <div><dt>Testing status</dt><dd>{iteration?.testing_status ?? "not_tested"}</dd></div>
+        </dl>
+        {iteration?.risk_flags?.length ? <StatusBadges labels={iteration.risk_flags} /> : <p className="boundary-note">No risk flags loaded. That is not a safety claim.</p>}
+      </article>
+      <WarningCallout title="Selected iteration artifact boundary"><p>Paste only the artifact you intentionally want reviewed. Shell, package installs, full-repo tests, network access, local Elysia data, private prompts, logs, vaults, hidden notes, and sealed memory are outside this route.</p></WarningCallout>
+    </section>
+    <div className="commune-form-grid">
+      <label><span>Artifact filename</span><input value={artifact.fileName} onChange={(event) => setArtifact({ ...artifact, fileName: event.target.value })} /></label>
+      <label><span>Language</span><select value={artifact.language} onChange={(event) => setArtifact({ ...artifact, language: event.target.value })}>{codingLanguageOptions().map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+      <label className="wide-field"><span>Review note</span><textarea rows={3} value={artifact.note} onChange={(event) => setArtifact({ ...artifact, note: event.target.value })} placeholder="Describe what this selected iteration artifact is supposed to demonstrate." /></label>
+      <label className="wide-field"><span>Selected artifact / snippet</span><textarea rows={8} value={artifact.code} onChange={(event) => setArtifact({ ...artifact, code: event.target.value })} placeholder="Paste one public-safe selected artifact. Do not paste secrets, private prompts, .env files, private logs, sealed memory, local Elysia data, or local paths." /></label>
+    </div>
+    <CodeWorkspaceEditor value={artifact.code} language={artifact.language} onChange={(code) => setArtifact({ ...artifact, code })} minHeight="280px" />
+    <CodingSandboxRunPanel snapshotId={snapshotId} sourceType="iteration_showcase_artifact" sourceId={iteration?.id ?? iterationParam} postId={iteration?.post_id ?? postParam} language={artifact.language} fileName={artifact.fileName} code={artifact.code} signedIn={signedIn} runLabel="Run selected iteration artifact in sandbox" />
+    <div className="button-row"><button type="button" onClick={() => void requestReviewMetadata()}>Create selected-artifact sandbox review request</button><Link className="button-link" to={iteration?.post_id ? "/commune/posts/" + iteration.post_id : "/commune/elysia-iteration-showcase"}>Back to Elysia Iteration Showcase</Link></div>
+    <p className="message">{message}</p>
+  </section>;
+}
+
 function LocalDraftStudio({ localDrafts, filters }: { localDrafts: ReturnType<typeof useLocalDraftState>; filters: CommuneFilters }) {
   const draftCards = [
     ...localDrafts.postDrafts.map((draft) => ({ id: draft.id, title: draft.title || "Untitled post draft", labels: [draft.status, draft.postType, draft.tags], summary: draft.summary, tags: draft.tags })),
     ...localDrafts.postRequests.map((draft) => ({ id: draft.id, title: draft.title || "Untitled post request", labels: [draft.status, draft.postType, draft.tags], summary: draft.summary, tags: draft.tags })),
     ...localDrafts.repoDrafts.map((draft) => ({ id: draft.id, title: draft.title || "Untitled repo showcase", labels: ["repo showcase draft", draft.provider, draft.manifestStatus, "Repository Showcase"], summary: draft.description })),
+    ...localDrafts.iterationDrafts.map((draft) => ({ id: draft.id, title: draft.title || "Untitled iteration showcase", labels: ["iteration showcase draft", draft.iterationType, draft.versionBuildLabel, "Elysia Iteration Showcase"], summary: draft.whatChanged || draft.summary })),
     ...localDrafts.sandboxDrafts.map((draft) => ({ id: draft.id, title: draft.title || "Untitled sandbox request", labels: ["sandbox request draft", `network: ${draft.networkNeeded}`, `files: ${draft.fileAccessNeeded}`], summary: draft.codePurpose }))
   ].filter((draft) => matchesSearch([draft.title, draft.summary, ...draft.labels], filters.search) && matchesStatus(draft.labels, filters.status) && matchesSafety(draft.labels, filters.safety) && (filters.category === "All" || draft.labels.includes(filters.category)));
-  const total = localDrafts.postDrafts.length + localDrafts.postRequests.length + localDrafts.repoDrafts.length + localDrafts.sandboxDrafts.length;
+  const total = localDrafts.postDrafts.length + localDrafts.postRequests.length + localDrafts.repoDrafts.length + localDrafts.iterationDrafts.length + localDrafts.sandboxDrafts.length;
   return <section className="section-card" id="commune-local-drafts">
     <p className="eyebrow">Local drafts and pending review requests</p>
     <h2>Saved in this browser only</h2>
@@ -1920,6 +2369,62 @@ function RepositoryShowcaseDetail({ post, showcase, parsedBody }: { post: Commun
   </div>;
 }
 
+function ElysiaIterationShowcaseDetail({ post, iteration, parsedBody }: { post: CommunePost; iteration?: ElysiaIterationShowcaseMetadata | null; parsedBody: ReturnType<typeof splitPostSections> }) {
+  const section = (heading: string) => repoSectionValue(parsedBody, heading);
+  const value = (metadataValue?: string | null, fallbackHeading?: string) => String(metadataValue ?? "").trim() || (fallbackHeading ? section(fallbackHeading) : "");
+  const importedString = (key: string) => {
+    const raw = iteration?.imported_metadata?.[key];
+    return typeof raw === "string" ? raw.trim() : "";
+  };
+  const relatedSource = value(iteration?.related_repo_url, "Related repo / source URL") || post.repository_url || "";
+  const safeHref = (() => { try { const url = new URL(relatedSource); return ["https:", "http:"].includes(url.protocol) ? url.href : null; } catch { return null; } })();
+  const forgeHref = (() => { try { const url = new URL(iteration?.developer_forge_link ?? ""); return ["https:", "http:"].includes(url.protocol) ? url.href : null; } catch { return null; } })();
+  const marketplaceHref = (() => { try { const url = new URL(iteration?.marketplace_link ?? ""); return ["https:", "http:"].includes(url.protocol) ? url.href : null; } catch { return null; } })();
+  const pullHref = (() => { try { const url = new URL(iteration?.pull_request_url ?? ""); return ["https:", "http:"].includes(url.protocol) ? url.href : null; } catch { return null; } })();
+  const riskFlags = iteration?.risk_flags?.length ? iteration.risk_flags : section("Risk flags").split(/[,\n]/).map((item) => item.trim()).filter(Boolean);
+  const sandboxStatus = iteration?.sandbox_review_status ?? (iteration?.sandbox_review_requested ? "requested" : "not_requested");
+  const sandboxHref = "/commune/elysia-iteration-showcase/sandbox-request?post=" + encodeURIComponent(post.id) + (iteration?.id ? "&iteration=" + encodeURIComponent(iteration.id) : "");
+  const readmePreview = importedString("readme_preview");
+  return <div className="commune-repository-detail commune-iteration-detail">
+    <p className="eyebrow">Elysia Iteration Showcase detail</p>
+    <div className="commune-info-grid">
+      <article className="commune-repo-identity-card">
+        <h3>{value(iteration?.iteration_type, "Iteration type") || "Iteration progress"}</h3>
+        <dl className="mini-facts">
+          <div><dt>Version/build</dt><dd>{value(iteration?.version_build_label, "Version / build label") || "Not supplied"}</dd></div>
+          <div><dt>Testing status</dt><dd>{value(iteration?.testing_status) || "not_tested"}</dd></div>
+          <div><dt>Provider</dt><dd>{value(iteration?.provider) || "Unknown"}</dd></div>
+          <div><dt>Branch</dt><dd>{value(iteration?.branch) || "Not supplied"}</dd></div>
+          <div><dt>Commit</dt><dd>{value(iteration?.commit_sha) || "Not supplied"}</dd></div>
+          <div><dt>Release tag</dt><dd>{value(iteration?.release_tag) || "Not supplied"}</dd></div>
+        </dl>
+        <div className="button-row">
+          {safeHref && <a className="button-link" href={safeHref} target="_blank" rel="noreferrer">Open public source reference</a>}
+          {pullHref && <a className="button-link" href={pullHref} target="_blank" rel="noreferrer">Open pull request reference</a>}
+        </div>
+      </article>
+      <WarningCallout title="Progress showcase boundary"><p>Elysia Iteration Showcase is public progress, demo, screenshot, UI, add-on preview, and design-development context. It is not an Official Update, security advisory, release certification, compatibility proof, Developer Forge approval, Marketplace readiness, installability claim, or trust label.</p></WarningCallout>
+    </div>
+    {(value(iteration?.what_changed, "What changed") || parsedBody.intro) && <article className="commune-room-native-field"><h3>What changed</h3><p>{value(iteration?.what_changed, "What changed") || parsedBody.intro}</p></article>}
+    {value(iteration?.why_it_matters, "Why it matters") && <article className="commune-room-native-field"><h3>Why it matters</h3><p>{value(iteration?.why_it_matters, "Why it matters")}</p></article>}
+    {value(iteration?.known_limitations, "Known limitations") && <article className="commune-room-native-field"><h3>Known limitations</h3><p>{value(iteration?.known_limitations, "Known limitations")}</p></article>}
+    {value(iteration?.next_step, "Next step") && <article className="commune-room-native-field"><h3>Next step</h3><p>{value(iteration?.next_step, "Next step")}</p></article>}
+    {value(iteration?.compatibility_note) && <article className="commune-room-native-field"><h3>Compatibility note</h3><p>{value(iteration?.compatibility_note)}</p></article>}
+    {value(iteration?.redaction_notes) && <article className="commune-room-native-field"><h3>Redaction note</h3><p>{value(iteration?.redaction_notes)}</p></article>}
+    {readmePreview && <article className="commune-room-native-field"><h3>Public GitHub metadata preview</h3><pre className="commune-repo-text-block">{truncateRepositoryText(readmePreview, 5000)}</pre></article>}
+    {(forgeHref || marketplaceHref) && <article className="commune-room-native-field"><h3>Related ecosystem references</h3><p className="boundary-note">These links are references only. They do not mean Developer Forge approval, Marketplace approval, installation safety, compatibility, or production readiness.</p><div className="button-row">{forgeHref && <a className="button-link" href={forgeHref} target="_blank" rel="noreferrer">Open Developer Forge reference</a>}{marketplaceHref && <a className="button-link" href={marketplaceHref} target="_blank" rel="noreferrer">Open Marketplace reference</a>}</div></article>}
+    <div className="commune-repo-risk-row">
+      <p className="eyebrow">Iteration risk/context flags</p>
+      {riskFlags.length ? <StatusBadges labels={riskFlags} /> : <p className="boundary-note">No risk flags selected. This does not mean the iteration is safe, official, complete, compatible, or ready.</p>}
+    </div>
+    <section className="commune-sandbox-card commune-repo-sandbox-summary">
+      <div className="addon-card__topline"><strong>Elysia Iteration Showcase sandbox review</strong><span>{sandboxStatus.replace(/_/g, " ")}</span></div>
+      <p className="boundary-note">Sandbox review for this room runs only a selected artifact/snippet/config/manifest pasted into the review route. It does not clone, install, build, test, run, trust, or approve the full repository or iteration.</p>
+      <div className="button-row"><Link className="button-link" to={sandboxHref}>{iteration?.sandbox_review_requested ? "Open selected-artifact review" : "Request selected-artifact review"}</Link></div>
+    </section>
+  </div>;
+}
+
 function PostDetail({ postId }: { postId: string }) {
   const { state, refresh } = useCommuneLoad(undefined, postId);
   const [snippets, setSnippets] = useState<CommuneCodeSnippet[]>([]);
@@ -2019,9 +2524,11 @@ function PostDetail({ postId }: { postId: string }) {
   if (!post) return <section className="section-card"><h2>Post not found</h2><p>This post is not public, does not exist, or is still awaiting moderation.</p><p className="boundary-note">Account-backed posts may also be unavailable while Commune backend tables are being prepared.</p><Link className="button-link" to="/commune">Back to Commune</Link></section>;
   const parsedBody = splitPostSections(post.body);
   const repositoryShowcase = state.repositoryShowcases.find((item) => item.post_id === post.id) ?? null;
+  const iterationShowcase = state.iterationShowcases.find((item) => item.post_id === post.id) ?? null;
   const isRepositoryShowcase = post.post_type === "repository_showcase";
+  const isIterationShowcase = post.post_type === "elysia_iteration_showcase";
   return <>
-    <section className="section-card commune-post-detail"><p className="eyebrow">{post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>By {authorLink(post.author_username)}</p><StatusBadges labels={[post.status, post.visibility]} />{!isRepositoryShowcase && parsedBody.intro && <p className="commune-post-body">{parsedBody.intro}</p>}{!isRepositoryShowcase && parsedBody.sections.length > 0 && <div className="commune-room-native-details"><p className="eyebrow">Room-native details</p><div className="commune-room-native-grid">{parsedBody.sections.map((section) => <article className="commune-room-native-field" key={section.heading}><h3>{section.heading}</h3><p>{section.body}</p></article>)}</div></div>}{isRepositoryShowcase && <RepositoryShowcaseDetail post={post} showcase={repositoryShowcase} parsedBody={parsedBody} />}{post.post_type === "official_update" && <p className="boundary-note">Official Updates are administrator-authored notices. Community users cannot self-assign release, security, roadmap, or governance authority.</p>}<TagChips tags={post.tags} />{attachments.length > 0 && <div className="commune-media-section"><p className="eyebrow">Attached media</p><p className="commune-media-attribution">Attached to this post by {authorLink(post.author_username)}.</p><p className="boundary-note">Published attachments are read-only and remain governed by Commune moderation and safety policies.</p><div className="commune-media-grid">{attachments.map((item) => <article className="commune-media-card" key={item.id}>{item.media_kind === "image" && item.signed_url ? <button className="commune-media-image-button" type="button" onClick={() => setActiveMedia(item)}><img src={item.signed_url} alt={`Attached media: ${item.file_name}`} loading="lazy" /></button> : <div className="commune-media-unavailable"><strong>{item.file_name}</strong><p>{item.signed_url ? "This attachment can be opened from its signed public review URL." : "Attachment unavailable or still under review."}</p></div>}<div className="commune-media-meta"><strong>{item.file_name}</strong><span>{item.mime_type ?? item.media_kind}{item.file_size ? ` · ${item.file_size} bytes` : ""}</span></div></article>)}</div></div>}<AttachedCodeSnippets snippets={snippets} authorUsername={post.author_username} postType={post.post_type} signedIn={state.signedIn} onMessage={setMessage} /><ReactionBar targetType="post" targetId={post.id} signedIn={state.signedIn} onMessage={setMessage} /><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div><AdminContentControls targetType="post" targetId={post.id} isModerator={state.isModerator} onChanged={refresh} onMessage={setMessage} /></section>
+    <section className="section-card commune-post-detail"><p className="eyebrow">{post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>By {authorLink(post.author_username)}</p><StatusBadges labels={[post.status, post.visibility]} />{!isRepositoryShowcase && !isIterationShowcase && parsedBody.intro && <p className="commune-post-body">{parsedBody.intro}</p>}{!isRepositoryShowcase && !isIterationShowcase && parsedBody.sections.length > 0 && <div className="commune-room-native-details"><p className="eyebrow">Room-native details</p><div className="commune-room-native-grid">{parsedBody.sections.map((section) => <article className="commune-room-native-field" key={section.heading}><h3>{section.heading}</h3><p>{section.body}</p></article>)}</div></div>}{isRepositoryShowcase && <RepositoryShowcaseDetail post={post} showcase={repositoryShowcase} parsedBody={parsedBody} />}{isIterationShowcase && <ElysiaIterationShowcaseDetail post={post} iteration={iterationShowcase} parsedBody={parsedBody} />}{post.post_type === "official_update" && <p className="boundary-note">Official Updates are administrator-authored notices. Community users cannot self-assign release, security, roadmap, or governance authority.</p>}<TagChips tags={post.tags} />{attachments.length > 0 && <div className="commune-media-section"><p className="eyebrow">Attached media</p><p className="commune-media-attribution">Attached to this post by {authorLink(post.author_username)}.</p><p className="boundary-note">Published attachments are read-only and remain governed by Commune moderation and safety policies.</p><div className="commune-media-grid">{attachments.map((item) => <article className="commune-media-card" key={item.id}>{item.media_kind === "image" && item.signed_url ? <button className="commune-media-image-button" type="button" onClick={() => setActiveMedia(item)}><img src={item.signed_url} alt={`Attached media: ${item.file_name}`} loading="lazy" /></button> : <div className="commune-media-unavailable"><strong>{item.file_name}</strong><p>{item.signed_url ? "This attachment can be opened from its signed public review URL." : "Attachment unavailable or still under review."}</p></div>}<div className="commune-media-meta"><strong>{item.file_name}</strong><span>{item.mime_type ?? item.media_kind}{item.file_size ? ` · ${item.file_size} bytes` : ""}</span></div></article>)}</div></div>}<AttachedCodeSnippets snippets={snippets} authorUsername={post.author_username} postType={post.post_type} signedIn={state.signedIn} onMessage={setMessage} /><ReactionBar targetType="post" targetId={post.id} signedIn={state.signedIn} onMessage={setMessage} /><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div><AdminContentControls targetType="post" targetId={post.id} isModerator={state.isModerator} onChanged={refresh} onMessage={setMessage} /></section>
     {activeMedia?.signed_url && <div className="commune-media-lightbox" role="dialog" aria-modal="true" aria-label={`Attachment preview: ${activeMedia.file_name}`} onClick={() => setActiveMedia(null)}><div className="commune-media-lightbox-panel" onClick={(event) => event.stopPropagation()}><button className="commune-media-lightbox-close" type="button" onClick={() => setActiveMedia(null)}>Close</button><img src={activeMedia.signed_url} alt={`Attached media: ${activeMedia.file_name}`} /></div></div>}
     <section className="section-card"><p className="eyebrow">Comments</p><h2>Comments and replies</h2><p className="boundary-note">{state.isAdmin ? "Admin comments publish directly and remain auditable." : "First participation in a post/thread is reviewed. After approval in that thread, later comments and replies can publish directly while remaining reportable and removable."}</p>{!thread && <p className="boundary-note">This published post is missing its discussion thread. Submitting a comment will try to repair the thread with normal account permissions before saving.</p>}{topLevelComments.map((item) => renderComment(item))}{!topLevelComments.length && <p>Moderated comments will appear here once the backend tables are active and replies are approved.</p>}<label><span>Comment on this post</span><textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><div className="button-row"><button type="button" disabled={commentSubmitting} onClick={() => void submitThreadComment()}>{commentSubmitting ? "Submitting comment..." : "Submit comment"}</button></div><p className="message">{commentStatus}</p></section>
     <section className="section-card"><p className="eyebrow">Report</p><h2>Report this post</h2><p>Reports are reviewed by moderators/administrators. Reporting does not automatically remove content unless urgent automated controls are later added. Ratings do not replace reports or moderation.</p><label><span>Report type</span><select value={report.type} onChange={(event) => setReport({ ...report, type: event.target.value })}>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span>Reason</span><textarea rows={3} value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value })} /></label><button type="button" onClick={() => void reportPost()}>Send report</button><p className="message">{message}</p></section>
@@ -2531,14 +3038,16 @@ export default function CommunePage() {
   }
 
   const isRoomNew = Boolean(effectiveRoomSlug) && mode === "new";
-  const routeMode = /\/commune\/repository-showcase\/sandbox-request$/.test(location.pathname)
+  const routeMode = /\/commune\/elysia-iteration-showcase\/sandbox-request$/.test(location.pathname)
+    ? "iteration-sandbox-review"
+    : /\/commune\/repository-showcase\/sandbox-request$/.test(location.pathname)
     ? "repository-sandbox-review"
     : /\/commune\/(coding-cornucopia|code-sharing|troubleshooting-grove)\/review$/.test(location.pathname)
       ? "code-review"
       : /\/commune\/(coding-cornucopia|code-sharing|troubleshooting-grove)\/sandbox-request$/.test(location.pathname)
         ? "sandbox-review"
         : !isRoomNew && ["new", "repository-showcase", "troubleshooting", "sandbox-review", "moderation", "realtime"].includes(mode || "") ? mode : "";
-  const activeActionKind = mode === "troubleshooting" ? "troubleshooting" : mode === "repository-showcase" || routeMode === "repository-sandbox-review" ? "repository" : routeMode === "sandbox-review" || mode === "sandbox-review" ? "sandbox" : mode === "moderation" ? "moderation" : "";
+  const activeActionKind = mode === "troubleshooting" ? "troubleshooting" : mode === "repository-showcase" || routeMode === "repository-sandbox-review" ? "repository" : routeMode === "iteration-sandbox-review" ? "sandbox" : routeMode === "sandbox-review" || mode === "sandbox-review" ? "sandbox" : mode === "moderation" ? "moderation" : "";
   const isLobby = !postId && !routeMode && !roomSlug;
   const isRoom = !postId && !routeMode && Boolean(effectiveRoomSlug);
 
@@ -2551,11 +3060,12 @@ export default function CommunePage() {
     {isLobby && <CommuneLobby />}
     {isLobby && <CommuneSearchPanel filters={filters} setFilters={setFilters} />}
     {!isLobby && <AccountModePanel signedIn={state.signedIn} isModerator={state.isModerator} accountReady={state.accountReady} activeKind={activeActionKind} />}
-    {["new", "troubleshooting", "repository-showcase", "repository-sandbox-review", "sandbox-review", "code-review", "realtime", "moderation"].includes(routeMode) && <CommuneFocusedToolbar />}
+    {["new", "troubleshooting", "repository-showcase", "repository-sandbox-review", "iteration-sandbox-review", "sandbox-review", "code-review", "realtime", "moderation"].includes(routeMode) && <CommuneFocusedToolbar />}
 
     {routeMode === "new" && <RoomPickerPanel />}
     {routeMode === "repository-showcase" && <RepositoryShowcaseForm localDrafts={localDrafts} roomId={state.rooms.find((room) => room.slug === "repository-showcase")?.id} onRefresh={refresh} isAdmin={state.isAdmin} />}
     {routeMode === "repository-sandbox-review" && <RepositoryShowcaseSandboxRequestPanel signedIn={state.signedIn} />}
+    {routeMode === "iteration-sandbox-review" && <ElysiaIterationSandboxRequestPanel signedIn={state.signedIn} />}
     {mode === "troubleshooting" && <PostComposer defaultType="troubleshooting" defaultRoomId={state.rooms.find((room) => room.slug === "troubleshooting-grove")?.id} troubleshooting localDrafts={localDrafts} categories={categories} onRefresh={refresh} isAdmin={state.isAdmin} />}
     {routeMode === "sandbox-review" && <SandboxDraftPanel localDrafts={localDrafts} />}
     {mode === "moderation" && <ModerationPanel />}

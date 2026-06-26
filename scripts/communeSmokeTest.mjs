@@ -48,25 +48,33 @@ const codingRunsMigration = await read("supabase/migrations/2026_06_24_coding_co
 const codeProposalMigration = await read("supabase/migrations/2026_06_25_coding_cornucopia_author_revision_proposals.sql");
 const runResultRecordingMigration = await read("supabase/migrations/2026_06_25_coding_cornucopia_run_result_recording.sql");
 const repositoryMetadataMigration = await read("supabase/migrations/2026_06_26_repository_showcase_structured_metadata.sql");
+const iterationMetadataMigration = await read("supabase/migrations/2026_06_26_elysia_iteration_showcase_structured_metadata.sql");
 const repositoryPolicyDoc = await read("docs/commune/repo-showcase-policy.md");
 const repositoryBoundaryDoc = await read("docs/security/repository-showcase-boundary.md");
 const repositoryContractDoc = await read("docs/api/repository-showcase-contract.md");
+const iterationPolicyDoc = await read("docs/commune/elysia-iteration-showcase-policy.md");
+const iterationBoundaryDoc = await read("docs/security/elysia-iteration-showcase-boundary.md");
+const iterationContractDoc = await read("docs/api/elysia-iteration-showcase-contract.md");
 const communeCommentSchemaCoverage = `${migration}\n${commentDirectPublishMigration}\n${commentSchemaRepairMigration}\n${commentNotificationRepairMigration}`;
 const styles = await read("src/styles.css");
 
-for (const route of ["/commune", "commune/new", "commune/:roomSlug", "commune/:roomSlug/new", "commune/repository-showcase", "commune/repository-showcase/new", "commune/repository-showcase/sandbox-request", "commune/troubleshooting", "commune/troubleshooting-grove/review", "commune/troubleshooting-grove/sandbox-request", "commune/sandbox-review", "commune/coding-cornucopia/review", "commune/coding-cornucopia/sandbox-request", "commune/code-sharing/review", "commune/code-sharing/sandbox-request", "commune/realtime", "commune/moderation"]) {
+for (const route of ["/commune", "commune/new", "commune/:roomSlug", "commune/:roomSlug/new", "commune/repository-showcase", "commune/repository-showcase/new", "commune/repository-showcase/sandbox-request", "commune/elysia-iteration-showcase/sandbox-request", "commune/troubleshooting", "commune/troubleshooting-grove/review", "commune/troubleshooting-grove/sandbox-request", "commune/sandbox-review", "commune/coding-cornucopia/review", "commune/coding-cornucopia/sandbox-request", "commune/code-sharing/review", "commune/code-sharing/sandbox-request", "commune/realtime", "commune/moderation"]) {
   assert(app.includes(route.replace(/^\//, "")) || app.includes(route), `Missing Commune route: ${route}`);
 }
 assert(app.includes('path="commons-circle/signals"'), "Signal Console route missing.");
 assert(commonsApi.includes("loadSignalConsole") && commonsApi.includes("codeProposalCount"), "Commons Circle Signal Console loader should expose proposal signal counts.");
 assert(commonsApi.includes("RepositoryShowcaseSignalPreview") && commonsApi.includes("commune_repository_showcases") && commonsApi.includes("repositoryShowcaseActivity"), "Signal Console should load direct Repository Showcase activity records.");
 assert(commonsApi.includes("repositoryShowcasesNeedingReview") && commonsApi.includes("repositorySandboxActivity") && commonsApi.includes("/commune/repository-showcase/sandbox-request?"), "Signal Console should split Repository Showcase review and selected-artifact sandbox activity.");
+assert(commonsApi.includes("ElysiaIterationShowcaseSignalPreview") && commonsApi.includes("commune_iteration_showcases") && commonsApi.includes("iterationShowcaseActivity"), "Signal Console should load direct Elysia Iteration Showcase activity records.");
+assert(commonsApi.includes("iterationShowcasesNeedingReview") && commonsApi.includes("iterationSandboxActivity") && commonsApi.includes("/commune/elysia-iteration-showcase/sandbox-request?"), "Signal Console should split Elysia Iteration Showcase review and selected-artifact sandbox activity.");
 assert(commonsApi.includes("commune_code_revision_proposals") && commonsApi.includes("original_author_user_id.eq") && commonsApi.includes("proposer_user_id.eq"), "Signal Console should load direct Coding Cornucopia proposal records for both authors and proposers.");
 assert(commonsApi.includes("needsMyReview") && commonsApi.includes("mySubmittedProposals") && commonsApi.includes("codeProposalActivity"), "Signal Console loader should split direct proposal activity into review and submitted sections.");
 assert(commonsApi.includes("source_room") && commonsApi.includes("troubleshooting_grove") && commonsApi.includes("/commune/troubleshooting-grove/review") && commonsApi.includes("?proposal="), "Signal Console should distinguish Troubleshooting Grove proposed fixes from Coding Cornucopia revisions.");
 assert(signalConsolePage.includes("Signal Console") && signalConsolePage.includes("Coding Cornucopia proposals"), "Signal Console page should prioritize Coding Cornucopia proposal signals.");
 assert(signalConsolePage.includes("Repository Showcase activity") && signalConsolePage.includes("My repository showcases") && signalConsolePage.includes("Repository showcases needing review"), "Signal Console should render Repository Showcase activity sections.");
 assert(signalConsolePage.includes("Selected-artifact sandbox review") && signalConsolePage.includes("does not clone, install, build, trust, approve"), "Signal Console should preserve Repository Showcase sandbox boundary copy.");
+assert(signalConsolePage.includes("Elysia Iteration Showcase activity") && signalConsolePage.includes("My iteration showcases") && signalConsolePage.includes("Iterations needing review"), "Signal Console should render Elysia Iteration Showcase activity sections.");
+assert(signalConsolePage.includes("Official Update") && signalConsolePage.includes("Developer Forge approval") && signalConsolePage.includes("Marketplace readiness"), "Signal Console should preserve Iteration Showcase authority boundary copy.");
 assert(signalConsolePage.includes("Troubleshooting Grove proposed fix") && signalConsolePage.includes("Open proposed fix workbench"), "Signal Console should label troubleshooting proposed fixes distinctly.");
 assert(signalConsolePage.includes("Needs my review") && signalConsolePage.includes("My submitted proposals") && signalConsolePage.includes("Recent Coding Cornucopia proposal activity"), "Signal Console should distinguish direct proposal activity sections.");
 assert(commonsApi.includes("/commune/coding-cornucopia/review") && commonsApi.includes("?proposal=") && signalConsolePage.includes("Open proposal in Coding Workbench"), "Signal Console proposal cards should link to the Coding Cornucopia proposal workbench.");
@@ -88,7 +96,7 @@ for (const roomName of requiredLobbyRooms) {
   roomCursor = nextRoom;
 }
 
-for (const anchor of ["commune-lobby", "commune-search", "commune-feed", "commune-rooms", "commune-post-composer", "commune-repository-showcase", "commune-repository-showcase-sandbox-request", "commune-sandbox-review", "commune-code-review", "commune-local-drafts"]) {
+for (const anchor of ["commune-lobby", "commune-search", "commune-feed", "commune-rooms", "commune-post-composer", "commune-repository-showcase", "commune-repository-showcase-sandbox-request", "commune-elysia-iteration-showcase-sandbox-request", "commune-sandbox-review", "commune-code-review", "commune-local-drafts"]) {
   assert(page.includes(anchor), `Missing Commune anchor: ${anchor}`);
 }
 
@@ -116,7 +124,7 @@ assert(page.includes("isAdmin={state.isAdmin}"), "Room composer should receive a
 assert(page.includes('isAdmin ? "Publish as admin" : "Submit for moderation"'), "Room composer should show admin direct-publish copy while keeping member moderation copy.");
 assert(page.includes("Admins can publish room posts directly. Attachments still follow Commune media safety rules."), "Room composer should explain admin direct-publish without bypassing media safety.");
 assert(page.includes("Video uploads are not enabled for this room yet."), "Room composer should clearly reject unsupported video uploads instead of implying video support.");
-for (const roomNativeField of ["Issue type", "Affected area", "Expected behavior", "Actual behavior", "Known workaround", "Introduction type", "Collaboration interest", "Role interest", "Project circle/topic", "Paid / volunteer status", "Compensation clarity", "Location / remote / hybrid", "Contact path", "Research question / topic", "Citation notes", "Evidence summary", "Interpretation", "Uncertainty", "Iteration type", "Version / build label", "What changed", "Known limitations", "Official notice type", "Audit-safe note"]) {
+for (const roomNativeField of ["Issue type", "Affected area", "Expected behavior", "Actual behavior", "Known workaround", "Introduction type", "Collaboration interest", "Role interest", "Project circle/topic", "Paid / volunteer status", "Compensation clarity", "Location / remote / hybrid", "Contact path", "Research question / topic", "Citation notes", "Evidence summary", "Interpretation", "Uncertainty", "Iteration type", "Version / build label", "What changed", "Why it matters", "Known limitations", "Next step", "Official notice type", "Audit-safe note"]) {
   assert(page.includes(roomNativeField), `Missing room-native composer field/copy: ${roomNativeField}`);
 }
 assert(page.includes('form.postType === "code_sharing" || form.postType === "troubleshooting"'), "Troubleshooting Grove should reuse optional code/reproduction snippet composer support.");
@@ -242,12 +250,28 @@ assert(page.includes("Developer Forge and Marketplace approval remain separate")
 for (const column of ["provider", "default_branch", "commit_sha", "manifest_status", "elysia_compatibility", "readme_preview", "file_tree_preview", "risk_flags", "sandbox_review_request_id", "imported_metadata", "redaction_notes"]) {
   assert(accountApi.includes(column), "Repository Showcase structured submit/load field missing: " + column);
 }
-assert(accountApi.includes('ownerRow.post_type === "repository_showcase"') && accountApi.includes('item.kind === "repo" && postId'), "Repository Showcase moderation should keep linked post/repo state consistent.");
+assert(accountApi.includes('ownerRow.post_type === "repository_showcase"') && accountApi.includes('(item.kind === "repo" || item.kind === "iteration") && postId') && accountApi.includes('item.kind === "repo" ? "repository_showcase" : "elysia_iteration_showcase"'), "Repository Showcase moderation should keep linked post/repo state consistent.");
 assert(repositoryMetadataMigration.includes("public reads published repository showcase metadata") && repositoryMetadataMigration.includes("readme_preview") && repositoryMetadataMigration.includes("sandbox_review_request_id"), "Repository Showcase structured metadata migration missing public read policy or structured columns.");
 assert(repositoryMetadataMigration.includes("grant select on table public.commune_repository_showcases to anon") && repositoryMetadataMigration.includes("Selected-artifact sandbox review status only"), "Repository Showcase migration should expose only published metadata and preserve selected-artifact boundary.");
 assert(repositoryPolicyDoc.includes("Public GitHub import is metadata assistance only") && repositoryPolicyDoc.includes("Local showcase manifest import") && repositoryPolicyDoc.includes("selected-artifact only"), "Repository Showcase policy doc missing import/sandbox boundary.");
 assert(repositoryBoundaryDoc.includes("no whole-repository clone") && repositoryBoundaryDoc.includes("no shell execution from Repository Showcase"), "Repository Showcase security boundary doc missing clone/shell prohibitions.");
 assert(repositoryContractDoc.includes("commune_repository_showcases metadata row") && repositoryContractDoc.includes("Signal Console may show direct commune_repository_showcases activity"), "Repository Showcase API contract doc missing structured row/signal contract.");
+assert(app.includes('path="commune/elysia-iteration-showcase/sandbox-request"'), "Elysia Iteration Showcase selected-artifact sandbox request route missing.");
+assert(page.includes("Import public GitHub metadata") && page.includes("Local iteration manifest import") && page.includes("Preview export JSON in import box"), "Elysia Iteration Showcase should support public GitHub metadata import and local manifest import/export UI.");
+assert(page.includes("ElysiaIterationShowcaseDetail") && page.includes("Elysia Iteration Showcase detail") && page.includes("Progress showcase boundary"), "Elysia Iteration Showcase public post detail should render structured metadata.");
+assert(page.includes("ElysiaIterationSandboxRequestPanel") && page.includes("Review one selected artifact from a progress/demo post") && page.includes('sourceType="iteration_showcase_artifact"'), "Elysia Iteration Showcase selected-artifact sandbox review route/panel missing.");
+assert(page.includes("Official Update / Forge / Marketplace boundary") && page.includes("Request Elysia Iteration Showcase selected-artifact sandbox review"), "Elysia Iteration Showcase UI must preserve official/update and selected-artifact sandbox copy.");
+for (const column of ["iteration_type", "version_build_label", "what_changed", "why_it_matters", "known_limitations", "next_step", "related_repo_url", "commit_sha", "release_tag", "pull_request_url", "testing_status", "compatibility_note", "risk_flags", "sandbox_review_request_id", "imported_metadata", "redaction_notes"]) {
+  assert(accountApi.includes(column), "Elysia Iteration Showcase structured submit/load field missing: " + column);
+}
+assert(accountApi.includes('post_type: "elysia_iteration_showcase"') && accountApi.includes("submitIterationShowcase"), "Elysia Iteration Showcase should create/link a normal Commune post.");
+assert(accountApi.includes("requestIterationShowcaseSandboxReview") && accountApi.includes("commune_iteration_showcases"), "Elysia Iteration Showcase selected-artifact sandbox helper missing.");
+assert(accountApi.includes('ownerRow.post_type === "elysia_iteration_showcase"') && accountApi.includes('(item.kind === "repo" || item.kind === "iteration") && postId') && accountApi.includes('item.kind === "repo" ? "repository_showcase" : "elysia_iteration_showcase"'), "Elysia Iteration Showcase moderation should keep linked post/metadata state consistent.");
+assert(iterationMetadataMigration.includes("public reads published iteration showcase metadata") && iterationMetadataMigration.includes("commune_iteration_showcases") && iterationMetadataMigration.includes("sandbox_review_request_id"), "Elysia Iteration Showcase structured metadata migration missing public read policy or structured columns.");
+assert(iterationMetadataMigration.includes("grant select on table public.commune_iteration_showcases to anon") && iterationMetadataMigration.includes("Selected-artifact sandbox review status only"), "Elysia Iteration Showcase migration should expose only published metadata and preserve selected-artifact boundary.");
+assert(iterationPolicyDoc.includes("public GitHub import") && iterationPolicyDoc.includes("structured metadata") && iterationPolicyDoc.includes("selected-artifact only"), "Elysia Iteration Showcase policy doc missing import/sandbox boundary.");
+assert(iterationBoundaryDoc.includes("clone repositories") && iterationBoundaryDoc.includes("run shell commands") && iterationBoundaryDoc.includes("Successful sandbox diagnostics are evidence only"), "Elysia Iteration Showcase security boundary doc missing clone/shell/evidence prohibitions.");
+assert(iterationContractDoc.includes("commune_iteration_showcases") && iterationContractDoc.includes("Signal Console also reads direct iteration rows"), "Elysia Iteration Showcase API contract doc missing structured row/signal contract.");
 assert(accountApi.includes("review_item_created: false"), "Admin direct Commune publish should record that no self-review item was created.");
 assert(accountApi.includes("admin_post_published") && accountApi.includes("admin_comment_published"), "Admin direct Commune actions should remain auditable.");
 assert(accountApi.includes("admin_post_direct_published"), "Admin direct Commune room posts should create History/All records.");
@@ -308,7 +332,7 @@ assert(accountApi.includes("loadCommuneReactionSummary"), "Commune reaction-coun
 assert(accountApi.includes("setCommuneReaction"), "Commune reaction setter missing.");
 assert(accountApi.includes("clearCommuneReaction"), "Commune reaction removal helper missing.");
 assert(accountApi.includes("moderateCommuneContentTarget"), "Commune direct admin content moderation helper missing.");
-assert(accountApi.includes('currentSelect = input.targetType === "post" ? "id,status,visibility,visibility_state,moderation_status"'), "Commune post moderation should not select comment-only post_id/thread_id columns from commune_posts.");
+assert(accountApi.includes('currentSelect = input.targetType === "post" ? "id,status,post_type,visibility,visibility_state,moderation_status"'), "Commune post moderation should not select comment-only post_id/thread_id columns from commune_posts.");
 assert(accountApi.includes('update.visibility_state = input.action === "flag" ? "flagged" : input.action === "hide" ? "hidden" : "removed"'), "Commune post moderation should update post visibility_state for admin recovery views.");
 assert(accountApi.includes("update.hidden_by = account.userId"), "Commune post/comment moderation should record the admin actor when hiding/removing content.");
 assert(accountApi.includes("[\"published\", \"submitted\", \"flagged\"]"), "Commune post moderation should remove linked media from public display when the post is hidden/removed.");

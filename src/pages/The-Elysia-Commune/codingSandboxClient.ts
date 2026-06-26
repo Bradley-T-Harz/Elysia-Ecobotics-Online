@@ -3,7 +3,7 @@ import { getCodingLanguagePolicy, normalizeCodingLanguage } from "./codeLanguage
 
 export type SandboxRunRequest = {
   snapshotId: string;
-  sourceType: "commune_post_snippet" | "commune_code_document" | "commune_code_version" | "repository_showcase_artifact";
+  sourceType: "commune_post_snippet" | "commune_code_document" | "commune_code_version" | "repository_showcase_artifact" | "iteration_showcase_artifact";
   sourceId?: string | null;
   language: string;
   fileName?: string | null;

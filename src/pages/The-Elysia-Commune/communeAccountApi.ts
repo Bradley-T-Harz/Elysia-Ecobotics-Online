@@ -40,9 +40,41 @@ export type RepositoryShowcaseMetadata = {
   created_at?: string | null;
   updated_at?: string | null;
 };
-export type CommuneModerationItem = { id: string; kind: "post" | "comment" | "upload" | "repo" | "sandbox" | "report"; title: string; status: string; created_at?: string | null; summary?: string | null };
+export type ElysiaIterationShowcaseMetadata = {
+  id: string;
+  post_id?: string | null;
+  author_user_id?: string | null;
+  iteration_type?: string | null;
+  version_build_label?: string | null;
+  what_changed?: string | null;
+  why_it_matters?: string | null;
+  known_limitations?: string | null;
+  next_step?: string | null;
+  related_repo_url?: string | null;
+  provider?: string | null;
+  branch?: string | null;
+  commit_sha?: string | null;
+  release_tag?: string | null;
+  pull_request_url?: string | null;
+  developer_forge_link?: string | null;
+  marketplace_link?: string | null;
+  testing_status?: string | null;
+  compatibility_note?: string | null;
+  sandbox_review_requested?: boolean | null;
+  sandbox_review_status?: string | null;
+  sandbox_review_request_id?: string | null;
+  risk_flags?: string[] | null;
+  import_source?: string | null;
+  imported_metadata?: Record<string, unknown> | null;
+  imported_at?: string | null;
+  redaction_notes?: string | null;
+  status?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+export type CommuneModerationItem = { id: string; kind: "post" | "comment" | "upload" | "repo" | "iteration" | "sandbox" | "report"; title: string; status: string; created_at?: string | null; summary?: string | null };
 export type CommuneAccountState = { signedIn: boolean; userId: string | null; username: string | null; roles: AppRole[]; isAdmin: boolean; isModerator: boolean; warnings: string[] };
-export type LoadCommuneData = { rooms: CommuneRoom[]; posts: CommunePost[]; comments: CommuneComment[]; threads: CommuneThread[]; media: CommuneMediaAttachment[]; repositoryShowcases: RepositoryShowcaseMetadata[]; savedPostIds: string[]; followedThreadIds: string[]; account: CommuneAccountState; warnings: string[] };
+export type LoadCommuneData = { rooms: CommuneRoom[]; posts: CommunePost[]; comments: CommuneComment[]; threads: CommuneThread[]; media: CommuneMediaAttachment[]; repositoryShowcases: RepositoryShowcaseMetadata[]; iterationShowcases: ElysiaIterationShowcaseMetadata[]; savedPostIds: string[]; followedThreadIds: string[]; account: CommuneAccountState; warnings: string[] };
 export type CommuneCategory = { id: string; slug: string; title: string; description?: string | null; sort_order?: number | null; is_active?: boolean | null };
 export type CommuneCodeSnippet = {
   id: string;
@@ -90,6 +122,7 @@ const canonicalCommuneTables = {
   savedPosts: "user_saved_commune_posts",
   followedThreads: "user_followed_commune_threads",
   repositoryShowcases: "commune_repository_showcases",
+  iterationShowcases: "commune_iteration_showcases",
   sandboxReviews: "commune_sandbox_review_requests",
   reports: "commune_reports",
   media: "commune_media",
@@ -100,6 +133,18 @@ const canonicalCommuneTables = {
 function fallback<T>(data: T, warning = supabaseNotConfiguredMessage) { return { data, warnings: [warning] }; }
 function splitList(value: string) { return value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean); }
 function excerpt(value: string) { return value.replace(/\s+/g, " ").trim().slice(0, 220); }
+function publicHttpUrlOrNull(value?: string | null) {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  try {
+    const url = new URL(text);
+    const host = url.hostname.toLowerCase();
+    const privateHost = host === "localhost" || host.endsWith(".local") || /^(127\.|10\.|0\.0\.0\.0$|192\.168\.|169\.254\.|172\.(1[6-9]|2\d|3[0-1])\.)/.test(host);
+    return ["http:", "https:"].includes(url.protocol) && !privateHost ? url.href : null;
+  } catch {
+    return null;
+  }
+}
 function isModerator(roles: AppRole[], isAdmin: boolean) { return isAdmin || roles.some((role) => ["administrator", "moderator", "commune_moderator", "guardian_reviewer"].includes(role)); }
 function roomSlugCandidates(roomSlug?: string) {
   if (!roomSlug) return [];
@@ -208,6 +253,8 @@ async function publishPostAttachments(postId: string) {
 
 const repositoryShowcaseSelect = "id,user_id,post_id,repository_url,repository_host,project_name,project_summary,provider,default_branch,commit_sha,license,manifest_status,elysia_compatibility,short_description,readme_preview,file_tree_preview,screenshot_notes_or_urls,risk_flags,sandbox_review_requested,sandbox_review_status,sandbox_review_request_id,status,import_source,imported_metadata,imported_at,redaction_notes,created_at,updated_at";
 const repositoryShowcaseFallbackSelect = "id,user_id,post_id,repository_url,repository_host,project_name,project_summary,license,sandbox_review_requested,status,created_at,updated_at";
+const iterationShowcaseSelect = "id,post_id,author_user_id,iteration_type,version_build_label,what_changed,why_it_matters,known_limitations,next_step,related_repo_url,provider,branch,commit_sha,release_tag,pull_request_url,developer_forge_link,marketplace_link,testing_status,compatibility_note,sandbox_review_requested,sandbox_review_status,sandbox_review_request_id,risk_flags,import_source,imported_metadata,imported_at,redaction_notes,status,created_at,updated_at";
+const iterationShowcaseFallbackSelect = "id,post_id,author_user_id,iteration_type,version_build_label,what_changed,why_it_matters,known_limitations,next_step,sandbox_review_requested,status,created_at,updated_at";
 
 function normalizeRepositoryShowcase(row: Partial<RepositoryShowcaseMetadata>): RepositoryShowcaseMetadata {
   return {
@@ -266,6 +313,65 @@ export async function loadRepositoryShowcaseForContext(input: { postId?: string 
   return { showcase: fallback.data ? normalizeRepositoryShowcase(fallback.data as Partial<RepositoryShowcaseMetadata>) : null, warnings: fallback.error ? [friendlyError(fallback.error.message, "Repository Showcase metadata is not active yet.")] : [friendlyError(result.error.message, "Repository Showcase structured metadata is not active yet.")] };
 }
 
+function normalizeIterationShowcase(row: Partial<ElysiaIterationShowcaseMetadata>): ElysiaIterationShowcaseMetadata {
+  return {
+    id: String(row.id ?? ""),
+    post_id: row.post_id ?? null,
+    author_user_id: row.author_user_id ?? null,
+    iteration_type: row.iteration_type ?? null,
+    version_build_label: row.version_build_label ?? null,
+    what_changed: row.what_changed ?? null,
+    why_it_matters: row.why_it_matters ?? null,
+    known_limitations: row.known_limitations ?? null,
+    next_step: row.next_step ?? null,
+    related_repo_url: row.related_repo_url ?? null,
+    provider: row.provider ?? null,
+    branch: row.branch ?? null,
+    commit_sha: row.commit_sha ?? null,
+    release_tag: row.release_tag ?? null,
+    pull_request_url: row.pull_request_url ?? null,
+    developer_forge_link: row.developer_forge_link ?? null,
+    marketplace_link: row.marketplace_link ?? null,
+    testing_status: row.testing_status ?? null,
+    compatibility_note: row.compatibility_note ?? null,
+    sandbox_review_requested: Boolean(row.sandbox_review_requested),
+    sandbox_review_status: row.sandbox_review_status ?? (row.sandbox_review_requested ? "requested" : "not_requested"),
+    sandbox_review_request_id: row.sandbox_review_request_id ?? null,
+    risk_flags: Array.isArray(row.risk_flags) ? row.risk_flags : [],
+    import_source: row.import_source ?? "manual",
+    imported_metadata: row.imported_metadata ?? null,
+    imported_at: row.imported_at ?? null,
+    redaction_notes: row.redaction_notes ?? null,
+    status: row.status ?? null,
+    created_at: row.created_at ?? null,
+    updated_at: row.updated_at ?? null
+  };
+}
+
+async function loadIterationShowcasesForPosts(postIds: string[]): Promise<ElysiaIterationShowcaseMetadata[]> {
+  if (!supabase || !postIds.length) return [];
+  const { data, error } = await supabase.from(canonicalCommuneTables.iterationShowcases).select(iterationShowcaseSelect).in("post_id", postIds);
+  if (!error) return ((data ?? []) as Partial<ElysiaIterationShowcaseMetadata>[]).map(normalizeIterationShowcase).filter((row) => row.id);
+  if (import.meta.env.DEV) console.warn("[Elysia Iteration Showcase structured load]", error.message);
+  const fallback = await supabase.from(canonicalCommuneTables.iterationShowcases).select(iterationShowcaseFallbackSelect).in("post_id", postIds);
+  if (fallback.error) {
+    if (import.meta.env.DEV) console.warn("[Elysia Iteration Showcase fallback load]", fallback.error.message);
+    return [];
+  }
+  return ((fallback.data ?? []) as Partial<ElysiaIterationShowcaseMetadata>[]).map(normalizeIterationShowcase).filter((row) => row.id);
+}
+
+export async function loadIterationShowcaseForContext(input: { postId?: string | null; iterationId?: string | null }): Promise<{ iteration: ElysiaIterationShowcaseMetadata | null; warnings: string[] }> {
+  if (!supabase) return { iteration: null, warnings: [supabaseNotConfiguredMessage] };
+  if (!input.postId && !input.iterationId) return { iteration: null, warnings: [] };
+  const query = supabase.from(canonicalCommuneTables.iterationShowcases).select(iterationShowcaseSelect).limit(1);
+  const result = input.iterationId ? await query.eq("id", input.iterationId).maybeSingle() : await query.eq("post_id", input.postId).maybeSingle();
+  if (!result.error) return { iteration: result.data ? normalizeIterationShowcase(result.data as Partial<ElysiaIterationShowcaseMetadata>) : null, warnings: [] };
+  const fallbackQuery = supabase.from(canonicalCommuneTables.iterationShowcases).select(iterationShowcaseFallbackSelect).limit(1);
+  const fallback = input.iterationId ? await fallbackQuery.eq("id", input.iterationId).maybeSingle() : await fallbackQuery.eq("post_id", input.postId).maybeSingle();
+  return { iteration: fallback.data ? normalizeIterationShowcase(fallback.data as Partial<ElysiaIterationShowcaseMetadata>) : null, warnings: fallback.error ? [friendlyError(fallback.error.message, "Elysia Iteration Showcase metadata is not active yet.")] : [friendlyError(result.error.message, "Elysia Iteration Showcase structured metadata is not active yet.")] };
+}
+
 async function loadPublishedMediaForPosts(postIds: string[]): Promise<CommuneMediaAttachment[]> {
   if (!supabase || !postIds.length) return [];
   const client = supabase;
@@ -299,7 +405,7 @@ export async function loadCategories(): Promise<{ categories: CommuneCategory[];
 
 export async function loadCommuneData(roomSlug?: string, postId?: string): Promise<LoadCommuneData> {
   const account = await accountState();
-  if (!hasSupabaseConfig || !supabase) return { rooms: [], posts: [], comments: [], threads: [], media: [], repositoryShowcases: [], savedPostIds: [], followedThreadIds: [], account, warnings: [supabaseNotConfiguredMessage] };
+  if (!hasSupabaseConfig || !supabase) return { rooms: [], posts: [], comments: [], threads: [], media: [], repositoryShowcases: [], iterationShowcases: [], savedPostIds: [], followedThreadIds: [], account, warnings: [supabaseNotConfiguredMessage] };
   const warnings = [...account.warnings];
   const roomsQuery = supabase.from(canonicalCommuneTables.rooms).select("id, slug, name, description, room_type, requires_moderation").order("name");
   const { data: rooms, error: roomError } = await roomsQuery;
@@ -327,6 +433,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
   if (commentError) warnings.push(commentError.message);
   const media = await loadPublishedMediaForPosts(postIds);
   const repositoryShowcases = await loadRepositoryShowcasesForPosts(postIds);
+  const iterationShowcases = await loadIterationShowcasesForPosts(postIds);
   let savedPostIds: string[] = [];
   let followedThreadIds: string[] = [];
   if (account.userId) {
@@ -337,7 +444,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
     savedPostIds = (saves ?? []).map((row) => row.post_id).filter(Boolean) as string[];
     followedThreadIds = (follows ?? []).map((row) => row.thread_id).filter(Boolean) as string[];
   }
-  return { rooms: (rooms ?? []) as CommuneRoom[], posts: (posts ?? []) as CommunePost[], comments: (comments ?? []) as CommuneComment[], threads: (threads ?? []) as CommuneThread[], media, repositoryShowcases, savedPostIds, followedThreadIds, account, warnings };
+  return { rooms: (rooms ?? []) as CommuneRoom[], posts: (posts ?? []) as CommunePost[], comments: (comments ?? []) as CommuneComment[], threads: (threads ?? []) as CommuneThread[], media, repositoryShowcases, iterationShowcases, savedPostIds, followedThreadIds, account, warnings };
 }
 
 export async function ensureCommuneThreadForPost(post: CommunePost): Promise<{ ok: boolean; thread?: CommuneThread; message: string }> {
@@ -522,7 +629,7 @@ export async function moderateCommuneContentTarget(input: { targetType: CommuneR
   const account = await accountState();
   if (!account.userId || !account.isModerator) return { ok: false, message: "Commune moderation controls require an assigned moderator/admin role." };
   const table = input.targetType === "post" ? canonicalCommuneTables.posts : canonicalCommuneTables.comments;
-  const currentSelect = input.targetType === "post" ? "id,status,visibility,visibility_state,moderation_status" : "id,status,post_id,thread_id,visibility_state";
+  const currentSelect = input.targetType === "post" ? "id,status,post_type,visibility,visibility_state,moderation_status" : "id,status,post_id,thread_id,visibility_state";
   const { data: current, error: currentError } = await supabase.from(table).select(currentSelect).eq("id", input.targetId).maybeSingle();
   if (currentError) return { ok: false, message: friendlyError(currentError.message, "This Commune item could not be loaded for moderation yet.") };
   if (!current) return { ok: false, message: "This Commune item could not be found for moderation." };
@@ -554,6 +661,10 @@ export async function moderateCommuneContentTarget(input: { targetType: CommuneR
       .eq("post_id", input.targetId)
       .in("visibility_state", ["published", "submitted", "flagged"]);
     if (mediaError && import.meta.env.DEV) console.warn("[Commune post media moderation]", mediaError.message);
+    const postType = String((current as { post_type?: string } | null)?.post_type ?? "");
+    const sidecarStatus = input.action === "delete" ? "rejected" : "needs_information";
+    if (postType === "repository_showcase") await supabase.from(canonicalCommuneTables.repositoryShowcases).update({ status: sidecarStatus, updated_at: now }).eq("post_id", input.targetId);
+    if (postType === "elysia_iteration_showcase") await supabase.from(canonicalCommuneTables.iterationShowcases).update({ status: sidecarStatus, updated_at: now }).eq("post_id", input.targetId);
   }
   await supabase.from("commune_moderation_events").insert({
     actor_id: account.userId,
@@ -677,6 +788,179 @@ export async function submitRepositoryShowcase(input: { repositoryUrl: string; p
   return { ok: true, message: adminDirectPublish ? "Repository showcase published as an admin-authored public post. No repository was fetched, cloned, built, or executed." : "Repository showcase submitted as a normal Commune post for moderation. No repository was fetched, cloned, built, or executed.", id, postId, sandboxReviewRequestId };
 }
 
+export async function submitIterationShowcase(input: {
+  title: string;
+  summary: string;
+  body: string;
+  tags: string;
+  links: string;
+  roomId?: string;
+  upload?: File | null;
+  iterationType?: string;
+  versionBuildLabel?: string;
+  whatChanged?: string;
+  whyItMatters?: string;
+  knownLimitations?: string;
+  nextStep?: string;
+  relatedRepoUrl?: string;
+  provider?: string;
+  branch?: string;
+  commitSha?: string;
+  releaseTag?: string;
+  pullRequestUrl?: string;
+  developerForgeLink?: string;
+  marketplaceLink?: string;
+  testingStatus?: string;
+  compatibilityNote?: string;
+  riskFlags?: string[];
+  sandboxRequested?: boolean;
+  importSource?: string;
+  importedMetadata?: Record<string, unknown>;
+  importedAt?: string | null;
+  redactionNotes?: string;
+}): Promise<{ ok: boolean; message: string; id?: string; postId?: string; sandboxReviewRequestId?: string }> {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId) return { ok: false, message: "Sign in to submit Elysia Iteration Showcases." };
+  if (!input.title.trim()) return { ok: false, message: "Add an iteration title before submitting." };
+  const relatedRepoUrl = publicHttpUrlOrNull(input.relatedRepoUrl);
+  if (input.relatedRepoUrl?.trim() && !relatedRepoUrl) return { ok: false, message: "Use a public HTTP(S) related source URL. Localhost, private network, and local repository URLs are not accepted for public iteration metadata." };
+  const pullRequestUrl = publicHttpUrlOrNull(input.pullRequestUrl);
+  if (input.pullRequestUrl?.trim() && !pullRequestUrl) return { ok: false, message: "Use a public HTTP(S) pull request URL or leave it blank." };
+  const developerForgeLink = publicHttpUrlOrNull(input.developerForgeLink);
+  if (input.developerForgeLink?.trim() && !developerForgeLink) return { ok: false, message: "Use a public HTTP(S) Developer Forge link or leave it blank." };
+  const marketplaceLink = publicHttpUrlOrNull(input.marketplaceLink);
+  if (input.marketplaceLink?.trim() && !marketplaceLink) return { ok: false, message: "Use a public HTTP(S) Marketplace link or leave it blank." };
+  if (input.upload) {
+    const media = validateCommuneMediaFile(input.upload);
+    if (!media.ok) return { ok: false, message: media.message };
+  }
+  const riskFlags = Array.from(new Set((input.riskFlags ?? []).map((item) => item.trim()).filter(Boolean)));
+  const secretScan = scanCommuneTextForSecrets([
+    input.title,
+    input.summary,
+    input.body,
+    input.tags,
+    input.links,
+    input.iterationType ?? "",
+    input.versionBuildLabel ?? "",
+    input.whatChanged ?? "",
+    input.whyItMatters ?? "",
+    input.knownLimitations ?? "",
+    input.nextStep ?? "",
+    relatedRepoUrl ?? "",
+    input.provider ?? "",
+    input.branch ?? "",
+    input.commitSha ?? "",
+    input.releaseTag ?? "",
+    pullRequestUrl ?? "",
+    developerForgeLink ?? "",
+    marketplaceLink ?? "",
+    input.testingStatus ?? "",
+    input.compatibilityNote ?? "",
+    riskFlags.join("\n"),
+    input.redactionNotes ?? "",
+    JSON.stringify(input.importedMetadata ?? {})
+  ].join("\n"));
+  if (secretScan.blocked) return { ok: false, message: "Elysia Iteration Showcase blocked because it appears to contain private or secret material: " + secretScan.warnings.join(", ") + ". Remove it before submitting." };
+
+  const now = new Date().toISOString();
+  const postId = crypto.randomUUID();
+  const adminDirectPublish = account.isAdmin;
+  const links = splitList(input.links);
+  if (relatedRepoUrl && !links.includes(relatedRepoUrl)) links.push(relatedRepoUrl);
+  const { error: postError } = await supabase.from(canonicalCommuneTables.posts).insert({
+    id: postId,
+    user_id: account.userId,
+    author_username: account.username,
+    post_type: "elysia_iteration_showcase",
+    title: input.title.trim(),
+    body: input.body.trim(),
+    excerpt: excerpt(input.summary || input.body),
+    tags: parseCommuneTags(input.tags),
+    links,
+    repository_url: relatedRepoUrl,
+    status: adminDirectPublish ? "published" : "pending_review",
+    moderation_status: adminDirectPublish ? "approved" : "pending_review",
+    published_at: adminDirectPublish ? now : null,
+    safety_acknowledgements: { public_boundary: true, no_secrets: true, no_execution: true, iteration_progress_only: true, not_official_update: true, marketplace_separate: true }
+  });
+  if (postError) return { ok: false, message: friendlyError(postError.message, "This Elysia Iteration Showcase post is blocked by the current database policy. If you are signed in, the Commune room post/admin publishing policy may need to be applied.") };
+  const { data: thread } = await supabase.from(canonicalCommuneTables.threads).insert({ post_id: postId, room_id: input.roomId || null, title: input.title.trim(), created_by: account.userId, visibility: "public" }).select("id").single();
+  const threadId = (thread as { id?: string } | null)?.id ?? null;
+  if (adminDirectPublish) {
+    await grantThreadParticipationApproval({ threadId, postId, userId: account.userId, approvedBy: account.userId, source: "admin_direct_iteration_showcase" });
+    await recordCommuneGovernanceEvent({ actorId: account.userId, targetType: "post", targetId: postId, action: "admin_post_published", fromStatus: "draft", toStatus: "published", metadata: { post_type: "elysia_iteration_showcase", review_item_created: false } });
+  }
+  const structuredPayload = {
+    post_id: postId,
+    author_user_id: account.userId,
+    iteration_type: input.iterationType || null,
+    version_build_label: input.versionBuildLabel || null,
+    what_changed: input.whatChanged || null,
+    why_it_matters: input.whyItMatters || null,
+    known_limitations: input.knownLimitations || null,
+    next_step: input.nextStep || null,
+    related_repo_url: relatedRepoUrl,
+    provider: input.provider || (relatedRepoUrl ? new URL(relatedRepoUrl).hostname : null),
+    branch: input.branch || null,
+    commit_sha: input.commitSha || null,
+    release_tag: input.releaseTag || null,
+    pull_request_url: pullRequestUrl,
+    developer_forge_link: developerForgeLink,
+    marketplace_link: marketplaceLink,
+    testing_status: input.testingStatus || "not_tested",
+    compatibility_note: input.compatibilityNote || null,
+    sandbox_review_requested: Boolean(input.sandboxRequested),
+    sandbox_review_status: input.sandboxRequested ? "requested" : "not_requested",
+    risk_flags: riskFlags,
+    import_source: input.importSource || "manual",
+    imported_metadata: input.importedMetadata ?? {},
+    imported_at: input.importedAt || null,
+    redaction_notes: input.redactionNotes || null,
+    status: adminDirectPublish ? "approved" : "pending_review"
+  };
+  const { data, error: iterationError } = await supabase.from(canonicalCommuneTables.iterationShowcases).insert(structuredPayload).select("id").single();
+  if (iterationError) return { ok: false, message: friendlyError(iterationError.message, "Post saved, but Elysia Iteration Showcase structured metadata is not active yet. Apply the structured metadata migration, then resubmit.") };
+  const id = (data as { id: string }).id;
+  if (input.upload) {
+    const upload = await uploadCommuneAttachment(input.upload, { postId, role: "iteration_showcase_attachment", publishImmediately: adminDirectPublish });
+    if (!upload.ok) return { ok: false, message: `${adminDirectPublish ? "Iteration showcase published directly" : "Iteration showcase saved for review"}, but upload failed: ${upload.message}` };
+  }
+  if (adminDirectPublish) await publishPostAttachments(postId);
+  let sandboxReviewRequestId: string | undefined;
+  if (adminDirectPublish) {
+    await createReviewHistoryItem({ domain: "commune", sourceTable: "commune_posts", sourceId: postId, submittedBy: account.userId, title: input.title, summary: "Admin-published Elysia Iteration Showcase. Public progress/demo context only; not official release, Marketplace, Developer Forge, security, or compatibility approval.", status: "approved", eventType: "admin_iteration_showcase_direct_published", metadata: { iteration_showcase_id: id, related_repo_url: relatedRepoUrl } });
+  } else {
+    await createReviewItem({ domain: "commune", sourceTable: "commune_posts", sourceId: postId, submittedBy: account.userId, title: input.title, summary: "Elysia Iteration Showcase post. Public progress/demo context only; not official release or approval." });
+    await createReviewItem({ domain: "commune", sourceTable: canonicalCommuneTables.iterationShowcases, sourceId: id, submittedBy: account.userId, title: input.title, summary: "Structured Elysia Iteration Showcase metadata awaiting review." });
+  }
+  if (input.sandboxRequested) {
+    const sandbox = await submitSandboxReview({
+      requestTitle: "Elysia iteration selected artifact review: " + input.title,
+      repositoryUrl: relatedRepoUrl ?? undefined,
+      postId,
+      scope: "Selected artifact/snippet/config/manifest review only. The full repository is not cloned, installed, built, tested, trusted, certified, or executed.",
+      riskNotes: [input.knownLimitations, "Iteration Showcase requested bounded artifact review. This is not Official Update, Developer Forge approval, Marketplace readiness, security certification, compatibility proof, or installability."].filter(Boolean).join("\n"),
+      permissions: []
+    });
+    if (sandbox.ok) {
+      sandboxReviewRequestId = sandbox.id;
+      await supabase.from(canonicalCommuneTables.iterationShowcases).update({ sandbox_review_status: "requested", sandbox_review_request_id: sandbox.id ?? null, updated_at: new Date().toISOString() }).eq("id", id);
+    }
+  }
+  await supabase.from("user_notifications").insert({
+    user_id: account.userId,
+    notification_type: adminDirectPublish ? "iteration_showcase_published" : "iteration_showcase_submitted",
+    source_type: "commune_iteration_showcases",
+    source_id: id,
+    title: adminDirectPublish ? "Elysia Iteration Showcase published" : "Elysia Iteration Showcase submitted",
+    body: adminDirectPublish ? "Your iteration is public progress context. It is not an official release, approval, trust, or Marketplace readiness signal." : "Your iteration showcase is pending review. It is not public until approved.",
+    action_url: "/commune/posts/" + postId
+  });
+  return { ok: true, message: adminDirectPublish ? "Elysia Iteration Showcase published as an admin-authored public progress post. It is not an official release, approval, compatibility proof, or Marketplace readiness signal." : "Elysia Iteration Showcase submitted as a normal Commune post for moderation. It is not public until approved.", id, postId, sandboxReviewRequestId };
+}
+
 export async function submitSandboxReview(input: { requestTitle: string; repositoryUrl?: string; packageUrl?: string; repositoryShowcaseId?: string; postId?: string; scope: string; riskNotes: string; permissions: string[] }): Promise<{ ok: boolean; message: string; id?: string }> {
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
@@ -688,6 +972,34 @@ export async function submitSandboxReview(input: { requestTitle: string; reposit
   const id = (data as { id: string }).id;
   await createReviewItem({ domain: "commune", sourceTable: "commune_sandbox_review_requests", sourceId: id, submittedBy: account.userId, title: input.requestTitle, summary: "Sandbox review request only. The website does not execute submitted code." });
   return { ok: true, message: "Sandbox review request saved for moderators. This is not execution permission.", id };
+}
+
+export async function requestIterationShowcaseSandboxReview(input: {
+  iterationId?: string | null;
+  postId?: string | null;
+  title: string;
+  relatedRepoUrl?: string | null;
+  artifactFileName?: string | null;
+  artifactNote?: string | null;
+  knownLimitations?: string | null;
+}): Promise<{ ok: boolean; message: string; id?: string }> {
+  const result = await submitSandboxReview({
+    requestTitle: "Elysia iteration selected artifact review: " + (input.title.trim() || input.artifactFileName || "selected artifact"),
+    repositoryUrl: input.relatedRepoUrl || undefined,
+    postId: input.postId || undefined,
+    scope: "Selected artifact/snippet/config/manifest review only. No full repository clone, install, build, shell, dependency install, network behavior, production readiness, Developer Forge approval, or Marketplace readiness is requested.",
+    riskNotes: [input.artifactNote, input.knownLimitations, "Artifact: " + (input.artifactFileName || "unnamed selected artifact"), "Elysia Iteration Showcase progress context only. This is not an Official Update, compatibility proof, installability claim, security certification, or trust label."].filter(Boolean).join("\n"),
+    permissions: []
+  });
+  if (!result.ok || !supabase || !input.iterationId) return result;
+  const { error } = await supabase.from(canonicalCommuneTables.iterationShowcases).update({
+    sandbox_review_requested: true,
+    sandbox_review_status: "requested",
+    sandbox_review_request_id: result.id ?? null,
+    updated_at: new Date().toISOString()
+  }).eq("id", input.iterationId);
+  if (error) return { ...result, message: `${result.message} The request was saved, but the Elysia Iteration Showcase metadata row could not be linked yet: ${friendlyError(error.message, "Apply the structured metadata migration, then reopen the request from the post.")}` };
+  return { ...result, message: "Elysia Iteration Showcase selected-artifact sandbox review request saved. This does not run, trust, certify, approve, or publish the full iteration." };
 }
 
 export async function reportCommuneContent(input: { postId?: string; commentId?: string; reportType: string; reason: string; profileUsername?: string }): Promise<{ ok: boolean; message: string }> {
@@ -751,7 +1063,7 @@ export async function loadCodeSnippets(postId: string): Promise<{ snippets: Comm
 
 export async function recordCodingSandboxRunResult(input: {
   snapshotId: string;
-  sourceType: "commune_post_snippet" | "commune_code_document" | "commune_code_version" | "repository_showcase_artifact";
+  sourceType: "commune_post_snippet" | "commune_code_document" | "commune_code_version" | "repository_showcase_artifact" | "iteration_showcase_artifact";
   sourceId?: string | null;
   postId?: string | null;
   codeDocumentId?: string | null;
@@ -797,20 +1109,22 @@ export async function loadCommuneModerationQueue(): Promise<{ items: CommuneMode
   const account = await accountState();
   if (!account.isModerator) return { items: [], warnings: ["Commune moderation requires administrator, moderator, commune_moderator, or guardian_reviewer role."] };
   const warnings: string[] = [];
-  const [posts, comments, uploads, repos, sandboxes, reports] = await Promise.all([
+  const [posts, comments, uploads, repos, iterations, sandboxes, reports] = await Promise.all([
     supabase.from("commune_posts").select("id,title,status,created_at,excerpt").in("status", ["pending_review", "in_review", "needs_information", "hidden"]).order("created_at", { ascending: false }).limit(30),
     supabase.from("commune_comments").select("id,body,status,created_at").in("status", ["pending_review", "hidden"]).order("created_at", { ascending: false }).limit(30),
     supabase.from(canonicalCommuneTables.media).select("id,file_name,visibility_state,created_at").in("visibility_state", ["submitted", "flagged", "hidden"]).order("created_at", { ascending: false }).limit(30),
     supabase.from(canonicalCommuneTables.repositoryShowcases).select("id,project_name,status,created_at,project_summary").in("status", ["pending_review", "in_review", "needs_information"]).order("created_at", { ascending: false }).limit(30),
+    supabase.from(canonicalCommuneTables.iterationShowcases).select("id,post_id,iteration_type,version_build_label,status,created_at,what_changed").in("status", ["pending_review", "in_review", "needs_information"]).order("created_at", { ascending: false }).limit(30),
     supabase.from(canonicalCommuneTables.sandboxReviews).select("id,request_title,status,created_at,risk_notes").in("status", ["requested", "in_review", "needs_information"]).order("created_at", { ascending: false }).limit(30),
     supabase.from(canonicalCommuneTables.legacyReports).select("id,report_type,status,created_at,report_reason").in("status", ["pending_review", "in_review", "escalated"]).order("created_at", { ascending: false }).limit(30)
   ]);
-  for (const result of [posts, comments, uploads, repos, sandboxes, reports]) if (result.error) warnings.push(result.error.message);
+  for (const result of [posts, comments, uploads, repos, iterations, sandboxes, reports]) if (result.error) warnings.push(result.error.message);
   const items: CommuneModerationItem[] = [
     ...((posts.data ?? []) as Array<{ id: string; title: string; status: string; created_at?: string; excerpt?: string }>).map((row) => ({ id: row.id, kind: "post" as const, title: row.title, status: row.status, created_at: row.created_at, summary: row.excerpt })),
     ...((comments.data ?? []) as Array<{ id: string; body: string; status: string; created_at?: string }>).map((row) => ({ id: row.id, kind: "comment" as const, title: "Comment", status: row.status, created_at: row.created_at, summary: excerpt(row.body) })),
     ...((uploads.data ?? []) as Array<{ id: string; file_name: string; visibility_state: string; created_at?: string }>).map((row) => ({ id: row.id, kind: "upload" as const, title: row.file_name, status: row.visibility_state, created_at: row.created_at })),
     ...((repos.data ?? []) as Array<{ id: string; project_name: string; status: string; created_at?: string; project_summary?: string }>).map((row) => ({ id: row.id, kind: "repo" as const, title: row.project_name, status: row.status, created_at: row.created_at, summary: row.project_summary })),
+    ...((iterations.data ?? []) as Array<{ id: string; post_id?: string; iteration_type?: string; version_build_label?: string; status: string; created_at?: string; what_changed?: string }>).map((row) => ({ id: row.id, kind: "iteration" as const, title: ["Elysia Iteration Showcase", row.iteration_type, row.version_build_label].filter(Boolean).join(" · "), status: row.status, created_at: row.created_at, summary: row.what_changed })),
     ...((sandboxes.data ?? []) as Array<{ id: string; request_title: string; status: string; created_at?: string; risk_notes?: string }>).map((row) => ({ id: row.id, kind: "sandbox" as const, title: row.request_title, status: row.status, created_at: row.created_at, summary: row.risk_notes })),
     ...((reports.data ?? []) as Array<{ id: string; report_type: string; status: string; created_at?: string; report_reason?: string }>).map((row) => ({ id: row.id, kind: "report" as const, title: row.report_type, status: row.status, created_at: row.created_at, summary: row.report_reason }))
   ];
@@ -822,12 +1136,12 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
   const account = await accountState();
   if (!account.userId || !account.isModerator) return { ok: false, message: "Commune moderation requires an assigned moderator/admin role." };
   const now = new Date().toISOString();
-  const table = item.kind === "post" ? canonicalCommuneTables.posts : item.kind === "comment" ? canonicalCommuneTables.comments : item.kind === "upload" ? canonicalCommuneTables.media : item.kind === "repo" ? canonicalCommuneTables.repositoryShowcases : item.kind === "sandbox" ? canonicalCommuneTables.sandboxReviews : canonicalCommuneTables.legacyReports;
-  const ownerSelect = item.kind === "post" ? "user_id,title,post_type" : item.kind === "comment" ? "user_id,body,post_id,thread_id" : item.kind === "repo" ? "user_id,project_name,post_id" : item.kind === "sandbox" ? "user_id,request_title" : item.kind === "upload" ? "owner_user_id,file_name,post_id" : "reporter_user_id,report_type";
+  const table = item.kind === "post" ? canonicalCommuneTables.posts : item.kind === "comment" ? canonicalCommuneTables.comments : item.kind === "upload" ? canonicalCommuneTables.media : item.kind === "repo" ? canonicalCommuneTables.repositoryShowcases : item.kind === "iteration" ? canonicalCommuneTables.iterationShowcases : item.kind === "sandbox" ? canonicalCommuneTables.sandboxReviews : canonicalCommuneTables.legacyReports;
+  const ownerSelect = item.kind === "post" ? "user_id,title,post_type" : item.kind === "comment" ? "user_id,body,post_id,thread_id" : item.kind === "repo" ? "user_id,project_name,post_id" : item.kind === "iteration" ? "author_user_id,iteration_type,version_build_label,post_id" : item.kind === "sandbox" ? "user_id,request_title" : item.kind === "upload" ? "owner_user_id,file_name,post_id" : "reporter_user_id,report_type";
   const ownerResult = await supabase.from(table).select(ownerSelect).eq("id", item.id).maybeSingle();
   const ownerRow = (ownerResult.data ?? {}) as Record<string, unknown>;
-  const targetUserId = String(ownerRow.user_id ?? ownerRow.owner_user_id ?? ownerRow.reporter_user_id ?? "");
-  const notificationTitle = String(ownerRow.title ?? ownerRow.project_name ?? ownerRow.request_title ?? ownerRow.file_name ?? ownerRow.report_type ?? item.title);
+  const targetUserId = String(ownerRow.user_id ?? ownerRow.author_user_id ?? ownerRow.owner_user_id ?? ownerRow.reporter_user_id ?? "");
+  const notificationTitle = String(ownerRow.title ?? ownerRow.project_name ?? ownerRow.iteration_type ?? ownerRow.request_title ?? ownerRow.file_name ?? ownerRow.report_type ?? item.title);
   const postId = String(ownerRow.post_id ?? (item.kind === "post" ? item.id : ""));
   const update: Record<string, unknown> = {};
   if (item.kind === "post") {
@@ -849,6 +1163,9 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
   } else if (item.kind === "repo") {
     update.updated_at = now;
     update.status = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "hide" ? "rejected" : action === "archive" ? "archived" : action === "escalate" ? "in_review" : "needs_information";
+  } else if (item.kind === "iteration") {
+    update.updated_at = now;
+    update.status = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "hide" ? "rejected" : action === "archive" ? "archived" : action === "escalate" ? "in_review" : "needs_information";
   } else if (item.kind === "sandbox") {
     update.updated_at = now;
     update.status = action === "approve" ? "approved_for_local_sandbox" : action === "reject" ? "rejected" : action === "archive" ? "archived" : action === "escalate" ? "in_review" : "needs_information";
@@ -864,7 +1181,11 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
     const repoStatus = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "hide" ? "rejected" : action === "archive" ? "archived" : action === "escalate" ? "in_review" : "needs_information";
     await supabase.from(canonicalCommuneTables.repositoryShowcases).update({ status: repoStatus, updated_at: now }).eq("post_id", item.id);
   }
-  if (item.kind === "repo" && postId) {
+  if (item.kind === "post" && ownerRow.post_type === "elysia_iteration_showcase") {
+    const iterationStatus = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "hide" ? "rejected" : action === "archive" ? "archived" : action === "escalate" ? "in_review" : "needs_information";
+    await supabase.from(canonicalCommuneTables.iterationShowcases).update({ status: iterationStatus, updated_at: now }).eq("post_id", item.id);
+  }
+  if ((item.kind === "repo" || item.kind === "iteration") && postId) {
     const linkedPostUpdate: Record<string, unknown> = { updated_at: now };
     linkedPostUpdate.status = action === "approve" ? "published" : action === "reject" ? "removed_by_moderator" : action === "hide" ? "hidden" : action === "archive" ? "archived" : "needs_information";
     linkedPostUpdate.moderation_status = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "hide" ? "hidden" : action === "archive" ? "archived" : "needs_information";
@@ -875,7 +1196,7 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
     } else {
       linkedPostUpdate.moderation_reason = reason || null;
     }
-    await supabase.from(canonicalCommuneTables.posts).update(linkedPostUpdate).eq("id", postId).eq("post_type", "repository_showcase");
+    await supabase.from(canonicalCommuneTables.posts).update(linkedPostUpdate).eq("id", postId).eq("post_type", item.kind === "repo" ? "repository_showcase" : "elysia_iteration_showcase");
     const linkedReview = await supabase.from("review_items").select("id,status").eq("domain", "commune").eq("source_table", canonicalCommuneTables.posts).eq("source_id", postId).maybeSingle();
     if (!linkedReview.error && linkedReview.data) {
       const linkedReviewStatus = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "needs_information" ? "needs_information" : action === "archive" ? "archived" : "in_review";
@@ -896,9 +1217,9 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
       await grantThreadParticipationApproval({ threadId: (threadRow as { id?: string } | null)?.id ?? null, postId: item.id, userId: targetUserId, approvedBy: account.userId, source: "post_approval" });
       await publishPostAttachments(item.id);
     }
-    if (item.kind === "repo" && postId) {
+    if ((item.kind === "repo" || item.kind === "iteration") && postId) {
       const { data: threadRow } = await supabase.from(canonicalCommuneTables.threads).select("id").eq("post_id", postId).maybeSingle();
-      await grantThreadParticipationApproval({ threadId: (threadRow as { id?: string } | null)?.id ?? null, postId, userId: targetUserId, approvedBy: account.userId, source: "repository_showcase_approval" });
+      await grantThreadParticipationApproval({ threadId: (threadRow as { id?: string } | null)?.id ?? null, postId, userId: targetUserId, approvedBy: account.userId, source: item.kind === "repo" ? "repository_showcase_approval" : "iteration_showcase_approval" });
       await publishPostAttachments(postId);
     }
     if (item.kind === "comment") {

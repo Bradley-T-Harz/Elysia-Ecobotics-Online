@@ -108,6 +108,7 @@ export default function App() {
             <Route path="commune/repository-showcase" element={<CommunePage />} />
             <Route path="commune/repository-showcase/new" element={<CommunePage />} />
             <Route path="commune/repository-showcase/sandbox-request" element={<CommunePage />} />
+            <Route path="commune/elysia-iteration-showcase/sandbox-request" element={<CommunePage />} />
             <Route path="commune/troubleshooting" element={<CommunePage />} />
             <Route path="commune/troubleshooting-grove/review" element={<CommunePage />} />
             <Route path="commune/troubleshooting-grove/sandbox-request" element={<CommunePage />} />
