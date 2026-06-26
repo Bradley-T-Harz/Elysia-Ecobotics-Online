@@ -47,21 +47,29 @@ const publishedMediaDisplayPolicyMigration = await read("supabase/migrations/202
 const codingRunsMigration = await read("supabase/migrations/2026_06_24_coding_cornucopia_runs_and_diagnostics.sql");
 const codeProposalMigration = await read("supabase/migrations/2026_06_25_coding_cornucopia_author_revision_proposals.sql");
 const runResultRecordingMigration = await read("supabase/migrations/2026_06_25_coding_cornucopia_run_result_recording.sql");
+const repositoryMetadataMigration = await read("supabase/migrations/2026_06_26_repository_showcase_structured_metadata.sql");
+const repositoryPolicyDoc = await read("docs/commune/repo-showcase-policy.md");
+const repositoryBoundaryDoc = await read("docs/security/repository-showcase-boundary.md");
+const repositoryContractDoc = await read("docs/api/repository-showcase-contract.md");
 const communeCommentSchemaCoverage = `${migration}\n${commentDirectPublishMigration}\n${commentSchemaRepairMigration}\n${commentNotificationRepairMigration}`;
 const styles = await read("src/styles.css");
 
-for (const route of ["/commune", "commune/new", "commune/:roomSlug", "commune/:roomSlug/new", "commune/repository-showcase", "commune/repository-showcase/new", "commune/troubleshooting", "commune/troubleshooting-grove/review", "commune/troubleshooting-grove/sandbox-request", "commune/sandbox-review", "commune/coding-cornucopia/review", "commune/coding-cornucopia/sandbox-request", "commune/code-sharing/review", "commune/code-sharing/sandbox-request", "commune/realtime", "commune/moderation"]) {
+for (const route of ["/commune", "commune/new", "commune/:roomSlug", "commune/:roomSlug/new", "commune/repository-showcase", "commune/repository-showcase/new", "commune/repository-showcase/sandbox-request", "commune/troubleshooting", "commune/troubleshooting-grove/review", "commune/troubleshooting-grove/sandbox-request", "commune/sandbox-review", "commune/coding-cornucopia/review", "commune/coding-cornucopia/sandbox-request", "commune/code-sharing/review", "commune/code-sharing/sandbox-request", "commune/realtime", "commune/moderation"]) {
   assert(app.includes(route.replace(/^\//, "")) || app.includes(route), `Missing Commune route: ${route}`);
 }
 assert(app.includes('path="commons-circle/signals"'), "Signal Console route missing.");
 assert(commonsApi.includes("loadSignalConsole") && commonsApi.includes("codeProposalCount"), "Commons Circle Signal Console loader should expose proposal signal counts.");
+assert(commonsApi.includes("RepositoryShowcaseSignalPreview") && commonsApi.includes("commune_repository_showcases") && commonsApi.includes("repositoryShowcaseActivity"), "Signal Console should load direct Repository Showcase activity records.");
+assert(commonsApi.includes("repositoryShowcasesNeedingReview") && commonsApi.includes("repositorySandboxActivity") && commonsApi.includes("/commune/repository-showcase/sandbox-request?"), "Signal Console should split Repository Showcase review and selected-artifact sandbox activity.");
 assert(commonsApi.includes("commune_code_revision_proposals") && commonsApi.includes("original_author_user_id.eq") && commonsApi.includes("proposer_user_id.eq"), "Signal Console should load direct Coding Cornucopia proposal records for both authors and proposers.");
 assert(commonsApi.includes("needsMyReview") && commonsApi.includes("mySubmittedProposals") && commonsApi.includes("codeProposalActivity"), "Signal Console loader should split direct proposal activity into review and submitted sections.");
-assert(commonsApi.includes("source_room") && commonsApi.includes("troubleshooting_grove") && commonsApi.includes("/commune/troubleshooting-grove/review") && commonsApi.includes("?proposal=${proposal.id}"), "Signal Console should distinguish Troubleshooting Grove proposed fixes from Coding Cornucopia revisions.");
+assert(commonsApi.includes("source_room") && commonsApi.includes("troubleshooting_grove") && commonsApi.includes("/commune/troubleshooting-grove/review") && commonsApi.includes("?proposal="), "Signal Console should distinguish Troubleshooting Grove proposed fixes from Coding Cornucopia revisions.");
 assert(signalConsolePage.includes("Signal Console") && signalConsolePage.includes("Coding Cornucopia proposals"), "Signal Console page should prioritize Coding Cornucopia proposal signals.");
+assert(signalConsolePage.includes("Repository Showcase activity") && signalConsolePage.includes("My repository showcases") && signalConsolePage.includes("Repository showcases needing review"), "Signal Console should render Repository Showcase activity sections.");
+assert(signalConsolePage.includes("Selected-artifact sandbox review") && signalConsolePage.includes("does not clone, install, build, trust, approve"), "Signal Console should preserve Repository Showcase sandbox boundary copy.");
 assert(signalConsolePage.includes("Troubleshooting Grove proposed fix") && signalConsolePage.includes("Open proposed fix workbench"), "Signal Console should label troubleshooting proposed fixes distinctly.");
 assert(signalConsolePage.includes("Needs my review") && signalConsolePage.includes("My submitted proposals") && signalConsolePage.includes("Recent Coding Cornucopia proposal activity"), "Signal Console should distinguish direct proposal activity sections.");
-assert(commonsApi.includes("/commune/coding-cornucopia/review") && commonsApi.includes("?proposal=${proposal.id}") && signalConsolePage.includes("Open proposal in Coding Workbench"), "Signal Console proposal cards should link to the Coding Cornucopia proposal workbench.");
+assert(commonsApi.includes("/commune/coding-cornucopia/review") && commonsApi.includes("?proposal=") && signalConsolePage.includes("Open proposal in Coding Workbench"), "Signal Console proposal cards should link to the Coding Cornucopia proposal workbench.");
 assert(signalConsolePage.includes("same-user testing proposals") && signalConsolePage.includes("No notification rows yet"), "Signal Console should explain proposal fallback when user_notifications rows are absent.");
 assert(signalConsolePage.includes("Author approval boundary") && signalConsolePage.includes("public code changes only after the original post author accepts"), "Signal Console should preserve author approval doctrine.");
 assert(signalConsolePage.includes("Sandbox diagnostics are evidence for review"), "Signal Console should preserve sandbox-is-not-approval doctrine.");
@@ -80,7 +88,7 @@ for (const roomName of requiredLobbyRooms) {
   roomCursor = nextRoom;
 }
 
-for (const anchor of ["commune-lobby", "commune-search", "commune-feed", "commune-rooms", "commune-post-composer", "commune-repository-showcase", "commune-sandbox-review", "commune-code-review", "commune-local-drafts"]) {
+for (const anchor of ["commune-lobby", "commune-search", "commune-feed", "commune-rooms", "commune-post-composer", "commune-repository-showcase", "commune-repository-showcase-sandbox-request", "commune-sandbox-review", "commune-code-review", "commune-local-drafts"]) {
   assert(page.includes(anchor), `Missing Commune anchor: ${anchor}`);
 }
 
@@ -226,6 +234,20 @@ assert(accountApi.includes("Official Updates are restricted to authorized admini
 assert(accountApi.includes('post_type: "repository_showcase"'), "Repository Showcase should create/link a normal Commune post.");
 assert(accountApi.includes("Repository showcase submitted as a normal Commune post for moderation"), "Repository Showcase should enter the normal Commune moderation flow.");
 assert(accountApi.includes("repository_metadata_only"), "Repository Showcase post safety acknowledgements should preserve metadata-only boundaries.");
+assert(app.includes('path="commune/repository-showcase/sandbox-request"'), "Repository Showcase selected-artifact sandbox request route missing.");
+assert(page.includes("Import public GitHub metadata") && page.includes("Local showcase manifest import/export") && page.includes("Preview export JSON in import box"), "Repository Showcase should support public GitHub metadata import and local manifest import/export UI.");
+assert(page.includes("RepositoryShowcaseDetail") && page.includes("Repository Showcase detail") && page.includes("Repository trust boundary"), "Repository Showcase public post detail should render structured metadata.");
+assert(page.includes("RepositoryShowcaseSandboxRequestPanel") && page.includes("Review a selected artifact, not the whole repository") && page.includes('sourceType="repository_showcase_artifact"'), "Repository Showcase selected-artifact sandbox review route/panel missing.");
+assert(page.includes("Developer Forge and Marketplace approval remain separate") && page.includes("The site did not clone, build, install, or run"), "Repository Showcase UI must preserve metadata-only and Marketplace boundary copy.");
+for (const column of ["provider", "default_branch", "commit_sha", "manifest_status", "elysia_compatibility", "readme_preview", "file_tree_preview", "risk_flags", "sandbox_review_request_id", "imported_metadata", "redaction_notes"]) {
+  assert(accountApi.includes(column), "Repository Showcase structured submit/load field missing: " + column);
+}
+assert(accountApi.includes('ownerRow.post_type === "repository_showcase"') && accountApi.includes('item.kind === "repo" && postId'), "Repository Showcase moderation should keep linked post/repo state consistent.");
+assert(repositoryMetadataMigration.includes("public reads published repository showcase metadata") && repositoryMetadataMigration.includes("readme_preview") && repositoryMetadataMigration.includes("sandbox_review_request_id"), "Repository Showcase structured metadata migration missing public read policy or structured columns.");
+assert(repositoryMetadataMigration.includes("grant select on table public.commune_repository_showcases to anon") && repositoryMetadataMigration.includes("Selected-artifact sandbox review status only"), "Repository Showcase migration should expose only published metadata and preserve selected-artifact boundary.");
+assert(repositoryPolicyDoc.includes("Public GitHub import is metadata assistance only") && repositoryPolicyDoc.includes("Local showcase manifest import") && repositoryPolicyDoc.includes("selected-artifact only"), "Repository Showcase policy doc missing import/sandbox boundary.");
+assert(repositoryBoundaryDoc.includes("no whole-repository clone") && repositoryBoundaryDoc.includes("no shell execution from Repository Showcase"), "Repository Showcase security boundary doc missing clone/shell prohibitions.");
+assert(repositoryContractDoc.includes("commune_repository_showcases metadata row") && repositoryContractDoc.includes("Signal Console may show direct commune_repository_showcases activity"), "Repository Showcase API contract doc missing structured row/signal contract.");
 assert(accountApi.includes("review_item_created: false"), "Admin direct Commune publish should record that no self-review item was created.");
 assert(accountApi.includes("admin_post_published") && accountApi.includes("admin_comment_published"), "Admin direct Commune actions should remain auditable.");
 assert(accountApi.includes("admin_post_direct_published"), "Admin direct Commune room posts should create History/All records.");

@@ -3,6 +3,7 @@ import type { LivingLibrarySource } from "../The-Living-Library/livingLibrarySou
 import type { FeaturedPublicLink, MarketplaceProfile } from "../The-Elysia-Marketplace/types";
 import { loadCurrentProfile } from "../The-Elysia-Marketplace/lib/marketplaceApi";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
+import { canReviewDomain, loadCurrentRoleState } from "../../shared/review/reviewClient";
 
 export type ProfileWithSetup = MarketplaceProfile & {
   commons_onboarding_completed_at?: string | null;
@@ -75,6 +76,20 @@ export type CodeProposalSignalPreview = {
   source_room: "coding_cornucopia" | "troubleshooting_grove";
   post_title?: string | null;
 };
+export type RepositoryShowcaseSignalPreview = {
+  id: string;
+  post_id?: string | null;
+  repository_url?: string | null;
+  project_name?: string | null;
+  status?: string | null;
+  sandbox_review_requested?: boolean | null;
+  sandbox_review_status?: string | null;
+  sandbox_review_request_id?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  action_url: string;
+  role_context: "owner" | "reviewer" | "sandbox";
+};
 export type BadgeDefinition = { badge_key: string; name: string; description: string; badge_type: string; category?: string | null; rarity: string; is_active?: boolean; icon_path?: string | null; tags?: string[]; authority?: boolean; authority_linked?: boolean | null; award_mode?: string | null; rule_summary?: string | null; is_manual_only?: boolean | null; sort_order?: number | null; note?: string; default_status?: string };
 export type BadgeAwardRow = { badge_key: string; awarded_at?: string | null; award_reason?: string | null; award_source?: string | null; evidence_type?: string | null; evidence_id?: string | null; visibility?: "public" | "private" | null; revoked_at?: string | null };
 export type UserBadge = BadgeDefinition & BadgeAwardRow & { visibility?: "public" | "private" | null; earned: true };
@@ -122,8 +137,13 @@ export type SignalConsoleData = {
   codeProposalActivity: CodeProposalSignalPreview[];
   needsMyReview: CodeProposalSignalPreview[];
   mySubmittedProposals: CodeProposalSignalPreview[];
+  repositoryShowcaseActivity: RepositoryShowcaseSignalPreview[];
+  myRepositoryShowcases: RepositoryShowcaseSignalPreview[];
+  repositoryShowcasesNeedingReview: RepositoryShowcaseSignalPreview[];
+  repositorySandboxActivity: RepositoryShowcaseSignalPreview[];
   unreadCount: number;
   codeProposalCount: number;
+  repositoryShowcaseCount: number;
 };
 
 export type PublicCommonsProfile = {
@@ -296,7 +316,9 @@ const tableReadinessLabels: Record<string, string> = {
   "Saved add-ons": "No account-backed Marketplace saves yet.",
   "Public profile fields": "Optional public profile fields are not active yet.",
   "Coding Cornucopia proposal activity": "Coding Cornucopia proposal activity is not configured yet.",
-  "Coding Cornucopia proposal posts": "Coding Cornucopia proposal post details are not configured yet."
+  "Coding Cornucopia proposal posts": "Coding Cornucopia proposal post details are not configured yet.",
+  "Repository Showcase activity": "Repository Showcase activity is not configured yet.",
+  "Repository Showcase review activity": "Repository Showcase review activity is not configured yet."
 };
 
 function logBackendDetail(label: string, message: string) {
@@ -510,12 +532,13 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
 
 export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const warnings: string[] = [];
-  if (!hasSupabaseConfig || !supabase) return { signedIn: false, supabaseConfigured: false, userId: null, warnings: [supabaseNotConfiguredMessage], signals: [], codeProposalActivity: [], needsMyReview: [], mySubmittedProposals: [], unreadCount: 0, codeProposalCount: 0 };
+  const empty = { signals: [], codeProposalActivity: [], needsMyReview: [], mySubmittedProposals: [], repositoryShowcaseActivity: [], myRepositoryShowcases: [], repositoryShowcasesNeedingReview: [], repositorySandboxActivity: [], unreadCount: 0, codeProposalCount: 0, repositoryShowcaseCount: 0 };
+  if (!hasSupabaseConfig || !supabase) return { signedIn: false, supabaseConfigured: false, userId: null, warnings: [supabaseNotConfiguredMessage], ...empty };
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth.user?.id ?? null;
-  if (!userId) return { signedIn: false, supabaseConfigured: true, userId: null, warnings: [], signals: [], codeProposalActivity: [], needsMyReview: [], mySubmittedProposals: [], unreadCount: 0, codeProposalCount: 0 };
+  if (!userId) return { signedIn: false, supabaseConfigured: true, userId: null, warnings: [], ...empty };
   const signals = await safeQuery<NotificationPreview[]>(warnings, "Notifications", supabase.from("user_notifications").select("id, title, body, action_url, read_at, created_at, notification_type, source_type, source_id").eq("user_id", userId).order("created_at", { ascending: false }).limit(100), []);
-  const codeProposalActivityRows = await safeQuery<Omit<CodeProposalSignalPreview, "action_url" | "source_room" | "post_title">[]>(warnings, "Coding Cornucopia proposal activity", supabase.from("commune_code_revision_proposals").select("id, post_id, code_snippet_id, proposer_user_id, original_author_user_id, change_summary, explanation, proposal_status, submitted_at, decided_at, withdrawn_at, hidden_at, created_at, updated_at").or(`original_author_user_id.eq.${userId},proposer_user_id.eq.${userId}`).order("created_at", { ascending: false }).limit(100), []);
+  const codeProposalActivityRows = await safeQuery<Omit<CodeProposalSignalPreview, "action_url" | "source_room" | "post_title">[]>(warnings, "Coding Cornucopia proposal activity", supabase.from("commune_code_revision_proposals").select("id, post_id, code_snippet_id, proposer_user_id, original_author_user_id, change_summary, explanation, proposal_status, submitted_at, decided_at, withdrawn_at, hidden_at, created_at, updated_at").or("original_author_user_id.eq." + userId + ",proposer_user_id.eq." + userId).order("created_at", { ascending: false }).limit(100), []);
   const proposalPostIds = Array.from(new Set(codeProposalActivityRows.map((proposal) => proposal.post_id).filter(Boolean)));
   const proposalPosts = proposalPostIds.length
     ? await safeQuery<Array<{ id: string; post_type?: string | null; title?: string | null }>>(warnings, "Coding Cornucopia proposal posts", supabase.from("commune_posts").select("id, post_type, title").in("id", proposalPostIds), [])
@@ -525,12 +548,37 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
     ...proposal,
     source_room: proposalPostById.get(proposal.post_id)?.post_type === "troubleshooting" ? "troubleshooting_grove" as const : "coding_cornucopia" as const,
     post_title: proposalPostById.get(proposal.post_id)?.title ?? null,
-    action_url: `${proposalPostById.get(proposal.post_id)?.post_type === "troubleshooting" ? "/commune/troubleshooting-grove/review" : "/commune/coding-cornucopia/review"}?proposal=${proposal.id}`
+    action_url: (proposalPostById.get(proposal.post_id)?.post_type === "troubleshooting" ? "/commune/troubleshooting-grove/review" : "/commune/coding-cornucopia/review") + "?proposal=" + proposal.id
   }));
   const needsMyReview = codeProposalActivity.filter((proposal) => proposal.original_author_user_id === userId && ["submitted", "needs_changes"].includes(proposal.proposal_status));
   const mySubmittedProposals = codeProposalActivity.filter((proposal) => proposal.proposer_user_id === userId);
+
+  type RepositoryShowcaseSignalRow = Omit<RepositoryShowcaseSignalPreview, "action_url" | "role_context"> & { user_id?: string | null };
+  const roleState = await loadCurrentRoleState();
+  warnings.push(...roleState.warnings);
+  const canReviewCommune = roleState.isAdmin || canReviewDomain(roleState.roles, "commune");
+  const repoSelect = "id, user_id, post_id, repository_url, project_name, status, sandbox_review_requested, sandbox_review_status, sandbox_review_request_id, created_at, updated_at";
+  const myRepoRows = await safeQuery<RepositoryShowcaseSignalRow[]>(warnings, "Repository Showcase activity", supabase.from("commune_repository_showcases").select(repoSelect).eq("user_id", userId).order("updated_at", { ascending: false }).limit(100), []);
+  const reviewRepoRows = canReviewCommune
+    ? await safeQuery<RepositoryShowcaseSignalRow[]>(warnings, "Repository Showcase review activity", supabase.from("commune_repository_showcases").select(repoSelect).in("status", ["pending_review", "in_review", "needs_information"]).order("updated_at", { ascending: false }).limit(100), [])
+    : [];
+  const repoActionUrl = (row: RepositoryShowcaseSignalRow) => {
+    if ((row.sandbox_review_requested || row.sandbox_review_status) && (row.id || row.post_id)) {
+      const params = new URLSearchParams();
+      if (row.post_id) params.set("post", row.post_id);
+      if (row.id) params.set("showcase", row.id);
+      return "/commune/repository-showcase/sandbox-request?" + params.toString();
+    }
+    return row.post_id ? "/commune/posts/" + row.post_id : "/commune/repository-showcase/sandbox-request?showcase=" + row.id;
+  };
+  const mapRepo = (row: RepositoryShowcaseSignalRow, role: RepositoryShowcaseSignalPreview["role_context"]): RepositoryShowcaseSignalPreview => ({ ...row, action_url: repoActionUrl(row), role_context: role });
+  const myRepositoryShowcases = myRepoRows.map((row) => mapRepo(row, row.sandbox_review_requested ? "sandbox" : "owner"));
+  const repositoryShowcasesNeedingReview = reviewRepoRows.map((row) => mapRepo(row, "reviewer"));
+  const repositorySandboxActivity = [...myRepositoryShowcases, ...repositoryShowcasesNeedingReview]
+    .filter((row) => row.sandbox_review_requested || (row.sandbox_review_status && row.sandbox_review_status !== "not_requested"));
+  const repositoryShowcaseActivity = Array.from(new Map([...myRepositoryShowcases, ...repositoryShowcasesNeedingReview, ...repositorySandboxActivity].map((row) => [row.role_context + ":" + row.id, row])).values());
   const proposalNotificationIds = signals
-    .filter((signal) => /code_revision|proposal/i.test(`${signal.notification_type ?? ""} ${signal.source_type ?? ""}`))
+    .filter((signal) => /code_revision|proposal/i.test((signal.notification_type ?? "") + " " + (signal.source_type ?? "")))
     .map((signal) => signal.source_id || signal.id);
   return {
     signedIn: true,
@@ -541,8 +589,13 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
     codeProposalActivity,
     needsMyReview,
     mySubmittedProposals,
+    repositoryShowcaseActivity,
+    myRepositoryShowcases,
+    repositoryShowcasesNeedingReview,
+    repositorySandboxActivity,
     unreadCount: signals.filter((signal) => !signal.read_at).length,
-    codeProposalCount: new Set([...codeProposalActivity.map((proposal) => proposal.id), ...proposalNotificationIds]).size
+    codeProposalCount: new Set([...codeProposalActivity.map((proposal) => proposal.id), ...proposalNotificationIds]).size,
+    repositoryShowcaseCount: new Set(repositoryShowcaseActivity.map((item) => item.id)).size
   };
 }
 

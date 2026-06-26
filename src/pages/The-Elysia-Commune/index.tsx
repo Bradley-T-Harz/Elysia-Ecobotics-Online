@@ -27,6 +27,7 @@ import {
   loadCommuneModerationQueue,
   loadCommuneReactionSummary,
   loadCodeSnippets,
+  loadRepositoryShowcaseForContext,
   markThreadRead,
   moderateCommuneContentTarget,
   moderateCommuneItem,
@@ -51,6 +52,7 @@ import {
   type CommuneReactionSummary,
   type CommuneReactionTargetType,
   type CommuneRoom,
+  type RepositoryShowcaseMetadata,
   type CommuneThread
 } from "./communeAccountApi";
 import { communeFallbackCategories, formatCommuneTag, formatCommuneTags, inertCodeSnippetLabel, parseCommuneTags, scanCommuneTextForSecrets, validateCommuneMediaFile } from "./communeSafety";
@@ -173,6 +175,7 @@ type PostDraft = {
 
 type RepoShowcaseDraft = {
   id: string;
+  schemaVersion?: string;
   title: string;
   repoUrl: string;
   provider: string;
@@ -186,6 +189,10 @@ type RepoShowcaseDraft = {
   manifestStatus: string;
   compatibility: string;
   warnings: string[];
+  importSource?: string;
+  importedAt?: string | null;
+  importedMetadata?: Record<string, unknown>;
+  redactionNotes?: string;
   createdAt: string;
 };
 
@@ -446,7 +453,7 @@ function proposalDraftSnapshotId(snippetId: string, input: { codeText: string; l
 
 function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeDocumentId, codeVersionId, language, fileName, code, signedIn = true, runLabel = "Run snapshot in sandbox" }: {
   snapshotId: string;
-  sourceType: "commune_post_snippet" | "commune_code_document" | "commune_code_version";
+  sourceType: "commune_post_snippet" | "commune_code_document" | "commune_code_version" | "repository_showcase_artifact";
   sourceId?: string | null;
   postId?: string | null;
   codeDocumentId?: string | null;
@@ -606,6 +613,14 @@ const repoWarnings = [
   "Requires external account",
   "Requires API keys",
   "Unknown maintainer",
+  "Private repo source",
+  "Unclear data handling",
+  "Large model/download required",
+  "Hardware required",
+  "Cloud account required",
+  "Potential scraping/API risk",
+  "Untrusted install script",
+  "Marketplace-ineligible until reviewed",
   "Needs review"
 ];
 
@@ -723,6 +738,63 @@ function repoMarkdown(draft: RepoShowcaseDraft) {
     "",
     "Draft only. This page does not fetch, clone, or validate the repository."
   ].join("\n");
+}
+
+function repoShowcaseManifest(draft: RepoShowcaseDraft) {
+  return {
+    schema_version: "repository_showcase_manifest.v1",
+    project_name: draft.title,
+    repository_url: draft.repoUrl,
+    provider: draft.provider,
+    branch: draft.branch,
+    commit: draft.commit,
+    license: draft.license,
+    manifest_status: draft.manifestStatus,
+    elysia_compatibility: draft.compatibility,
+    short_description: draft.description,
+    readme_preview: draft.readmePreview,
+    file_tree_preview: draft.fileTreePreview,
+    screenshot_notes_or_urls: draft.screenshotNotes,
+    risk_flags: draft.warnings,
+    import_source: draft.importSource ?? "manual",
+    imported_at: draft.importedAt ?? null,
+    imported_metadata: draft.importedMetadata ?? {},
+    generated_by: "Elysia Ecobotics Online Repository Showcase",
+    generated_at: new Date().toISOString(),
+    redaction_notes: draft.redactionNotes ?? ""
+  };
+}
+
+function repoManifestJson(draft: RepoShowcaseDraft) {
+  return JSON.stringify(repoShowcaseManifest(draft), null, 2);
+}
+
+type ParsedGitHubRepoUrl = { owner: string; repo: string; cleanUrl: string };
+
+function parsePublicGitHubRepoUrl(value: string): ParsedGitHubRepoUrl | null {
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== "https:" || url.hostname.toLowerCase() !== "github.com") return null;
+    const [owner, repoPart] = url.pathname.split("/").filter(Boolean);
+    if (!owner || !repoPart || owner === "gist" || repoPart === "gist") return null;
+    const repo = repoPart.replace(/\.git$/i, "");
+    if (!/^[A-Za-z0-9_.-]+$/.test(owner) || !/^[A-Za-z0-9_.-]+$/.test(repo)) return null;
+    return { owner, repo, cleanUrl: `https://github.com/${owner}/${repo}` };
+  } catch {
+    return null;
+  }
+}
+
+function asStringList(value: unknown) {
+  return Array.isArray(value) ? value.map((item) => String(item)).filter(Boolean) : [];
+}
+
+function repoSectionValue(parsed: ReturnType<typeof splitPostSections>, heading: string) {
+  return parsed.sections.find((section) => section.heading.toLowerCase() === heading.toLowerCase())?.body ?? "";
+}
+
+function truncateRepositoryText(value: string, limit = 12000) {
+  return value.length > limit ? `${value.slice(0, limit)}\n\n[Truncated for public display.]` : value;
 }
 
 function sandboxMarkdown(draft: SandboxRequestDraft) {
@@ -1032,11 +1104,11 @@ function RoomPage({ roomSlug, roomId, posts, savedPostIds, onSave, localDrafts, 
 }
 
 function useCommuneLoad(roomSlug?: string, postId?: string) {
-  const [state, setState] = useState({ rooms: [] as CommuneRoom[], posts: [] as CommunePost[], comments: [] as CommuneComment[], threads: [] as CommuneThread[], media: [] as CommuneMediaAttachment[], savedPostIds: [] as string[], followedThreadIds: [] as string[], signedIn: false, isAdmin: false, isModerator: false, accountReady: false });
+  const [state, setState] = useState({ rooms: [] as CommuneRoom[], posts: [] as CommunePost[], comments: [] as CommuneComment[], threads: [] as CommuneThread[], media: [] as CommuneMediaAttachment[], repositoryShowcases: [] as RepositoryShowcaseMetadata[], savedPostIds: [] as string[], followedThreadIds: [] as string[], signedIn: false, isAdmin: false, isModerator: false, accountReady: false });
   const refresh = useCallback(async () => {
     const result = await loadCommuneData(roomSlug, postId);
     logCommuneDiagnostics("load", [...result.account.warnings, ...result.warnings]);
-    setState({ rooms: result.rooms, posts: result.posts, comments: result.comments, threads: result.threads, media: result.media, savedPostIds: result.savedPostIds, followedThreadIds: result.followedThreadIds, signedIn: result.account.signedIn, isAdmin: result.account.isAdmin, isModerator: result.account.isModerator, accountReady: !result.warnings.some(isBackendDiagnostic) });
+    setState({ rooms: result.rooms, posts: result.posts, comments: result.comments, threads: result.threads, media: result.media, repositoryShowcases: result.repositoryShowcases, savedPostIds: result.savedPostIds, followedThreadIds: result.followedThreadIds, signedIn: result.account.signedIn, isAdmin: result.account.isAdmin, isModerator: result.account.isModerator, accountReady: !result.warnings.some(isBackendDiagnostic) });
   }, [roomSlug, postId]);
   useEffect(() => { void refresh(); }, [refresh]);
   return { state, refresh };
@@ -1328,11 +1400,13 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
 }
 
 function RepositoryShowcaseForm({ localDrafts, roomId, onRefresh, isAdmin = false }: { localDrafts: ReturnType<typeof useLocalDraftState>; roomId?: string; onRefresh?: () => Promise<void>; isAdmin?: boolean }) {
-  const [form, setForm] = useState({ title: "", repoUrl: "", provider: "GitHub", branch: "", commit: "", license: "", description: "", readmePreview: "", fileTreePreview: "", screenshotNotes: "", manifestStatus: "No manifest checked", compatibility: "Unknown", warnings: [] as string[], sandboxRequested: false });
-  const [message, setMessage] = useState("Repository showcases are metadata only. The website does not fetch, clone, build, run, or execute repository code.");
+  const [form, setForm] = useState({ title: "", repoUrl: "", provider: "GitHub", branch: "", commit: "", license: "", description: "", readmePreview: "", fileTreePreview: "", screenshotNotes: "", manifestStatus: "No manifest checked", compatibility: "Unknown", warnings: [] as string[], sandboxRequested: false, importSource: "manual", importedAt: null as string | null, importedMetadata: {} as Record<string, unknown>, redactionNotes: "" });
+  const [message, setMessage] = useState("Repository showcases are metadata only. The website does not fetch private repos, clone, build, run, install, or execute repository code.");
+  const [manifestInput, setManifestInput] = useState("");
+  const [importing, setImporting] = useState(false);
 
   function draft(): RepoShowcaseDraft {
-    return { ...form, id: `repo-${Date.now()}`, createdAt: new Date().toISOString() };
+    return { ...form, id: "repo-" + Date.now(), schemaVersion: "repository_showcase_manifest.v1", createdAt: new Date().toISOString() };
   }
 
   function saveLocal() {
@@ -1355,12 +1429,12 @@ function RepositoryShowcaseForm({ localDrafts, roomId, onRefresh, isAdmin = fals
       sectionBlock("Compatibility notes", form.compatibility),
       sectionBlock("Manifest status", form.manifestStatus),
       sectionBlock("Risk warnings", form.warnings.join(", ")),
-      sectionBlock("Repository safety boundary", "This showcased repository is not an approved add-on. The website did not fetch, clone, build, run, install, auto-train on, or validate this repository.")
+      sectionBlock("Repository safety boundary", "This showcased repository is not an approved add-on. The website did not fetch, clone, build, run, install, auto-train on, or validate this repository. Developer Forge and Marketplace approval remain separate security, compatibility, licensing, signing, versioning, and review processes.")
     ].filter(Boolean).join("\n\n");
   }
 
   async function submit() {
-    const result = await submitRepositoryShowcase({ repositoryUrl: form.repoUrl, projectName: form.title, projectSummary: form.description || form.readmePreview, roomId, body: repoBody(), tags: "repository showcase", links: form.repoUrl, branch: form.branch, commit: form.commit, license: form.license, readmePreview: form.readmePreview, fileTreePreview: form.fileTreePreview, screenshotNotes: form.screenshotNotes, manifestStatus: form.manifestStatus, compatibility: form.compatibility, warnings: form.warnings, sandboxRequested: form.sandboxRequested });
+    const result = await submitRepositoryShowcase({ repositoryUrl: form.repoUrl, projectName: form.title, projectSummary: form.description || form.readmePreview, roomId, body: repoBody(), tags: "repository showcase", links: form.repoUrl, provider: form.provider, branch: form.branch, commit: form.commit, license: form.license, readmePreview: form.readmePreview, fileTreePreview: form.fileTreePreview, screenshotNotes: form.screenshotNotes, manifestStatus: form.manifestStatus, compatibility: form.compatibility, warnings: form.warnings, sandboxRequested: form.sandboxRequested, importSource: form.importSource, importedMetadata: form.importedMetadata, importedAt: form.importedAt, redactionNotes: form.redactionNotes });
     if (result.ok) {
       setMessage(result.message);
       await onRefresh?.();
@@ -1373,11 +1447,135 @@ function RepositoryShowcaseForm({ localDrafts, roomId, onRefresh, isAdmin = fals
     setForm((current) => ({ ...current, warnings: current.warnings.includes(label) ? current.warnings.filter((item) => item !== label) : [...current.warnings, label] }));
   }
 
+  function applyManifestObject(raw: Record<string, unknown>) {
+    const encoded = JSON.stringify(raw);
+    if (encoded.length > 150000) { setMessage("Showcase manifest is too large. Keep imported metadata under 150 KB."); return; }
+    const scan = scanCommuneTextForSecrets(encoded);
+    if (scan.blocked) { setMessage("Manifest import blocked because it appears to include private or secret material: " + scan.warnings.join(", ") + "."); return; }
+    const stringValue = (...keys: string[]) => keys.map((key) => raw[key]).find((value) => typeof value === "string") as string | undefined;
+    const importedRiskFlags = asStringList(raw.risk_flags ?? raw.warnings);
+    setForm((current) => ({
+      ...current,
+      title: stringValue("project_name", "title") ?? current.title,
+      repoUrl: stringValue("repository_url", "repoUrl") ?? current.repoUrl,
+      provider: stringValue("provider") ?? current.provider,
+      branch: stringValue("branch", "default_branch") ?? current.branch,
+      commit: stringValue("commit", "commit_sha") ?? current.commit,
+      license: stringValue("license") ?? current.license,
+      description: stringValue("short_description", "description", "project_summary") ?? current.description,
+      readmePreview: truncateRepositoryText(stringValue("readme_preview", "readmePreview") ?? current.readmePreview),
+      fileTreePreview: truncateRepositoryText(stringValue("file_tree_preview", "fileTreePreview") ?? current.fileTreePreview, 9000),
+      screenshotNotes: stringValue("screenshot_notes_or_urls", "screenshotNotes") ?? current.screenshotNotes,
+      manifestStatus: stringValue("manifest_status", "manifestStatus") ?? current.manifestStatus,
+      compatibility: stringValue("elysia_compatibility", "compatibility") ?? current.compatibility,
+      warnings: importedRiskFlags.length ? importedRiskFlags : current.warnings,
+      importSource: stringValue("import_source") ?? "local_manifest",
+      importedAt: new Date().toISOString(),
+      importedMetadata: { source_manifest_schema: raw.schema_version ?? "unknown", generated_by: raw.generated_by ?? "manual", generated_at: raw.generated_at ?? null },
+      redactionNotes: stringValue("redaction_notes", "redactionNotes") ?? current.redactionNotes
+    }));
+    setMessage("Showcase manifest imported into the draft. Review and redact before publishing; nothing was submitted automatically.");
+  }
+
+  function importManifestText(value = manifestInput) {
+    try {
+      const parsed = JSON.parse(value) as Record<string, unknown>;
+      applyManifestObject(parsed);
+    } catch {
+      setMessage("Showcase manifest JSON could not be parsed. Export JSON from this form or use schema_version repository_showcase_manifest.v1.");
+    }
+  }
+
+  function importManifestFile(file?: File | null) {
+    if (!file) return;
+    if (file.size > 150000) { setMessage("Showcase manifest file is too large. Keep local manifest files under 150 KB."); return; }
+    const reader = new FileReader();
+    reader.onload = () => { const value = String(reader.result ?? ""); setManifestInput(value); importManifestText(value); };
+    reader.readAsText(file);
+  }
+
+  async function fetchGitHubJson(path: string) {
+    const response = await fetch(path, { headers: { accept: "application/vnd.github+json" } });
+    if (!response.ok) throw new Error(response.status === 403 ? "GitHub public API rate limit or access block reached." : "GitHub public metadata request failed with HTTP " + response.status + ".");
+    return response.json() as Promise<Record<string, unknown>>;
+  }
+
+  async function importGitHubMetadata() {
+    const parsed = parsePublicGitHubRepoUrl(form.repoUrl);
+    if (!parsed) { setMessage("Paste a public GitHub URL such as https://github.com/owner/repo. Private repos and OAuth import are not supported here."); return; }
+    setImporting(true);
+    try {
+      const base = "https://api.github.com/repos/" + parsed.owner + "/" + parsed.repo;
+      const repoData = await fetchGitHubJson(base);
+      const defaultBranch = String(repoData.default_branch ?? "main");
+      const [readmeResult, treeResult, commitResult, languagesResult] = await Promise.allSettled([
+        fetch(base + "/readme", { headers: { accept: "application/vnd.github.raw" } }).then((response) => response.ok ? response.text() : ""),
+        fetchGitHubJson(base + "/git/trees/" + encodeURIComponent(defaultBranch) + "?recursive=1"),
+        fetchGitHubJson(base + "/commits/" + encodeURIComponent(defaultBranch)),
+        fetchGitHubJson(base + "/languages")
+      ]);
+      const readme = readmeResult.status === "fulfilled" ? truncateRepositoryText(readmeResult.value) : "";
+      const treeRows = treeResult.status === "fulfilled" && Array.isArray(treeResult.value.tree)
+        ? (treeResult.value.tree as Array<{ path?: string; type?: string; size?: number }>).slice(0, 80).map((item) => (item.type === "tree" ? "dir  " : "file ") + (item.path ?? "") + (typeof item.size === "number" ? " (" + item.size + " bytes)" : "")).join("\n")
+        : "";
+      const commitSha = commitResult.status === "fulfilled" ? String(commitResult.value.sha ?? "") : "";
+      const languages = languagesResult.status === "fulfilled" ? Object.keys(languagesResult.value) : [];
+      const license = repoData.license && typeof repoData.license === "object" ? String((repoData.license as { spdx_id?: unknown; name?: unknown }).spdx_id ?? (repoData.license as { name?: unknown }).name ?? "") : "";
+      const nextWarnings = new Set(form.warnings);
+      if (!license) nextWarnings.add("License unclear");
+      if (repoData.private) nextWarnings.add("Private repo source");
+      if (repoData.archived) nextWarnings.add("Unknown maintainer");
+      setForm((current) => ({
+        ...current,
+        title: String(repoData.name ?? parsed.repo),
+        repoUrl: String(repoData.html_url ?? parsed.cleanUrl),
+        provider: "GitHub",
+        branch: defaultBranch,
+        commit: commitSha.slice(0, 40),
+        license: license || current.license,
+        description: String(repoData.description ?? current.description ?? ""),
+        readmePreview: readme || current.readmePreview,
+        fileTreePreview: treeRows || current.fileTreePreview,
+        manifestStatus: current.manifestStatus || "No manifest checked",
+        compatibility: current.compatibility || "Unknown",
+        warnings: Array.from(nextWarnings),
+        importSource: "github_public_api",
+        importedAt: new Date().toISOString(),
+        importedMetadata: {
+          github_owner: parsed.owner,
+          github_repo: parsed.repo,
+          default_branch: defaultBranch,
+          topics: asStringList(repoData.topics),
+          primary_language: repoData.language ?? null,
+          languages,
+          stargazers_count: repoData.stargazers_count ?? null,
+          forks_count: repoData.forks_count ?? null,
+          pushed_at: repoData.pushed_at ?? null
+        }
+      }));
+      setMessage("Imported public GitHub metadata. Review, redact, and edit before submitting. The site did not clone, build, install, or run the repository.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "GitHub public metadata import failed. Manual entry remains available.");
+    } finally {
+      setImporting(false);
+    }
+  }
+
   return <section className="section-card commune-repo-card" id="commune-repository-showcase">
     <p className="eyebrow">Repository Showcase</p>
     <h2>Show a repository without running it</h2>
-    <p>No repo APIs are called. Nothing is cloned. Nothing is remotely validated.</p>
+    <p>No repo APIs are called unless you explicitly import public metadata. Nothing is cloned, installed, built, remotely validated, or executed.</p>
     {isAdmin && <p className="boundary-note">Admin mode: this repository showcase can publish directly as a normal Commune post. It still does not imply installability, compatibility, license safety, or trust.</p>}
+    <section className="commune-repo-import-panel">
+      <p className="eyebrow">Import source</p>
+      <h3>Import public metadata or a local showcase manifest</h3>
+      <p className="boundary-note">Local showcase manifest import/export is for reviewed metadata only; it does not inspect, clone, install, or run local repository files.</p>
+      <p className="boundary-note">GitHub import uses public unauthenticated metadata only. There is no GitHub account connection, no private repo import, no clone, no build, and no execution.</p>
+      <div className="button-row"><button type="button" disabled={importing || !form.repoUrl.trim()} onClick={() => void importGitHubMetadata()}>{importing ? "Importing public metadata..." : "Import public GitHub metadata"}</button><button type="button" onClick={() => setManifestInput(repoManifestJson(draft()))}>Preview export JSON in import box</button></div>
+      <label><span>Paste local showcase manifest JSON</span><textarea rows={5} value={manifestInput} onChange={(event) => setManifestInput(event.target.value)} placeholder="Paste elysia-repo-showcase.json or exported Repository Showcase JSON here." /></label>
+      <div className="button-row"><button type="button" onClick={() => importManifestText()}>Import pasted manifest</button><label className="button-link"><span>Upload JSON manifest</span><input className="sr-only" type="file" accept="application/json,.json" onChange={(event) => importManifestFile(event.target.files?.[0])} /></label></div>
+      <p className="boundary-note">Local manifest import never inspects your local repository. It only reads the JSON file you choose or paste and requires review before publishing.</p>
+    </section>
     <div className="commune-form-grid">
       <label><span>Showcase title</span><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
       <label><span>Repo URL</span><input value={form.repoUrl} onChange={(event) => setForm({ ...form, repoUrl: event.target.value })} /></label>
@@ -1388,13 +1586,15 @@ function RepositoryShowcaseForm({ localDrafts, roomId, onRefresh, isAdmin = fals
       <label><span>Manifest status</span><select value={form.manifestStatus} onChange={(event) => setForm({ ...form, manifestStatus: event.target.value })}>{["No manifest checked", "Manifest missing", "Manifest present", "Manifest validates locally", "Manifest needs review", "Manifest unsafe/blocklisted"].map((value) => <option key={value}>{value}</option>)}</select></label>
       <label><span>Elysia compatibility</span><select value={form.compatibility} onChange={(event) => setForm({ ...form, compatibility: event.target.value })}>{["Unknown", "Concept only", "Website/resource only", "Add-on candidate", "Local Elysia compatible, unverified", "Local Elysia compatible, reviewed later", "Not compatible"].map((value) => <option key={value}>{value}</option>)}</select></label>
       <label className="wide-field"><span>Short description</span><textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={4} /></label>
-      <label className="wide-field"><span>README preview pasted by user</span><textarea value={form.readmePreview} onChange={(event) => setForm({ ...form, readmePreview: event.target.value })} rows={5} /></label>
-      <label className="wide-field"><span>File tree preview pasted by user</span><textarea value={form.fileTreePreview} onChange={(event) => setForm({ ...form, fileTreePreview: event.target.value })} rows={5} /></label>
+      <label className="wide-field"><span>README preview pasted by user or imported publicly</span><textarea value={form.readmePreview} onChange={(event) => setForm({ ...form, readmePreview: event.target.value })} rows={5} /></label>
+      <label className="wide-field"><span>File tree preview pasted by user or imported publicly</span><textarea value={form.fileTreePreview} onChange={(event) => setForm({ ...form, fileTreePreview: event.target.value })} rows={5} /></label>
       <label className="wide-field"><span>Screenshot notes or URLs</span><textarea value={form.screenshotNotes} onChange={(event) => setForm({ ...form, screenshotNotes: event.target.value })} rows={3} /></label>
-      <label className="checkbox-line wide-field"><input type="checkbox" checked={form.sandboxRequested} onChange={(event) => setForm({ ...form, sandboxRequested: event.target.checked })} /><span>Also request future sandbox review. This does not grant execution permission.</span></label>
+      <label className="wide-field"><span>Redaction notes</span><textarea value={form.redactionNotes} onChange={(event) => setForm({ ...form, redactionNotes: event.target.value })} rows={3} placeholder="Describe what you reviewed or removed before publishing." /></label>
+      <label className="checkbox-line wide-field"><input type="checkbox" checked={form.sandboxRequested} onChange={(event) => setForm({ ...form, sandboxRequested: event.target.checked })} /><span>Also request Repository Showcase selected-artifact sandbox review. This does not run or trust the whole repository.</span></label>
     </div>
     <div className="commune-checklist commune-warning-checks">{repoWarnings.map((item) => <label className="checkbox-line" key={item}><input type="checkbox" checked={form.warnings.includes(item)} onChange={() => toggleWarning(item)} /><span>{item}</span></label>)}</div>
-    <div className="button-row"><button className="button-primary" type="button" onClick={() => void submit()}>Submit showcase for review</button><button type="button" onClick={saveLocal}>Save showcase draft locally</button><button type="button" onClick={() => downloadText(`${slug(form.title)}-repo-showcase.md`, repoMarkdown(draft()), "text/markdown")}>Export Markdown</button><button type="button" onClick={() => downloadText(`${slug(form.title)}-repo-showcase.json`, JSON.stringify(draft(), null, 2), "application/json")}>Export JSON</button><button type="button" onClick={() => copyText(repoMarkdown(draft()), setMessage)}>Copy showcase Markdown</button><Link className="button-link" to="/commune">Back</Link></div>
+    <WarningCallout title="Developer Forge / Marketplace boundary"><p>Repository Showcase is a public presentation and discussion layer. Developer Forge and Marketplace approval remain separate security, compatibility, licensing, manifest, signing, versioning, and review processes.</p></WarningCallout>
+    <div className="button-row"><button className="button-primary" type="button" onClick={() => void submit()}>Submit showcase for review</button><button type="button" onClick={saveLocal}>Save showcase draft locally</button><button type="button" onClick={() => downloadText(slug(form.title) + "-repo-showcase.md", repoMarkdown(draft()), "text/markdown")}>Export Markdown</button><button type="button" onClick={() => downloadText(slug(form.title) + "-repo-showcase.json", repoManifestJson(draft()), "application/json")}>Export JSON</button><button type="button" onClick={() => copyText(repoMarkdown(draft()), setMessage)}>Copy showcase Markdown</button><Link className="button-link" to="/commune">Back</Link></div>
     <p className="message">{message}</p>
   </section>;
 }
@@ -1546,6 +1746,52 @@ function SandboxDraftPanel({ localDrafts }: { localDrafts: ReturnType<typeof use
   </section>;
 }
 
+function RepositoryShowcaseSandboxRequestPanel({ signedIn }: { signedIn: boolean }) {
+  const location = useLocation();
+  const query = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const postParam = query.get("post");
+  const showcaseParam = query.get("showcase");
+  const [showcase, setShowcase] = useState<RepositoryShowcaseMetadata | null>(null);
+  const [contextWarnings, setContextWarnings] = useState<string[]>([]);
+  const [artifact, setArtifact] = useState({ fileName: "selected-artifact.js", language: "javascript", note: "", code: "" });
+  const [message, setMessage] = useState("Repository sandbox review is selected-artifact only. The whole repository is not cloned, installed, built, tested, or trusted.");
+  useEffect(() => {
+    void loadRepositoryShowcaseForContext({ postId: postParam, showcaseId: showcaseParam }).then((result) => {
+      setShowcase(result.showcase);
+      setContextWarnings(result.warnings);
+    });
+  }, [postParam, showcaseParam]);
+  const snapshotId = "repo-showcase-artifact-" + (showcase?.id ?? showcaseParam ?? postParam ?? "manual") + "-" + stableSnapshotSuffix([artifact.language, artifact.fileName, artifact.code].join("\n---repository-showcase-artifact---\n"));
+  async function requestReviewMetadata() {
+    if (!showcase && !postParam) { setMessage("Load or provide a Repository Showcase before creating a sandbox review request."); return; }
+    const result = await submitSandboxReview({
+      requestTitle: "Repository selected artifact review: " + (showcase?.project_name ?? artifact.fileName ?? "Repository artifact"),
+      repositoryUrl: showcase?.repository_url ?? "",
+      repositoryShowcaseId: showcase?.id,
+      postId: showcase?.post_id ?? postParam ?? undefined,
+      scope: "Selected artifact/snippet review only. No full repository clone, install, build, shell, Docker, dependency install, or test command is requested.",
+      riskNotes: [artifact.note, "Reviewed artifact: " + (artifact.fileName || "unnamed snippet"), "Not reviewed: full repository clone, dependencies, install scripts, Docker behavior, network behavior, license safety, Marketplace compatibility."].filter(Boolean).join("\n"),
+      permissions: []
+    });
+    setMessage(result.message);
+  }
+  return <section className="section-card commune-repo-sandbox-request" id="commune-repository-showcase-sandbox-request">
+    <p className="eyebrow">Repository Showcase sandbox review</p>
+    <h2>Review a selected artifact, not the whole repository</h2>
+    <p className="boundary-note">A repository sandbox review does not mean the whole repository was run, trusted, installed, cloned, license-verified, Marketplace-ready, or Elysia-compatible.</p>
+    {contextWarnings.length > 0 && <div className="message-stack">{contextWarnings.map((warning) => <p className="message" key={warning}>{warning}</p>)}</div>}
+    <section className="commune-info-grid">
+      <article className="commune-repo-identity-card"><h3>{showcase?.project_name ?? "Repository Showcase context"}</h3><dl className="mini-facts"><div><dt>Repository</dt><dd>{showcase?.repository_url ?? "Manual selected artifact"}</dd></div><div><dt>Provider</dt><dd>{showcase?.provider ?? showcase?.repository_host ?? "Unknown"}</dd></div><div><dt>Branch</dt><dd>{showcase?.default_branch ?? "Not supplied"}</dd></div><div><dt>Commit</dt><dd>{showcase?.commit_sha ?? "Not supplied"}</dd></div><div><dt>License</dt><dd>{showcase?.license ?? "Not verified"}</dd></div><div><dt>Manifest</dt><dd>{showcase?.manifest_status ?? "No manifest checked"}</dd></div><div><dt>Compatibility</dt><dd>{showcase?.elysia_compatibility ?? "Unknown"}</dd></div></dl>{showcase?.risk_flags?.length ? <StatusBadges labels={showcase.risk_flags} /> : <p className="boundary-note">No risk flags loaded. That is not a safety claim.</p>}</article>
+      <WarningCallout title="Selected artifact boundary"><p>Paste only the file or snippet you intentionally want reviewed. Shell remains disabled. Package installs, repo clone, Docker behavior, dependency scripts, network behavior, and full-repo tests are not part of this route.</p></WarningCallout>
+    </section>
+    <div className="commune-form-grid"><label><span>Artifact filename</span><input value={artifact.fileName} onChange={(event) => setArtifact({ ...artifact, fileName: event.target.value })} /></label><label><span>Language</span><select value={artifact.language} onChange={(event) => setArtifact({ ...artifact, language: event.target.value })}>{codingLanguageOptions().map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label className="wide-field"><span>Review note</span><textarea rows={3} value={artifact.note} onChange={(event) => setArtifact({ ...artifact, note: event.target.value })} placeholder="Describe what this selected artifact is supposed to demonstrate." /></label><label className="wide-field"><span>Selected artifact / snippet</span><textarea rows={8} value={artifact.code} onChange={(event) => setArtifact({ ...artifact, code: event.target.value })} placeholder="Paste one public-safe selected artifact. Do not paste secrets, .env files, private logs, or private local Elysia data." /></label></div>
+    <CodeWorkspaceEditor value={artifact.code} language={artifact.language} onChange={(code) => setArtifact({ ...artifact, code })} minHeight="280px" />
+    <CodingSandboxRunPanel snapshotId={snapshotId} sourceType="repository_showcase_artifact" sourceId={showcase?.id ?? showcaseParam} postId={showcase?.post_id ?? postParam} language={artifact.language} fileName={artifact.fileName} code={artifact.code} signedIn={signedIn} runLabel="Run selected artifact in sandbox" />
+    <div className="button-row"><button type="button" onClick={() => void requestReviewMetadata()}>Create sandbox review request</button><Link className="button-link" to={showcase?.post_id ? "/commune/posts/" + showcase.post_id : "/commune/repository-showcase"}>Back to showcase</Link></div>
+    <p className="message">{message}</p>
+  </section>;
+}
+
 function LocalDraftStudio({ localDrafts, filters }: { localDrafts: ReturnType<typeof useLocalDraftState>; filters: CommuneFilters }) {
   const draftCards = [
     ...localDrafts.postDrafts.map((draft) => ({ id: draft.id, title: draft.title || "Untitled post draft", labels: [draft.status, draft.postType, draft.tags], summary: draft.summary, tags: draft.tags })),
@@ -1630,6 +1876,47 @@ function AttachedCodeSnippets({ snippets, authorUsername, signedIn, postType, on
         <p className="boundary-note">Code is shown for discussion only. The website did not execute this snippet. {isTroubleshooting ? "Accepted fixes" : "Accepted revisions"} preserve version history and proposer attribution; rejected proposals leave this public code unchanged.</p>
       </article>)}
     </div>
+  </div>;
+}
+
+function RepositoryShowcaseDetail({ post, showcase, parsedBody }: { post: CommunePost; showcase?: RepositoryShowcaseMetadata | null; parsedBody: ReturnType<typeof splitPostSections> }) {
+  const section = (heading: string) => repoSectionValue(parsedBody, heading);
+  const value = (metadataValue?: string | null, fallbackHeading?: string) => String(metadataValue ?? "").trim() || (fallbackHeading ? section(fallbackHeading) : "");
+  const repositoryUrl = value(showcase?.repository_url, "Repository URL") || post.repository_url || "";
+  const safeHref = (() => { try { const url = new URL(repositoryUrl); return ["https:", "http:"].includes(url.protocol) ? url.href : null; } catch { return null; } })();
+  const riskFlags = showcase?.risk_flags?.length ? showcase.risk_flags : section("Risk warnings").split(/[,\n]/).map((item) => item.trim()).filter(Boolean);
+  const sandboxStatus = showcase?.sandbox_review_status ?? (showcase?.sandbox_review_requested ? "requested" : "not_requested");
+  const sandboxHref = "/commune/repository-showcase/sandbox-request?post=" + encodeURIComponent(post.id) + (showcase?.id ? "&showcase=" + encodeURIComponent(showcase.id) : "");
+  return <div className="commune-repository-detail">
+    <p className="eyebrow">Repository Showcase detail</p>
+    <div className="commune-info-grid">
+      <article className="commune-repo-identity-card">
+        <h3>{value(showcase?.project_name) || post.title}</h3>
+        <dl className="mini-facts">
+          <div><dt>Provider</dt><dd>{value(showcase?.provider, "Provider") || "Unknown"}</dd></div>
+          <div><dt>Branch</dt><dd>{value(showcase?.default_branch, "Branch") || "Not supplied"}</dd></div>
+          <div><dt>Commit</dt><dd>{value(showcase?.commit_sha, "Commit") || "Not supplied"}</dd></div>
+          <div><dt>License</dt><dd>{value(showcase?.license, "License notes") || "Not verified"}</dd></div>
+          <div><dt>Manifest</dt><dd>{value(showcase?.manifest_status, "Manifest status") || "No manifest checked"}</dd></div>
+          <div><dt>Elysia compatibility</dt><dd>{value(showcase?.elysia_compatibility, "Compatibility notes") || "Unknown"}</dd></div>
+        </dl>
+        {safeHref && <a className="button-link" href={safeHref} target="_blank" rel="noreferrer">Open repository reference</a>}
+      </article>
+      <WarningCallout title="Repository trust boundary"><p>This showcase is metadata and discussion only. The website did not clone, install, build, run, auto-train on, validate, license-check, or approve this repository. Developer Forge and Marketplace review remain separate.</p></WarningCallout>
+    </div>
+    {(value(showcase?.short_description) || parsedBody.intro) && <article className="commune-room-native-field"><h3>Description</h3><p>{value(showcase?.short_description) || parsedBody.intro}</p></article>}
+    {value(showcase?.readme_preview, "README preview") && <article className="commune-room-native-field"><h3>README preview</h3><pre className="commune-repo-text-block">{truncateRepositoryText(value(showcase?.readme_preview, "README preview"))}</pre></article>}
+    {value(showcase?.file_tree_preview, "File tree summary") && <article className="commune-room-native-field"><h3>File tree preview</h3><pre className="commune-repo-text-block">{truncateRepositoryText(value(showcase?.file_tree_preview, "File tree summary"), 9000)}</pre></article>}
+    {value(showcase?.screenshot_notes_or_urls, "Screenshots / notes") && <article className="commune-room-native-field"><h3>Screenshot notes / URLs</h3><p>{value(showcase?.screenshot_notes_or_urls, "Screenshots / notes")}</p></article>}
+    <div className="commune-repo-risk-row">
+      <p className="eyebrow">Risk flags</p>
+      {riskFlags.length ? <StatusBadges labels={riskFlags} /> : <p className="boundary-note">No risk flags selected. This does not mean the repository is safe.</p>}
+    </div>
+    <section className="commune-sandbox-card commune-repo-sandbox-summary">
+      <div className="addon-card__topline"><strong>Repository sandbox review</strong><span>{sandboxStatus.replace(/_/g, " ")}</span></div>
+      <p className="boundary-note">Repository Showcase sandbox review runs only a selected artifact/snippet that you paste. It does not clone, install, build, test, or trust the full repository.</p>
+      <div className="button-row"><Link className="button-link" to={sandboxHref}>{showcase?.sandbox_review_requested ? "Open sandbox review" : "Request sandbox review"}</Link></div>
+    </section>
   </div>;
 }
 
@@ -1731,8 +2018,10 @@ function PostDetail({ postId }: { postId: string }) {
   }
   if (!post) return <section className="section-card"><h2>Post not found</h2><p>This post is not public, does not exist, or is still awaiting moderation.</p><p className="boundary-note">Account-backed posts may also be unavailable while Commune backend tables are being prepared.</p><Link className="button-link" to="/commune">Back to Commune</Link></section>;
   const parsedBody = splitPostSections(post.body);
+  const repositoryShowcase = state.repositoryShowcases.find((item) => item.post_id === post.id) ?? null;
+  const isRepositoryShowcase = post.post_type === "repository_showcase";
   return <>
-    <section className="section-card commune-post-detail"><p className="eyebrow">{post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>By {authorLink(post.author_username)}</p><StatusBadges labels={[post.status, post.visibility]} />{parsedBody.intro && <p className="commune-post-body">{parsedBody.intro}</p>}{parsedBody.sections.length > 0 && <div className="commune-room-native-details"><p className="eyebrow">Room-native details</p><div className="commune-room-native-grid">{parsedBody.sections.map((section) => <article className="commune-room-native-field" key={section.heading}><h3>{section.heading}</h3><p>{section.body}</p></article>)}</div></div>}{post.post_type === "repository_showcase" && <WarningCallout title="Repository showcase boundary"><p>This showcased repository is a public reference for discussion, not an approved add-on. The website did not fetch, clone, run, install, auto-train on, or validate this repository.</p></WarningCallout>}{post.post_type === "official_update" && <p className="boundary-note">Official Updates are administrator-authored notices. Community users cannot self-assign release, security, roadmap, or governance authority.</p>}<TagChips tags={post.tags} />{attachments.length > 0 && <div className="commune-media-section"><p className="eyebrow">Attached media</p><p className="commune-media-attribution">Attached to this post by {authorLink(post.author_username)}.</p><p className="boundary-note">Published attachments are read-only and remain governed by Commune moderation and safety policies.</p><div className="commune-media-grid">{attachments.map((item) => <article className="commune-media-card" key={item.id}>{item.media_kind === "image" && item.signed_url ? <button className="commune-media-image-button" type="button" onClick={() => setActiveMedia(item)}><img src={item.signed_url} alt={`Attached media: ${item.file_name}`} loading="lazy" /></button> : <div className="commune-media-unavailable"><strong>{item.file_name}</strong><p>{item.signed_url ? "This attachment can be opened from its signed public review URL." : "Attachment unavailable or still under review."}</p></div>}<div className="commune-media-meta"><strong>{item.file_name}</strong><span>{item.mime_type ?? item.media_kind}{item.file_size ? ` · ${item.file_size} bytes` : ""}</span></div></article>)}</div></div>}<AttachedCodeSnippets snippets={snippets} authorUsername={post.author_username} postType={post.post_type} signedIn={state.signedIn} onMessage={setMessage} /><ReactionBar targetType="post" targetId={post.id} signedIn={state.signedIn} onMessage={setMessage} /><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div><AdminContentControls targetType="post" targetId={post.id} isModerator={state.isModerator} onChanged={refresh} onMessage={setMessage} /></section>
+    <section className="section-card commune-post-detail"><p className="eyebrow">{post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>By {authorLink(post.author_username)}</p><StatusBadges labels={[post.status, post.visibility]} />{!isRepositoryShowcase && parsedBody.intro && <p className="commune-post-body">{parsedBody.intro}</p>}{!isRepositoryShowcase && parsedBody.sections.length > 0 && <div className="commune-room-native-details"><p className="eyebrow">Room-native details</p><div className="commune-room-native-grid">{parsedBody.sections.map((section) => <article className="commune-room-native-field" key={section.heading}><h3>{section.heading}</h3><p>{section.body}</p></article>)}</div></div>}{isRepositoryShowcase && <RepositoryShowcaseDetail post={post} showcase={repositoryShowcase} parsedBody={parsedBody} />}{post.post_type === "official_update" && <p className="boundary-note">Official Updates are administrator-authored notices. Community users cannot self-assign release, security, roadmap, or governance authority.</p>}<TagChips tags={post.tags} />{attachments.length > 0 && <div className="commune-media-section"><p className="eyebrow">Attached media</p><p className="commune-media-attribution">Attached to this post by {authorLink(post.author_username)}.</p><p className="boundary-note">Published attachments are read-only and remain governed by Commune moderation and safety policies.</p><div className="commune-media-grid">{attachments.map((item) => <article className="commune-media-card" key={item.id}>{item.media_kind === "image" && item.signed_url ? <button className="commune-media-image-button" type="button" onClick={() => setActiveMedia(item)}><img src={item.signed_url} alt={`Attached media: ${item.file_name}`} loading="lazy" /></button> : <div className="commune-media-unavailable"><strong>{item.file_name}</strong><p>{item.signed_url ? "This attachment can be opened from its signed public review URL." : "Attachment unavailable or still under review."}</p></div>}<div className="commune-media-meta"><strong>{item.file_name}</strong><span>{item.mime_type ?? item.media_kind}{item.file_size ? ` · ${item.file_size} bytes` : ""}</span></div></article>)}</div></div>}<AttachedCodeSnippets snippets={snippets} authorUsername={post.author_username} postType={post.post_type} signedIn={state.signedIn} onMessage={setMessage} /><ReactionBar targetType="post" targetId={post.id} signedIn={state.signedIn} onMessage={setMessage} /><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div><AdminContentControls targetType="post" targetId={post.id} isModerator={state.isModerator} onChanged={refresh} onMessage={setMessage} /></section>
     {activeMedia?.signed_url && <div className="commune-media-lightbox" role="dialog" aria-modal="true" aria-label={`Attachment preview: ${activeMedia.file_name}`} onClick={() => setActiveMedia(null)}><div className="commune-media-lightbox-panel" onClick={(event) => event.stopPropagation()}><button className="commune-media-lightbox-close" type="button" onClick={() => setActiveMedia(null)}>Close</button><img src={activeMedia.signed_url} alt={`Attached media: ${activeMedia.file_name}`} /></div></div>}
     <section className="section-card"><p className="eyebrow">Comments</p><h2>Comments and replies</h2><p className="boundary-note">{state.isAdmin ? "Admin comments publish directly and remain auditable." : "First participation in a post/thread is reviewed. After approval in that thread, later comments and replies can publish directly while remaining reportable and removable."}</p>{!thread && <p className="boundary-note">This published post is missing its discussion thread. Submitting a comment will try to repair the thread with normal account permissions before saving.</p>}{topLevelComments.map((item) => renderComment(item))}{!topLevelComments.length && <p>Moderated comments will appear here once the backend tables are active and replies are approved.</p>}<label><span>Comment on this post</span><textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><div className="button-row"><button type="button" disabled={commentSubmitting} onClick={() => void submitThreadComment()}>{commentSubmitting ? "Submitting comment..." : "Submit comment"}</button></div><p className="message">{commentStatus}</p></section>
     <section className="section-card"><p className="eyebrow">Report</p><h2>Report this post</h2><p>Reports are reviewed by moderators/administrators. Reporting does not automatically remove content unless urgent automated controls are later added. Ratings do not replace reports or moderation.</p><label><span>Report type</span><select value={report.type} onChange={(event) => setReport({ ...report, type: event.target.value })}>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span>Reason</span><textarea rows={3} value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value })} /></label><button type="button" onClick={() => void reportPost()}>Send report</button><p className="message">{message}</p></section>
@@ -2242,8 +2531,14 @@ export default function CommunePage() {
   }
 
   const isRoomNew = Boolean(effectiveRoomSlug) && mode === "new";
-  const routeMode = /\/commune\/(coding-cornucopia|code-sharing|troubleshooting-grove)\/review$/.test(location.pathname) ? "code-review" : /\/commune\/(coding-cornucopia|code-sharing|troubleshooting-grove)\/sandbox-request$/.test(location.pathname) ? "sandbox-review" : !isRoomNew && ["new", "repository-showcase", "troubleshooting", "sandbox-review", "moderation", "realtime"].includes(mode || "") ? mode : "";
-  const activeActionKind = mode === "troubleshooting" ? "troubleshooting" : mode === "repository-showcase" ? "repository" : routeMode === "sandbox-review" || mode === "sandbox-review" ? "sandbox" : mode === "moderation" ? "moderation" : "";
+  const routeMode = /\/commune\/repository-showcase\/sandbox-request$/.test(location.pathname)
+    ? "repository-sandbox-review"
+    : /\/commune\/(coding-cornucopia|code-sharing|troubleshooting-grove)\/review$/.test(location.pathname)
+      ? "code-review"
+      : /\/commune\/(coding-cornucopia|code-sharing|troubleshooting-grove)\/sandbox-request$/.test(location.pathname)
+        ? "sandbox-review"
+        : !isRoomNew && ["new", "repository-showcase", "troubleshooting", "sandbox-review", "moderation", "realtime"].includes(mode || "") ? mode : "";
+  const activeActionKind = mode === "troubleshooting" ? "troubleshooting" : mode === "repository-showcase" || routeMode === "repository-sandbox-review" ? "repository" : routeMode === "sandbox-review" || mode === "sandbox-review" ? "sandbox" : mode === "moderation" ? "moderation" : "";
   const isLobby = !postId && !routeMode && !roomSlug;
   const isRoom = !postId && !routeMode && Boolean(effectiveRoomSlug);
 
@@ -2256,10 +2551,11 @@ export default function CommunePage() {
     {isLobby && <CommuneLobby />}
     {isLobby && <CommuneSearchPanel filters={filters} setFilters={setFilters} />}
     {!isLobby && <AccountModePanel signedIn={state.signedIn} isModerator={state.isModerator} accountReady={state.accountReady} activeKind={activeActionKind} />}
-    {["new", "troubleshooting", "repository-showcase", "sandbox-review", "code-review", "realtime", "moderation"].includes(routeMode) && <CommuneFocusedToolbar />}
+    {["new", "troubleshooting", "repository-showcase", "repository-sandbox-review", "sandbox-review", "code-review", "realtime", "moderation"].includes(routeMode) && <CommuneFocusedToolbar />}
 
     {routeMode === "new" && <RoomPickerPanel />}
     {routeMode === "repository-showcase" && <RepositoryShowcaseForm localDrafts={localDrafts} roomId={state.rooms.find((room) => room.slug === "repository-showcase")?.id} onRefresh={refresh} isAdmin={state.isAdmin} />}
+    {routeMode === "repository-sandbox-review" && <RepositoryShowcaseSandboxRequestPanel signedIn={state.signedIn} />}
     {mode === "troubleshooting" && <PostComposer defaultType="troubleshooting" defaultRoomId={state.rooms.find((room) => room.slug === "troubleshooting-grove")?.id} troubleshooting localDrafts={localDrafts} categories={categories} onRefresh={refresh} isAdmin={state.isAdmin} />}
     {routeMode === "sandbox-review" && <SandboxDraftPanel localDrafts={localDrafts} />}
     {mode === "moderation" && <ModerationPanel />}

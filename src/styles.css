@@ -3784,3 +3784,65 @@ code { color: var(--teal); overflow-wrap: anywhere; }
   .forge-workspace-grid { grid-template-columns: 1fr; }
   .forge-left-rail { position: static; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
 }
+
+/* Repository Showcase structured metadata */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.commune-repo-import-panel,
+.commune-repository-detail,
+.commune-repo-sandbox-request,
+.commune-repo-sandbox-summary {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.commune-repo-import-panel {
+  padding: 1rem;
+  border: 1px solid rgba(142, 232, 220, 0.2);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(13, 23, 31, 0.78), rgba(7, 13, 20, 0.74));
+}
+
+.commune-repo-identity-card,
+.commune-repo-sandbox-summary {
+  border-color: rgba(216, 182, 111, 0.26);
+  background:
+    radial-gradient(circle at 95% 10%, rgba(216, 182, 111, 0.12), transparent 10rem),
+    linear-gradient(180deg, rgba(13, 23, 31, 0.88), rgba(7, 13, 20, 0.82));
+}
+
+.commune-repo-text-block {
+  max-height: 28rem;
+  overflow: auto;
+  padding: 0.9rem;
+  border: 1px solid rgba(142, 232, 220, 0.18);
+  border-radius: 12px;
+  background: rgba(2, 8, 13, 0.72);
+  color: rgba(229, 246, 240, 0.92);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.commune-repo-risk-row {
+  display: grid;
+  gap: 0.45rem;
+  padding: 0.85rem;
+  border: 1px solid rgba(142, 232, 220, 0.16);
+  border-radius: 14px;
+  background: rgba(8, 16, 22, 0.52);
+}
+
+.commune-repo-sandbox-request .cm-editor,
+.commune-repo-sandbox-request textarea {
+  max-width: 100%;
+}

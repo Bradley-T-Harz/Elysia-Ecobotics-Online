@@ -10,9 +10,39 @@ export type CommunePost = { id: string; user_id?: string; author_username?: stri
 export type CommuneThread = { id: string; post_id?: string | null; room_id?: string | null; title: string; status: string; visibility: string; last_reply_at?: string | null };
 export type CommuneComment = { id: string; thread_id: string; post_id?: string | null; parent_comment_id?: string | null; user_id?: string; author_username?: string | null; body: string; status: string; created_at?: string | null; published_at?: string | null };
 export type CommuneMediaAttachment = { id: string; post_id: string; file_name: string; mime_type?: string | null; file_size?: number | null; media_kind: "image" | "document" | "code_text" | "archive" | "other"; visibility_state: string; storage_bucket?: string | null; storage_path?: string | null; signed_url?: string | null; created_at?: string | null };
+export type RepositoryShowcaseMetadata = {
+  id: string;
+  user_id?: string | null;
+  post_id?: string | null;
+  repository_url: string;
+  repository_host?: string | null;
+  project_name?: string | null;
+  project_summary?: string | null;
+  provider?: string | null;
+  default_branch?: string | null;
+  commit_sha?: string | null;
+  license?: string | null;
+  manifest_status?: string | null;
+  elysia_compatibility?: string | null;
+  short_description?: string | null;
+  readme_preview?: string | null;
+  file_tree_preview?: string | null;
+  screenshot_notes_or_urls?: string | null;
+  risk_flags?: string[] | null;
+  sandbox_review_requested?: boolean | null;
+  sandbox_review_status?: string | null;
+  sandbox_review_request_id?: string | null;
+  status?: string | null;
+  import_source?: string | null;
+  imported_metadata?: Record<string, unknown> | null;
+  imported_at?: string | null;
+  redaction_notes?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
 export type CommuneModerationItem = { id: string; kind: "post" | "comment" | "upload" | "repo" | "sandbox" | "report"; title: string; status: string; created_at?: string | null; summary?: string | null };
 export type CommuneAccountState = { signedIn: boolean; userId: string | null; username: string | null; roles: AppRole[]; isAdmin: boolean; isModerator: boolean; warnings: string[] };
-export type LoadCommuneData = { rooms: CommuneRoom[]; posts: CommunePost[]; comments: CommuneComment[]; threads: CommuneThread[]; media: CommuneMediaAttachment[]; savedPostIds: string[]; followedThreadIds: string[]; account: CommuneAccountState; warnings: string[] };
+export type LoadCommuneData = { rooms: CommuneRoom[]; posts: CommunePost[]; comments: CommuneComment[]; threads: CommuneThread[]; media: CommuneMediaAttachment[]; repositoryShowcases: RepositoryShowcaseMetadata[]; savedPostIds: string[]; followedThreadIds: string[]; account: CommuneAccountState; warnings: string[] };
 export type CommuneCategory = { id: string; slug: string; title: string; description?: string | null; sort_order?: number | null; is_active?: boolean | null };
 export type CommuneCodeSnippet = {
   id: string;
@@ -176,6 +206,66 @@ async function publishPostAttachments(postId: string) {
     .in("status", ["pending_review", "approved"]);
 }
 
+const repositoryShowcaseSelect = "id,user_id,post_id,repository_url,repository_host,project_name,project_summary,provider,default_branch,commit_sha,license,manifest_status,elysia_compatibility,short_description,readme_preview,file_tree_preview,screenshot_notes_or_urls,risk_flags,sandbox_review_requested,sandbox_review_status,sandbox_review_request_id,status,import_source,imported_metadata,imported_at,redaction_notes,created_at,updated_at";
+const repositoryShowcaseFallbackSelect = "id,user_id,post_id,repository_url,repository_host,project_name,project_summary,license,sandbox_review_requested,status,created_at,updated_at";
+
+function normalizeRepositoryShowcase(row: Partial<RepositoryShowcaseMetadata>): RepositoryShowcaseMetadata {
+  return {
+    id: String(row.id ?? ""),
+    user_id: row.user_id ?? null,
+    post_id: row.post_id ?? null,
+    repository_url: String(row.repository_url ?? ""),
+    repository_host: row.repository_host ?? null,
+    project_name: row.project_name ?? null,
+    project_summary: row.project_summary ?? null,
+    provider: row.provider ?? row.repository_host ?? null,
+    default_branch: row.default_branch ?? null,
+    commit_sha: row.commit_sha ?? null,
+    license: row.license ?? null,
+    manifest_status: row.manifest_status ?? null,
+    elysia_compatibility: row.elysia_compatibility ?? null,
+    short_description: row.short_description ?? row.project_summary ?? null,
+    readme_preview: row.readme_preview ?? null,
+    file_tree_preview: row.file_tree_preview ?? null,
+    screenshot_notes_or_urls: row.screenshot_notes_or_urls ?? null,
+    risk_flags: Array.isArray(row.risk_flags) ? row.risk_flags : [],
+    sandbox_review_requested: Boolean(row.sandbox_review_requested),
+    sandbox_review_status: row.sandbox_review_status ?? (row.sandbox_review_requested ? "requested" : "not_requested"),
+    sandbox_review_request_id: row.sandbox_review_request_id ?? null,
+    status: row.status ?? null,
+    import_source: row.import_source ?? "manual",
+    imported_metadata: row.imported_metadata ?? null,
+    imported_at: row.imported_at ?? null,
+    redaction_notes: row.redaction_notes ?? null,
+    created_at: row.created_at ?? null,
+    updated_at: row.updated_at ?? null
+  };
+}
+
+async function loadRepositoryShowcasesForPosts(postIds: string[]): Promise<RepositoryShowcaseMetadata[]> {
+  if (!supabase || !postIds.length) return [];
+  const { data, error } = await supabase.from(canonicalCommuneTables.repositoryShowcases).select(repositoryShowcaseSelect).in("post_id", postIds);
+  if (!error) return ((data ?? []) as Partial<RepositoryShowcaseMetadata>[]).map(normalizeRepositoryShowcase).filter((row) => row.id);
+  if (import.meta.env.DEV) console.warn("[Repository Showcase structured load]", error.message);
+  const fallback = await supabase.from(canonicalCommuneTables.repositoryShowcases).select(repositoryShowcaseFallbackSelect).in("post_id", postIds);
+  if (fallback.error) {
+    if (import.meta.env.DEV) console.warn("[Repository Showcase fallback load]", fallback.error.message);
+    return [];
+  }
+  return ((fallback.data ?? []) as Partial<RepositoryShowcaseMetadata>[]).map(normalizeRepositoryShowcase).filter((row) => row.id);
+}
+
+export async function loadRepositoryShowcaseForContext(input: { postId?: string | null; showcaseId?: string | null }): Promise<{ showcase: RepositoryShowcaseMetadata | null; warnings: string[] }> {
+  if (!supabase) return { showcase: null, warnings: [supabaseNotConfiguredMessage] };
+  if (!input.postId && !input.showcaseId) return { showcase: null, warnings: [] };
+  const query = supabase.from(canonicalCommuneTables.repositoryShowcases).select(repositoryShowcaseSelect).limit(1);
+  const result = input.showcaseId ? await query.eq("id", input.showcaseId).maybeSingle() : await query.eq("post_id", input.postId).maybeSingle();
+  if (!result.error) return { showcase: result.data ? normalizeRepositoryShowcase(result.data as Partial<RepositoryShowcaseMetadata>) : null, warnings: [] };
+  const fallbackQuery = supabase.from(canonicalCommuneTables.repositoryShowcases).select(repositoryShowcaseFallbackSelect).limit(1);
+  const fallback = input.showcaseId ? await fallbackQuery.eq("id", input.showcaseId).maybeSingle() : await fallbackQuery.eq("post_id", input.postId).maybeSingle();
+  return { showcase: fallback.data ? normalizeRepositoryShowcase(fallback.data as Partial<RepositoryShowcaseMetadata>) : null, warnings: fallback.error ? [friendlyError(fallback.error.message, "Repository Showcase metadata is not active yet.")] : [friendlyError(result.error.message, "Repository Showcase structured metadata is not active yet.")] };
+}
+
 async function loadPublishedMediaForPosts(postIds: string[]): Promise<CommuneMediaAttachment[]> {
   if (!supabase || !postIds.length) return [];
   const client = supabase;
@@ -209,7 +299,7 @@ export async function loadCategories(): Promise<{ categories: CommuneCategory[];
 
 export async function loadCommuneData(roomSlug?: string, postId?: string): Promise<LoadCommuneData> {
   const account = await accountState();
-  if (!hasSupabaseConfig || !supabase) return { rooms: [], posts: [], comments: [], threads: [], media: [], savedPostIds: [], followedThreadIds: [], account, warnings: [supabaseNotConfiguredMessage] };
+  if (!hasSupabaseConfig || !supabase) return { rooms: [], posts: [], comments: [], threads: [], media: [], repositoryShowcases: [], savedPostIds: [], followedThreadIds: [], account, warnings: [supabaseNotConfiguredMessage] };
   const warnings = [...account.warnings];
   const roomsQuery = supabase.from(canonicalCommuneTables.rooms).select("id, slug, name, description, room_type, requires_moderation").order("name");
   const { data: rooms, error: roomError } = await roomsQuery;
@@ -236,6 +326,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
   const { data: comments, error: commentError } = await commentQuery;
   if (commentError) warnings.push(commentError.message);
   const media = await loadPublishedMediaForPosts(postIds);
+  const repositoryShowcases = await loadRepositoryShowcasesForPosts(postIds);
   let savedPostIds: string[] = [];
   let followedThreadIds: string[] = [];
   if (account.userId) {
@@ -246,7 +337,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
     savedPostIds = (saves ?? []).map((row) => row.post_id).filter(Boolean) as string[];
     followedThreadIds = (follows ?? []).map((row) => row.thread_id).filter(Boolean) as string[];
   }
-  return { rooms: (rooms ?? []) as CommuneRoom[], posts: (posts ?? []) as CommunePost[], comments: (comments ?? []) as CommuneComment[], threads: (threads ?? []) as CommuneThread[], media, savedPostIds, followedThreadIds, account, warnings };
+  return { rooms: (rooms ?? []) as CommuneRoom[], posts: (posts ?? []) as CommunePost[], comments: (comments ?? []) as CommuneComment[], threads: (threads ?? []) as CommuneThread[], media, repositoryShowcases, savedPostIds, followedThreadIds, account, warnings };
 }
 
 export async function ensureCommuneThreadForPost(post: CommunePost): Promise<{ ok: boolean; thread?: CommuneThread; message: string }> {
@@ -484,19 +575,22 @@ export async function moderateCommuneContentTarget(input: { targetType: CommuneR
   };
 }
 
-export async function submitRepositoryShowcase(input: { repositoryUrl: string; projectName: string; projectSummary: string; postId?: string; roomId?: string; body?: string; tags?: string; links?: string; branch?: string; commit?: string; license?: string; readmePreview?: string; fileTreePreview?: string; screenshotNotes?: string; manifestStatus?: string; compatibility?: string; warnings?: string[]; sandboxRequested?: boolean }): Promise<{ ok: boolean; message: string; id?: string; postId?: string }> {
+export async function submitRepositoryShowcase(input: { repositoryUrl: string; projectName: string; projectSummary: string; postId?: string; roomId?: string; body?: string; tags?: string; links?: string; provider?: string; branch?: string; commit?: string; license?: string; readmePreview?: string; fileTreePreview?: string; screenshotNotes?: string; manifestStatus?: string; compatibility?: string; warnings?: string[]; sandboxRequested?: boolean; importSource?: string; importedMetadata?: Record<string, unknown>; importedAt?: string | null; redactionNotes?: string }): Promise<{ ok: boolean; message: string; id?: string; postId?: string; sandboxReviewRequestId?: string }> {
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
   if (!account.userId) return { ok: false, message: "Sign in to submit repository showcases." };
   if (!input.projectName.trim()) return { ok: false, message: "Add a repository showcase title before submitting." };
   const host = (() => { try { const url = new URL(input.repositoryUrl); return ["http:", "https:"].includes(url.protocol) && !/^(localhost|127\.0\.0\.1|0\.0\.0\.0)$/i.test(url.hostname) ? url.hostname : null; } catch { return null; } })();
   if (!host) return { ok: false, message: "Use a public HTTP(S) repository URL. Localhost/private repository URLs are not accepted for public Commune metadata." };
+  const riskFlags = Array.from(new Set((input.warnings ?? []).map((item) => item.trim()).filter(Boolean)));
+  const secretScan = scanCommuneTextForSecrets([input.repositoryUrl, input.projectName, input.projectSummary, input.body ?? "", input.provider ?? "", input.branch ?? "", input.commit ?? "", input.license ?? "", input.readmePreview ?? "", input.fileTreePreview ?? "", input.screenshotNotes ?? "", input.manifestStatus ?? "", input.compatibility ?? "", riskFlags.join("\n"), input.redactionNotes ?? "", JSON.stringify(input.importedMetadata ?? {})].join("\n"));
+  if (secretScan.blocked) return { ok: false, message: "Repository showcase blocked because it appears to contain private or secret material: " + secretScan.warnings.join(", ") + ". Remove it before submitting." };
   let postId = input.postId || null;
   const now = new Date().toISOString();
   const adminDirectPublish = account.isAdmin;
+  const body = input.body?.trim() || input.projectSummary.trim();
   if (!postId) {
     postId = crypto.randomUUID();
-    const body = input.body?.trim() || input.projectSummary.trim();
     const { error: postError } = await supabase.from(canonicalCommuneTables.posts).insert({
       id: postId,
       user_id: account.userId,
@@ -523,27 +617,67 @@ export async function submitRepositoryShowcase(input: { repositoryUrl: string; p
   }
   const summary = [
     input.projectSummary,
-    input.branch ? `Branch: ${input.branch}` : "",
-    input.commit ? `Commit: ${input.commit}` : "",
-    input.license ? `License: ${input.license}` : "",
-    input.manifestStatus ? `Manifest: ${input.manifestStatus}` : "",
-    input.compatibility ? `Compatibility: ${input.compatibility}` : "",
-    input.warnings?.length ? `Warnings: ${input.warnings.join(", ")}` : ""
+    input.branch ? "Branch: " + input.branch : "",
+    input.commit ? "Commit: " + input.commit : "",
+    input.license ? "License: " + input.license : "",
+    input.manifestStatus ? "Manifest: " + input.manifestStatus : "",
+    input.compatibility ? "Compatibility: " + input.compatibility : "",
+    riskFlags.length ? "Warnings: " + riskFlags.join(", ") : ""
   ].filter(Boolean).join("\n");
-  const { data, error } = await supabase.from(canonicalCommuneTables.repositoryShowcases).insert({ user_id: account.userId, post_id: postId, repository_url: input.repositoryUrl, repository_host: host, project_name: input.projectName, project_summary: summary || input.projectSummary, sandbox_review_requested: Boolean(input.sandboxRequested), status: adminDirectPublish ? "approved" : "pending_review" }).select("id").single();
-  if (error) return { ok: false, message: friendlyError(error.message, "Repository showcase review queue is not active yet.") };
-  const id = (data as { id: string }).id;
+  const structuredPayload = {
+    user_id: account.userId,
+    post_id: postId,
+    repository_url: input.repositoryUrl,
+    repository_host: host,
+    project_name: input.projectName,
+    project_summary: summary || input.projectSummary,
+    provider: input.provider || host,
+    default_branch: input.branch || null,
+    commit_sha: input.commit || null,
+    license: input.license || null,
+    manifest_status: input.manifestStatus || "No manifest checked",
+    elysia_compatibility: input.compatibility || "Unknown",
+    short_description: input.projectSummary || null,
+    readme_preview: input.readmePreview || null,
+    file_tree_preview: input.fileTreePreview || null,
+    screenshot_notes_or_urls: input.screenshotNotes || null,
+    risk_flags: riskFlags,
+    sandbox_review_requested: Boolean(input.sandboxRequested),
+    sandbox_review_status: input.sandboxRequested ? "requested" : "not_requested",
+    status: adminDirectPublish ? "approved" : "pending_review",
+    import_source: input.importSource || "manual",
+    imported_metadata: input.importedMetadata ?? {},
+    imported_at: input.importedAt || null,
+    redaction_notes: input.redactionNotes || null
+  };
+  const insertAttempt = await supabase.from(canonicalCommuneTables.repositoryShowcases).insert(structuredPayload).select("id").single();
+  let data = insertAttempt.data as { id: string } | null;
+  if (insertAttempt.error) {
+    if (!/schema cache|Could not find|does not exist|column/i.test(insertAttempt.error.message)) return { ok: false, message: friendlyError(insertAttempt.error.message, "Repository showcase review queue is not active yet.") };
+    const fallback = await supabase.from(canonicalCommuneTables.repositoryShowcases).insert({ user_id: account.userId, post_id: postId, repository_url: input.repositoryUrl, repository_host: host, project_name: input.projectName, project_summary: summary || input.projectSummary, license: input.license || null, safety_notes: riskFlags.join(", ") || null, sandbox_review_requested: Boolean(input.sandboxRequested), status: adminDirectPublish ? "approved" : "pending_review" }).select("id").single();
+    if (fallback.error) return { ok: false, message: friendlyError(fallback.error.message, "Repository showcase review queue is not active yet.") };
+    data = fallback.data as { id: string };
+  }
+  if (!data) return { ok: false, message: "Repository showcase could not be saved because the database did not return a row id." };
+  const id = data.id;
+  let sandboxReviewRequestId: string | undefined;
   if (adminDirectPublish) {
     await createReviewHistoryItem({ domain: "commune", sourceTable: "commune_posts", sourceId: postId, submittedBy: account.userId, title: input.projectName, summary: "Admin-published repository showcase metadata only. The website did not clone, build, run, or execute code.", status: "approved", eventType: "admin_repository_showcase_direct_published", metadata: { repository_showcase_id: id, repository_url: input.repositoryUrl } });
   } else {
     await createReviewItem({ domain: "commune", sourceTable: "commune_posts", sourceId: postId, submittedBy: account.userId, title: input.projectName, summary: "Repository showcase post. Metadata only; no repository was cloned, built, run, or executed." });
     await createReviewItem({ domain: "commune", sourceTable: "commune_repository_showcases", sourceId: id, submittedBy: account.userId, title: input.projectName, summary: "Repository showcase metadata only. The website did not clone, build, run, or execute code." });
   }
-  if (input.sandboxRequested) await submitSandboxReview({ requestTitle: `Sandbox review: ${input.projectName}`, repositoryUrl: input.repositoryUrl, repositoryShowcaseId: id, scope: "Metadata-only request for future bounded sandbox review.", riskNotes: "Website did not execute code.", permissions: [] });
-  return { ok: true, message: adminDirectPublish ? "Repository showcase published as an admin-authored public post. No repository was fetched, cloned, built, or executed." : "Repository showcase submitted as a normal Commune post for moderation. No repository was fetched, cloned, built, or executed.", id, postId };
+  if (input.sandboxRequested) {
+    const sandbox = await submitSandboxReview({ requestTitle: "Repository artifact review: " + input.projectName, repositoryUrl: input.repositoryUrl, repositoryShowcaseId: id, postId, scope: "Selected artifact/snippet review only. The whole repository is not cloned, built, installed, or executed.", riskNotes: "Repository Showcase requested bounded artifact review. Website did not execute the repository.", permissions: [] });
+    if (sandbox.ok) {
+      sandboxReviewRequestId = sandbox.id;
+      await supabase.from(canonicalCommuneTables.repositoryShowcases).update({ sandbox_review_status: "requested", sandbox_review_request_id: sandbox.id ?? null, updated_at: new Date().toISOString() }).eq("id", id);
+    }
+  }
+  return { ok: true, message: adminDirectPublish ? "Repository showcase published as an admin-authored public post. No repository was fetched, cloned, built, or executed." : "Repository showcase submitted as a normal Commune post for moderation. No repository was fetched, cloned, built, or executed.", id, postId, sandboxReviewRequestId };
 }
 
-export async function submitSandboxReview(input: { requestTitle: string; repositoryUrl?: string; packageUrl?: string; repositoryShowcaseId?: string; postId?: string; scope: string; riskNotes: string; permissions: string[] }): Promise<{ ok: boolean; message: string }> {
+export async function submitSandboxReview(input: { requestTitle: string; repositoryUrl?: string; packageUrl?: string; repositoryShowcaseId?: string; postId?: string; scope: string; riskNotes: string; permissions: string[] }): Promise<{ ok: boolean; message: string; id?: string }> {
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
   if (!account.userId) return { ok: false, message: "Sign in to request sandbox review." };
@@ -551,8 +685,9 @@ export async function submitSandboxReview(input: { requestTitle: string; reposit
   if (scan.blocked) return { ok: false, message: `Sandbox request blocked because it appears to contain private or secret material: ${scan.warnings.join(", ")}.` };
   const { data, error } = await supabase.from(canonicalCommuneTables.sandboxReviews).insert({ user_id: account.userId, post_id: input.postId || null, repository_showcase_id: input.repositoryShowcaseId || null, request_title: input.requestTitle, repository_url: input.repositoryUrl || null, package_url: input.packageUrl || null, requested_review_scope: input.scope, risk_notes: input.riskNotes, declared_permissions: input.permissions, status: "requested" }).select("id").single();
   if (error) return { ok: false, message: friendlyError(error.message, "Sandbox review queue is not active yet.") };
-  await createReviewItem({ domain: "commune", sourceTable: "commune_sandbox_review_requests", sourceId: (data as { id: string }).id, submittedBy: account.userId, title: input.requestTitle, summary: "Sandbox review request only. The website does not execute submitted code." });
-  return { ok: true, message: "Sandbox review request saved for moderators. This is not execution permission." };
+  const id = (data as { id: string }).id;
+  await createReviewItem({ domain: "commune", sourceTable: "commune_sandbox_review_requests", sourceId: id, submittedBy: account.userId, title: input.requestTitle, summary: "Sandbox review request only. The website does not execute submitted code." });
+  return { ok: true, message: "Sandbox review request saved for moderators. This is not execution permission.", id };
 }
 
 export async function reportCommuneContent(input: { postId?: string; commentId?: string; reportType: string; reason: string; profileUsername?: string }): Promise<{ ok: boolean; message: string }> {
@@ -616,7 +751,7 @@ export async function loadCodeSnippets(postId: string): Promise<{ snippets: Comm
 
 export async function recordCodingSandboxRunResult(input: {
   snapshotId: string;
-  sourceType: "commune_post_snippet" | "commune_code_document" | "commune_code_version";
+  sourceType: "commune_post_snippet" | "commune_code_document" | "commune_code_version" | "repository_showcase_artifact";
   sourceId?: string | null;
   postId?: string | null;
   codeDocumentId?: string | null;
@@ -654,7 +789,7 @@ export async function recordCodingSandboxRunResult(input: {
     p_diagnostics: input.result.diagnostics
   });
   if (error) return { ok: false, message: friendlyError(error.message, "Coding Cornucopia sandbox result recording is not active until the latest Supabase migration is applied.") };
-  return { ok: true, message: "Sandbox run result recorded privately for Coding Cornucopia review history.", runId: typeof data === "string" ? data : undefined };
+  return { ok: true, message: "Sandbox run result recorded privately for Commune sandbox review history.", runId: typeof data === "string" ? data : undefined };
 }
 
 export async function loadCommuneModerationQueue(): Promise<{ items: CommuneModerationItem[]; warnings: string[] }> {
@@ -688,7 +823,7 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
   if (!account.userId || !account.isModerator) return { ok: false, message: "Commune moderation requires an assigned moderator/admin role." };
   const now = new Date().toISOString();
   const table = item.kind === "post" ? canonicalCommuneTables.posts : item.kind === "comment" ? canonicalCommuneTables.comments : item.kind === "upload" ? canonicalCommuneTables.media : item.kind === "repo" ? canonicalCommuneTables.repositoryShowcases : item.kind === "sandbox" ? canonicalCommuneTables.sandboxReviews : canonicalCommuneTables.legacyReports;
-  const ownerSelect = item.kind === "post" ? "user_id,title" : item.kind === "comment" ? "user_id,body,post_id,thread_id" : item.kind === "repo" ? "user_id,project_name" : item.kind === "sandbox" ? "user_id,request_title" : item.kind === "upload" ? "owner_user_id,file_name,post_id" : "reporter_user_id,report_type";
+  const ownerSelect = item.kind === "post" ? "user_id,title,post_type" : item.kind === "comment" ? "user_id,body,post_id,thread_id" : item.kind === "repo" ? "user_id,project_name,post_id" : item.kind === "sandbox" ? "user_id,request_title" : item.kind === "upload" ? "owner_user_id,file_name,post_id" : "reporter_user_id,report_type";
   const ownerResult = await supabase.from(table).select(ownerSelect).eq("id", item.id).maybeSingle();
   const ownerRow = (ownerResult.data ?? {}) as Record<string, unknown>;
   const targetUserId = String(ownerRow.user_id ?? ownerRow.owner_user_id ?? ownerRow.reporter_user_id ?? "");
@@ -698,6 +833,7 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
   if (item.kind === "post") {
     update.updated_at = now;
     update.status = action === "approve" ? "published" : action === "reject" ? "removed_by_moderator" : action === "hide" ? "hidden" : action === "archive" ? "archived" : "needs_information";
+    update.moderation_status = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "hide" ? "hidden" : action === "archive" ? "archived" : "needs_information";
     update.visibility = action === "approve" ? "public" : "private_draft";
     if (action === "approve") {
       update.published_at = now;
@@ -712,7 +848,7 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
     update.visibility_state = action === "approve" ? "published" : action === "hide" ? "hidden" : action === "archive" ? "archived" : "removed";
   } else if (item.kind === "repo") {
     update.updated_at = now;
-    update.status = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "archive" ? "archived" : "needs_information";
+    update.status = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "hide" ? "rejected" : action === "archive" ? "archived" : action === "escalate" ? "in_review" : "needs_information";
   } else if (item.kind === "sandbox") {
     update.updated_at = now;
     update.status = action === "approve" ? "approved_for_local_sandbox" : action === "reject" ? "rejected" : action === "archive" ? "archived" : action === "escalate" ? "in_review" : "needs_information";
@@ -724,6 +860,28 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
   }
   const { error } = await supabase.from(table).update(update).eq("id", item.id);
   if (error) return { ok: false, message: error.message };
+  if (item.kind === "post" && ownerRow.post_type === "repository_showcase") {
+    const repoStatus = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "hide" ? "rejected" : action === "archive" ? "archived" : action === "escalate" ? "in_review" : "needs_information";
+    await supabase.from(canonicalCommuneTables.repositoryShowcases).update({ status: repoStatus, updated_at: now }).eq("post_id", item.id);
+  }
+  if (item.kind === "repo" && postId) {
+    const linkedPostUpdate: Record<string, unknown> = { updated_at: now };
+    linkedPostUpdate.status = action === "approve" ? "published" : action === "reject" ? "removed_by_moderator" : action === "hide" ? "hidden" : action === "archive" ? "archived" : "needs_information";
+    linkedPostUpdate.moderation_status = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "hide" ? "hidden" : action === "archive" ? "archived" : "needs_information";
+    linkedPostUpdate.visibility = action === "approve" ? "public" : "private_draft";
+    if (action === "approve") {
+      linkedPostUpdate.published_at = now;
+      linkedPostUpdate.moderation_reason = null;
+    } else {
+      linkedPostUpdate.moderation_reason = reason || null;
+    }
+    await supabase.from(canonicalCommuneTables.posts).update(linkedPostUpdate).eq("id", postId).eq("post_type", "repository_showcase");
+    const linkedReview = await supabase.from("review_items").select("id,status").eq("domain", "commune").eq("source_table", canonicalCommuneTables.posts).eq("source_id", postId).maybeSingle();
+    if (!linkedReview.error && linkedReview.data) {
+      const linkedReviewStatus = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "needs_information" ? "needs_information" : action === "archive" ? "archived" : "in_review";
+      await supabase.from("review_items").update({ status: linkedReviewStatus, updated_at: now }).eq("id", (linkedReview.data as { id: string }).id);
+    }
+  }
   const toStatus = String(update.status ?? update.visibility_state);
   await supabase.from("commune_moderation_events").insert({ actor_id: account.userId, target_type: item.kind, target_id: item.id, action, from_status: item.status, to_status: toStatus, reason: reason || null, metadata: { source: "commune_moderation_ui" } });
   const reviewStatus = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "needs_information" ? "needs_information" : action === "archive" ? "archived" : "in_review";
@@ -737,6 +895,11 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
       const { data: threadRow } = await supabase.from(canonicalCommuneTables.threads).select("id").eq("post_id", item.id).maybeSingle();
       await grantThreadParticipationApproval({ threadId: (threadRow as { id?: string } | null)?.id ?? null, postId: item.id, userId: targetUserId, approvedBy: account.userId, source: "post_approval" });
       await publishPostAttachments(item.id);
+    }
+    if (item.kind === "repo" && postId) {
+      const { data: threadRow } = await supabase.from(canonicalCommuneTables.threads).select("id").eq("post_id", postId).maybeSingle();
+      await grantThreadParticipationApproval({ threadId: (threadRow as { id?: string } | null)?.id ?? null, postId, userId: targetUserId, approvedBy: account.userId, source: "repository_showcase_approval" });
+      await publishPostAttachments(postId);
     }
     if (item.kind === "comment") {
       const commentRow = ownerRow as { user_id?: string | null; post_id?: string | null; thread_id?: string | null };

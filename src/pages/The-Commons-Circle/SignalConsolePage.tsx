@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
-import { loadSignalConsole, markAllNotificationsRead, markNotificationRead, type CodeProposalSignalPreview, type CodeProposalSignalStatus, type NotificationPreview, type SignalConsoleData } from "./commonsCircleApi";
+import { loadSignalConsole, markAllNotificationsRead, markNotificationRead, type CodeProposalSignalPreview, type CodeProposalSignalStatus, type NotificationPreview, type RepositoryShowcaseSignalPreview, type SignalConsoleData } from "./commonsCircleApi";
 
 function signalCategory(signal: NotificationPreview) {
   const text = `${signal.notification_type ?? ""} ${signal.source_type ?? ""}`;
@@ -78,6 +78,28 @@ function ProposalSignalCard({ proposal, currentUserId, context }: { proposal: Co
   </article>;
 }
 
+function repositoryStatusLabel(status?: string | null) {
+  return status ? status.replace(/_/g, " ") : "status unknown";
+}
+
+function repositorySignalTime(signal: RepositoryShowcaseSignalPreview) {
+  return signal.updated_at || signal.created_at || null;
+}
+
+function RepositorySignalCard({ signal, context }: { signal: RepositoryShowcaseSignalPreview; context: "mine" | "review" | "sandbox" | "recent" }) {
+  const created = repositorySignalTime(signal);
+  const title = signal.project_name || "Repository Showcase activity";
+  const roleLabel = signal.role_context === "reviewer" ? "Reviewer/moderator queue" : signal.role_context === "sandbox" ? "Selected-artifact sandbox activity" : "My repository showcase";
+  return <article className={["commons-signal-card", context === "review" ? "commons-signal-card--unread" : ""].filter(Boolean).join(" ")}>
+    <div className="addon-card__topline"><strong>{title}</strong><span>{created ? new Date(created).toLocaleString() : "recent"}</span></div>
+    <div className="commons-signal-meta"><span>Repository Showcase</span><span>{repositoryStatusLabel(signal.status)}</span><span>{repositoryStatusLabel(signal.sandbox_review_status)}</span><span>{roleLabel}</span></div>
+    <p>{signal.repository_url || "Repository URL not loaded in this signal."}</p>
+    <p className="boundary-note">Repository Showcase is metadata-first. Selected-artifact sandbox review is evidence only; it does not clone, install, build, trust, approve, or make a repository Marketplace-ready.</p>
+    <div className="button-row"><Link className="button-link" to={signal.action_url}>{signal.sandbox_review_requested ? "Open selected-artifact sandbox review" : "Open Repository Showcase"}</Link></div>
+  </article>;
+}
+
+
 export default function SignalConsolePage() {
   const [data, setData] = useState<SignalConsoleData | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
@@ -96,7 +118,11 @@ export default function SignalConsolePage() {
   const proposalActivity = data?.codeProposalActivity ?? [];
   const needsMyReview = data?.needsMyReview ?? [];
   const mySubmittedProposals = data?.mySubmittedProposals ?? [];
-  const hasAnySignal = signals.length > 0 || proposalActivity.length > 0;
+  const repositoryShowcaseActivity = data?.repositoryShowcaseActivity ?? [];
+  const myRepositoryShowcases = data?.myRepositoryShowcases ?? [];
+  const repositoryShowcasesNeedingReview = data?.repositoryShowcasesNeedingReview ?? [];
+  const repositorySandboxActivity = data?.repositorySandboxActivity ?? [];
+  const hasAnySignal = signals.length > 0 || proposalActivity.length > 0 || repositoryShowcaseActivity.length > 0;
 
   async function readOne(id: string) {
     const warnings = await markNotificationRead(id);
@@ -138,21 +164,30 @@ export default function SignalConsolePage() {
     </section>
     {data?.signedIn && <section className="section-card">
       <div className="section-heading section-heading--inline"><div><p className="eyebrow">Attention queue</p><h2>Signals that need review</h2></div><button type="button" disabled={!data.unreadCount} onClick={() => void readAll()}>Mark all read</button></div>
-      <dl className="mini-facts"><div><dt>Unread</dt><dd>{data.unreadCount}</dd></div><div><dt>Coding proposals</dt><dd>{data.codeProposalCount}</dd></div>{Object.entries(groupedCounts).slice(0, 4).map(([category, count]) => <div key={category}><dt>{category}</dt><dd>{count}</dd></div>)}</dl>
-      {!hasAnySignal && <p className="commons-empty-state">No signals yet. Code revision proposals, accepted/rejected outcomes, sandbox results, followed-thread updates, and review notices will appear here when account-backed events exist.</p>}
+      <dl className="mini-facts"><div><dt>Unread</dt><dd>{data.unreadCount}</dd></div><div><dt>Coding proposals</dt><dd>{data.codeProposalCount}</dd></div><div><dt>Repository showcases</dt><dd>{data.repositoryShowcaseCount}</dd></div>{Object.entries(groupedCounts).slice(0, 4).map(([category, count]) => <div key={category}><dt>{category}</dt><dd>{count}</dd></div>)}</dl>
+      {!hasAnySignal && <p className="commons-empty-state">No signals yet. Code revision proposals, Repository Showcase submissions, selected-artifact sandbox reviews, accepted/rejected outcomes, sandbox results, followed-thread updates, and review notices will appear here when account-backed events exist.</p>}
       <div className="section-heading"><p className="eyebrow">Coding Cornucopia proposals</p><h3>Needs my review</h3><p>Proposal activity is loaded directly from commune_code_revision_proposals, so same-user testing proposals still appear even when no notification row is created.</p></div>
       {!needsMyReview.length && <p className="commons-empty-state">No submitted or needs-changes Coding Cornucopia proposals are waiting on your author decision.</p>}
       <div className="commons-signal-list">{needsMyReview.map((proposal) => <ProposalSignalCard context="review" currentUserId={data.userId} key={`review-${proposal.id}`} proposal={proposal} />)}</div>
       <div className="section-heading"><p className="eyebrow">Coding Cornucopia proposals</p><h3>My submitted proposals</h3><p>Submitted, accepted, rejected, withdrawn, and needs-changes proposal records remain visible to the proposer without replacing public code.</p></div>
       {!mySubmittedProposals.length && <p className="commons-empty-state">You have not submitted any Coding Cornucopia revision proposals from this Website Account yet.</p>}
       <div className="commons-signal-list">{mySubmittedProposals.map((proposal) => <ProposalSignalCard context="submitted" currentUserId={data.userId} key={`submitted-${proposal.id}`} proposal={proposal} />)}</div>
+      <div className="section-heading"><p className="eyebrow">Repository Showcase activity</p><h3>My repository showcases</h3><p>Repository Showcase activity is loaded directly from commune_repository_showcases, so local metadata submissions and selected-artifact sandbox requests can appear even before notification rows exist.</p></div>
+      {!myRepositoryShowcases.length && <p className="commons-empty-state">You have not submitted Repository Showcase metadata from this Website Account yet.</p>}
+      <div className="commons-signal-list">{myRepositoryShowcases.map((signal) => <RepositorySignalCard context="mine" key={`mine-repo-${signal.id}`} signal={signal} />)}</div>
+      <div className="section-heading"><p className="eyebrow">Repository Showcase review</p><h3>Repository showcases needing review</h3><p>Authorized Commune reviewers can see pending, in-review, and needs-information Repository Showcase rows without treating them as safe, compatible, licensed, or installable.</p></div>
+      {!repositoryShowcasesNeedingReview.length && <p className="commons-empty-state">No Repository Showcase metadata rows are waiting in your reviewer queue.</p>}
+      <div className="commons-signal-list">{repositoryShowcasesNeedingReview.map((signal) => <RepositorySignalCard context="review" key={`review-repo-${signal.id}`} signal={signal} />)}</div>
+      <div className="section-heading"><p className="eyebrow">Repository Showcase sandbox</p><h3>Selected-artifact sandbox review activity</h3><p>These signals link to the Repository Showcase selected-artifact review route. They do not run or approve whole repositories.</p></div>
+      {!repositorySandboxActivity.length && <p className="commons-empty-state">No Repository Showcase selected-artifact sandbox review activity is connected to this Website Account yet.</p>}
+      <div className="commons-signal-list">{repositorySandboxActivity.map((signal) => <RepositorySignalCard context="sandbox" key={`sandbox-repo-${signal.role_context}-${signal.id}`} signal={signal} />)}</div>
       <div className="section-heading"><p className="eyebrow">Account notifications</p><h3>Existing notification rows</h3><p>User notification rows still appear here when account-backed systems create them.</p></div>
-      {!signals.length && proposalActivity.length > 0 && <p className="commons-empty-state">No notification rows yet, but direct Coding Cornucopia proposal records are shown above.</p>}
+      {!signals.length && proposalActivity.length > 0 && <p className="commons-empty-state">No notification rows yet, but direct Coding Cornucopia proposal records and Repository Showcase activity are shown above.</p>}
       <div className="commons-signal-list">{signals.map((signal) => <SignalCard key={signal.id} signal={signal} onRead={(id) => void readOne(id)} />)}</div>
       <div className="section-heading"><p className="eyebrow">Coding Cornucopia proposals</p><h3>Recent Coding Cornucopia proposal activity</h3><p>Recent participant-visible proposal records across author review and submitted-by-me activity.</p></div>
       {!proposalActivity.length && <p className="commons-empty-state">No direct Coding Cornucopia proposal records are connected to this Website Account yet.</p>}
       <div className="commons-signal-list">{proposalActivity.map((proposal) => <ProposalSignalCard context="recent" currentUserId={data.userId} key={`recent-${proposal.id}`} proposal={proposal} />)}</div>
-      <p className="boundary-note">For this pass, Coding Cornucopia proposal signals are the priority. Existing notification rows remain supported, and direct proposal records cover same-user testing or cases where a notification was intentionally not created.</p>
+      <p className="boundary-note">Coding Cornucopia proposal signals and Repository Showcase activity are loaded from direct records where useful. Existing notification rows remain supported, and direct records cover same-user testing or cases where a notification was intentionally not created.</p>
     </section>}
   </div>;
 }
