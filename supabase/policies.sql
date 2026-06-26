@@ -3349,3 +3349,64 @@ with check (actor_user_id = auth.uid() and exists (select 1 from public.commune_
 
 grant select, insert, update on table public.commune_sandbox_review_requests to authenticated;
 grant select, insert, update on table public.sandbox_handoff_events to authenticated;
+
+-- Official Update admin-only structured workflow policies.
+-- Canonical repair migration: supabase/migrations/2026_06_26_official_update_structured_workflow.sql
+alter table public.commune_official_updates enable row level security;
+alter table public.commune_official_update_code_snippets enable row level security;
+alter table public.commune_official_update_events enable row level security;
+
+drop policy if exists "public reads published official update metadata" on public.commune_official_updates;
+create policy "public reads published official update metadata" on public.commune_official_updates
+  for select to anon, authenticated
+  using (exists (select 1 from public.commune_posts p where p.id = post_id and p.post_type = 'official_update' and p.status = 'published' and p.visibility = 'public') or admin_user_id = auth.uid() or public.current_user_is_admin());
+
+drop policy if exists "admins manage official update metadata" on public.commune_official_updates;
+create policy "admins manage official update metadata" on public.commune_official_updates
+  for all to authenticated
+  using (public.current_user_is_admin())
+  with check (public.current_user_is_admin());
+
+drop policy if exists "public reads visible official update code" on public.commune_official_update_code_snippets;
+create policy "public reads visible official update code" on public.commune_official_update_code_snippets
+  for select to anon, authenticated
+  using (public_visible = true and exists (select 1 from public.commune_posts p where p.id = post_id and p.post_type = 'official_update' and p.status = 'published' and p.visibility = 'public'));
+
+drop policy if exists "admins manage official update code" on public.commune_official_update_code_snippets;
+create policy "admins manage official update code" on public.commune_official_update_code_snippets
+  for all to authenticated
+  using (public.current_user_is_admin())
+  with check (public.current_user_is_admin());
+
+drop policy if exists "reviewers read official update events" on public.commune_official_update_events;
+create policy "reviewers read official update events" on public.commune_official_update_events
+  for select to authenticated
+  using (public.current_user_is_admin() or public.current_user_can_review_domain('commune'::public.review_domain));
+
+drop policy if exists "admins create official update events" on public.commune_official_update_events;
+create policy "admins create official update events" on public.commune_official_update_events
+  for insert to authenticated
+  with check (public.current_user_is_admin() and (actor_id is null or actor_id = auth.uid()));
+
+drop policy if exists "users create pending commune comments" on public.commune_comments;
+drop policy if exists "users create own commune comments with thread approval" on public.commune_comments;
+create policy "users create own commune comments with thread approval" on public.commune_comments
+  for insert to authenticated
+  with check (
+    user_id = auth.uid()
+    and (
+      public.current_user_can_review_domain('commune'::public.review_domain)
+      or not exists (select 1 from public.commune_official_updates ou where ou.post_id = commune_comments.post_id and ou.comments_enabled = false)
+    )
+    and (
+      status in ('draft','pending_review')
+      or (
+        status = 'published'
+        and (
+          public.current_user_can_review_domain('commune'::public.review_domain)
+          or exists (select 1 from public.commune_thread_participant_approvals approval where approval.thread_id = commune_comments.thread_id and approval.user_id = auth.uid() and approval.status = 'approved' and approval.revoked_at is null)
+          or exists (select 1 from public.commune_posts p where p.id = commune_comments.post_id and p.user_id = auth.uid() and p.status = 'published' and p.visibility = 'public')
+        )
+      )
+    )
+  );

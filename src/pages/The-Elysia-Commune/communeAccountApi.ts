@@ -10,6 +10,61 @@ export type CommunePost = { id: string; user_id?: string; author_username?: stri
 export type CommuneThread = { id: string; post_id?: string | null; room_id?: string | null; title: string; status: string; visibility: string; last_reply_at?: string | null };
 export type CommuneComment = { id: string; thread_id: string; post_id?: string | null; parent_comment_id?: string | null; user_id?: string; author_username?: string | null; body: string; status: string; created_at?: string | null; published_at?: string | null };
 export type CommuneMediaAttachment = { id: string; post_id: string; file_name: string; mime_type?: string | null; file_size?: number | null; media_kind: "image" | "document" | "code_text" | "archive" | "other"; visibility_state: string; storage_bucket?: string | null; storage_path?: string | null; signed_url?: string | null; created_at?: string | null };
+export type OfficialUpdateType = "release_note" | "roadmap_update" | "governance_update" | "security_notice" | "maintenance_notice" | "incident_update" | "community_notice" | "developer_notice" | "marketplace_notice" | "policy_update" | "migration_notice" | "official_statement";
+export type OfficialUpdateStatus = "draft" | "published" | "updated" | "corrected" | "retracted" | "archived" | "resolved" | "monitoring";
+export type OfficialUpdateSeverity = "info" | "notice" | "important" | "urgent" | "critical";
+export type OfficialCorrectionStatus = "none" | "corrected" | "retracted" | "superseded";
+export type OfficialUpdateMetadata = {
+  id: string;
+  post_id: string;
+  admin_user_id?: string | null;
+  brand_author_name: string;
+  update_type: OfficialUpdateType;
+  official_status: OfficialUpdateStatus;
+  severity: OfficialUpdateSeverity;
+  audience?: string | null;
+  summary?: string | null;
+  effective_date?: string | null;
+  release_version?: string | null;
+  affected_systems?: string[] | null;
+  related_room_slug?: string | null;
+  related_repo_url?: string | null;
+  related_migration?: string | null;
+  related_links?: Array<{ label?: string; url: string }> | null;
+  known_limitations?: string | null;
+  migration_required?: boolean | null;
+  user_action_required?: string | null;
+  pinned?: boolean | null;
+  important?: boolean | null;
+  comments_enabled?: boolean | null;
+  correction_note?: string | null;
+  correction_status?: OfficialCorrectionStatus | null;
+  supersedes_update_id?: string | null;
+  superseded_by_update_id?: string | null;
+  published_at?: string | null;
+  corrected_at?: string | null;
+  retracted_at?: string | null;
+  archived_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+export type OfficialUpdateCodeSnippet = {
+  id: string;
+  official_update_id: string;
+  post_id: string;
+  admin_user_id?: string | null;
+  language: string;
+  file_name?: string | null;
+  code_text: string;
+  context_note?: string | null;
+  correction_note?: string | null;
+  sort_order?: number | null;
+  public_visible?: boolean | null;
+  edited_by?: string | null;
+  edited_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
 export type RepositoryShowcaseMetadata = {
   id: string;
   user_id?: string | null;
@@ -74,7 +129,7 @@ export type ElysiaIterationShowcaseMetadata = {
 };
 export type CommuneModerationItem = { id: string; kind: "post" | "comment" | "upload" | "repo" | "iteration" | "sandbox" | "report"; title: string; status: string; created_at?: string | null; summary?: string | null };
 export type CommuneAccountState = { signedIn: boolean; userId: string | null; username: string | null; roles: AppRole[]; isAdmin: boolean; isModerator: boolean; warnings: string[] };
-export type LoadCommuneData = { rooms: CommuneRoom[]; posts: CommunePost[]; comments: CommuneComment[]; threads: CommuneThread[]; media: CommuneMediaAttachment[]; repositoryShowcases: RepositoryShowcaseMetadata[]; iterationShowcases: ElysiaIterationShowcaseMetadata[]; savedPostIds: string[]; followedThreadIds: string[]; account: CommuneAccountState; warnings: string[] };
+export type LoadCommuneData = { rooms: CommuneRoom[]; posts: CommunePost[]; comments: CommuneComment[]; threads: CommuneThread[]; media: CommuneMediaAttachment[]; repositoryShowcases: RepositoryShowcaseMetadata[]; iterationShowcases: ElysiaIterationShowcaseMetadata[]; officialUpdates: OfficialUpdateMetadata[]; officialCodeSnippets: OfficialUpdateCodeSnippet[]; savedPostIds: string[]; followedThreadIds: string[]; account: CommuneAccountState; warnings: string[] };
 export type CommuneCategory = { id: string; slug: string; title: string; description?: string | null; sort_order?: number | null; is_active?: boolean | null };
 export type CommuneCodeSnippet = {
   id: string;
@@ -123,6 +178,9 @@ const canonicalCommuneTables = {
   followedThreads: "user_followed_commune_threads",
   repositoryShowcases: "commune_repository_showcases",
   iterationShowcases: "commune_iteration_showcases",
+  officialUpdates: "commune_official_updates",
+  officialCodeSnippets: "commune_official_update_code_snippets",
+  officialEvents: "commune_official_update_events",
   sandboxReviews: "commune_sandbox_review_requests",
   reports: "commune_reports",
   media: "commune_media",
@@ -163,6 +221,7 @@ function friendlyError(message: string, fallbackMessage: string) {
   if (import.meta.env.DEV) console.warn("[Commune backend]", message);
   if (/commune_content_reactions|commune_content_reaction_counts/i.test(message)) return "Commune community signals are not active yet. Apply `2026_06_21_commune_content_reactions.sql` in Supabase, then try again.";
   if (/record_commune_sandbox_run_result|commune_sandbox_runs|commune_code_diagnostics/i.test(message)) return "Coding Cornucopia sandbox result recording is not active until the latest Supabase migration is applied.";
+  if (/commune_official_updates|commune_official_update_code_snippets|commune_official_update_events/i.test(message)) return "Official Update structured metadata is not active until `2026_06_26_official_update_structured_workflow.sql` is applied in Supabase.";
   if (/commune_thread_participant_approvals/i.test(message)) return "Commune thread participation approvals are not active yet. Apply `2026_06_21_commune_thread_participant_approvals.sql` in Supabase, then try again.";
   if (/commune_comments/i.test(message) && /author_username|published_at|updated_at|hidden_at|hidden_by|moderation_reason|schema cache|Could not find|does not exist|relation/i.test(message)) return "Comment could not be saved because the live comments table is missing a required column. Apply `2026_06_22_commune_comments_schema_drift_repair.sql` in Supabase, then refresh and try again.";
   if (/user_notifications|user_followed_commune_threads|notify_commune_published_comment|commune_notify_published_comment|muted/i.test(message)) return "Comment could not be saved because the published-comment notification dependency is missing or drifted. Apply `2026_06_22_commune_comment_notification_dependency_repair.sql` in Supabase, then refresh and try again.";
@@ -255,6 +314,8 @@ const repositoryShowcaseSelect = "id,user_id,post_id,repository_url,repository_h
 const repositoryShowcaseFallbackSelect = "id,user_id,post_id,repository_url,repository_host,project_name,project_summary,license,sandbox_review_requested,status,created_at,updated_at";
 const iterationShowcaseSelect = "id,post_id,author_user_id,iteration_type,version_build_label,what_changed,why_it_matters,known_limitations,next_step,related_repo_url,provider,branch,commit_sha,release_tag,pull_request_url,developer_forge_link,marketplace_link,testing_status,compatibility_note,sandbox_review_requested,sandbox_review_status,sandbox_review_request_id,risk_flags,import_source,imported_metadata,imported_at,redaction_notes,status,created_at,updated_at";
 const iterationShowcaseFallbackSelect = "id,post_id,author_user_id,iteration_type,version_build_label,what_changed,why_it_matters,known_limitations,next_step,sandbox_review_requested,status,created_at,updated_at";
+const officialUpdateSelect = "id,post_id,admin_user_id,brand_author_name,update_type,official_status,severity,audience,summary,effective_date,release_version,affected_systems,related_room_slug,related_repo_url,related_migration,related_links,known_limitations,migration_required,user_action_required,pinned,important,comments_enabled,correction_note,correction_status,supersedes_update_id,superseded_by_update_id,published_at,corrected_at,retracted_at,archived_at,created_at,updated_at";
+const officialCodeSelect = "id,official_update_id,post_id,admin_user_id,language,file_name,code_text,context_note,correction_note,sort_order,public_visible,edited_by,edited_at,created_at,updated_at";
 
 function normalizeRepositoryShowcase(row: Partial<RepositoryShowcaseMetadata>): RepositoryShowcaseMetadata {
   return {
@@ -372,6 +433,69 @@ export async function loadIterationShowcaseForContext(input: { postId?: string |
   return { iteration: fallback.data ? normalizeIterationShowcase(fallback.data as Partial<ElysiaIterationShowcaseMetadata>) : null, warnings: fallback.error ? [friendlyError(fallback.error.message, "Elysia Iteration Showcase metadata is not active yet.")] : [friendlyError(result.error.message, "Elysia Iteration Showcase structured metadata is not active yet.")] };
 }
 
+function normalizeOfficialUpdate(row: Partial<OfficialUpdateMetadata>): OfficialUpdateMetadata {
+  return {
+    id: String(row.id ?? ""),
+    post_id: String(row.post_id ?? ""),
+    admin_user_id: row.admin_user_id ?? null,
+    brand_author_name: row.brand_author_name || "Elysia Ecobotics Official",
+    update_type: row.update_type ?? "official_statement",
+    official_status: row.official_status ?? "published",
+    severity: row.severity ?? "info",
+    audience: row.audience ?? "public",
+    summary: row.summary ?? null,
+    effective_date: row.effective_date ?? null,
+    release_version: row.release_version ?? null,
+    affected_systems: Array.isArray(row.affected_systems) ? row.affected_systems : [],
+    related_room_slug: row.related_room_slug ?? null,
+    related_repo_url: row.related_repo_url ?? null,
+    related_migration: row.related_migration ?? null,
+    related_links: Array.isArray(row.related_links) ? row.related_links : [],
+    known_limitations: row.known_limitations ?? null,
+    migration_required: Boolean(row.migration_required),
+    user_action_required: row.user_action_required ?? null,
+    pinned: Boolean(row.pinned),
+    important: Boolean(row.important),
+    comments_enabled: row.comments_enabled !== false,
+    correction_note: row.correction_note ?? null,
+    correction_status: row.correction_status ?? "none",
+    supersedes_update_id: row.supersedes_update_id ?? null,
+    superseded_by_update_id: row.superseded_by_update_id ?? null,
+    published_at: row.published_at ?? null,
+    corrected_at: row.corrected_at ?? null,
+    retracted_at: row.retracted_at ?? null,
+    archived_at: row.archived_at ?? null,
+    created_at: row.created_at ?? null,
+    updated_at: row.updated_at ?? null
+  };
+}
+
+async function loadOfficialUpdatesForPosts(postIds: string[]): Promise<OfficialUpdateMetadata[]> {
+  if (!supabase || !postIds.length) return [];
+  const { data, error } = await supabase.from(canonicalCommuneTables.officialUpdates).select(officialUpdateSelect).in("post_id", postIds);
+  if (error) {
+    if (import.meta.env.DEV) console.warn("[Official Update structured load]", error.message);
+    return [];
+  }
+  return ((data ?? []) as Partial<OfficialUpdateMetadata>[]).map(normalizeOfficialUpdate).filter((row) => row.id && row.post_id);
+}
+
+async function loadOfficialCodeSnippetsForPosts(postIds: string[]): Promise<OfficialUpdateCodeSnippet[]> {
+  if (!supabase || !postIds.length) return [];
+  const { data, error } = await supabase.from(canonicalCommuneTables.officialCodeSnippets).select(officialCodeSelect).in("post_id", postIds).eq("public_visible", true).order("sort_order", { ascending: true }).order("created_at", { ascending: true });
+  if (error) {
+    if (import.meta.env.DEV) console.warn("[Official Update code load]", error.message);
+    return [];
+  }
+  return (data ?? []) as OfficialUpdateCodeSnippet[];
+}
+
+export async function loadOfficialUpdateForPost(postId: string): Promise<{ officialUpdate: OfficialUpdateMetadata | null; codeSnippets: OfficialUpdateCodeSnippet[]; warnings: string[] }> {
+  if (!supabase) return { officialUpdate: null, codeSnippets: [], warnings: [supabaseNotConfiguredMessage] };
+  const [officialUpdates, codeSnippets] = await Promise.all([loadOfficialUpdatesForPosts([postId]), loadOfficialCodeSnippetsForPosts([postId])]);
+  return { officialUpdate: officialUpdates[0] ?? null, codeSnippets, warnings: [] };
+}
+
 async function loadPublishedMediaForPosts(postIds: string[]): Promise<CommuneMediaAttachment[]> {
   if (!supabase || !postIds.length) return [];
   const client = supabase;
@@ -405,7 +529,7 @@ export async function loadCategories(): Promise<{ categories: CommuneCategory[];
 
 export async function loadCommuneData(roomSlug?: string, postId?: string): Promise<LoadCommuneData> {
   const account = await accountState();
-  if (!hasSupabaseConfig || !supabase) return { rooms: [], posts: [], comments: [], threads: [], media: [], repositoryShowcases: [], iterationShowcases: [], savedPostIds: [], followedThreadIds: [], account, warnings: [supabaseNotConfiguredMessage] };
+  if (!hasSupabaseConfig || !supabase) return { rooms: [], posts: [], comments: [], threads: [], media: [], repositoryShowcases: [], iterationShowcases: [], officialUpdates: [], officialCodeSnippets: [], savedPostIds: [], followedThreadIds: [], account, warnings: [supabaseNotConfiguredMessage] };
   const warnings = [...account.warnings];
   const roomsQuery = supabase.from(canonicalCommuneTables.rooms).select("id, slug, name, description, room_type, requires_moderation").order("name");
   const { data: rooms, error: roomError } = await roomsQuery;
@@ -434,6 +558,8 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
   const media = await loadPublishedMediaForPosts(postIds);
   const repositoryShowcases = await loadRepositoryShowcasesForPosts(postIds);
   const iterationShowcases = await loadIterationShowcasesForPosts(postIds);
+  const officialUpdates = await loadOfficialUpdatesForPosts(postIds);
+  const officialCodeSnippets = await loadOfficialCodeSnippetsForPosts(postIds);
   let savedPostIds: string[] = [];
   let followedThreadIds: string[] = [];
   if (account.userId) {
@@ -444,7 +570,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
     savedPostIds = (saves ?? []).map((row) => row.post_id).filter(Boolean) as string[];
     followedThreadIds = (follows ?? []).map((row) => row.thread_id).filter(Boolean) as string[];
   }
-  return { rooms: (rooms ?? []) as CommuneRoom[], posts: (posts ?? []) as CommunePost[], comments: (comments ?? []) as CommuneComment[], threads: (threads ?? []) as CommuneThread[], media, repositoryShowcases, iterationShowcases, savedPostIds, followedThreadIds, account, warnings };
+  return { rooms: (rooms ?? []) as CommuneRoom[], posts: (posts ?? []) as CommunePost[], comments: (comments ?? []) as CommuneComment[], threads: (threads ?? []) as CommuneThread[], media, repositoryShowcases, iterationShowcases, officialUpdates, officialCodeSnippets, savedPostIds, followedThreadIds, account, warnings };
 }
 
 export async function ensureCommuneThreadForPost(post: CommunePost): Promise<{ ok: boolean; thread?: CommuneThread; message: string }> {
@@ -472,6 +598,257 @@ export async function ensureCommuneThreadForPost(post: CommunePost): Promise<{ o
     .single();
   if (createError) return { ok: false, message: friendlyError(createError.message, "Comment could not be submitted because this post has no discussion thread yet. Ask an administrator to repair the Commune thread row.") };
   return { ok: true, thread: created as CommuneThread, message: "Discussion thread repaired for this published post." };
+}
+
+function parseOfficialRelatedLinks(value?: string | null) {
+  return splitList(value ?? "").flatMap((line) => {
+    const [maybeLabel, maybeUrl] = line.includes("|") ? line.split("|").map((part) => part.trim()) : ["", line.trim()];
+    const url = publicHttpUrlOrNull(maybeUrl);
+    return url ? [{ label: maybeLabel || undefined, url }] : [];
+  });
+}
+
+function safeOfficialCodeFileName(value?: string | null) {
+  const text = String(value ?? "").trim();
+  if (!text) return null;
+  if (/[\\/]|\.\.|^[a-z]:/i.test(text)) return null;
+  return text.slice(0, 160);
+}
+
+async function createOfficialUpdateEvent(input: { officialUpdateId?: string | null; postId?: string | null; actorId?: string | null; action: string; reason?: string | null; publicNote?: string | null; metadata?: Record<string, unknown> }) {
+  if (!supabase || !input.officialUpdateId) return;
+  const { error } = await supabase.from(canonicalCommuneTables.officialEvents).insert({
+    official_update_id: input.officialUpdateId,
+    post_id: input.postId || null,
+    actor_id: input.actorId || null,
+    action: input.action,
+    reason: input.reason || null,
+    public_note: input.publicNote || null,
+    metadata: input.metadata ?? {}
+  });
+  if (error && import.meta.env.DEV) console.warn("[Official Update event]", error.message);
+}
+
+async function notifyOfficialUpdateSelf(input: { userId?: string | null; title: string; body: string; postId?: string | null; sourceId?: string | null; type: string }) {
+  if (!supabase || !input.userId) return;
+  const { error } = await supabase.from("user_notifications").insert({
+    user_id: input.userId,
+    notification_type: input.type,
+    source_type: canonicalCommuneTables.officialUpdates,
+    source_id: input.sourceId || input.postId || null,
+    title: input.title,
+    body: input.body,
+    action_url: input.postId ? "/commune/posts/" + input.postId : "/commune/official-updates"
+  });
+  if (error && import.meta.env.DEV) console.warn("[Official Update notification]", error.message);
+}
+
+export async function submitOfficialUpdate(input: {
+  title: string;
+  summary: string;
+  body: string;
+  tags: string;
+  links: string;
+  roomId?: string;
+  upload?: File | null;
+  acknowledgement: boolean;
+  updateType: OfficialUpdateType;
+  officialStatus?: OfficialUpdateStatus;
+  severity: OfficialUpdateSeverity;
+  audience?: string;
+  effectiveDate?: string;
+  releaseVersion?: string;
+  affectedSystems?: string;
+  relatedRoomSlug?: string;
+  relatedRepoUrl?: string;
+  relatedMigration?: string;
+  relatedLinks?: string;
+  knownLimitations?: string;
+  migrationRequired?: boolean;
+  userActionRequired?: string;
+  pinned?: boolean;
+  important?: boolean;
+  commentsEnabled?: boolean;
+  correctionNote?: string;
+  codeSnippets?: Array<{ language: string; fileName?: string; codeText: string; contextNote?: string; correctionNote?: string }>;
+}): Promise<{ ok: boolean; message: string; id?: string; postId?: string }> {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId || !account.isAdmin) return { ok: false, message: "Official Updates are restricted to authorized administrators. Community users cannot self-assign official publishing authority." };
+  if (!input.acknowledgement) return { ok: false, message: "Confirm the Official Update safety acknowledgements before publishing." };
+  const relatedRepoUrl = publicHttpUrlOrNull(input.relatedRepoUrl);
+  if (input.relatedRepoUrl?.trim() && !relatedRepoUrl) return { ok: false, message: "Use a public HTTP(S) related repository/reference URL or leave it blank. Private, localhost, and local paths are not allowed in Official Updates." };
+  if (input.upload) {
+    const media = validateCommuneMediaFile(input.upload);
+    if (!media.ok) return { ok: false, message: media.message };
+  }
+  const codeSnippets = (input.codeSnippets ?? []).filter((snippet) => snippet.codeText.trim());
+  const invalidFile = codeSnippets.find((snippet) => snippet.fileName && !safeOfficialCodeFileName(snippet.fileName));
+  if (invalidFile) return { ok: false, message: "Official code filenames must be plain filenames without slashes, drive letters, or path traversal." };
+  const oversizedCode = codeSnippets.find((snippet) => snippet.codeText.length > 100000);
+  if (oversizedCode) return { ok: false, message: "Official code snippets must be 100,000 characters or smaller." };
+  const relatedLinks = parseOfficialRelatedLinks(input.relatedLinks);
+  const affectedSystems = splitList(input.affectedSystems ?? "");
+  const links = Array.from(new Set([...splitList(input.links), ...relatedLinks.map((link) => link.url), relatedRepoUrl].filter(Boolean) as string[]));
+  const scan = scanCommuneTextForSecrets([
+    input.title, input.summary, input.body, input.tags, links.join("\n"), input.updateType, input.officialStatus ?? "published", input.severity,
+    input.audience ?? "", input.effectiveDate ?? "", input.releaseVersion ?? "", affectedSystems.join("\n"), input.relatedRoomSlug ?? "", relatedRepoUrl ?? "",
+    input.relatedMigration ?? "", input.knownLimitations ?? "", input.userActionRequired ?? "", input.correctionNote ?? "",
+    ...codeSnippets.flatMap((snippet) => [snippet.language, snippet.fileName ?? "", snippet.contextNote ?? "", snippet.codeText, snippet.correctionNote ?? ""])
+  ].join("\n"));
+  if (scan.blocked) return { ok: false, message: "Official Update blocked because it appears to contain private or secret material: " + scan.warnings.join(", ") + ". Remove it before publishing." };
+  const now = new Date().toISOString();
+  const postId = crypto.randomUUID();
+  const { error: postError } = await supabase.from(canonicalCommuneTables.posts).insert({
+    id: postId,
+    user_id: account.userId,
+    author_username: account.username,
+    post_type: "official_update",
+    title: input.title.trim(),
+    body: input.body.trim(),
+    excerpt: excerpt(input.summary || input.body),
+    tags: parseCommuneTags(input.tags),
+    links,
+    repository_url: relatedRepoUrl,
+    status: "published",
+    moderation_status: "approved",
+    published_at: now,
+    safety_acknowledgements: { public_boundary: true, no_secrets: true, official_authority: true, admin_only: true, no_public_code_execution: true }
+  });
+  if (postError) return { ok: false, message: friendlyError(postError.message, "Official Update publishing is blocked by the current admin-only database policy.") };
+  const { data: thread } = await supabase.from(canonicalCommuneTables.threads).insert({
+    post_id: postId,
+    room_id: input.roomId || null,
+    title: input.title.trim(),
+    created_by: account.userId,
+    visibility: "public",
+    status: input.commentsEnabled === false ? "locked" : "open",
+    locked_at: input.commentsEnabled === false ? now : null,
+    locked_by: input.commentsEnabled === false ? account.userId : null,
+    lock_reason: input.commentsEnabled === false ? "Official Update comments disabled by administrator." : null
+  }).select("id").single();
+  const threadId = (thread as { id?: string } | null)?.id ?? null;
+  await grantThreadParticipationApproval({ threadId, postId, userId: account.userId, approvedBy: account.userId, source: "admin_direct_official_update" });
+  const { data, error: officialError } = await supabase.from(canonicalCommuneTables.officialUpdates).insert({
+    post_id: postId,
+    admin_user_id: account.userId,
+    brand_author_name: "Elysia Ecobotics Official",
+    update_type: input.updateType,
+    official_status: input.officialStatus || "published",
+    severity: input.severity,
+    audience: input.audience || "public",
+    summary: input.summary || null,
+    effective_date: input.effectiveDate || null,
+    release_version: input.releaseVersion || null,
+    affected_systems: affectedSystems,
+    related_room_slug: input.relatedRoomSlug || null,
+    related_repo_url: relatedRepoUrl,
+    related_migration: input.relatedMigration || null,
+    related_links: relatedLinks,
+    known_limitations: input.knownLimitations || null,
+    migration_required: Boolean(input.migrationRequired),
+    user_action_required: input.userActionRequired || null,
+    pinned: Boolean(input.pinned),
+    important: Boolean(input.important),
+    comments_enabled: input.commentsEnabled !== false,
+    correction_note: input.correctionNote || null,
+    correction_status: input.correctionNote ? "corrected" : "none",
+    published_at: now
+  }).select("id").single();
+  if (officialError || !data) return { ok: false, postId, message: friendlyError(officialError?.message ?? "Official metadata insert did not return a row.", "Official Update post published, but structured metadata could not be saved. Apply the Official Update migration, then repair this post.") };
+  const officialUpdateId = (data as { id: string }).id;
+  if (codeSnippets.length) {
+    const rows = codeSnippets.map((snippet, index) => ({
+      official_update_id: officialUpdateId,
+      post_id: postId,
+      admin_user_id: account.userId,
+      language: snippet.language || "text",
+      file_name: safeOfficialCodeFileName(snippet.fileName) || null,
+      code_text: snippet.codeText,
+      context_note: snippet.contextNote || null,
+      correction_note: snippet.correctionNote || null,
+      sort_order: index,
+      public_visible: true
+    }));
+    const { error: codeError } = await supabase.from(canonicalCommuneTables.officialCodeSnippets).insert(rows);
+    if (codeError) return { ok: false, id: officialUpdateId, postId, message: friendlyError(codeError.message, "Official Update published, but read-only official code snippets could not be saved.") };
+  }
+  if (input.upload) {
+    const upload = await uploadCommuneAttachment(input.upload, { postId, role: "official_update_attachment", publishImmediately: true });
+    if (!upload.ok) return { ok: false, id: officialUpdateId, postId, message: `Official Update published, but upload failed: ${upload.message}` };
+    await publishPostAttachments(postId);
+  }
+  await recordCommuneGovernanceEvent({ actorId: account.userId, targetType: "post", targetId: postId, action: "admin_official_update_published", fromStatus: "draft", toStatus: "published", metadata: { official_update_id: officialUpdateId, update_type: input.updateType, severity: input.severity, comments_enabled: input.commentsEnabled !== false } });
+  await createOfficialUpdateEvent({ officialUpdateId, postId, actorId: account.userId, action: "official_update_published", publicNote: input.summary, metadata: { update_type: input.updateType, severity: input.severity, pinned: Boolean(input.pinned), important: Boolean(input.important) } });
+  await createReviewHistoryItem({ domain: "commune", sourceTable: canonicalCommuneTables.officialUpdates, sourceId: officialUpdateId, submittedBy: account.userId, title: input.title, summary: "Admin-published Official Update. Brand-authoritative public notice; community users cannot self-assign official authority.", status: "approved", eventType: "admin_official_update_direct_published", metadata: { post_id: postId, update_type: input.updateType, severity: input.severity } });
+  await notifyOfficialUpdateSelf({ userId: account.userId, title: "Official Update published", body: "Your Official Update is public as Elysia Ecobotics Official. Corrections, retractions, code edits, and comment locks remain audit-aware.", postId, sourceId: officialUpdateId, type: input.updateType === "security_notice" ? "official_security_notice_published" : "official_update_published" });
+  return { ok: true, message: "Official Update published as Elysia Ecobotics Official with structured metadata, audit event, and read-only official code boundaries.", id: officialUpdateId, postId };
+}
+
+export async function updateOfficialUpdateMetadata(input: { officialUpdateId: string; postId: string; officialStatus?: OfficialUpdateStatus; severity?: OfficialUpdateSeverity; correctionNote?: string; commentsEnabled?: boolean; pinned?: boolean; important?: boolean; action: string }): Promise<{ ok: boolean; message: string }> {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId || !account.isAdmin) return { ok: false, message: "Only administrators can update Official Update lifecycle metadata." };
+  const now = new Date().toISOString();
+  const patch: Record<string, unknown> = { updated_at: now };
+  if (input.officialStatus) patch.official_status = input.officialStatus;
+  if (input.severity) patch.severity = input.severity;
+  if (typeof input.pinned === "boolean") patch.pinned = input.pinned;
+  if (typeof input.important === "boolean") patch.important = input.important;
+  if (typeof input.commentsEnabled === "boolean") patch.comments_enabled = input.commentsEnabled;
+  if (typeof input.correctionNote === "string") {
+    patch.correction_note = input.correctionNote || null;
+    patch.correction_status = input.action === "retracted" ? "retracted" : input.correctionNote ? "corrected" : "none";
+    if (input.correctionNote) patch.corrected_at = now;
+  }
+  if (input.action === "retracted") { patch.official_status = "retracted"; patch.correction_status = "retracted"; patch.retracted_at = now; }
+  if (input.action === "archived") { patch.official_status = "archived"; patch.archived_at = now; }
+  if (input.action === "corrected") { patch.official_status = "corrected"; patch.correction_status = "corrected"; patch.corrected_at = now; }
+  const { error } = await supabase.from(canonicalCommuneTables.officialUpdates).update(patch).eq("id", input.officialUpdateId);
+  if (error) return { ok: false, message: friendlyError(error.message, "Official Update metadata could not be updated yet.") };
+  if (typeof input.commentsEnabled === "boolean") {
+    const threadPatch = input.commentsEnabled
+      ? { status: "open", locked_at: null, locked_by: null, lock_reason: null, updated_at: now }
+      : { status: "locked", locked_at: now, locked_by: account.userId, lock_reason: "Official Update comments disabled by administrator.", updated_at: now };
+    await supabase.from(canonicalCommuneTables.threads).update(threadPatch).eq("post_id", input.postId);
+  }
+  await createOfficialUpdateEvent({ officialUpdateId: input.officialUpdateId, postId: input.postId, actorId: account.userId, action: input.action, publicNote: input.correctionNote, metadata: patch });
+  await notifyOfficialUpdateSelf({ userId: account.userId, title: "Official Update lifecycle changed", body: `Official Update action recorded: ${input.action.replace(/_/g, " ")}.`, postId: input.postId, sourceId: input.officialUpdateId, type: "official_update_lifecycle" });
+  return { ok: true, message: "Official Update metadata updated and an audit event was recorded." };
+}
+
+export async function createOfficialCodeSnippet(input: { officialUpdateId: string; postId: string; language: string; fileName?: string; codeText: string; contextNote?: string; correctionNote?: string }): Promise<{ ok: boolean; message: string }> {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId || !account.isAdmin) return { ok: false, message: "Only administrators can add Official Update code snippets." };
+  if (!input.codeText.trim()) return { ok: false, message: "Add official code text before saving." };
+  if (input.codeText.length > 100000) return { ok: false, message: "Official code snippets must be 100,000 characters or smaller." };
+  const fileName = safeOfficialCodeFileName(input.fileName);
+  if (input.fileName?.trim() && !fileName) return { ok: false, message: "Official code filenames must be plain filenames without paths." };
+  const scan = scanCommuneTextForSecrets([input.language, fileName ?? "", input.contextNote ?? "", input.codeText, input.correctionNote ?? ""].join("\n"));
+  if (scan.blocked) return { ok: false, message: "Official code blocked because it appears to contain private or secret material: " + scan.warnings.join(", ") + "." };
+  const { error } = await supabase.from(canonicalCommuneTables.officialCodeSnippets).insert({ official_update_id: input.officialUpdateId, post_id: input.postId, admin_user_id: account.userId, language: input.language || "text", file_name: fileName, code_text: input.codeText, context_note: input.contextNote || null, correction_note: input.correctionNote || null, public_visible: true });
+  if (error) return { ok: false, message: friendlyError(error.message, "Official code snippet could not be saved yet.") };
+  await createOfficialUpdateEvent({ officialUpdateId: input.officialUpdateId, postId: input.postId, actorId: account.userId, action: "official_code_added", publicNote: input.correctionNote || input.contextNote, metadata: { file_name: fileName, language: input.language } });
+  return { ok: true, message: "Official code snippet saved as read-only public text. No workbench, sandbox, or proposal flow was enabled." };
+}
+
+export async function updateOfficialCodeSnippet(input: { id: string; officialUpdateId: string; postId: string; language: string; fileName?: string | null; codeText: string; contextNote?: string | null; correctionNote?: string | null; publicVisible?: boolean }): Promise<{ ok: boolean; message: string }> {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId || !account.isAdmin) return { ok: false, message: "Only administrators can edit Official Update code snippets." };
+  if (!input.codeText.trim()) return { ok: false, message: "Official code cannot be empty." };
+  if (input.codeText.length > 100000) return { ok: false, message: "Official code snippets must be 100,000 characters or smaller." };
+  const fileName = safeOfficialCodeFileName(input.fileName);
+  if (input.fileName?.trim() && !fileName) return { ok: false, message: "Official code filenames must be plain filenames without paths." };
+  const scan = scanCommuneTextForSecrets([input.language, fileName ?? "", input.contextNote ?? "", input.codeText, input.correctionNote ?? ""].join("\n"));
+  if (scan.blocked) return { ok: false, message: "Official code update blocked because it appears to contain private or secret material: " + scan.warnings.join(", ") + "." };
+  const now = new Date().toISOString();
+  const { error } = await supabase.from(canonicalCommuneTables.officialCodeSnippets).update({ language: input.language || "text", file_name: fileName, code_text: input.codeText, context_note: input.contextNote || null, correction_note: input.correctionNote || null, public_visible: input.publicVisible !== false, edited_by: account.userId, edited_at: now, updated_at: now }).eq("id", input.id);
+  if (error) return { ok: false, message: friendlyError(error.message, "Official code snippet correction could not be saved yet.") };
+  await createOfficialUpdateEvent({ officialUpdateId: input.officialUpdateId, postId: input.postId, actorId: account.userId, action: input.publicVisible === false ? "official_code_removed" : "official_code_updated", publicNote: input.correctionNote, metadata: { code_snippet_id: input.id, file_name: fileName, language: input.language } });
+  await updateOfficialUpdateMetadata({ officialUpdateId: input.officialUpdateId, postId: input.postId, correctionNote: input.correctionNote || "Official code snippet updated.", action: "official_update_corrected" });
+  return { ok: true, message: "Official code correction saved and audit history updated. Public users still only get read/copy access." };
 }
 
 export async function submitCommunePost(input: { postType: CommunePostType; roomId?: string; title: string; body: string; tags: string; links: string; repositoryUrl?: string; acknowledgement: boolean; upload?: File | null; sandboxRequested?: boolean }): Promise<{ ok: boolean; message: string; postId?: string }> {
@@ -527,6 +904,10 @@ export async function submitComment(input: { postId: string; threadId: string; b
   if (!input.body.trim()) return { ok: false, status: "failed", message: input.parentCommentId ? "Write a reply before submitting." : "Write a comment before submitting." };
   const secretScan = scanCommuneTextForSecrets(input.body);
   if (secretScan.blocked) return { ok: false, status: "failed", message: `Comment blocked because it appears to contain private or secret material: ${secretScan.warnings.join(", ")}.` };
+  if (!account.isModerator) {
+    const { officialUpdate } = await loadOfficialUpdateForPost(input.postId);
+    if (officialUpdate && officialUpdate.comments_enabled === false) return { ok: false, status: "failed", message: "Comments are locked for this Official Update. Public discussion is disabled by an administrator for this notice." };
+  }
   const id = crypto.randomUUID();
   const approvedParticipant = await hasThreadParticipationApproval({ threadId: input.threadId, postId: input.postId, userId: account.userId, isModerator: account.isModerator });
   const directPublish = approvedParticipant;
@@ -665,6 +1046,7 @@ export async function moderateCommuneContentTarget(input: { targetType: CommuneR
     const sidecarStatus = input.action === "delete" ? "rejected" : "needs_information";
     if (postType === "repository_showcase") await supabase.from(canonicalCommuneTables.repositoryShowcases).update({ status: sidecarStatus, updated_at: now }).eq("post_id", input.targetId);
     if (postType === "elysia_iteration_showcase") await supabase.from(canonicalCommuneTables.iterationShowcases).update({ status: sidecarStatus, updated_at: now }).eq("post_id", input.targetId);
+    if (postType === "official_update") await supabase.from(canonicalCommuneTables.officialUpdates).update({ official_status: input.action === "delete" ? "archived" : "updated", correction_status: input.action === "delete" ? "retracted" : "none", archived_at: input.action === "delete" ? now : null, updated_at: now }).eq("post_id", input.targetId);
   }
   await supabase.from("commune_moderation_events").insert({
     actor_id: account.userId,

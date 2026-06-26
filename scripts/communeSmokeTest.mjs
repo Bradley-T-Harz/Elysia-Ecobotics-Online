@@ -49,12 +49,16 @@ const codeProposalMigration = await read("supabase/migrations/2026_06_25_coding_
 const runResultRecordingMigration = await read("supabase/migrations/2026_06_25_coding_cornucopia_run_result_recording.sql");
 const repositoryMetadataMigration = await read("supabase/migrations/2026_06_26_repository_showcase_structured_metadata.sql");
 const iterationMetadataMigration = await read("supabase/migrations/2026_06_26_elysia_iteration_showcase_structured_metadata.sql");
+const officialUpdateMigration = await read("supabase/migrations/2026_06_26_official_update_structured_workflow.sql");
 const repositoryPolicyDoc = await read("docs/commune/repo-showcase-policy.md");
 const repositoryBoundaryDoc = await read("docs/security/repository-showcase-boundary.md");
 const repositoryContractDoc = await read("docs/api/repository-showcase-contract.md");
 const iterationPolicyDoc = await read("docs/commune/elysia-iteration-showcase-policy.md");
 const iterationBoundaryDoc = await read("docs/security/elysia-iteration-showcase-boundary.md");
 const iterationContractDoc = await read("docs/api/elysia-iteration-showcase-contract.md");
+const officialUpdatePolicyDoc = await read("docs/commune/official-update-policy.md");
+const officialUpdateBoundaryDoc = await read("docs/security/official-update-boundary.md");
+const officialUpdateContractDoc = await read("docs/api/official-update-contract.md");
 const communeCommentSchemaCoverage = `${migration}\n${commentDirectPublishMigration}\n${commentSchemaRepairMigration}\n${commentNotificationRepairMigration}`;
 const styles = await read("src/styles.css");
 
@@ -67,6 +71,8 @@ assert(commonsApi.includes("RepositoryShowcaseSignalPreview") && commonsApi.incl
 assert(commonsApi.includes("repositoryShowcasesNeedingReview") && commonsApi.includes("repositorySandboxActivity") && commonsApi.includes("/commune/repository-showcase/sandbox-request?"), "Signal Console should split Repository Showcase review and selected-artifact sandbox activity.");
 assert(commonsApi.includes("ElysiaIterationShowcaseSignalPreview") && commonsApi.includes("commune_iteration_showcases") && commonsApi.includes("iterationShowcaseActivity"), "Signal Console should load direct Elysia Iteration Showcase activity records.");
 assert(commonsApi.includes("iterationShowcasesNeedingReview") && commonsApi.includes("iterationSandboxActivity") && commonsApi.includes("/commune/elysia-iteration-showcase/sandbox-request?"), "Signal Console should split Elysia Iteration Showcase review and selected-artifact sandbox activity.");
+assert(commonsApi.includes("OfficialUpdateSignalPreview") && commonsApi.includes("commune_official_updates") && commonsApi.includes("officialUpdateActivity"), "Signal Console should load direct Official Update lifecycle records.");
+assert(commonsApi.includes("officialUpdatesNeedingAttention") && commonsApi.includes("officialUpdateCount") && commonsApi.includes("/commune/official-updates"), "Signal Console should split Official Update admin/reviewer attention activity.");
 assert(commonsApi.includes("commune_code_revision_proposals") && commonsApi.includes("original_author_user_id.eq") && commonsApi.includes("proposer_user_id.eq"), "Signal Console should load direct Coding Cornucopia proposal records for both authors and proposers.");
 assert(commonsApi.includes("needsMyReview") && commonsApi.includes("mySubmittedProposals") && commonsApi.includes("codeProposalActivity"), "Signal Console loader should split direct proposal activity into review and submitted sections.");
 assert(commonsApi.includes("source_room") && commonsApi.includes("troubleshooting_grove") && commonsApi.includes("/commune/troubleshooting-grove/review") && commonsApi.includes("?proposal="), "Signal Console should distinguish Troubleshooting Grove proposed fixes from Coding Cornucopia revisions.");
@@ -75,6 +81,8 @@ assert(signalConsolePage.includes("Repository Showcase activity") && signalConso
 assert(signalConsolePage.includes("Selected-artifact sandbox review") && signalConsolePage.includes("does not clone, install, build, trust, approve"), "Signal Console should preserve Repository Showcase sandbox boundary copy.");
 assert(signalConsolePage.includes("Elysia Iteration Showcase activity") && signalConsolePage.includes("My iteration showcases") && signalConsolePage.includes("Iterations needing review"), "Signal Console should render Elysia Iteration Showcase activity sections.");
 assert(signalConsolePage.includes("Official Update") && signalConsolePage.includes("Developer Forge approval") && signalConsolePage.includes("Marketplace readiness"), "Signal Console should preserve Iteration Showcase authority boundary copy.");
+assert(signalConsolePage.includes("Official Update activity") && signalConsolePage.includes("My official updates") && signalConsolePage.includes("Critical official notices"), "Signal Console should render Official Update lifecycle sections.");
+assert(signalConsolePage.includes("Official Updates are admin-only public records") && signalConsolePage.includes("Community users cannot submit, self-assign, impersonate"), "Signal Console should preserve Official Update authority boundary copy.");
 assert(signalConsolePage.includes("Troubleshooting Grove proposed fix") && signalConsolePage.includes("Open proposed fix workbench"), "Signal Console should label troubleshooting proposed fixes distinctly.");
 assert(signalConsolePage.includes("Needs my review") && signalConsolePage.includes("My submitted proposals") && signalConsolePage.includes("Recent Coding Cornucopia proposal activity"), "Signal Console should distinguish direct proposal activity sections.");
 assert(commonsApi.includes("/commune/coding-cornucopia/review") && commonsApi.includes("?proposal=") && signalConsolePage.includes("Open proposal in Coding Workbench"), "Signal Console proposal cards should link to the Coding Cornucopia proposal workbench.");
@@ -127,6 +135,11 @@ assert(page.includes("Video uploads are not enabled for this room yet."), "Room 
 for (const roomNativeField of ["Issue type", "Affected area", "Expected behavior", "Actual behavior", "Known workaround", "Introduction type", "Collaboration interest", "Role interest", "Project circle/topic", "Paid / volunteer status", "Compensation clarity", "Location / remote / hybrid", "Contact path", "Research question / topic", "Citation notes", "Evidence summary", "Interpretation", "Uncertainty", "Iteration type", "Version / build label", "What changed", "Why it matters", "Known limitations", "Next step", "Official notice type", "Audit-safe note"]) {
   assert(page.includes(roomNativeField), `Missing room-native composer field/copy: ${roomNativeField}`);
 }
+for (const officialField of ["Official status", "Severity", "Audience", "Effective date", "Affected systems", "Related room", "Related public repository/reference URL", "Related migration", "User action required", "Pin this notice", "Comments enabled", "Official read-only code", "Official code filename", "Official code context"]) {
+  assert(page.includes(officialField), `Missing Official Update structured field/copy: ${officialField}`);
+}
+assert(page.includes("Publish Official Update") && page.includes("Official Update composer") && page.includes("Community members can read and report Official Updates, but cannot submit, self-assign, or impersonate official authority"), "Official Update composer should be admin-only and brand-authoritative.");
+assert(page.includes("Official code preview") && page.includes("No workbench, sandbox run, proposal, install, deploy, or Local Elysia execution controls are exposed"), "Official Update composer should preview official code as read-only/copy-only.");
 assert(page.includes('form.postType === "code_sharing" || form.postType === "troubleshooting"'), "Troubleshooting Grove should reuse optional code/reproduction snippet composer support.");
 assert(page.includes("Code / reproduction snippet optional") && page.includes("minimal redacted reproduction"), "Troubleshooting Grove composer should include redacted optional reproduction snippet copy.");
 for (const troubleshootingCodeWarning of [".env files", "private logs", "local Elysia memory", "vault data", "credentials"]) {
@@ -239,6 +252,21 @@ assert(accountApi.includes("2026_06_22_commune_comments_schema_drift_repair.sql"
 assert(accountApi.includes("2026_06_22_commune_comment_notification_dependency_repair.sql"), "Commune published-comment notification dependency errors should name the repair migration.");
 assert(accountApi.includes("adminDirectPublish = account.isAdmin"), "Admin Commune posts should bypass self-review and publish directly.");
 assert(accountApi.includes("Official Updates are restricted to authorized administrators"), "Official Update backend/client path should require administrator authority, not broad moderator self-assignment.");
+assert(accountApi.includes("submitOfficialUpdate") && accountApi.includes('post_type: "official_update"') && accountApi.includes("createOfficialUpdateEvent"), "Official Update should create a published Commune post plus structured audit-aware metadata.");
+assert(accountApi.includes("updateOfficialUpdateMetadata") && accountApi.includes("commentsEnabled") && accountApi.includes("comments disabled by administrator"), "Official Update metadata helper should support lifecycle and comment lock updates.");
+assert(accountApi.includes("createOfficialCodeSnippet") && accountApi.includes("updateOfficialCodeSnippet") && accountApi.includes("Official code snippet updated."), "Official Update official code helpers should be admin-only and correction-aware.");
+assert(accountApi.includes("loadOfficialUpdateForPost") && accountApi.includes("loadOfficialCodeSnippetsForPosts"), "Official Update post detail should load structured metadata and read-only official code snippets.");
+assert(page.includes("OfficialUpdateDetail") && page.includes("Brand-authoritative public record") && page.includes("Structured official metadata"), "Official Update public post detail should render structured official metadata.");
+assert(page.includes("OfficialCodeSnippets") && page.includes("Copy official code") && page.includes("No Coding Workbench, no sandbox run, no proposal flow"), "Official Update code snippets should render read-only with no workbench/sandbox/proposals.");
+assert(page.includes("OfficialUpdateAdminPanel") && page.includes("Mark corrected") && page.includes("Retract") && page.includes("Archive") && page.includes("Lock comments"), "Official Update admin panel should expose correction/retraction/archive/comment-lock controls.");
+assert(!page.includes("Run official code in sandbox") && !page.includes("Propose official edit"), "Official Update must not expose public sandbox or proposal controls for official code.");
+assert(officialUpdateMigration.includes("commune_official_updates") && officialUpdateMigration.includes("commune_official_update_code_snippets") && officialUpdateMigration.includes("commune_official_update_events"), "Official Update structured migration missing metadata/code/events tables.");
+assert(officialUpdateMigration.includes("admins manage official update metadata") && officialUpdateMigration.includes("public.current_user_is_admin()") && officialUpdateMigration.includes("post_type = 'official_update'"), "Official Update migration should enforce admin-only metadata writes and public reads through linked official posts.");
+assert(officialUpdateMigration.includes("users create own commune comments with thread approval") && officialUpdateMigration.includes("comments_enabled = false"), "Official Update migration should enforce comment lock through Commune comment RLS.");
+assert(officialUpdateMigration.includes("read-only official code") && officialUpdateMigration.includes("No public workbench, sandbox run, proposal flow"), "Official Update migration comments should preserve read-only official code boundary.");
+assert(officialUpdatePolicyDoc.includes("Only authorized administrators") && officialUpdatePolicyDoc.includes("Official code examples are public text only"), "Official Update policy doc missing admin-only/read-only code doctrine.");
+assert(officialUpdateBoundaryDoc.includes("must not perform") && officialUpdateBoundaryDoc.includes("Public code workbench editing") && officialUpdateBoundaryDoc.includes("Sandbox execution from public Official Update code"), "Official Update security boundary doc missing no-workbench/no-sandbox prohibitions.");
+assert(officialUpdateContractDoc.includes("submitOfficialUpdate") && officialUpdateContractDoc.includes("commune_official_updates") && officialUpdateContractDoc.includes("Signal Console"), "Official Update API contract doc missing helper/table/signal contract.");
 assert(accountApi.includes('post_type: "repository_showcase"'), "Repository Showcase should create/link a normal Commune post.");
 assert(accountApi.includes("Repository showcase submitted as a normal Commune post for moderation"), "Repository Showcase should enter the normal Commune moderation flow.");
 assert(accountApi.includes("repository_metadata_only"), "Repository Showcase post safety acknowledgements should preserve metadata-only boundaries.");
@@ -285,7 +313,7 @@ assert(accountApi.includes("createSignedUrl"), "Commune media loader should reso
 assert(accountApi.includes("publishPostAttachments(postId)"), "Admin direct-published room posts should publish linked attachments.");
 assert(reviewClient.includes("publishCommunePostMedia") && reviewClient.includes('visibility_state: "published"'), "Admin review approval should publish linked Commune post media.");
 assert(page.includes("commune-media-section") && page.includes("Attached media"), "Commune post detail should render attached media inside the post flow.");
-assert(page.includes("Attached to this post by {authorLink(post.author_username)}"), "Commune post media should attribute attachments to the public post author handle.");
+assert(page.includes("Attached to this post by {isOfficialUpdate ? \"Elysia Ecobotics Official\" : authorLink(post.author_username)}"), "Commune post media should attribute attachments to the public post author handle or official brand account.");
 const postTagIndex = page.indexOf("<TagChips tags={post.tags}");
 const postMediaIndex = page.indexOf("commune-media-section", postTagIndex);
 const postReactionIndex = page.indexOf("<ReactionBar targetType=\"post\"", postTagIndex);

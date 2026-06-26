@@ -2952,6 +2952,60 @@ code { color: var(--teal); overflow-wrap: anywhere; }
   border-color: rgba(142, 232, 220, 0.24);
 }
 
+.commune-official-card,
+.commune-official-post-detail {
+  border-color: rgba(216, 182, 111, 0.34);
+  background:
+    radial-gradient(circle at 92% 8%, rgba(216, 182, 111, 0.16), transparent 13rem),
+    linear-gradient(135deg, rgba(18, 17, 12, 0.94), rgba(7, 13, 20, 0.88));
+}
+
+.commune-official-identity,
+.commune-official-admin-controls,
+.commune-official-code-section,
+.commune-official-edit-panel {
+  display: grid;
+  gap: 0.75rem;
+  margin: 1rem 0;
+  padding: 0.9rem;
+  border: 1px solid rgba(216, 182, 111, 0.28);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 96% 0%, rgba(216, 182, 111, 0.11), transparent 11rem),
+    rgba(3, 8, 13, 0.34);
+}
+
+.commune-official-identity h3,
+.commune-official-admin-controls h3,
+.commune-official-code-section h3 {
+  margin: 0;
+}
+
+.commune-official-metadata {
+  border-color: rgba(216, 182, 111, 0.25);
+}
+
+.commune-official-metadata .commune-room-native-field {
+  border-color: rgba(216, 182, 111, 0.2);
+}
+
+.commune-official-code-card {
+  border-color: rgba(216, 182, 111, 0.25);
+  background:
+    radial-gradient(circle at 92% 8%, rgba(216, 182, 111, 0.11), transparent 10rem),
+    linear-gradient(180deg, rgba(15, 18, 22, 0.92), rgba(6, 9, 13, 0.86));
+}
+
+.commune-official-code-preview {
+  display: grid;
+  gap: 0.8rem;
+  margin-top: 1rem;
+  padding: 0.9rem;
+  border: 1px solid rgba(216, 182, 111, 0.22);
+  border-radius: 16px;
+  background: rgba(3, 8, 13, 0.32);
+}
+
 .commune-post-detail .tag-row span,
 .commune-post-card .tag-row span {
   border: 1px solid rgba(142, 232, 220, 0.24);

@@ -105,6 +105,24 @@ export type ElysiaIterationShowcaseSignalPreview = {
   action_url: string;
   role_context: "owner" | "reviewer" | "sandbox";
 };
+export type OfficialUpdateSignalPreview = {
+  id: string;
+  post_id?: string | null;
+  admin_user_id?: string | null;
+  brand_author_name?: string | null;
+  update_type?: string | null;
+  official_status?: string | null;
+  severity?: string | null;
+  pinned?: boolean | null;
+  important?: boolean | null;
+  comments_enabled?: boolean | null;
+  correction_status?: string | null;
+  correction_note?: string | null;
+  published_at?: string | null;
+  updated_at?: string | null;
+  action_url: string;
+  role_context: "author" | "reviewer" | "notification";
+};
 export type BadgeDefinition = { badge_key: string; name: string; description: string; badge_type: string; category?: string | null; rarity: string; is_active?: boolean; icon_path?: string | null; tags?: string[]; authority?: boolean; authority_linked?: boolean | null; award_mode?: string | null; rule_summary?: string | null; is_manual_only?: boolean | null; sort_order?: number | null; note?: string; default_status?: string };
 export type BadgeAwardRow = { badge_key: string; awarded_at?: string | null; award_reason?: string | null; award_source?: string | null; evidence_type?: string | null; evidence_id?: string | null; visibility?: "public" | "private" | null; revoked_at?: string | null };
 export type UserBadge = BadgeDefinition & BadgeAwardRow & { visibility?: "public" | "private" | null; earned: true };
@@ -160,10 +178,14 @@ export type SignalConsoleData = {
   myIterationShowcases: ElysiaIterationShowcaseSignalPreview[];
   iterationShowcasesNeedingReview: ElysiaIterationShowcaseSignalPreview[];
   iterationSandboxActivity: ElysiaIterationShowcaseSignalPreview[];
+  officialUpdateActivity: OfficialUpdateSignalPreview[];
+  myOfficialUpdates: OfficialUpdateSignalPreview[];
+  officialUpdatesNeedingAttention: OfficialUpdateSignalPreview[];
   unreadCount: number;
   codeProposalCount: number;
   repositoryShowcaseCount: number;
   iterationShowcaseCount: number;
+  officialUpdateCount: number;
 };
 
 export type PublicCommonsProfile = {
@@ -338,7 +360,9 @@ const tableReadinessLabels: Record<string, string> = {
   "Coding Cornucopia proposal activity": "Coding Cornucopia proposal activity is not configured yet.",
   "Coding Cornucopia proposal posts": "Coding Cornucopia proposal post details are not configured yet.",
   "Repository Showcase activity": "Repository Showcase activity is not configured yet.",
-  "Repository Showcase review activity": "Repository Showcase review activity is not configured yet."
+  "Repository Showcase review activity": "Repository Showcase review activity is not configured yet.",
+  "Official Update activity": "Official Update structured activity is not configured yet.",
+  "Official Update review activity": "Official Update review activity is not configured yet."
 };
 
 function logBackendDetail(label: string, message: string) {
@@ -552,7 +576,7 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
 
 export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const warnings: string[] = [];
-  const empty = { signals: [], codeProposalActivity: [], needsMyReview: [], mySubmittedProposals: [], repositoryShowcaseActivity: [], myRepositoryShowcases: [], repositoryShowcasesNeedingReview: [], repositorySandboxActivity: [], iterationShowcaseActivity: [], myIterationShowcases: [], iterationShowcasesNeedingReview: [], iterationSandboxActivity: [], unreadCount: 0, codeProposalCount: 0, repositoryShowcaseCount: 0, iterationShowcaseCount: 0 };
+  const empty = { signals: [], codeProposalActivity: [], needsMyReview: [], mySubmittedProposals: [], repositoryShowcaseActivity: [], myRepositoryShowcases: [], repositoryShowcasesNeedingReview: [], repositorySandboxActivity: [], iterationShowcaseActivity: [], myIterationShowcases: [], iterationShowcasesNeedingReview: [], iterationSandboxActivity: [], officialUpdateActivity: [], myOfficialUpdates: [], officialUpdatesNeedingAttention: [], unreadCount: 0, codeProposalCount: 0, repositoryShowcaseCount: 0, iterationShowcaseCount: 0, officialUpdateCount: 0 };
   if (!hasSupabaseConfig || !supabase) return { signedIn: false, supabaseConfigured: false, userId: null, warnings: [supabaseNotConfiguredMessage], ...empty };
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth.user?.id ?? null;
@@ -619,6 +643,16 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const iterationSandboxActivity = [...myIterationShowcases, ...iterationShowcasesNeedingReview]
     .filter((row) => row.sandbox_review_requested || (row.sandbox_review_status && row.sandbox_review_status !== "not_requested"));
   const iterationShowcaseActivity = Array.from(new Map([...myIterationShowcases, ...iterationShowcasesNeedingReview, ...iterationSandboxActivity].map((row) => [row.role_context + ":" + row.id, row])).values());
+  type OfficialUpdateSignalRow = Omit<OfficialUpdateSignalPreview, "action_url" | "role_context">;
+  const officialSelect = "id, post_id, admin_user_id, brand_author_name, update_type, official_status, severity, pinned, important, comments_enabled, correction_status, correction_note, published_at, updated_at";
+  const myOfficialRows = await safeQuery<OfficialUpdateSignalRow[]>(warnings, "Official Update activity", supabase.from("commune_official_updates").select(officialSelect).eq("admin_user_id", userId).order("updated_at", { ascending: false }).limit(100), []);
+  const reviewOfficialRows = canReviewCommune
+    ? await safeQuery<OfficialUpdateSignalRow[]>(warnings, "Official Update review activity", supabase.from("commune_official_updates").select(officialSelect).in("official_status", ["published", "updated", "corrected", "retracted", "monitoring", "resolved"]).order("updated_at", { ascending: false }).limit(100), [])
+    : [];
+  const mapOfficial = (row: OfficialUpdateSignalRow, role: OfficialUpdateSignalPreview["role_context"]): OfficialUpdateSignalPreview => ({ ...row, action_url: row.post_id ? "/commune/posts/" + row.post_id : "/commune/official-updates", role_context: role });
+  const myOfficialUpdates = myOfficialRows.map((row) => mapOfficial(row, "author"));
+  const officialUpdatesNeedingAttention = reviewOfficialRows.filter((row) => ["critical", "urgent"].includes(row.severity ?? "") || ["retracted", "corrected", "monitoring"].includes(row.official_status ?? "")).map((row) => mapOfficial(row, "reviewer"));
+  const officialUpdateActivity = Array.from(new Map([...myOfficialUpdates, ...officialUpdatesNeedingAttention].map((row) => [row.role_context + ":" + row.id, row])).values());
   const proposalNotificationIds = signals
     .filter((signal) => /code_revision|proposal/i.test((signal.notification_type ?? "") + " " + (signal.source_type ?? "")))
     .map((signal) => signal.source_id || signal.id);
@@ -639,10 +673,14 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
     myIterationShowcases,
     iterationShowcasesNeedingReview,
     iterationSandboxActivity,
+    officialUpdateActivity,
+    myOfficialUpdates,
+    officialUpdatesNeedingAttention,
     unreadCount: signals.filter((signal) => !signal.read_at).length,
     codeProposalCount: new Set([...codeProposalActivity.map((proposal) => proposal.id), ...proposalNotificationIds]).size,
     repositoryShowcaseCount: new Set(repositoryShowcaseActivity.map((item) => item.id)).size,
-    iterationShowcaseCount: new Set(iterationShowcaseActivity.map((item) => item.id)).size
+    iterationShowcaseCount: new Set(iterationShowcaseActivity.map((item) => item.id)).size,
+    officialUpdateCount: new Set(officialUpdateActivity.map((item) => item.id)).size
   };
 }
 

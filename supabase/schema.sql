@@ -3527,3 +3527,99 @@ with check (actor_user_id = auth.uid() and exists (select 1 from public.commune_
 
 grant select, insert, update on table public.commune_sandbox_review_requests to authenticated;
 grant select, insert, update on table public.sandbox_handoff_events to authenticated;
+
+-- Official Update structured workflow snapshot. Canonical repair migration:
+-- supabase/migrations/2026_06_26_official_update_structured_workflow.sql
+create table if not exists public.commune_official_updates (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null unique references public.commune_posts(id) on delete cascade,
+  admin_user_id uuid not null references auth.users(id) on delete restrict,
+  brand_author_name text not null default 'Elysia Ecobotics Official',
+  update_type text not null default 'official_statement',
+  official_status text not null default 'published',
+  severity text not null default 'info',
+  audience text,
+  summary text,
+  effective_date date,
+  release_version text,
+  affected_systems text[] not null default '{}'::text[],
+  related_room_slug text,
+  related_repo_url text,
+  related_migration text,
+  related_links jsonb not null default '[]'::jsonb,
+  known_limitations text,
+  migration_required boolean not null default false,
+  user_action_required text,
+  pinned boolean not null default false,
+  important boolean not null default false,
+  comments_enabled boolean not null default true,
+  correction_note text,
+  correction_status text not null default 'none',
+  supersedes_update_id uuid references public.commune_official_updates(id) on delete set null,
+  superseded_by_update_id uuid references public.commune_official_updates(id) on delete set null,
+  published_at timestamptz not null default now(),
+  corrected_at timestamptz,
+  retracted_at timestamptz,
+  archived_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.commune_official_update_code_snippets (
+  id uuid primary key default gen_random_uuid(),
+  official_update_id uuid not null references public.commune_official_updates(id) on delete cascade,
+  post_id uuid not null references public.commune_posts(id) on delete cascade,
+  admin_user_id uuid not null references auth.users(id) on delete restrict,
+  language text not null default 'text',
+  file_name text,
+  code_text text not null,
+  context_note text,
+  correction_note text,
+  sort_order integer not null default 0,
+  public_visible boolean not null default true,
+  edited_by uuid references auth.users(id) on delete set null,
+  edited_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.commune_official_update_events (
+  id uuid primary key default gen_random_uuid(),
+  official_update_id uuid references public.commune_official_updates(id) on delete cascade,
+  post_id uuid references public.commune_posts(id) on delete cascade,
+  actor_id uuid references auth.users(id) on delete set null,
+  action text not null,
+  reason text,
+  public_note text,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists commune_official_updates_post_idx on public.commune_official_updates(post_id);
+create index if not exists commune_official_updates_admin_status_idx on public.commune_official_updates(admin_user_id, official_status, updated_at desc);
+create index if not exists commune_official_updates_priority_idx on public.commune_official_updates(pinned desc, important desc, severity, published_at desc);
+create index if not exists commune_official_code_update_idx on public.commune_official_update_code_snippets(official_update_id, sort_order, created_at);
+create index if not exists commune_official_events_update_idx on public.commune_official_update_events(official_update_id, created_at desc);
+
+alter table public.commune_official_updates enable row level security;
+alter table public.commune_official_update_code_snippets enable row level security;
+alter table public.commune_official_update_events enable row level security;
+
+drop policy if exists "public reads published official update metadata" on public.commune_official_updates;
+create policy "public reads published official update metadata" on public.commune_official_updates for select to anon, authenticated using (exists (select 1 from public.commune_posts p where p.id = post_id and p.post_type = 'official_update' and p.status = 'published' and p.visibility = 'public') or admin_user_id = auth.uid() or public.current_user_is_admin());
+drop policy if exists "admins manage official update metadata" on public.commune_official_updates;
+create policy "admins manage official update metadata" on public.commune_official_updates for all to authenticated using (public.current_user_is_admin()) with check (public.current_user_is_admin());
+drop policy if exists "public reads visible official update code" on public.commune_official_update_code_snippets;
+create policy "public reads visible official update code" on public.commune_official_update_code_snippets for select to anon, authenticated using (public_visible = true and exists (select 1 from public.commune_posts p where p.id = post_id and p.post_type = 'official_update' and p.status = 'published' and p.visibility = 'public'));
+drop policy if exists "admins manage official update code" on public.commune_official_update_code_snippets;
+create policy "admins manage official update code" on public.commune_official_update_code_snippets for all to authenticated using (public.current_user_is_admin()) with check (public.current_user_is_admin());
+drop policy if exists "reviewers read official update events" on public.commune_official_update_events;
+create policy "reviewers read official update events" on public.commune_official_update_events for select to authenticated using (public.current_user_is_admin() or public.current_user_can_review_domain('commune'::public.review_domain));
+drop policy if exists "admins create official update events" on public.commune_official_update_events;
+create policy "admins create official update events" on public.commune_official_update_events for insert to authenticated with check (public.current_user_is_admin() and (actor_id is null or actor_id = auth.uid()));
+
+grant select on table public.commune_official_updates to anon;
+grant select on table public.commune_official_update_code_snippets to anon;
+grant select, insert, update on table public.commune_official_updates to authenticated;
+grant select, insert, update on table public.commune_official_update_code_snippets to authenticated;
+grant select, insert on table public.commune_official_update_events to authenticated;

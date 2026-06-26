@@ -3,10 +3,11 @@ import { Link } from "react-router-dom";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
-import { loadSignalConsole, markAllNotificationsRead, markNotificationRead, type CodeProposalSignalPreview, type CodeProposalSignalStatus, type ElysiaIterationShowcaseSignalPreview, type NotificationPreview, type RepositoryShowcaseSignalPreview, type SignalConsoleData } from "./commonsCircleApi";
+import { loadSignalConsole, markAllNotificationsRead, markNotificationRead, type CodeProposalSignalPreview, type CodeProposalSignalStatus, type ElysiaIterationShowcaseSignalPreview, type NotificationPreview, type OfficialUpdateSignalPreview, type RepositoryShowcaseSignalPreview, type SignalConsoleData } from "./commonsCircleApi";
 
 function signalCategory(signal: NotificationPreview) {
   const text = `${signal.notification_type ?? ""} ${signal.source_type ?? ""}`;
+  if (/official_update|official_security|official_notice/i.test(text)) return "Official Update";
   if (/code_revision|proposal/i.test(text)) return "Coding Cornucopia";
   if (/sandbox/i.test(text)) return "Sandbox";
   if (/comment|reply|thread/i.test(text)) return "Commune";
@@ -116,6 +117,28 @@ function IterationSignalCard({ signal, context }: { signal: ElysiaIterationShowc
   </article>;
 }
 
+function officialStatusLabel(status?: string | null) {
+  return status ? status.replace(/_/g, " ") : "status unknown";
+}
+
+function officialUpdateTime(signal: OfficialUpdateSignalPreview) {
+  return signal.updated_at || signal.published_at || null;
+}
+
+function OfficialUpdateSignalCard({ signal, context }: { signal: OfficialUpdateSignalPreview; context: "mine" | "attention" | "recent" }) {
+  const created = officialUpdateTime(signal);
+  const title = [signal.brand_author_name || "Elysia Ecobotics Official", signal.update_type?.replace(/_/g, " ")].filter(Boolean).join(" · ");
+  const roleLabel = signal.role_context === "reviewer" ? "Reviewer/admin attention" : "My official update";
+  return <article className={["commons-signal-card", context === "attention" ? "commons-signal-card--unread" : ""].filter(Boolean).join(" ")}>
+    <div className="addon-card__topline"><strong>{title}</strong><span>{created ? new Date(created).toLocaleString() : "recent"}</span></div>
+    <div className="commons-signal-meta"><span>Official Update</span><span>{officialStatusLabel(signal.official_status)}</span><span>{officialStatusLabel(signal.severity)}</span><span>{roleLabel}</span>{signal.pinned && <span>pinned</span>}{signal.important && <span>important</span>}</div>
+    <p>{signal.correction_note || "Brand-authoritative Official Update activity is connected to this Website Account."}</p>
+    <p className="boundary-note">Official Updates are admin-only public records. Community users cannot submit, self-assign, impersonate, propose edits, run sandbox checks, or use a Coding Workbench for official code.</p>
+    <p className="boundary-note">Official Update remains separate from Elysia Iteration Showcase, Repository Showcase, Developer Forge approval, and Marketplace readiness.</p>
+    <div className="button-row"><Link className="button-link" to={signal.action_url}>Open Official Update</Link></div>
+  </article>;
+}
+
 
 export default function SignalConsolePage() {
   const [data, setData] = useState<SignalConsoleData | null>(null);
@@ -143,7 +166,10 @@ export default function SignalConsolePage() {
   const myIterationShowcases = data?.myIterationShowcases ?? [];
   const iterationShowcasesNeedingReview = data?.iterationShowcasesNeedingReview ?? [];
   const iterationSandboxActivity = data?.iterationSandboxActivity ?? [];
-  const hasAnySignal = signals.length > 0 || proposalActivity.length > 0 || repositoryShowcaseActivity.length > 0 || iterationShowcaseActivity.length > 0;
+  const officialUpdateActivity = data?.officialUpdateActivity ?? [];
+  const myOfficialUpdates = data?.myOfficialUpdates ?? [];
+  const officialUpdatesNeedingAttention = data?.officialUpdatesNeedingAttention ?? [];
+  const hasAnySignal = signals.length > 0 || proposalActivity.length > 0 || repositoryShowcaseActivity.length > 0 || iterationShowcaseActivity.length > 0 || officialUpdateActivity.length > 0;
 
   async function readOne(id: string) {
     const warnings = await markNotificationRead(id);
@@ -167,6 +193,7 @@ export default function SignalConsolePage() {
       <WarningCallout title="Private account console"><p>Signals are visible only to the signed-in Website Account that owns them. Public profiles do not show this console.</p></WarningCallout>
       <WarningCallout title="Author approval boundary"><p>Coding Cornucopia proposals and Troubleshooting Grove proposed fixes can request code changes, but public code changes only after the original post author accepts the proposal.</p></WarningCallout>
       <WarningCallout title="Sandbox boundary"><p>Sandbox diagnostics are evidence for review. Successful runs do not create trust, Marketplace approval, or installability.</p></WarningCallout>
+      <WarningCallout title="Official authority boundary"><p>Official Update signals are brand-authoritative and admin-only. They do not create community edit rights, code workbenches, sandbox execution, or Marketplace approval.</p></WarningCallout>
     </section>
     <section className="section-card">
       <div className="section-heading section-heading--inline"><div><p className="eyebrow">Website Account</p><h2>Signal access</h2></div><Link className="button-link" to="/commons-circle">Back to Commons Circle</Link></div>
@@ -185,8 +212,8 @@ export default function SignalConsolePage() {
     </section>
     {data?.signedIn && <section className="section-card">
       <div className="section-heading section-heading--inline"><div><p className="eyebrow">Attention queue</p><h2>Signals that need review</h2></div><button type="button" disabled={!data.unreadCount} onClick={() => void readAll()}>Mark all read</button></div>
-      <dl className="mini-facts"><div><dt>Unread</dt><dd>{data.unreadCount}</dd></div><div><dt>Coding proposals</dt><dd>{data.codeProposalCount}</dd></div><div><dt>Repository showcases</dt><dd>{data.repositoryShowcaseCount}</dd></div><div><dt>Iteration showcases</dt><dd>{data.iterationShowcaseCount}</dd></div>{Object.entries(groupedCounts).slice(0, 4).map(([category, count]) => <div key={category}><dt>{category}</dt><dd>{count}</dd></div>)}</dl>
-      {!hasAnySignal && <p className="commons-empty-state">No signals yet. Code revision proposals, Repository Showcase submissions, Elysia Iteration Showcase progress posts, selected-artifact sandbox reviews, accepted/rejected outcomes, sandbox results, followed-thread updates, and review notices will appear here when account-backed events exist.</p>}
+      <dl className="mini-facts"><div><dt>Unread</dt><dd>{data.unreadCount}</dd></div><div><dt>Coding proposals</dt><dd>{data.codeProposalCount}</dd></div><div><dt>Repository showcases</dt><dd>{data.repositoryShowcaseCount}</dd></div><div><dt>Iteration showcases</dt><dd>{data.iterationShowcaseCount}</dd></div><div><dt>Official updates</dt><dd>{data.officialUpdateCount}</dd></div>{Object.entries(groupedCounts).slice(0, 4).map(([category, count]) => <div key={category}><dt>{category}</dt><dd>{count}</dd></div>)}</dl>
+      {!hasAnySignal && <p className="commons-empty-state">No signals yet. Code revision proposals, Repository Showcase submissions, Elysia Iteration Showcase progress posts, Official Update lifecycle activity, selected-artifact sandbox reviews, accepted/rejected outcomes, sandbox results, followed-thread updates, and review notices will appear here when account-backed events exist.</p>}
       <div className="section-heading"><p className="eyebrow">Coding Cornucopia proposals</p><h3>Needs my review</h3><p>Proposal activity is loaded directly from commune_code_revision_proposals, so same-user testing proposals still appear even when no notification row is created.</p></div>
       {!needsMyReview.length && <p className="commons-empty-state">No submitted or needs-changes Coding Cornucopia proposals are waiting on your author decision.</p>}
       <div className="commons-signal-list">{needsMyReview.map((proposal) => <ProposalSignalCard context="review" currentUserId={data.userId} key={`review-${proposal.id}`} proposal={proposal} />)}</div>
@@ -211,13 +238,22 @@ export default function SignalConsolePage() {
       <div className="section-heading"><p className="eyebrow">Elysia Iteration Showcase sandbox</p><h3>Selected-artifact sandbox review activity</h3><p>These signals link to the Elysia Iteration Showcase selected-artifact review route. They do not run or approve whole repositories, apps, or releases.</p></div>
       {!iterationSandboxActivity.length && <p className="commons-empty-state">No Elysia Iteration Showcase selected-artifact sandbox review activity is connected to this Website Account yet.</p>}
       <div className="commons-signal-list">{iterationSandboxActivity.map((signal) => <IterationSignalCard context="sandbox" key={`sandbox-iteration-${signal.role_context}-${signal.id}`} signal={signal} />)}</div>
+      <div className="section-heading"><p className="eyebrow">Official Update activity</p><h3>My official updates</h3><p>Official Update activity is loaded directly from commune_official_updates so admin-authored notices, corrections, retractions, pins, and comment locks can appear even before notification rows exist.</p></div>
+      {!myOfficialUpdates.length && <p className="commons-empty-state">No Official Update records are connected to your admin Website Account yet.</p>}
+      <div className="commons-signal-list">{myOfficialUpdates.map((signal) => <OfficialUpdateSignalCard context="mine" key={`mine-official-${signal.id}`} signal={signal} />)}</div>
+      <div className="section-heading"><p className="eyebrow">Official Update attention</p><h3>Critical official notices</h3><p>Authorized Commune reviewers and admins can see urgent, critical, monitoring, corrected, and retracted Official Updates without giving community users publishing authority.</p></div>
+      {!officialUpdatesNeedingAttention.length && <p className="commons-empty-state">No urgent Official Update lifecycle rows are waiting in your admin/reviewer attention queue.</p>}
+      <div className="commons-signal-list">{officialUpdatesNeedingAttention.map((signal) => <OfficialUpdateSignalCard context="attention" key={`attention-official-${signal.id}`} signal={signal} />)}</div>
       <div className="section-heading"><p className="eyebrow">Account notifications</p><h3>Existing notification rows</h3><p>User notification rows still appear here when account-backed systems create them.</p></div>
-      {!signals.length && (proposalActivity.length > 0 || repositoryShowcaseActivity.length > 0 || iterationShowcaseActivity.length > 0) && <p className="commons-empty-state">No notification rows yet, but direct Coding Cornucopia proposal records, Repository Showcase activity, and Elysia Iteration Showcase activity are shown above.</p>}
+      {!signals.length && (proposalActivity.length > 0 || repositoryShowcaseActivity.length > 0 || iterationShowcaseActivity.length > 0 || officialUpdateActivity.length > 0) && <p className="commons-empty-state">No notification rows yet, but direct Coding Cornucopia proposal records, Repository Showcase activity, Elysia Iteration Showcase activity, and Official Update lifecycle activity are shown above.</p>}
       <div className="commons-signal-list">{signals.map((signal) => <SignalCard key={signal.id} signal={signal} onRead={(id) => void readOne(id)} />)}</div>
       <div className="section-heading"><p className="eyebrow">Coding Cornucopia proposals</p><h3>Recent Coding Cornucopia proposal activity</h3><p>Recent participant-visible proposal records across author review and submitted-by-me activity.</p></div>
       {!proposalActivity.length && <p className="commons-empty-state">No direct Coding Cornucopia proposal records are connected to this Website Account yet.</p>}
       <div className="commons-signal-list">{proposalActivity.map((proposal) => <ProposalSignalCard context="recent" currentUserId={data.userId} key={`recent-${proposal.id}`} proposal={proposal} />)}</div>
-      <p className="boundary-note">Coding Cornucopia proposal signals, Repository Showcase activity, and Elysia Iteration Showcase activity are loaded from direct records where useful. Existing notification rows remain supported, and direct records cover same-user testing or cases where a notification was intentionally not created.</p>
+      <div className="section-heading"><p className="eyebrow">Official Update activity</p><h3>Recent official lifecycle activity</h3><p>Recent admin-visible Official Update records across my notices and critical lifecycle events.</p></div>
+      {!officialUpdateActivity.length && <p className="commons-empty-state">No direct Official Update lifecycle records are connected to this Website Account yet.</p>}
+      <div className="commons-signal-list">{officialUpdateActivity.map((signal) => <OfficialUpdateSignalCard context="recent" key={`recent-official-${signal.role_context}-${signal.id}`} signal={signal} />)}</div>
+      <p className="boundary-note">Coding Cornucopia proposal signals, Repository Showcase activity, Elysia Iteration Showcase activity, and Official Update lifecycle activity are loaded from direct records where useful. Existing notification rows remain supported, and direct records cover same-user testing or cases where a notification was intentionally not created.</p>
     </section>}
   </div>;
 }
