@@ -3623,3 +3623,71 @@ grant select on table public.commune_official_update_code_snippets to anon;
 grant select, insert, update on table public.commune_official_updates to authenticated;
 grant select, insert, update on table public.commune_official_update_code_snippets to authenticated;
 grant select, insert on table public.commune_official_update_events to authenticated;
+
+-- Research Notes structured workflow snapshot. Canonical repair migration:
+-- supabase/migrations/2026_06_26_research_notes_structured_workflow.sql
+create table if not exists public.commune_research_notes (
+  id uuid primary key default gen_random_uuid(),
+  post_id uuid not null unique references public.commune_posts(id) on delete cascade,
+  thread_id uuid references public.commune_threads(id) on delete set null,
+  author_user_id uuid not null references auth.users(id) on delete cascade,
+  research_question text,
+  domain text,
+  evidence_strength text not null default 'unknown',
+  living_library_source_link text,
+  related_living_library_source_id uuid,
+  citation_notes text,
+  evidence_summary text,
+  observation text,
+  interpretation text,
+  uncertainty text,
+  context_discussion text,
+  source_links text[] not null default '{}'::text[],
+  geographic_scope text,
+  ecological_subsystem text not null default 'general',
+  method_type text,
+  data_type text,
+  ethics_note text,
+  review_status text not null default 'submitted',
+  correction_note text,
+  reviewed_by uuid references auth.users(id) on delete set null,
+  reviewed_at timestamptz,
+  corrected_at timestamptz,
+  archived_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists commune_research_notes_post_idx on public.commune_research_notes(post_id);
+create index if not exists commune_research_notes_author_status_idx on public.commune_research_notes(author_user_id, review_status, updated_at desc);
+create index if not exists commune_research_notes_review_status_idx on public.commune_research_notes(review_status, updated_at desc);
+create index if not exists commune_research_notes_evidence_domain_idx on public.commune_research_notes(evidence_strength, domain);
+create index if not exists commune_research_notes_source_links_idx on public.commune_research_notes using gin(source_links);
+create index if not exists commune_research_notes_living_source_idx on public.commune_research_notes(living_library_source_link);
+
+alter table public.commune_research_notes enable row level security;
+
+drop policy if exists "public reads published research notes metadata" on public.commune_research_notes;
+create policy "public reads published research notes metadata" on public.commune_research_notes
+  for select to anon, authenticated
+  using (exists (select 1 from public.commune_posts p where p.id = post_id and p.post_type = 'research_note' and p.status = 'published' and p.visibility = 'public') or author_user_id = auth.uid() or public.current_user_can_review_domain('commune'::public.review_domain));
+
+drop policy if exists "signed users create own research notes metadata" on public.commune_research_notes;
+create policy "signed users create own research notes metadata" on public.commune_research_notes
+  for insert to authenticated
+  with check (author_user_id = auth.uid() and exists (select 1 from public.commune_posts p where p.id = post_id and p.user_id = auth.uid() and p.post_type = 'research_note'));
+
+drop policy if exists "authors maintain own unpublished research notes metadata" on public.commune_research_notes;
+create policy "authors maintain own unpublished research notes metadata" on public.commune_research_notes
+  for update to authenticated
+  using (author_user_id = auth.uid() and review_status in ('submitted','needs_citation','needs_clarification','source_issue','overclaiming_evidence','corrected'))
+  with check (author_user_id = auth.uid() and review_status in ('submitted','needs_citation','needs_clarification','source_issue','overclaiming_evidence','corrected'));
+
+drop policy if exists "reviewers manage research notes metadata" on public.commune_research_notes;
+create policy "reviewers manage research notes metadata" on public.commune_research_notes
+  for all to authenticated
+  using (public.current_user_can_review_domain('commune'::public.review_domain))
+  with check (public.current_user_can_review_domain('commune'::public.review_domain));
+
+grant select on table public.commune_research_notes to anon;
+grant select, insert, update on table public.commune_research_notes to authenticated;

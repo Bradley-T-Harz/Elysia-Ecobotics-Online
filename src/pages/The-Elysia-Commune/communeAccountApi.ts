@@ -17,6 +17,9 @@ export type OfficialCorrectionStatus = "none" | "corrected" | "retracted" | "sup
 export type TroubleshootingIssueType = "bug" | "install_issue" | "account_auth" | "deployment" | "supabase_rls" | "cloudflare" | "frontend_ui" | "backend_api" | "sandbox_runner" | "marketplace" | "commune" | "profile" | "documentation" | "other";
 export type TroubleshootingStatus = "open" | "needs_information" | "in_progress" | "workaround_found" | "fix_proposed" | "resolved" | "closed" | "archived";
 export type TroubleshootingResolutionKind = "comment" | "proposal" | "workaround" | "admin_resolution" | "manual_note";
+export type ResearchEvidenceStrength = "preliminary" | "anecdotal" | "moderate" | "strong" | "mixed" | "needs_verification" | "unknown";
+export type ResearchReviewStatus = "submitted" | "published" | "needs_citation" | "needs_clarification" | "source_issue" | "overclaiming_evidence" | "corrected" | "archived";
+export type ResearchEcologicalSubsystem = "verdante" | "sylphora" | "ecotiva" | "aurania" | "terraflux" | "aquaria" | "aetheria" | "general" | "not_applicable";
 export type TroubleshootingMetadata = {
   id: string;
   post_id: string;
@@ -43,6 +46,37 @@ export type TroubleshootingMetadata = {
   accepted_at?: string | null;
   resolved_at?: string | null;
   closed_at?: string | null;
+  archived_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+export type ResearchNotesMetadata = {
+  id: string;
+  post_id: string;
+  thread_id?: string | null;
+  author_user_id?: string | null;
+  research_question?: string | null;
+  domain?: string | null;
+  evidence_strength: ResearchEvidenceStrength;
+  living_library_source_link?: string | null;
+  related_living_library_source_id?: string | null;
+  citation_notes?: string | null;
+  evidence_summary?: string | null;
+  observation?: string | null;
+  interpretation?: string | null;
+  uncertainty?: string | null;
+  context_discussion?: string | null;
+  source_links?: string[] | null;
+  geographic_scope?: string | null;
+  ecological_subsystem?: ResearchEcologicalSubsystem | null;
+  method_type?: string | null;
+  data_type?: string | null;
+  ethics_note?: string | null;
+  review_status: ResearchReviewStatus;
+  correction_note?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  corrected_at?: string | null;
   archived_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
@@ -162,7 +196,7 @@ export type ElysiaIterationShowcaseMetadata = {
 };
 export type CommuneModerationItem = { id: string; kind: "post" | "comment" | "upload" | "repo" | "iteration" | "sandbox" | "report"; title: string; status: string; created_at?: string | null; summary?: string | null };
 export type CommuneAccountState = { signedIn: boolean; userId: string | null; username: string | null; roles: AppRole[]; isAdmin: boolean; isModerator: boolean; warnings: string[] };
-export type LoadCommuneData = { rooms: CommuneRoom[]; posts: CommunePost[]; comments: CommuneComment[]; threads: CommuneThread[]; media: CommuneMediaAttachment[]; troubleshootingPosts: TroubleshootingMetadata[]; repositoryShowcases: RepositoryShowcaseMetadata[]; iterationShowcases: ElysiaIterationShowcaseMetadata[]; officialUpdates: OfficialUpdateMetadata[]; officialCodeSnippets: OfficialUpdateCodeSnippet[]; savedPostIds: string[]; followedThreadIds: string[]; account: CommuneAccountState; warnings: string[] };
+export type LoadCommuneData = { rooms: CommuneRoom[]; posts: CommunePost[]; comments: CommuneComment[]; threads: CommuneThread[]; media: CommuneMediaAttachment[]; troubleshootingPosts: TroubleshootingMetadata[]; researchNotes: ResearchNotesMetadata[]; repositoryShowcases: RepositoryShowcaseMetadata[]; iterationShowcases: ElysiaIterationShowcaseMetadata[]; officialUpdates: OfficialUpdateMetadata[]; officialCodeSnippets: OfficialUpdateCodeSnippet[]; savedPostIds: string[]; followedThreadIds: string[]; account: CommuneAccountState; warnings: string[] };
 export type CommuneCategory = { id: string; slug: string; title: string; description?: string | null; sort_order?: number | null; is_active?: boolean | null };
 export type CommuneCodeSnippet = {
   id: string;
@@ -196,7 +230,7 @@ export const postTypeOptions: { value: CommunePostType; label: string }[] = [
   { value: "community_network", label: "Community Network" },
   { value: "job_post", label: "Job Post" },
   { value: "official_update", label: "Official Update" },
-  { value: "research_note", label: "Research Note" },
+  { value: "research_note", label: "Research Notes" },
   { value: "elysia_iteration_showcase", label: "Elysia Iteration Showcase" }
 ];
 
@@ -210,6 +244,7 @@ const canonicalCommuneTables = {
   savedPosts: "user_saved_commune_posts",
   followedThreads: "user_followed_commune_threads",
   troubleshootingPosts: "commune_troubleshooting_posts",
+  researchNotes: "commune_research_notes",
   repositoryShowcases: "commune_repository_showcases",
   iterationShowcases: "commune_iteration_showcases",
   officialUpdates: "commune_official_updates",
@@ -256,6 +291,7 @@ function friendlyError(message: string, fallbackMessage: string) {
   if (/commune_content_reactions|commune_content_reaction_counts/i.test(message)) return "Commune community signals are not active yet. Apply `2026_06_21_commune_content_reactions.sql` in Supabase, then try again.";
   if (/record_commune_sandbox_run_result|commune_sandbox_runs|commune_code_diagnostics/i.test(message)) return "Coding Cornucopia sandbox result recording is not active until the latest Supabase migration is applied.";
   if (/commune_troubleshooting_posts/i.test(message)) return "Troubleshooting Grove structured metadata is not active until `2026_06_26_troubleshooting_grove_structured_workflow.sql` is applied in Supabase.";
+  if (/commune_research_notes/i.test(message)) return "Research Notes structured metadata is not active until `2026_06_26_research_notes_structured_workflow.sql` is applied in Supabase.";
   if (/commune_official_updates|commune_official_update_code_snippets|commune_official_update_events/i.test(message)) return "Official Update structured metadata is not active until `2026_06_26_official_update_structured_workflow.sql` is applied in Supabase.";
   if (/commune_thread_participant_approvals/i.test(message)) return "Commune thread participation approvals are not active yet. Apply `2026_06_21_commune_thread_participant_approvals.sql` in Supabase, then try again.";
   if (/commune_comments/i.test(message) && /author_username|published_at|updated_at|hidden_at|hidden_by|moderation_reason|schema cache|Could not find|does not exist|relation/i.test(message)) return "Comment could not be saved because the live comments table is missing a required column. Apply `2026_06_22_commune_comments_schema_drift_repair.sql` in Supabase, then refresh and try again.";
@@ -348,6 +384,7 @@ async function publishPostAttachments(postId: string) {
 const repositoryShowcaseSelect = "id,user_id,post_id,repository_url,repository_host,project_name,project_summary,provider,default_branch,commit_sha,license,manifest_status,elysia_compatibility,short_description,readme_preview,file_tree_preview,screenshot_notes_or_urls,risk_flags,sandbox_review_requested,sandbox_review_status,sandbox_review_request_id,status,import_source,imported_metadata,imported_at,redaction_notes,created_at,updated_at";
 const repositoryShowcaseFallbackSelect = "id,user_id,post_id,repository_url,repository_host,project_name,project_summary,license,sandbox_review_requested,status,created_at,updated_at";
 const troubleshootingSelect = "id,post_id,thread_id,author_user_id,issue_type,affected_area,environment_os,environment_browser,app_version,environment_notes,steps_to_reproduce,expected_result,actual_result,error_message,redacted_logs,workaround,troubleshooting_status,accepted_comment_id,accepted_proposal_id,accepted_resolution_kind,accepted_summary,accepted_by,accepted_at,resolved_at,closed_at,archived_at,created_at,updated_at";
+const researchNotesSelect = "id,post_id,thread_id,author_user_id,research_question,domain,evidence_strength,living_library_source_link,related_living_library_source_id,citation_notes,evidence_summary,observation,interpretation,uncertainty,context_discussion,source_links,geographic_scope,ecological_subsystem,method_type,data_type,ethics_note,review_status,correction_note,reviewed_by,reviewed_at,corrected_at,archived_at,created_at,updated_at";
 const iterationShowcaseSelect = "id,post_id,author_user_id,iteration_type,version_build_label,what_changed,why_it_matters,known_limitations,next_step,related_repo_url,provider,branch,commit_sha,release_tag,pull_request_url,developer_forge_link,marketplace_link,testing_status,compatibility_note,sandbox_review_requested,sandbox_review_status,sandbox_review_request_id,risk_flags,import_source,imported_metadata,imported_at,redaction_notes,status,created_at,updated_at";
 const iterationShowcaseFallbackSelect = "id,post_id,author_user_id,iteration_type,version_build_label,what_changed,why_it_matters,known_limitations,next_step,sandbox_review_requested,status,created_at,updated_at";
 const officialUpdateSelect = "id,post_id,admin_user_id,brand_author_name,update_type,official_status,severity,audience,summary,effective_date,release_version,affected_systems,related_room_slug,related_repo_url,related_migration,related_links,known_limitations,migration_required,user_action_required,pinned,important,comments_enabled,correction_note,correction_status,supersedes_update_id,superseded_by_update_id,published_at,corrected_at,retracted_at,archived_at,created_at,updated_at";
@@ -356,6 +393,9 @@ const officialCodeSelect = "id,official_update_id,post_id,admin_user_id,language
 const troubleshootingIssueTypes: TroubleshootingIssueType[] = ["bug", "install_issue", "account_auth", "deployment", "supabase_rls", "cloudflare", "frontend_ui", "backend_api", "sandbox_runner", "marketplace", "commune", "profile", "documentation", "other"];
 const troubleshootingStatuses: TroubleshootingStatus[] = ["open", "needs_information", "in_progress", "workaround_found", "fix_proposed", "resolved", "closed", "archived"];
 const troubleshootingResolutionKinds: TroubleshootingResolutionKind[] = ["comment", "proposal", "workaround", "admin_resolution", "manual_note"];
+const researchEvidenceStrengths: ResearchEvidenceStrength[] = ["preliminary", "anecdotal", "moderate", "strong", "mixed", "needs_verification", "unknown"];
+const researchReviewStatuses: ResearchReviewStatus[] = ["submitted", "published", "needs_citation", "needs_clarification", "source_issue", "overclaiming_evidence", "corrected", "archived"];
+const researchEcologicalSubsystems: ResearchEcologicalSubsystem[] = ["verdante", "sylphora", "ecotiva", "aurania", "terraflux", "aquaria", "aetheria", "general", "not_applicable"];
 
 function normalizeTroubleshootingIssueType(value?: string | null): TroubleshootingIssueType {
   const normalized = String(value ?? "").toLowerCase().replace(/[\s-]+/g, "_");
@@ -372,6 +412,67 @@ function normalizeTroubleshootingStatus(value?: string | null): TroubleshootingS
 function normalizeTroubleshootingResolutionKind(value?: string | null): TroubleshootingResolutionKind | null {
   const normalized = String(value ?? "").toLowerCase().replace(/[\s-]+/g, "_");
   return troubleshootingResolutionKinds.includes(normalized as TroubleshootingResolutionKind) ? normalized as TroubleshootingResolutionKind : null;
+}
+
+function normalizeResearchEvidenceStrength(value?: string | null): ResearchEvidenceStrength {
+  const normalized = String(value ?? "").toLowerCase().replace(/[\s/-]+/g, "_");
+  const mapped = normalized === "early_note" || normalized === "preliminary_note"
+    ? "preliminary"
+    : normalized === "anecdotal_observation"
+      ? "anecdotal"
+      : normalized === "multiple_sources"
+        ? "moderate"
+        : normalized === "strong_source_trail"
+          ? "strong"
+          : normalized === "uncertain_needs_review" || normalized === "needs_review"
+            ? "needs_verification"
+            : normalized;
+  return researchEvidenceStrengths.includes(mapped as ResearchEvidenceStrength) ? mapped as ResearchEvidenceStrength : "unknown";
+}
+
+function normalizeResearchReviewStatus(value?: string | null): ResearchReviewStatus {
+  const normalized = String(value ?? "").toLowerCase().replace(/[\s-]+/g, "_");
+  return researchReviewStatuses.includes(normalized as ResearchReviewStatus) ? normalized as ResearchReviewStatus : "submitted";
+}
+
+function normalizeResearchEcologicalSubsystem(value?: string | null): ResearchEcologicalSubsystem {
+  const normalized = String(value ?? "").toLowerCase().replace(/[\s-]+/g, "_");
+  if (!normalized) return "general";
+  return researchEcologicalSubsystems.includes(normalized as ResearchEcologicalSubsystem) ? normalized as ResearchEcologicalSubsystem : "general";
+}
+
+function normalizeResearchNotes(row: Partial<ResearchNotesMetadata>): ResearchNotesMetadata {
+  return {
+    id: String(row.id ?? ""),
+    post_id: String(row.post_id ?? ""),
+    thread_id: row.thread_id ?? null,
+    author_user_id: row.author_user_id ?? null,
+    research_question: row.research_question ?? null,
+    domain: row.domain ?? null,
+    evidence_strength: normalizeResearchEvidenceStrength(row.evidence_strength),
+    living_library_source_link: row.living_library_source_link ?? null,
+    related_living_library_source_id: row.related_living_library_source_id ?? null,
+    citation_notes: row.citation_notes ?? null,
+    evidence_summary: row.evidence_summary ?? null,
+    observation: row.observation ?? null,
+    interpretation: row.interpretation ?? null,
+    uncertainty: row.uncertainty ?? null,
+    context_discussion: row.context_discussion ?? null,
+    source_links: Array.isArray(row.source_links) ? row.source_links : [],
+    geographic_scope: row.geographic_scope ?? null,
+    ecological_subsystem: normalizeResearchEcologicalSubsystem(row.ecological_subsystem),
+    method_type: row.method_type ?? null,
+    data_type: row.data_type ?? null,
+    ethics_note: row.ethics_note ?? null,
+    review_status: normalizeResearchReviewStatus(row.review_status),
+    correction_note: row.correction_note ?? null,
+    reviewed_by: row.reviewed_by ?? null,
+    reviewed_at: row.reviewed_at ?? null,
+    corrected_at: row.corrected_at ?? null,
+    archived_at: row.archived_at ?? null,
+    created_at: row.created_at ?? null,
+    updated_at: row.updated_at ?? null
+  };
 }
 
 function normalizeTroubleshooting(row: Partial<TroubleshootingMetadata>): TroubleshootingMetadata {
@@ -421,6 +522,22 @@ export async function loadTroubleshootingForPost(postId: string): Promise<{ trou
   if (!supabase) return { troubleshooting: null, warnings: [supabaseNotConfiguredMessage] };
   const rows = await loadTroubleshootingForPosts([postId]);
   return { troubleshooting: rows[0] ?? null, warnings: [] };
+}
+
+async function loadResearchNotesForPosts(postIds: string[]): Promise<ResearchNotesMetadata[]> {
+  if (!supabase || !postIds.length) return [];
+  const { data, error } = await supabase.from(canonicalCommuneTables.researchNotes).select(researchNotesSelect).in("post_id", postIds);
+  if (error) {
+    if (import.meta.env.DEV) console.warn("[Research Notes structured load]", error.message);
+    return [];
+  }
+  return ((data ?? []) as Partial<ResearchNotesMetadata>[]).map(normalizeResearchNotes).filter((row) => row.id && row.post_id);
+}
+
+export async function loadResearchNotesForPost(postId: string): Promise<{ researchNote: ResearchNotesMetadata | null; warnings: string[] }> {
+  if (!supabase) return { researchNote: null, warnings: [supabaseNotConfiguredMessage] };
+  const rows = await loadResearchNotesForPosts([postId]);
+  return { researchNote: rows[0] ?? null, warnings: [] };
 }
 
 function normalizeRepositoryShowcase(row: Partial<RepositoryShowcaseMetadata>): RepositoryShowcaseMetadata {
@@ -635,7 +752,7 @@ export async function loadCategories(): Promise<{ categories: CommuneCategory[];
 
 export async function loadCommuneData(roomSlug?: string, postId?: string): Promise<LoadCommuneData> {
   const account = await accountState();
-  if (!hasSupabaseConfig || !supabase) return { rooms: [], posts: [], comments: [], threads: [], media: [], troubleshootingPosts: [], repositoryShowcases: [], iterationShowcases: [], officialUpdates: [], officialCodeSnippets: [], savedPostIds: [], followedThreadIds: [], account, warnings: [supabaseNotConfiguredMessage] };
+  if (!hasSupabaseConfig || !supabase) return { rooms: [], posts: [], comments: [], threads: [], media: [], troubleshootingPosts: [], researchNotes: [], repositoryShowcases: [], iterationShowcases: [], officialUpdates: [], officialCodeSnippets: [], savedPostIds: [], followedThreadIds: [], account, warnings: [supabaseNotConfiguredMessage] };
   const warnings = [...account.warnings];
   const roomsQuery = supabase.from(canonicalCommuneTables.rooms).select("id, slug, name, description, room_type, requires_moderation").order("name");
   const { data: rooms, error: roomError } = await roomsQuery;
@@ -663,6 +780,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
   if (commentError) warnings.push(commentError.message);
   const media = await loadPublishedMediaForPosts(postIds);
   const troubleshootingPosts = await loadTroubleshootingForPosts(postIds);
+  const researchNotes = await loadResearchNotesForPosts(postIds);
   const repositoryShowcases = await loadRepositoryShowcasesForPosts(postIds);
   const iterationShowcases = await loadIterationShowcasesForPosts(postIds);
   const officialUpdates = await loadOfficialUpdatesForPosts(postIds);
@@ -677,7 +795,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
     savedPostIds = (saves ?? []).map((row) => row.post_id).filter(Boolean) as string[];
     followedThreadIds = (follows ?? []).map((row) => row.thread_id).filter(Boolean) as string[];
   }
-  return { rooms: (rooms ?? []) as CommuneRoom[], posts: (posts ?? []) as CommunePost[], comments: (comments ?? []) as CommuneComment[], threads: (threads ?? []) as CommuneThread[], media, troubleshootingPosts, repositoryShowcases, iterationShowcases, officialUpdates, officialCodeSnippets, savedPostIds, followedThreadIds, account, warnings };
+  return { rooms: (rooms ?? []) as CommuneRoom[], posts: (posts ?? []) as CommunePost[], comments: (comments ?? []) as CommuneComment[], threads: (threads ?? []) as CommuneThread[], media, troubleshootingPosts, researchNotes, repositoryShowcases, iterationShowcases, officialUpdates, officialCodeSnippets, savedPostIds, followedThreadIds, account, warnings };
 }
 
 export async function ensureCommuneThreadForPost(post: CommunePost): Promise<{ ok: boolean; thread?: CommuneThread; message: string }> {
@@ -1149,6 +1267,182 @@ export async function markTroubleshootingResolved(input: { postId: string; resol
   return { ok: true, message: "Accepted troubleshooting fix/workaround recorded." };
 }
 
+async function notifyResearchNotesAuthor(input: { userId?: string | null; postId: string; sourceId?: string | null; title: string; body: string; type: string }) {
+  if (!supabase || !input.userId) return;
+  const { error } = await supabase.from("user_notifications").insert({
+    user_id: input.userId,
+    notification_type: input.type,
+    source_type: canonicalCommuneTables.researchNotes,
+    source_id: input.sourceId || input.postId,
+    title: input.title,
+    body: input.body,
+    action_url: "/commune/posts/" + input.postId
+  });
+  if (error && import.meta.env.DEV) console.warn("[Research Notes notification]", error.message);
+}
+
+export async function submitResearchNotesPost(input: {
+  title: string;
+  summary: string;
+  body: string;
+  tags: string;
+  links: string;
+  roomId?: string;
+  upload?: File | null;
+  acknowledgement: boolean;
+  researchQuestion?: string;
+  domain?: string;
+  evidenceStrength?: string;
+  livingLibrarySourceLink?: string;
+  citationNotes?: string;
+  evidenceSummary?: string;
+  observation?: string;
+  interpretation?: string;
+  uncertainty?: string;
+  contextDiscussion?: string;
+  geographicScope?: string;
+  ecologicalSubsystem?: string;
+  methodType?: string;
+  dataType?: string;
+  ethicsNote?: string;
+}): Promise<{ ok: boolean; message: string; id?: string; postId?: string }> {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId) return { ok: false, message: "Sign in to submit a Research Notes post." };
+  if (!input.acknowledgement) return { ok: false, message: "Confirm the Research Notes safety acknowledgements before submitting." };
+  if (input.upload) {
+    const media = validateCommuneMediaFile(input.upload);
+    if (!media.ok) return { ok: false, message: media.message };
+  }
+  const livingLibrarySourceLink = publicHttpUrlOrNull(input.livingLibrarySourceLink);
+  if (input.livingLibrarySourceLink?.trim() && !livingLibrarySourceLink) return { ok: false, message: "Use a public HTTP(S) Living Library source link or leave it blank. Private, localhost, and local paths are not allowed." };
+  const sourceLinks = Array.from(new Set([...splitList(input.links).map(publicHttpUrlOrNull), livingLibrarySourceLink].filter(Boolean) as string[]));
+  const secretScan = scanCommuneTextForSecrets([
+    input.title,
+    input.summary,
+    input.body,
+    input.tags,
+    sourceLinks.join("\n"),
+    input.researchQuestion ?? "",
+    input.domain ?? "",
+    input.evidenceStrength ?? "",
+    input.citationNotes ?? "",
+    input.evidenceSummary ?? "",
+    input.observation ?? "",
+    input.interpretation ?? "",
+    input.uncertainty ?? "",
+    input.contextDiscussion ?? "",
+    input.geographicScope ?? "",
+    input.ecologicalSubsystem ?? "",
+    input.methodType ?? "",
+    input.dataType ?? "",
+    input.ethicsNote ?? ""
+  ].join("\n"));
+  if (secretScan.blocked) return { ok: false, message: "Research Notes post blocked because it appears to contain private, secret, sensitive-location, or unsafe material: " + secretScan.warnings.join(", ") + ". Redact it before submitting." };
+  const postId = crypto.randomUUID();
+  const now = new Date().toISOString();
+  const adminDirectPublish = account.isAdmin;
+  const tags = parseCommuneTags(input.tags);
+  const { error: postError } = await supabase.from(canonicalCommuneTables.posts).insert({
+    id: postId,
+    user_id: account.userId,
+    author_username: account.username,
+    post_type: "research_note",
+    title: input.title.trim(),
+    body: input.body.trim(),
+    excerpt: excerpt(input.summary || input.body),
+    tags,
+    links: sourceLinks,
+    status: adminDirectPublish ? "published" : "pending_review",
+    moderation_status: adminDirectPublish ? "approved" : "pending_review",
+    published_at: adminDirectPublish ? now : null,
+    safety_acknowledgements: { public_boundary: true, no_secrets: true, evidence_interpretation_boundary: true, no_sensitive_locations: true, no_private_research_data: true, living_library_link_metadata_only: true }
+  });
+  if (postError) return { ok: false, message: friendlyError(postError.message, "Research Notes post creation is blocked by the current Commune post policy.") };
+  const { data: thread } = await supabase.from(canonicalCommuneTables.threads).insert({
+    post_id: postId,
+    room_id: input.roomId || null,
+    title: input.title.trim(),
+    created_by: account.userId,
+    visibility: "public",
+    status: "open"
+  }).select("id").single();
+  const threadId = (thread as { id?: string } | null)?.id ?? null;
+  const structuredPayload = {
+    post_id: postId,
+    thread_id: threadId,
+    author_user_id: account.userId,
+    research_question: input.researchQuestion || null,
+    domain: input.domain || null,
+    evidence_strength: normalizeResearchEvidenceStrength(input.evidenceStrength),
+    living_library_source_link: livingLibrarySourceLink,
+    citation_notes: input.citationNotes || null,
+    evidence_summary: input.evidenceSummary || null,
+    observation: input.observation || null,
+    interpretation: input.interpretation || null,
+    uncertainty: input.uncertainty || null,
+    context_discussion: input.contextDiscussion || null,
+    source_links: sourceLinks,
+    geographic_scope: input.geographicScope || null,
+    ecological_subsystem: normalizeResearchEcologicalSubsystem(input.ecologicalSubsystem),
+    method_type: input.methodType || null,
+    data_type: input.dataType || null,
+    ethics_note: input.ethicsNote || null,
+    review_status: adminDirectPublish ? "published" : "submitted",
+    updated_at: now
+  };
+  const { data, error: researchError } = await supabase.from(canonicalCommuneTables.researchNotes).insert(structuredPayload).select("id").single();
+  if (researchError || !data) return { ok: false, postId, message: friendlyError(researchError?.message ?? "Research Notes metadata insert did not return a row.", "Research Notes post saved, but structured metadata could not be saved. Apply the Research Notes migration, then repair this post.") };
+  const researchNoteId = (data as { id: string }).id;
+  if (input.upload) {
+    const upload = await uploadCommuneAttachment(input.upload, { postId, role: "research_note_attachment", publishImmediately: adminDirectPublish });
+    if (!upload.ok) return { ok: false, id: researchNoteId, postId, message: `Research Notes post saved, but upload failed: ${upload.message}` };
+  }
+  if (adminDirectPublish) {
+    await grantThreadParticipationApproval({ threadId, postId, userId: account.userId, approvedBy: account.userId, source: "admin_direct_research_notes_post" });
+    await publishPostAttachments(postId);
+    await recordCommuneGovernanceEvent({ actorId: account.userId, targetType: "post", targetId: postId, action: "admin_research_notes_post_published", fromStatus: "draft", toStatus: "published", metadata: { post_type: "research_note", research_note_id: researchNoteId, review_item_created: false } });
+    await createReviewHistoryItem({ domain: "commune", sourceTable: canonicalCommuneTables.researchNotes, sourceId: researchNoteId, submittedBy: account.userId, title: input.title, summary: "Admin-published Research Notes entry. Evidence, observation, interpretation, and uncertainty remain separate.", status: "approved", eventType: "admin_research_notes_direct_published", metadata: { post_id: postId, thread_id: threadId, evidence_strength: structuredPayload.evidence_strength } });
+    await notifyResearchNotesAuthor({ userId: account.userId, postId, sourceId: researchNoteId, title: "Research Notes post published", body: "Your Research Notes post is public. Evidence, interpretation, uncertainty, and citations remain visible as structured metadata.", type: "research_notes_published" });
+    return { ok: true, id: researchNoteId, postId, message: "Research Notes post published with structured evidence metadata, public thread, and source-safety boundaries." };
+  }
+  await createReviewItem({ domain: "commune", sourceTable: canonicalCommuneTables.posts, sourceId: postId, submittedBy: account.userId, title: input.title.trim(), summary: excerpt(input.summary || input.body) });
+  await createReviewItem({ domain: "commune", sourceTable: canonicalCommuneTables.researchNotes, sourceId: researchNoteId, submittedBy: account.userId, title: input.title.trim(), summary: "Research Notes metadata awaiting review. Check citations, evidence/interpretation boundary, uncertainty, and sensitive-location/private-data safety." });
+  await notifyResearchNotesAuthor({ userId: account.userId, postId, sourceId: researchNoteId, title: "Research Notes submitted", body: "Your Research Notes post is pending moderation. It is not public until approved.", type: "research_notes_submitted" });
+  return { ok: true, id: researchNoteId, postId, message: "Research Notes post submitted for moderation with structured evidence metadata. It is not public until approved." };
+}
+
+export async function updateResearchNotesReviewStatus(input: { researchNoteId?: string | null; postId?: string | null; reviewStatus: ResearchReviewStatus; correctionNote?: string }): Promise<{ ok: boolean; message: string }> {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId || !account.isModerator) return { ok: false, message: "Research Notes review states require an assigned Commune reviewer/admin role." };
+  if (!input.researchNoteId && !input.postId) return { ok: false, message: "Research Notes review update needs a metadata id or post id." };
+  const now = new Date().toISOString();
+  const patch: Record<string, unknown> = {
+    review_status: normalizeResearchReviewStatus(input.reviewStatus),
+    correction_note: input.correctionNote || null,
+    reviewed_by: account.userId,
+    reviewed_at: now,
+    updated_at: now
+  };
+  if (input.reviewStatus === "corrected") patch.corrected_at = now;
+  if (input.reviewStatus === "archived") patch.archived_at = now;
+  const query = supabase.from(canonicalCommuneTables.researchNotes).update(patch);
+  const { error } = input.researchNoteId ? await query.eq("id", input.researchNoteId) : await query.eq("post_id", input.postId ?? "");
+  if (error) return { ok: false, message: friendlyError(error.message, "Research Notes review state could not be updated yet.") };
+  const { data: existing } = await supabase.from(canonicalCommuneTables.researchNotes).select("id,post_id,author_user_id").eq(input.researchNoteId ? "id" : "post_id", input.researchNoteId || input.postId || "").maybeSingle();
+  const row = existing as { id?: string; post_id?: string | null; author_user_id?: string | null } | null;
+  await notifyResearchNotesAuthor({
+    userId: row?.author_user_id ?? null,
+    postId: row?.post_id ?? input.postId ?? "",
+    sourceId: row?.id ?? input.researchNoteId ?? null,
+    title: "Research Notes review state updated",
+    body: `Research Notes review state is now ${input.reviewStatus.replace(/_/g, " ")}.${input.correctionNote ? " Note: " + input.correctionNote : ""}`,
+    type: "research_notes_review_status_changed"
+  });
+  return { ok: true, message: "Research Notes review state updated. Reviewer notes remain in private review/history systems; public correction notes are visible when supplied." };
+}
+
 export async function submitCommunePost(input: { postType: CommunePostType; roomId?: string; title: string; body: string; tags: string; links: string; repositoryUrl?: string; acknowledgement: boolean; upload?: File | null; sandboxRequested?: boolean }): Promise<{ ok: boolean; message: string; postId?: string }> {
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
@@ -1343,6 +1637,7 @@ export async function moderateCommuneContentTarget(input: { targetType: CommuneR
     const postType = String((current as { post_type?: string } | null)?.post_type ?? "");
     const sidecarStatus = input.action === "delete" ? "rejected" : "needs_information";
     if (postType === "troubleshooting") await supabase.from(canonicalCommuneTables.troubleshootingPosts).update({ troubleshooting_status: input.action === "delete" ? "archived" : "needs_information", updated_at: now, archived_at: input.action === "delete" ? now : null }).eq("post_id", input.targetId);
+    if (postType === "research_note") await supabase.from(canonicalCommuneTables.researchNotes).update({ review_status: input.action === "delete" ? "archived" : "needs_clarification", updated_at: now, archived_at: input.action === "delete" ? now : null }).eq("post_id", input.targetId);
     if (postType === "repository_showcase") await supabase.from(canonicalCommuneTables.repositoryShowcases).update({ status: sidecarStatus, updated_at: now }).eq("post_id", input.targetId);
     if (postType === "elysia_iteration_showcase") await supabase.from(canonicalCommuneTables.iterationShowcases).update({ status: sidecarStatus, updated_at: now }).eq("post_id", input.targetId);
     if (postType === "official_update") await supabase.from(canonicalCommuneTables.officialUpdates).update({ official_status: input.action === "delete" ? "archived" : "updated", correction_status: input.action === "delete" ? "retracted" : "none", archived_at: input.action === "delete" ? now : null, updated_at: now }).eq("post_id", input.targetId);
@@ -1865,6 +2160,10 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
   if (item.kind === "post" && ownerRow.post_type === "troubleshooting") {
     const troubleshootingStatus = action === "approve" ? "open" : action === "archive" ? "archived" : action === "reject" ? "archived" : action === "hide" ? "needs_information" : action === "escalate" ? "in_progress" : "needs_information";
     await supabase.from(canonicalCommuneTables.troubleshootingPosts).update({ troubleshooting_status: troubleshootingStatus, updated_at: now, archived_at: troubleshootingStatus === "archived" ? now : null }).eq("post_id", item.id);
+  }
+  if (item.kind === "post" && ownerRow.post_type === "research_note") {
+    const researchStatus: ResearchReviewStatus = action === "approve" ? "published" : action === "archive" ? "archived" : action === "reject" ? "archived" : action === "hide" ? "needs_clarification" : action === "escalate" ? "needs_clarification" : "needs_clarification";
+    await supabase.from(canonicalCommuneTables.researchNotes).update({ review_status: researchStatus, reviewed_by: account.userId, reviewed_at: now, updated_at: now, archived_at: researchStatus === "archived" ? now : null }).eq("post_id", item.id);
   }
   if (item.kind === "post" && ownerRow.post_type === "elysia_iteration_showcase") {
     const iterationStatus = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "hide" ? "rejected" : action === "archive" ? "archived" : action === "escalate" ? "in_review" : "needs_information";

@@ -3410,3 +3410,52 @@ create policy "users create own commune comments with thread approval" on public
       )
     )
   );
+
+-- Research Notes structured workflow policies.
+-- Canonical repair migration: supabase/migrations/2026_06_26_research_notes_structured_workflow.sql
+alter table public.commune_research_notes enable row level security;
+
+drop policy if exists "public reads published research notes metadata" on public.commune_research_notes;
+create policy "public reads published research notes metadata" on public.commune_research_notes
+  for select to anon, authenticated
+  using (
+    exists (
+      select 1
+      from public.commune_posts p
+      where p.id = post_id
+        and p.post_type = 'research_note'
+        and p.status = 'published'
+        and p.visibility = 'public'
+    )
+    or author_user_id = auth.uid()
+    or public.current_user_can_review_domain('commune'::public.review_domain)
+  );
+
+drop policy if exists "signed users create own research notes metadata" on public.commune_research_notes;
+create policy "signed users create own research notes metadata" on public.commune_research_notes
+  for insert to authenticated
+  with check (
+    author_user_id = auth.uid()
+    and exists (
+      select 1
+      from public.commune_posts p
+      where p.id = post_id
+        and p.user_id = auth.uid()
+        and p.post_type = 'research_note'
+    )
+  );
+
+drop policy if exists "authors maintain own unpublished research notes metadata" on public.commune_research_notes;
+create policy "authors maintain own unpublished research notes metadata" on public.commune_research_notes
+  for update to authenticated
+  using (author_user_id = auth.uid() and review_status in ('submitted','needs_citation','needs_clarification','source_issue','overclaiming_evidence','corrected'))
+  with check (author_user_id = auth.uid() and review_status in ('submitted','needs_citation','needs_clarification','source_issue','overclaiming_evidence','corrected'));
+
+drop policy if exists "reviewers manage research notes metadata" on public.commune_research_notes;
+create policy "reviewers manage research notes metadata" on public.commune_research_notes
+  for all to authenticated
+  using (public.current_user_can_review_domain('commune'::public.review_domain))
+  with check (public.current_user_can_review_domain('commune'::public.review_domain));
+
+grant select on table public.commune_research_notes to anon;
+grant select, insert, update on table public.commune_research_notes to authenticated;

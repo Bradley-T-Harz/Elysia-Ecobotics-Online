@@ -96,6 +96,26 @@ export type TroubleshootingSignalPreview = {
   action_url: string;
   role_context: "owner" | "reviewer" | "resolution";
 };
+export type ResearchNotesSignalPreview = {
+  id: string;
+  post_id?: string | null;
+  thread_id?: string | null;
+  author_user_id?: string | null;
+  research_question?: string | null;
+  domain?: string | null;
+  evidence_strength?: string | null;
+  review_status?: string | null;
+  living_library_source_link?: string | null;
+  correction_note?: string | null;
+  reviewed_at?: string | null;
+  corrected_at?: string | null;
+  archived_at?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  post_title?: string | null;
+  action_url: string;
+  role_context: "owner" | "reviewer" | "clarification";
+};
 export type RepositoryShowcaseSignalPreview = {
   id: string;
   post_id?: string | null;
@@ -194,6 +214,10 @@ export type SignalConsoleData = {
   myTroubleshootingIssues: TroubleshootingSignalPreview[];
   troubleshootingNeedingReview: TroubleshootingSignalPreview[];
   troubleshootingResolutionActivity: TroubleshootingSignalPreview[];
+  researchNotesActivity: ResearchNotesSignalPreview[];
+  myResearchNotes: ResearchNotesSignalPreview[];
+  researchNotesNeedingReview: ResearchNotesSignalPreview[];
+  researchClarificationActivity: ResearchNotesSignalPreview[];
   repositoryShowcaseActivity: RepositoryShowcaseSignalPreview[];
   myRepositoryShowcases: RepositoryShowcaseSignalPreview[];
   repositoryShowcasesNeedingReview: RepositoryShowcaseSignalPreview[];
@@ -208,6 +232,7 @@ export type SignalConsoleData = {
   unreadCount: number;
   codeProposalCount: number;
   troubleshootingCount: number;
+  researchNotesCount: number;
   repositoryShowcaseCount: number;
   iterationShowcaseCount: number;
   officialUpdateCount: number;
@@ -604,7 +629,7 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
 
 export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const warnings: string[] = [];
-  const empty = { signals: [], codeProposalActivity: [], needsMyReview: [], mySubmittedProposals: [], troubleshootingActivity: [], myTroubleshootingIssues: [], troubleshootingNeedingReview: [], troubleshootingResolutionActivity: [], repositoryShowcaseActivity: [], myRepositoryShowcases: [], repositoryShowcasesNeedingReview: [], repositorySandboxActivity: [], iterationShowcaseActivity: [], myIterationShowcases: [], iterationShowcasesNeedingReview: [], iterationSandboxActivity: [], officialUpdateActivity: [], myOfficialUpdates: [], officialUpdatesNeedingAttention: [], unreadCount: 0, codeProposalCount: 0, troubleshootingCount: 0, repositoryShowcaseCount: 0, iterationShowcaseCount: 0, officialUpdateCount: 0 };
+  const empty = { signals: [], codeProposalActivity: [], needsMyReview: [], mySubmittedProposals: [], troubleshootingActivity: [], myTroubleshootingIssues: [], troubleshootingNeedingReview: [], troubleshootingResolutionActivity: [], researchNotesActivity: [], myResearchNotes: [], researchNotesNeedingReview: [], researchClarificationActivity: [], repositoryShowcaseActivity: [], myRepositoryShowcases: [], repositoryShowcasesNeedingReview: [], repositorySandboxActivity: [], iterationShowcaseActivity: [], myIterationShowcases: [], iterationShowcasesNeedingReview: [], iterationSandboxActivity: [], officialUpdateActivity: [], myOfficialUpdates: [], officialUpdatesNeedingAttention: [], unreadCount: 0, codeProposalCount: 0, troubleshootingCount: 0, researchNotesCount: 0, repositoryShowcaseCount: 0, iterationShowcaseCount: 0, officialUpdateCount: 0 };
   if (!hasSupabaseConfig || !supabase) return { signedIn: false, supabaseConfigured: false, userId: null, warnings: [supabaseNotConfiguredMessage], ...empty };
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth.user?.id ?? null;
@@ -646,6 +671,25 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const troubleshootingResolutionActivity = [...myTroubleshootingIssues, ...troubleshootingNeedingReview]
     .filter((row) => Boolean(row.accepted_summary || row.accepted_at || row.resolved_at || row.troubleshooting_status === "resolved" || row.troubleshooting_status === "workaround_found"));
   const troubleshootingActivity = Array.from(new Map([...myTroubleshootingIssues, ...troubleshootingNeedingReview, ...troubleshootingResolutionActivity].map((row) => [row.role_context + ":" + row.id, row])).values());
+
+  type ResearchNotesSignalRow = Omit<ResearchNotesSignalPreview, "action_url" | "role_context" | "post_title">;
+  const researchSelect = "id, post_id, thread_id, author_user_id, research_question, domain, evidence_strength, review_status, living_library_source_link, correction_note, reviewed_at, corrected_at, archived_at, created_at, updated_at";
+  const myResearchRows = await safeQuery<ResearchNotesSignalRow[]>(warnings, "Research Notes activity", supabase.from("commune_research_notes").select(researchSelect).eq("author_user_id", userId).order("updated_at", { ascending: false }).limit(100), []);
+  const reviewResearchRows = canReviewCommune
+    ? await safeQuery<ResearchNotesSignalRow[]>(warnings, "Research Notes review activity", supabase.from("commune_research_notes").select(researchSelect).in("review_status", ["submitted", "needs_citation", "needs_clarification", "source_issue", "overclaiming_evidence"]).order("updated_at", { ascending: false }).limit(100), [])
+    : [];
+  const researchPostIds = Array.from(new Set([...myResearchRows, ...reviewResearchRows].map((row) => row.post_id).filter(Boolean) as string[]));
+  const researchPosts = researchPostIds.length
+    ? await safeQuery<Array<{ id: string; title?: string | null }>>(warnings, "Research Notes linked posts", supabase.from("commune_posts").select("id, title").in("id", researchPostIds), [])
+    : [];
+  const researchTitleByPostId = new Map(researchPosts.map((post) => [post.id, post.title ?? null]));
+  const mapResearch = (row: ResearchNotesSignalRow, role: ResearchNotesSignalPreview["role_context"]): ResearchNotesSignalPreview => ({ ...row, post_title: row.post_id ? researchTitleByPostId.get(row.post_id) ?? null : null, action_url: row.post_id ? "/commune/posts/" + row.post_id : "/commune/research-notes", role_context: role });
+  const myResearchNotes = myResearchRows.map((row) => mapResearch(row, ["needs_citation", "needs_clarification", "source_issue", "overclaiming_evidence"].includes(row.review_status ?? "") ? "clarification" : "owner"));
+  const researchNotesNeedingReview = reviewResearchRows.map((row) => mapResearch(row, "reviewer"));
+  const researchClarificationActivity = [...myResearchNotes, ...researchNotesNeedingReview]
+    .filter((row) => ["needs_citation", "needs_clarification", "source_issue", "overclaiming_evidence", "corrected"].includes(row.review_status ?? "") || Boolean(row.correction_note || row.corrected_at));
+  const researchNotesActivity = Array.from(new Map([...myResearchNotes, ...researchNotesNeedingReview, ...researchClarificationActivity].map((row) => [row.role_context + ":" + row.id, row])).values());
+
   const repoSelect = "id, user_id, post_id, repository_url, project_name, status, sandbox_review_requested, sandbox_review_status, sandbox_review_request_id, created_at, updated_at";
   const myRepoRows = await safeQuery<RepositoryShowcaseSignalRow[]>(warnings, "Repository Showcase activity", supabase.from("commune_repository_showcases").select(repoSelect).eq("user_id", userId).order("updated_at", { ascending: false }).limit(100), []);
   const reviewRepoRows = canReviewCommune
@@ -714,6 +758,10 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
     myTroubleshootingIssues,
     troubleshootingNeedingReview,
     troubleshootingResolutionActivity,
+    researchNotesActivity,
+    myResearchNotes,
+    researchNotesNeedingReview,
+    researchClarificationActivity,
     repositoryShowcaseActivity,
     myRepositoryShowcases,
     repositoryShowcasesNeedingReview,
@@ -728,6 +776,7 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
     unreadCount: signals.filter((signal) => !signal.read_at).length,
     codeProposalCount: new Set([...codeProposalActivity.map((proposal) => proposal.id), ...proposalNotificationIds]).size,
     troubleshootingCount: new Set(troubleshootingActivity.map((item) => item.id)).size,
+    researchNotesCount: new Set(researchNotesActivity.map((item) => item.id)).size,
     repositoryShowcaseCount: new Set(repositoryShowcaseActivity.map((item) => item.id)).size,
     iterationShowcaseCount: new Set(iterationShowcaseActivity.map((item) => item.id)).size,
     officialUpdateCount: new Set(officialUpdateActivity.map((item) => item.id)).size

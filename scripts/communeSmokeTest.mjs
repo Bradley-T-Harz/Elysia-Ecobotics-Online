@@ -63,6 +63,10 @@ const officialUpdateContractDoc = await read("docs/api/official-update-contract.
 const troubleshootingPolicyDoc = await read("docs/commune/troubleshooting-grove-policy.md");
 const troubleshootingBoundaryDoc = await read("docs/security/troubleshooting-grove-boundary.md");
 const troubleshootingContractDoc = await read("docs/api/troubleshooting-grove-contract.md");
+const researchNotesWorkflowMigration = await read("supabase/migrations/2026_06_26_research_notes_structured_workflow.sql");
+const researchNotesPolicyDoc = await read("docs/commune/research-notes-policy.md");
+const researchNotesBoundaryDoc = await read("docs/security/research-notes-boundary.md");
+const researchNotesContractDoc = await read("docs/api/research-notes-contract.md");
 const communeCommentSchemaCoverage = `${migration}\n${commentDirectPublishMigration}\n${commentSchemaRepairMigration}\n${commentNotificationRepairMigration}`;
 const styles = await read("src/styles.css");
 
@@ -93,20 +97,27 @@ assert(signalConsolePage.includes("Official Updates are admin-only public record
 assert(signalConsolePage.includes("Troubleshooting Grove proposed fix") && signalConsolePage.includes("Open proposed fix workbench"), "Signal Console should label troubleshooting proposed fixes distinctly.");
 assert(signalConsolePage.includes("Troubleshooting Grove activity") && signalConsolePage.includes("My troubleshooting issues") && signalConsolePage.includes("Issues needing review or follow-up") && signalConsolePage.includes("Accepted fixes and workarounds"), "Signal Console should render Troubleshooting Grove issue/status/resolution activity sections.");
 assert(signalConsolePage.includes("support issue records") && signalConsolePage.includes("original authors retain control over accepted fixes"), "Signal Console should preserve Troubleshooting Grove author-control copy.");
+assert(commonsApi.includes("ResearchNotesSignalPreview") && commonsApi.includes("commune_research_notes") && commonsApi.includes("researchNotesActivity"), "Signal Console should load direct Research Notes activity records.");
+assert(commonsApi.includes("myResearchNotes") && commonsApi.includes("researchNotesNeedingReview") && commonsApi.includes("researchClarificationActivity"), "Signal Console should split Research Notes owner, reviewer, and clarification activity.");
+assert(signalConsolePage.includes("Research Notes activity") && signalConsolePage.includes("My Research Notes posts") && signalConsolePage.includes("Notes needing citation or clarification"), "Signal Console should render Research Notes activity/review sections.");
+assert(signalConsolePage.includes("Citation, source, and uncertainty follow-up") && signalConsolePage.includes("evidence-boundary review"), "Signal Console should render Research Notes clarification/evidence-boundary sections.");
+assert(signalConsolePage.includes("Research Notes are public evidence discussions") && signalConsolePage.includes("not Official Updates, Living Library source records"), "Signal Console should preserve Research Notes boundary copy.");
 assert(signalConsolePage.includes("Needs my review") && signalConsolePage.includes("My submitted proposals") && signalConsolePage.includes("Recent Coding Cornucopia proposal activity"), "Signal Console should distinguish direct proposal activity sections.");
 assert(commonsApi.includes("/commune/coding-cornucopia/review") && commonsApi.includes("?proposal=") && signalConsolePage.includes("Open proposal in Coding Workbench"), "Signal Console proposal cards should link to the Coding Cornucopia proposal workbench.");
 assert(signalConsolePage.includes("same-user testing proposals") && signalConsolePage.includes("No notification rows yet"), "Signal Console should explain proposal fallback when user_notifications rows are absent.");
+assert(signalConsolePage.includes("Research Notes citation/source activity") && signalConsolePage.includes("Research Notes</dt>"), "Signal Console should include Research Notes in account-backed counts and notification fallback copy.");
 assert(signalConsolePage.includes("Author approval boundary") && signalConsolePage.includes("public code changes only after the original post author accepts"), "Signal Console should preserve author approval doctrine.");
 assert(signalConsolePage.includes("Sandbox diagnostics are evidence for review"), "Signal Console should preserve sandbox-is-not-approval doctrine.");
 assert(commonsPage.includes("Signal Feed"), "Commons Circle preview signal feed should remain available.");
 assert(commonsPage.includes("Open Signal Console") && commonsPage.includes("/commons-circle/signals"), "Commons Circle preview should link to the full Signal Console.");
 assert(commonsPage.includes("Troubleshooting Grove proposed fixes/status updates"), "Commons Circle signal preview should mention Troubleshooting Grove support activity.");
+assert(commonsPage.includes("Research Notes citation/source activity"), "Commons Circle signal preview should mention Research Notes activity.");
 
 for (const roomSlug of ["media-garden", "troubleshooting-grove", "coding-cornucopia", "code-sharing", "repository-showcase", "community-network", "job-post", "official-updates", "research-notes", "elysia-iteration-showcase"]) {
   assert(page.includes(roomSlug), `Missing Commune room slug: ${roomSlug}`);
 }
 
-const requiredLobbyRooms = ["Media Garden", "Troubleshooting Grove", "Coding Cornucopia", "Repository Showcase", "Community Network", "Job Post", "Official Update", "Research Note", "Elysia Iteration Showcase"];
+const requiredLobbyRooms = ["Media Garden", "Troubleshooting Grove", "Coding Cornucopia", "Repository Showcase", "Community Network", "Job Post", "Official Update", "Research Notes", "Elysia Iteration Showcase"];
 let roomCursor = -1;
 for (const roomName of requiredLobbyRooms) {
   const nextRoom = page.indexOf(`name: "${roomName}"`);
@@ -142,7 +153,7 @@ assert(page.includes("isAdmin={state.isAdmin}"), "Room composer should receive a
 assert(page.includes('isAdmin ? "Publish as admin" : "Submit for moderation"'), "Room composer should show admin direct-publish copy while keeping member moderation copy.");
 assert(page.includes("Admins can publish room posts directly. Attachments still follow Commune media safety rules."), "Room composer should explain admin direct-publish without bypassing media safety.");
 assert(page.includes("Video uploads are not enabled for this room yet."), "Room composer should clearly reject unsupported video uploads instead of implying video support.");
-for (const roomNativeField of ["Issue type", "Affected area", "Expected behavior", "Actual behavior", "Known workaround", "Introduction type", "Collaboration interest", "Role interest", "Project circle/topic", "Paid / volunteer status", "Compensation clarity", "Location / remote / hybrid", "Contact path", "Research question / topic", "Citation notes", "Evidence summary", "Interpretation", "Uncertainty", "Iteration type", "Version / build label", "What changed", "Why it matters", "Known limitations", "Next step", "Official notice type", "Audit-safe note"]) {
+for (const roomNativeField of ["Issue type", "Affected area", "Expected behavior", "Actual behavior", "Known workaround", "Introduction type", "Collaboration interest", "Role interest", "Project circle/topic", "Paid / volunteer status", "Compensation clarity", "Location / remote / hybrid", "Contact path", "Research question / topic", "Evidence strength / confidence", "Living Library source link", "Citation notes", "Evidence summary", "Observation", "Interpretation", "Uncertainty", "Geographic scope", "Ecological subsystem", "Ethics / sensitivity note", "Iteration type", "Version / build label", "What changed", "Why it matters", "Known limitations", "Next step", "Official notice type", "Audit-safe note"]) {
   assert(page.includes(roomNativeField), `Missing room-native composer field/copy: ${roomNativeField}`);
 }
 for (const officialField of ["Official status", "Severity", "Audience", "Effective date", "Affected systems", "Related room", "Related public repository/reference URL", "Related migration", "User action required", "Pin this notice", "Comments enabled", "Official read-only code", "Official code filename", "Official code context"]) {
@@ -296,6 +307,20 @@ assert(troubleshootingPolicyDoc.includes("bug reports") && troubleshootingPolicy
 assert(troubleshootingBoundaryDoc.includes("no browser/frontend execution") && troubleshootingBoundaryDoc.includes("no Supabase/Postgres execution") && troubleshootingBoundaryDoc.includes("no Local Elysia execution"), "Troubleshooting Grove security boundary doc missing execution prohibitions.");
 assert(troubleshootingBoundaryDoc.includes("sandbox success is evidence only") || troubleshootingBoundaryDoc.includes("Sandbox success is evidence only"), "Troubleshooting Grove security boundary doc should preserve sandbox-is-not-trust doctrine.");
 assert(troubleshootingContractDoc.includes("commune_troubleshooting_posts") && troubleshootingContractDoc.includes("commune_code_revision_proposals") && troubleshootingContractDoc.includes("Signal Console"), "Troubleshooting Grove API contract doc missing structured row/proposal/signal contract.");
+assert(accountApi.includes("export async function submitResearchNotesPost") && accountApi.includes("commune_research_notes") && accountApi.includes('post_type: "research_note"'), "Research Notes API should create a normal Commune post plus structured sidecar metadata.");
+assert(accountApi.includes("loadResearchNotesForPosts") && accountApi.includes("updateResearchNotesReviewStatus") && accountApi.includes("research_notes_review_status_changed"), "Research Notes API should load sidecar metadata and support reviewer status updates/signals.");
+assert(accountApi.includes("no_sensitive_locations") && accountApi.includes("living_library_link_metadata_only"), "Research Notes safety acknowledgements should preserve sensitive-location and Living Library metadata boundaries.");
+assert(page.includes("ResearchNotesDetail") && page.includes("Evidence-aware fields") && page.includes("Research Notes boundary"), "Research Notes public post detail should render structured evidence-aware metadata.");
+assert(page.includes("ResearchNotesReviewControls") && page.includes("needs_citation") && page.includes("overclaiming_evidence"), "Research Notes detail should expose reviewer-controlled citation/source/overclaiming states.");
+assert(page.includes("researchSearchValues") && page.includes("researchByPostId") && page.includes("evidence_strength"), "Research Notes feed/search should include structured metadata values.");
+assert(researchNotesWorkflowMigration.includes("commune_research_notes") && researchNotesWorkflowMigration.includes("research_question") && researchNotesWorkflowMigration.includes("living_library_source_link"), "Research Notes structured workflow migration missing sidecar table or source-link fields.");
+assert(researchNotesWorkflowMigration.includes("public reads published research notes metadata") && researchNotesWorkflowMigration.includes("authors maintain own unpublished research notes metadata") && researchNotesWorkflowMigration.includes("reviewers manage research notes metadata"), "Research Notes migration should enforce public/author/reviewer RLS boundaries.");
+assert(researchNotesWorkflowMigration.includes("needs_citation") && researchNotesWorkflowMigration.includes("needs_clarification") && researchNotesWorkflowMigration.includes("source_issue") && researchNotesWorkflowMigration.includes("overclaiming_evidence"), "Research Notes migration should define research-specific review states.");
+assert(researchNotesWorkflowMigration.includes("'Research Notes'") && researchNotesWorkflowMigration.includes("'research-notes'") && researchNotesWorkflowMigration.includes("'research_note'"), "Research Notes migration should seed plural public room name while preserving internal research_note identity.");
+assert(researchNotesPolicyDoc.includes("Research Notes asks") && researchNotesPolicyDoc.includes("evidence") && researchNotesPolicyDoc.includes("interpretation") && researchNotesPolicyDoc.includes("uncertainty"), "Research Notes policy doc missing evidence/interpretation/uncertainty doctrine.");
+assert(researchNotesPolicyDoc.includes("Living Library source link is metadata") && researchNotesPolicyDoc.includes("not an Official Update"), "Research Notes policy doc missing Living Library/Official Update boundaries.");
+assert(researchNotesBoundaryDoc.includes("sensitive ecological location data") && researchNotesBoundaryDoc.includes("private research participant data") && researchNotesBoundaryDoc.includes("hidden reviewer notes"), "Research Notes security boundary doc missing private/sensitive data prohibitions.");
+assert(researchNotesContractDoc.includes("submitResearchNotesPost") && researchNotesContractDoc.includes("commune_research_notes") && researchNotesContractDoc.includes("Signal Console"), "Research Notes API contract doc missing helper/table/signal contract.");
 assert(accountApi.includes('post_type: "repository_showcase"'), "Repository Showcase should create/link a normal Commune post.");
 assert(accountApi.includes("Repository showcase submitted as a normal Commune post for moderation"), "Repository Showcase should enter the normal Commune moderation flow.");
 assert(accountApi.includes("repository_metadata_only"), "Repository Showcase post safety acknowledgements should preserve metadata-only boundaries.");

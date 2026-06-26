@@ -44,11 +44,13 @@ import {
   submitComment,
   submitIterationShowcase,
   submitOfficialUpdate,
+  submitResearchNotesPost,
   submitRepositoryShowcase,
   submitSandboxReview,
   submitTroubleshootingPost,
   updateOfficialCodeSnippet,
   updateOfficialUpdateMetadata,
+  updateResearchNotesReviewStatus,
   updateTroubleshootingStatus,
   markTroubleshootingResolved,
   type CommuneComment,
@@ -69,6 +71,8 @@ import {
   type OfficialUpdateStatus,
   type OfficialUpdateType,
   type RepositoryShowcaseMetadata,
+  type ResearchNotesMetadata,
+  type ResearchReviewStatus,
   type TroubleshootingMetadata,
   type TroubleshootingResolutionKind,
   type TroubleshootingStatus,
@@ -351,14 +355,14 @@ const postTypes: CommunePostTypeCard[] = [
     futureFeatures: "Corrections, retractions, archive state, comment locks, official Signal Console activity, and public brand-authoritative records."
   },
   {
-    id: "research-note",
+    id: "research-notes",
     backendValue: "research_note",
-    name: "Research Note",
+    name: "Research Notes",
     purpose: "Public research notes, evidence summaries, source discussions, ecological observations, and Living Library-linked work.",
-    allowedContent: "Evidence summaries, source links, citation notes, uncertainties, ecological observations, and interpretation boundaries.",
-    cautions: "Cite sources and separate evidence from interpretation.",
-    currentStatus: ["Local draft available", "Requires moderation", "Backend enhanced"],
-    futureFeatures: "Evidence strength fields, source cards, Living Library links, and review labels."
+    allowedContent: "Evidence summaries, source links, citation notes, uncertainties, ecological observations, method/context notes, and interpretation boundaries.",
+    cautions: "Cite sources, separate evidence from interpretation, disclose uncertainty, and do not expose sensitive locations, private research participant data, copyrighted full-text papers, private local Elysia data, or hidden notes.",
+    currentStatus: ["Local draft available", "Requires moderation", "Structured metadata", "Evidence-aware"],
+    futureFeatures: "Living Library source cards, richer source lookup, correction trails, and evidence review labels."
   },
   {
     id: "elysia-iteration-showcase",
@@ -722,6 +726,37 @@ const troubleshootingResolutionOptions: Array<{ value: TroubleshootingResolution
   { value: "workaround", label: "Accepted workaround" },
   { value: "manual_note", label: "Manual resolution note" }
 ];
+const researchEvidenceStrengthOptions = [
+  { value: "preliminary", label: "Preliminary" },
+  { value: "anecdotal", label: "Anecdotal observation" },
+  { value: "moderate", label: "Moderate evidence" },
+  { value: "strong", label: "Strong source trail" },
+  { value: "mixed", label: "Mixed evidence" },
+  { value: "needs_verification", label: "Needs verification" },
+  { value: "unknown", label: "Unknown / not rated" }
+];
+const researchReviewStatusOptions: Array<{ value: ResearchReviewStatus; label: string }> = [
+  { value: "submitted", label: "Submitted" },
+  { value: "published", label: "Published" },
+  { value: "needs_citation", label: "Needs citation" },
+  { value: "needs_clarification", label: "Needs clarification" },
+  { value: "source_issue", label: "Source issue" },
+  { value: "overclaiming_evidence", label: "Overclaiming evidence" },
+  { value: "corrected", label: "Corrected" },
+  { value: "archived", label: "Archived" }
+];
+const researchEcologicalSubsystemOptions = [
+  { value: "", label: "Not specified" },
+  { value: "general", label: "General" },
+  { value: "verdante", label: "Verdante" },
+  { value: "sylphora", label: "Sylphora" },
+  { value: "ecotiva", label: "Ecotiva" },
+  { value: "aurania", label: "Aurania" },
+  { value: "terraflux", label: "Terraflux" },
+  { value: "aquaria", label: "Aquaria" },
+  { value: "aetheria", label: "Aetheria" },
+  { value: "not_applicable", label: "Not applicable" }
+];
 
 const futureSupportTables = [
   "commune_post_saves",
@@ -1023,6 +1058,39 @@ function troubleshootingSearchValues(item?: TroubleshootingMetadata | null) {
   ];
 }
 
+function researchEvidenceLabel(value?: string | null) {
+  return researchEvidenceStrengthOptions.find((option) => option.value === value)?.label ?? (value ? value.replace(/_/g, " ") : "Unknown / not rated");
+}
+
+function researchReviewStatusLabel(value?: string | null) {
+  return researchReviewStatusOptions.find((option) => option.value === value)?.label ?? (value ? value.replace(/_/g, " ") : "submitted");
+}
+
+function researchSearchValues(item?: ResearchNotesMetadata | null) {
+  if (!item) return [];
+  return [
+    item.research_question ?? "",
+    item.domain ?? "",
+    item.evidence_strength,
+    researchEvidenceLabel(item.evidence_strength),
+    item.living_library_source_link ?? "",
+    item.citation_notes ?? "",
+    item.evidence_summary ?? "",
+    item.observation ?? "",
+    item.interpretation ?? "",
+    item.uncertainty ?? "",
+    item.context_discussion ?? "",
+    ...(item.source_links ?? []),
+    item.geographic_scope ?? "",
+    item.ecological_subsystem ?? "",
+    item.method_type ?? "",
+    item.data_type ?? "",
+    item.ethics_note ?? "",
+    item.review_status,
+    item.correction_note ?? ""
+  ];
+}
+
 function matchesCategory(typeName: string, category: string) {
   return category === "All" || typeName === category;
 }
@@ -1207,34 +1275,38 @@ function AdminContentControls({ targetType, targetId, isModerator, onChanged, on
   </div>;
 }
 
-function PostCard({ post, saved, onSave, signedIn, officialUpdate, troubleshooting }: { post: CommunePost; saved: boolean; onSave: (id: string) => void; signedIn: boolean; officialUpdate?: OfficialUpdateMetadata | null; troubleshooting?: TroubleshootingMetadata | null }) {
+function PostCard({ post, saved, onSave, signedIn, officialUpdate, troubleshooting, researchNote }: { post: CommunePost; saved: boolean; onSave: (id: string) => void; signedIn: boolean; officialUpdate?: OfficialUpdateMetadata | null; troubleshooting?: TroubleshootingMetadata | null; researchNote?: ResearchNotesMetadata | null }) {
   const officialLabels = officialUpdate ? ["Official", officialUpdate.update_type.replace(/_/g, " "), officialUpdate.official_status, officialUpdate.severity, officialUpdate.pinned ? "Pinned" : "", officialUpdate.important ? "Important" : ""].filter(Boolean) : [];
   const troubleshootingLabels = troubleshooting ? ["Troubleshooting Grove", troubleshooting.issue_type, troubleshooting.troubleshooting_status, troubleshooting.affected_area ?? ""].filter(Boolean) : [];
-  return <article className={post.post_type === "official_update" ? "commune-post-card commune-official-card" : "commune-post-card"}><div className="addon-card__topline"><StatusBadges labels={officialLabels.length ? officialLabels : troubleshootingLabels.length ? troubleshootingLabels : [post.post_type, post.status]} /></div><h3><Link to={`/commune/posts/${post.id}`}>{post.title}</Link></h3><p>{officialUpdate?.summary || post.excerpt || post.body.slice(0, 180)}</p>{troubleshooting?.accepted_summary && <p className="boundary-note">Accepted {troubleshooting.accepted_resolution_kind?.replace(/_/g, " ") ?? "resolution"}: {troubleshooting.accepted_summary}</p>}<p>{post.post_type === "official_update" ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>} · {post.published_at ? new Date(post.published_at).toLocaleDateString() : "public date unavailable"}</p><TagChips tags={(post.tags ?? []).slice(0, 5)} /><ReactionBar targetType="post" targetId={post.id} signedIn={signedIn} /><div className="button-row"><Link className="button-link" to={`/commune/posts/${post.id}`}>Read</Link><button type="button" onClick={() => onSave(post.id)}>{saved ? "Saved" : "Save post"}</button></div></article>;
+  const researchLabels = researchNote ? ["Research Notes", researchEvidenceLabel(researchNote.evidence_strength), researchReviewStatusLabel(researchNote.review_status), researchNote.domain ?? ""].filter(Boolean) : [];
+  return <article className={post.post_type === "official_update" ? "commune-post-card commune-official-card" : "commune-post-card"}><div className="addon-card__topline"><StatusBadges labels={officialLabels.length ? officialLabels : troubleshootingLabels.length ? troubleshootingLabels : researchLabels.length ? researchLabels : [post.post_type, post.status]} /></div><h3><Link to={`/commune/posts/${post.id}`}>{post.title}</Link></h3><p>{officialUpdate?.summary || researchNote?.evidence_summary || post.excerpt || post.body.slice(0, 180)}</p>{troubleshooting?.accepted_summary && <p className="boundary-note">Accepted {troubleshooting.accepted_resolution_kind?.replace(/_/g, " ") ?? "resolution"}: {troubleshooting.accepted_summary}</p>}{researchNote?.uncertainty && <p className="boundary-note">Uncertainty: {researchNote.uncertainty.slice(0, 180)}</p>}<p>{post.post_type === "official_update" ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>} · {post.published_at ? new Date(post.published_at).toLocaleDateString() : "public date unavailable"}</p><TagChips tags={(post.tags ?? []).slice(0, 5)} /><ReactionBar targetType="post" targetId={post.id} signedIn={signedIn} /><div className="button-row"><Link className="button-link" to={`/commune/posts/${post.id}`}>Read</Link><button type="button" onClick={() => onSave(post.id)}>{saved ? "Saved" : "Save post"}</button></div></article>;
 }
 
-function CommunityFeed({ posts, savedPostIds, onSave, filters, signedIn, troubleshootingPosts }: { posts: CommunePost[]; savedPostIds: string[]; onSave: (id: string) => void; filters: CommuneFilters; signedIn: boolean; troubleshootingPosts?: TroubleshootingMetadata[] }) {
+function CommunityFeed({ posts, savedPostIds, onSave, filters, signedIn, troubleshootingPosts, researchNotes }: { posts: CommunePost[]; savedPostIds: string[]; onSave: (id: string) => void; filters: CommuneFilters; signedIn: boolean; troubleshootingPosts?: TroubleshootingMetadata[]; researchNotes?: ResearchNotesMetadata[] }) {
   const troubleshootingByPostId = new Map((troubleshootingPosts ?? []).map((item) => [item.post_id, item]));
+  const researchByPostId = new Map((researchNotes ?? []).map((item) => [item.post_id, item]));
   const filteredPosts = posts.filter((post) => {
     const type = postTypes.find((item) => item.backendValue === post.post_type);
     const troubleshooting = troubleshootingByPostId.get(post.id);
-    const labels = [post.status, post.visibility, type?.name ?? post.post_type, ...(post.tags ?? []), ...(troubleshooting ? [troubleshooting.issue_type, troubleshooting.troubleshooting_status, troubleshooting.affected_area ?? ""] : [])];
-    return matchesCategory(type?.name ?? post.post_type, filters.category) && matchesSearch([post.title, post.excerpt ?? "", post.body, ...(post.tags ?? []), ...troubleshootingSearchValues(troubleshooting)], filters.search) && matchesStatus(labels, filters.status) && matchesSafety(labels, filters.safety);
+    const researchNote = researchByPostId.get(post.id);
+    const labels = [post.status, post.visibility, type?.name ?? post.post_type, ...(post.tags ?? []), ...(troubleshooting ? [troubleshooting.issue_type, troubleshooting.troubleshooting_status, troubleshooting.affected_area ?? ""] : []), ...(researchNote ? [researchEvidenceLabel(researchNote.evidence_strength), researchNote.review_status, researchNote.domain ?? ""] : [])];
+    return matchesCategory(type?.name ?? post.post_type, filters.category) && matchesSearch([post.title, post.excerpt ?? "", post.body, ...(post.tags ?? []), ...troubleshootingSearchValues(troubleshooting), ...researchSearchValues(researchNote)], filters.search) && matchesStatus(labels, filters.status) && matchesSafety(labels, filters.safety);
   });
   const emptyCards = postTypes.filter((type) => matchesCategory(type.name, filters.category) && matchesSearch([type.name, type.purpose], filters.search) && matchesStatus([...type.currentStatus, "needs backend"], filters.status) && matchesSafety([...type.currentStatus, type.cautions], filters.safety)).slice(0, 5);
   return <section className="section-card commune-feed" id="commune-feed">
     <p className="eyebrow">Community Feed</p>
     <h2>{filteredPosts.length ? `${filteredPosts.length} published item${filteredPosts.length === 1 ? "" : "s"}` : "No published Commune posts yet"}</h2>
     <p className="boundary-note">Only posts approved/published by moderation are public here. Drafts and pending requests remain private to their owner and reviewers.</p>
-    {filteredPosts.length ? <div className="commune-feed-grid">{filteredPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} signedIn={signedIn} troubleshooting={troubleshootingByPostId.get(post.id)} />)}</div> : <div className="commune-feed-grid">{emptyCards.map((type) => <article className="commune-feed-card" key={type.id}><div className="commune-author-sigil" aria-hidden="true">{type.name.slice(0, 1)}</div><p className="eyebrow">{type.name}</p><h3>No {type.name} posts yet.</h3><p>{type.purpose}</p><Link className="button-link" to={roomPathForType(type)}>Enter room</Link></article>)}</div>}
+    {filteredPosts.length ? <div className="commune-feed-grid">{filteredPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} signedIn={signedIn} troubleshooting={troubleshootingByPostId.get(post.id)} researchNote={researchByPostId.get(post.id)} />)}</div> : <div className="commune-feed-grid">{emptyCards.map((type) => <article className="commune-feed-card" key={type.id}><div className="commune-author-sigil" aria-hidden="true">{type.name.slice(0, 1)}</div><p className="eyebrow">{type.name}</p><h3>No {type.name} posts yet.</h3><p>{type.purpose}</p><Link className="button-link" to={roomPathForType(type)}>Enter room</Link></article>)}</div>}
   </section>;
 }
 
-function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPosts, savedPostIds, onSave, localDrafts, categories, onRefresh, signedIn, isAdmin, focusComposer = false }: { roomSlug: string; roomId?: string; posts: CommunePost[]; officialUpdates: OfficialUpdateMetadata[]; troubleshootingPosts: TroubleshootingMetadata[]; savedPostIds: string[]; onSave: (id: string) => void; localDrafts: ReturnType<typeof useLocalDraftState>; categories: CommuneCategory[]; onRefresh: () => Promise<void>; signedIn: boolean; isAdmin: boolean; focusComposer?: boolean }) {
+function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPosts, researchNotes, savedPostIds, onSave, localDrafts, categories, onRefresh, signedIn, isAdmin, focusComposer = false }: { roomSlug: string; roomId?: string; posts: CommunePost[]; officialUpdates: OfficialUpdateMetadata[]; troubleshootingPosts: TroubleshootingMetadata[]; researchNotes: ResearchNotesMetadata[]; savedPostIds: string[]; onSave: (id: string) => void; localDrafts: ReturnType<typeof useLocalDraftState>; categories: CommuneCategory[]; onRefresh: () => Promise<void>; signedIn: boolean; isAdmin: boolean; focusComposer?: boolean }) {
   const normalizedRoomSlug = normalizeCommuneRoomSlug(roomSlug) ?? roomSlug;
   const type = postTypeByRoomSlug.get(normalizedRoomSlug);
   const officialByPostId = new Map(officialUpdates.map((item) => [item.post_id, item]));
   const troubleshootingByPostId = new Map(troubleshootingPosts.map((item) => [item.post_id, item]));
+  const researchByPostId = new Map(researchNotes.map((item) => [item.post_id, item]));
   const roomPosts = type ? posts.filter((post) => post.post_type === type.backendValue).sort((left, right) => {
     if (type.backendValue !== "official_update") return 0;
     const leftMeta = officialByPostId.get(left.id);
@@ -1271,7 +1343,7 @@ function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPos
       <p className="eyebrow">{type.name} Posts</p>
       <h2>{roomPosts.length ? `${roomPosts.length} published item${roomPosts.length === 1 ? "" : "s"}` : `No published ${type.name} posts yet`}</h2>
       <p className="boundary-note">This room follows the Commune model: room posts become threads, and replies appear after moderation.</p>
-      {roomPosts.length ? <div className="commune-feed-grid">{roomPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} signedIn={signedIn} officialUpdate={officialByPostId.get(post.id)} troubleshooting={troubleshootingByPostId.get(post.id)} />)}</div> : <p className="commune-empty-state">Published posts will appear here after moderation. Start with a careful draft when you are ready.</p>}
+      {roomPosts.length ? <div className="commune-feed-grid">{roomPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} signedIn={signedIn} officialUpdate={officialByPostId.get(post.id)} troubleshooting={troubleshootingByPostId.get(post.id)} researchNote={researchByPostId.get(post.id)} />)}</div> : <p className="commune-empty-state">Published posts will appear here after moderation. Start with a careful draft when you are ready.</p>}
     </section>
     {type.backendValue === "repository_showcase" && (focusComposer ? <RepositoryShowcaseForm localDrafts={localDrafts} roomId={roomId} onRefresh={onRefresh} isAdmin={isAdmin} /> : <section className="section-card commune-repo-card"><p className="eyebrow">Repository Showcase</p><h2>Metadata only, never execution</h2><p>A public repo is not automatically safe, compatible, licensed, or free of secrets. The website does not fetch, clone, build, run, or validate repositories from this room.</p><Link className="button-link button-link--primary" to="/commune/repository-showcase/new">Open repository showcase form</Link></section>)}
     {type.backendValue === "code_sharing" && <section className="section-card commune-sandbox-card coding-cornucopia-tools"><p className="eyebrow">Coding Cornucopia Tools</p><h2>Collaborative code review, snapshots, diagnostics, and sandbox-gated runs.</h2><p>Shared code is public knowledge, not automatic trust. The browser page never executes snippets; configured sandbox runs use explicit snapshots, network-disabled containers, resource limits, and audit records.</p><StatusBadges labels={["CodeMirror editor", "Static diagnostics", "Snapshot runs", "No terminal", "No package install", "Marketplace separate"]} /><div className="button-row"><Link className="button-link" to="/commune/coding-cornucopia/review">Open Coding Workbench</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Prepare Sandbox Review Request</Link></div></section>}
@@ -1281,11 +1353,11 @@ function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPos
 }
 
 function useCommuneLoad(roomSlug?: string, postId?: string) {
-  const [state, setState] = useState({ rooms: [] as CommuneRoom[], posts: [] as CommunePost[], comments: [] as CommuneComment[], threads: [] as CommuneThread[], media: [] as CommuneMediaAttachment[], troubleshootingPosts: [] as TroubleshootingMetadata[], repositoryShowcases: [] as RepositoryShowcaseMetadata[], iterationShowcases: [] as ElysiaIterationShowcaseMetadata[], officialUpdates: [] as OfficialUpdateMetadata[], officialCodeSnippets: [] as OfficialUpdateCodeSnippet[], savedPostIds: [] as string[], followedThreadIds: [] as string[], signedIn: false, userId: null as string | null, isAdmin: false, isModerator: false, accountReady: false });
+  const [state, setState] = useState({ rooms: [] as CommuneRoom[], posts: [] as CommunePost[], comments: [] as CommuneComment[], threads: [] as CommuneThread[], media: [] as CommuneMediaAttachment[], troubleshootingPosts: [] as TroubleshootingMetadata[], researchNotes: [] as ResearchNotesMetadata[], repositoryShowcases: [] as RepositoryShowcaseMetadata[], iterationShowcases: [] as ElysiaIterationShowcaseMetadata[], officialUpdates: [] as OfficialUpdateMetadata[], officialCodeSnippets: [] as OfficialUpdateCodeSnippet[], savedPostIds: [] as string[], followedThreadIds: [] as string[], signedIn: false, userId: null as string | null, isAdmin: false, isModerator: false, accountReady: false });
   const refresh = useCallback(async () => {
     const result = await loadCommuneData(roomSlug, postId);
     logCommuneDiagnostics("load", [...result.account.warnings, ...result.warnings]);
-    setState({ rooms: result.rooms, posts: result.posts, comments: result.comments, threads: result.threads, media: result.media, troubleshootingPosts: result.troubleshootingPosts, repositoryShowcases: result.repositoryShowcases, iterationShowcases: result.iterationShowcases, officialUpdates: result.officialUpdates, officialCodeSnippets: result.officialCodeSnippets, savedPostIds: result.savedPostIds, followedThreadIds: result.followedThreadIds, signedIn: result.account.signedIn, userId: result.account.userId, isAdmin: result.account.isAdmin, isModerator: result.account.isModerator, accountReady: !result.warnings.some(isBackendDiagnostic) });
+    setState({ rooms: result.rooms, posts: result.posts, comments: result.comments, threads: result.threads, media: result.media, troubleshootingPosts: result.troubleshootingPosts, researchNotes: result.researchNotes, repositoryShowcases: result.repositoryShowcases, iterationShowcases: result.iterationShowcases, officialUpdates: result.officialUpdates, officialCodeSnippets: result.officialCodeSnippets, savedPostIds: result.savedPostIds, followedThreadIds: result.followedThreadIds, signedIn: result.account.signedIn, userId: result.account.userId, isAdmin: result.account.isAdmin, isModerator: result.account.isModerator, accountReady: !result.warnings.some(isBackendDiagnostic) });
   }, [roomSlug, postId]);
   useEffect(() => { void refresh(); }, [refresh]);
   return { state, refresh };
@@ -1375,6 +1447,11 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     evidenceStrength: "",
     livingLibraryLink: "",
     researchDomain: "",
+    researchGeographicScope: "",
+    researchEcologicalSubsystem: "",
+    researchMethodType: "",
+    researchDataType: "",
+    researchEthicsNote: "",
     iterationType: "",
     versionLabel: "",
     whatChanged: "",
@@ -1438,6 +1515,19 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     form.codeFileName,
     form.codeText,
     form.repositoryUrl,
+    form.researchQuestion,
+    form.citationNotes,
+    form.evidenceSummary,
+    form.observation,
+    form.interpretation,
+    form.uncertainty,
+    form.livingLibraryLink,
+    form.researchDomain,
+    form.researchGeographicScope,
+    form.researchEcologicalSubsystem,
+    form.researchMethodType,
+    form.researchDataType,
+    form.researchEthicsNote,
     form.iterationRelatedRepoUrl,
     form.iterationPullRequestUrl,
     form.iterationDeveloperForgeLink,
@@ -1521,9 +1611,14 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       sectionBlock("Observation", form.observation),
       sectionBlock("Interpretation", form.interpretation),
       sectionBlock("Uncertainty", form.uncertainty),
-      sectionBlock("Confidence / evidence strength", form.evidenceStrength),
+      sectionBlock("Evidence strength / confidence", form.evidenceStrength),
       sectionBlock("Living Library source link", form.livingLibraryLink),
-      sectionBlock("Domain", form.researchDomain)
+      sectionBlock("Domain", form.researchDomain),
+      sectionBlock("Geographic scope", form.researchGeographicScope),
+      sectionBlock("Ecological subsystem", researchEcologicalSubsystemOptions.find((option) => option.value === form.researchEcologicalSubsystem)?.label ?? form.researchEcologicalSubsystem),
+      sectionBlock("Method type", form.researchMethodType),
+      sectionBlock("Data type", form.researchDataType),
+      sectionBlock("Ethics / sensitivity note", form.researchEthicsNote)
     ].filter(Boolean);
     if (form.postType === "elysia_iteration_showcase") return [
       sectionBlock("Iteration type", form.iterationType),
@@ -1880,6 +1975,45 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       setMessage(result.message);
       return;
     }
+    if (showResearchFields) {
+      const result = await submitResearchNotesPost({
+        title: form.title,
+        summary: form.summary,
+        body: bodyBase,
+        tags: form.tags,
+        links: form.links,
+        roomId: form.roomId || defaultRoomId,
+        upload: file,
+        acknowledgement: form.acknowledgement,
+        researchQuestion: form.researchQuestion,
+        domain: form.researchDomain,
+        evidenceStrength: form.evidenceStrength,
+        livingLibrarySourceLink: form.livingLibraryLink,
+        citationNotes: form.citationNotes,
+        evidenceSummary: form.evidenceSummary,
+        observation: form.observation,
+        interpretation: form.interpretation,
+        uncertainty: form.uncertainty,
+        contextDiscussion: form.body,
+        geographicScope: form.researchGeographicScope,
+        ecologicalSubsystem: form.researchEcologicalSubsystem,
+        methodType: form.researchMethodType,
+        dataType: form.researchDataType,
+        ethicsNote: form.researchEthicsNote
+      });
+      if (result.ok) {
+        setMessage(result.message);
+        await onRefresh?.();
+        return;
+      }
+      if (isBackendDiagnostic(result.message)) {
+        saveLocal("pending_moderator_review_local");
+        setMessage("Saved locally in this browser. Research Notes structured backend is not active yet.");
+        return;
+      }
+      setMessage(cleanCommuneMessage(result.message, "Saved locally in this browser. Research Notes backend review queue is not active yet."));
+      return;
+    }
     if (showTroubleshootingFields) {
       const body = form.codeText ? `${bodyBase}\n\nCode/reproduction snippet attached separately for inert display and governed sandbox diagnostics.` : bodyBase;
       const result = await submitTroubleshootingPost({
@@ -1959,7 +2093,23 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       {showTroubleshootingFields && <><label><span>Issue type</span><input value={form.issueType} onChange={(event) => setForm({ ...form, issueType: event.target.value })} placeholder="bug, install issue, known issue, workaround" /></label><label><span>Affected area</span><input value={form.affectedArea} onChange={(event) => setForm({ ...form, affectedArea: event.target.value })} /></label><label><span>OS</span><input value={form.os} onChange={(event) => setForm({ ...form, os: event.target.value })} /></label><label><span>Browser/app</span><input value={form.browser} onChange={(event) => setForm({ ...form, browser: event.target.value })} /></label><label><span>Elysia version optional</span><input value={form.version} onChange={(event) => setForm({ ...form, version: event.target.value })} /></label><label><span>Status</span><select value={form.issueStatus} onChange={(event) => setForm({ ...form, issueStatus: event.target.value })}>{["Open", "Needs information", "In progress", "Workaround found", "Fix proposed", "Resolved", "Closed", "Archived"].map((value) => <option key={value}>{value}</option>)}</select></label><label className="wide-field"><span>Environment notes</span><textarea rows={3} value={form.environmentNotes} onChange={(event) => setForm({ ...form, environmentNotes: event.target.value })} placeholder="Public-safe version/build context only. No private machine inventories or local paths." /></label><label className="wide-field"><span>Steps to reproduce / tried</span><textarea rows={4} value={form.stepsTried} onChange={(event) => setForm({ ...form, stepsTried: event.target.value })} /></label><label className="wide-field"><span>Expected behavior</span><textarea rows={3} value={form.expectedBehavior} onChange={(event) => setForm({ ...form, expectedBehavior: event.target.value })} /></label><label className="wide-field"><span>Actual behavior</span><textarea rows={3} value={form.actualBehavior} onChange={(event) => setForm({ ...form, actualBehavior: event.target.value })} /></label><label className="wide-field"><span>Error message</span><textarea rows={3} value={form.errorMessage} onChange={(event) => setForm({ ...form, errorMessage: event.target.value })} placeholder="Paste only the public-safe error message. Redact tokens, paths, emails, IDs, and account data." /></label><label className="wide-field"><span>Redacted logs</span><textarea rows={4} value={form.redactedLogs} onChange={(event) => setForm({ ...form, redactedLogs: event.target.value })} placeholder="Logs must be redacted. No .env, credentials, API keys, local Elysia memory/logs/vaults, or private user data." /></label><label className="wide-field"><span>Known workaround</span><textarea rows={3} value={form.workaround} onChange={(event) => setForm({ ...form, workaround: event.target.value })} /></label><p className="wide-field boundary-note">Troubleshooting Grove is public support context. Redact logs, screenshots, private paths, account details, credentials, tokens, .env contents, private local Elysia data, and sensitive user/customer data before submitting.</p></>}
       {showCommunityFields && <><label><span>Introduction type</span><input value={form.introductionType} onChange={(event) => setForm({ ...form, introductionType: event.target.value })} placeholder="intro, collaboration, project circle" /></label><label><span>Role interest</span><input value={form.roleInterest} onChange={(event) => setForm({ ...form, roleInterest: event.target.value })} /></label><label><span>Project circle/topic</span><input value={form.projectCircle} onChange={(event) => setForm({ ...form, projectCircle: event.target.value })} /></label><label><span>Availability / involvement level</span><input value={form.involvementLevel} onChange={(event) => setForm({ ...form, involvementLevel: event.target.value })} /></label><label className="wide-field"><span>Collaboration interest</span><textarea rows={4} value={form.collaborationInterest} onChange={(event) => setForm({ ...form, collaborationInterest: event.target.value })} /></label><label className="wide-field"><span>Public contact preference</span><input value={form.publicContactPreference} onChange={(event) => setForm({ ...form, publicContactPreference: event.target.value })} placeholder="public replies, website form, Commons profile link" /></label><label className="wide-field"><span>Boundary note</span><textarea rows={3} value={form.communityBoundary} onChange={(event) => setForm({ ...form, communityBoundary: event.target.value })} placeholder="No private-contact pressure; keep coordination public and respectful." /></label></>}
       {showJobFields && <><label><span>Role title</span><input value={form.roleTitle} onChange={(event) => setForm({ ...form, roleTitle: event.target.value })} /></label><label><span>Organization / project</span><input value={form.organizationProject} onChange={(event) => setForm({ ...form, organizationProject: event.target.value })} /></label><label><span>Paid / volunteer status</span><select value={form.payStatus} onChange={(event) => setForm({ ...form, payStatus: event.target.value })}><option value="">Select status</option>{["Paid", "Volunteer", "Stipend", "Unpaid", "Mixed / explain clearly"].map((value) => <option key={value}>{value}</option>)}</select></label><label><span>Location / remote / hybrid</span><input value={form.locationMode} onChange={(event) => setForm({ ...form, locationMode: event.target.value })} /></label><label><span>Time commitment</span><input value={form.timeCommitment} onChange={(event) => setForm({ ...form, timeCommitment: event.target.value })} /></label><label><span>Deadline</span><input value={form.deadline} onChange={(event) => setForm({ ...form, deadline: event.target.value })} /></label><label className="wide-field"><span>Compensation clarity</span><textarea rows={3} value={form.compensationClarity} onChange={(event) => setForm({ ...form, compensationClarity: event.target.value })} /></label><label className="wide-field"><span>Contact path</span><input value={form.contactPath} onChange={(event) => setForm({ ...form, contactPath: event.target.value })} placeholder="Public application/contact path; no sensitive data requests in comments" /></label><label className="wide-field"><span>Requirements / skills</span><textarea rows={4} value={form.requirementsSkills} onChange={(event) => setForm({ ...form, requirementsSkills: event.target.value })} /></label><label className="wide-field"><span>Safety notes</span><textarea rows={3} value={form.jobSafetyNotes} onChange={(event) => setForm({ ...form, jobSafetyNotes: event.target.value })} placeholder="No SSNs, bank details, identity documents, or private-contact pressure." /></label></>}
-      {showResearchFields && <><label><span>Research question / topic</span><input value={form.researchQuestion} onChange={(event) => setForm({ ...form, researchQuestion: event.target.value })} /></label><label><span>Domain</span><input value={form.researchDomain} onChange={(event) => setForm({ ...form, researchDomain: event.target.value })} /></label><label><span>Confidence / evidence strength</span><select value={form.evidenceStrength} onChange={(event) => setForm({ ...form, evidenceStrength: event.target.value })}><option value="">Select strength</option>{["Early note", "Anecdotal observation", "Multiple sources", "Strong source trail", "Uncertain / needs review"].map((value) => <option key={value}>{value}</option>)}</select></label><label><span>Living Library source link</span><input value={form.livingLibraryLink} onChange={(event) => setForm({ ...form, livingLibraryLink: event.target.value })} /></label><label className="wide-field"><span>Citation notes</span><textarea rows={3} value={form.citationNotes} onChange={(event) => setForm({ ...form, citationNotes: event.target.value })} /></label><label className="wide-field"><span>Evidence summary</span><textarea rows={4} value={form.evidenceSummary} onChange={(event) => setForm({ ...form, evidenceSummary: event.target.value })} /></label><label className="wide-field"><span>Observation</span><textarea rows={4} value={form.observation} onChange={(event) => setForm({ ...form, observation: event.target.value })} /></label><label className="wide-field"><span>Interpretation</span><textarea rows={4} value={form.interpretation} onChange={(event) => setForm({ ...form, interpretation: event.target.value })} /></label><label className="wide-field"><span>Uncertainty</span><textarea rows={3} value={form.uncertainty} onChange={(event) => setForm({ ...form, uncertainty: event.target.value })} /></label></>}
+      {showResearchFields && <>
+        <label><span>Research question / topic</span><input value={form.researchQuestion} onChange={(event) => setForm({ ...form, researchQuestion: event.target.value })} /></label>
+        <label><span>Domain</span><input value={form.researchDomain} onChange={(event) => setForm({ ...form, researchDomain: event.target.value })} placeholder="ecology, robotics, restoration, AI, public policy" /></label>
+        <label><span>Evidence strength / confidence</span><select value={form.evidenceStrength} onChange={(event) => setForm({ ...form, evidenceStrength: event.target.value })}><option value="">Select strength</option>{researchEvidenceStrengthOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+        <label><span>Ecological subsystem</span><select value={form.researchEcologicalSubsystem} onChange={(event) => setForm({ ...form, researchEcologicalSubsystem: event.target.value })}>{researchEcologicalSubsystemOptions.map((option) => <option key={option.value || "none"} value={option.value}>{option.label}</option>)}</select></label>
+        <label className="wide-field"><span>Living Library source link</span><input value={form.livingLibraryLink} onChange={(event) => setForm({ ...form, livingLibraryLink: event.target.value })} placeholder="Public HTTPS source URL only" /></label>
+        <label><span>Geographic scope</span><input value={form.researchGeographicScope} onChange={(event) => setForm({ ...form, researchGeographicScope: event.target.value })} placeholder="Broad public-safe region only; avoid sensitive locations" /></label>
+        <label><span>Method type</span><input value={form.researchMethodType} onChange={(event) => setForm({ ...form, researchMethodType: event.target.value })} placeholder="field note, literature review, source comparison" /></label>
+        <label><span>Data type</span><input value={form.researchDataType} onChange={(event) => setForm({ ...form, researchDataType: event.target.value })} placeholder="observation, citation, dataset summary, mixed" /></label>
+        <label className="wide-field"><span>Citation notes</span><textarea rows={3} value={form.citationNotes} onChange={(event) => setForm({ ...form, citationNotes: event.target.value })} placeholder="Cite sources and state what each source supports." /></label>
+        <label className="wide-field"><span>Evidence summary</span><textarea rows={4} value={form.evidenceSummary} onChange={(event) => setForm({ ...form, evidenceSummary: event.target.value })} /></label>
+        <label className="wide-field"><span>Observation</span><textarea rows={4} value={form.observation} onChange={(event) => setForm({ ...form, observation: event.target.value })} /></label>
+        <label className="wide-field"><span>Interpretation</span><textarea rows={4} value={form.interpretation} onChange={(event) => setForm({ ...form, interpretation: event.target.value })} /></label>
+        <label className="wide-field"><span>Uncertainty</span><textarea rows={3} value={form.uncertainty} onChange={(event) => setForm({ ...form, uncertainty: event.target.value })} /></label>
+        <label className="wide-field"><span>Ethics / sensitivity note</span><textarea rows={3} value={form.researchEthicsNote} onChange={(event) => setForm({ ...form, researchEthicsNote: event.target.value })} placeholder="Note redactions, participant privacy, sensitive ecological location handling, or copyright boundaries." /></label>
+        <p className="wide-field boundary-note">Research Notes separate evidence, observation, interpretation, and uncertainty. Do not share private research participant data, sensitive ecological locations, copyrighted full-text papers without rights, private local Elysia data, hidden review notes, credentials, or local paths.</p>
+      </>}
       {showIterationFields && <>
         <label><span>Iteration type</span><select value={form.iterationType} onChange={(event) => setForm({ ...form, iterationType: event.target.value })}><option value="">Select type</option>{["UI update", "Feature demo", "Design progress", "Add-on preview", "Version note", "Bug fix", "Documentation update", "Sandbox/diagnostics update", "Marketplace preview", "Developer Forge preview", "Accessibility improvement", "Performance improvement", "Visual design pass"].map((value) => <option key={value}>{value}</option>)}</select></label>
         <label><span>Version / build label</span><input value={form.versionLabel} onChange={(event) => setForm({ ...form, versionLabel: event.target.value })} /></label>
@@ -2545,7 +2695,7 @@ function FoundationStatusPanel() {
       </article>
     </section>
     <section className="section-card commune-info-grid">
-      <article><p className="eyebrow">Canonical account-backed paths</p><h2>Tables this page writes first</h2><div className="commune-badge-row">{["commune_posts", "commune_comments", "commune_threads", "user_saved_commune_posts", "user_followed_commune_threads", "commune_repository_showcases", "commune_sandbox_review_requests", "commune_reports", "commune_media"].map((table) => <span key={table}>{table}</span>)}</div><p>Older compatibility tables are left in place for existing data and admin queues, but new page flows prefer these canonical paths where possible.</p></article>
+      <article><p className="eyebrow">Canonical account-backed paths</p><h2>Tables this page writes first</h2><div className="commune-badge-row">{["commune_posts", "commune_comments", "commune_threads", "user_saved_commune_posts", "user_followed_commune_threads", "commune_repository_showcases", "commune_research_notes", "commune_sandbox_review_requests", "commune_reports", "commune_media"].map((table) => <span key={table}>{table}</span>)}</div><p>Older compatibility tables are left in place for existing data and admin queues, but new page flows prefer these canonical paths where possible.</p></article>
       <article><p className="eyebrow">Prepared support structures</p><h2>Review and moderation foundations</h2><div className="commune-badge-row">{futureSupportTables.map((table) => <span key={table}>{table}</span>)}</div></article>
     </section>
     <section className="section-card commune-info-grid" id="commune-moderation-doctrine">
@@ -2654,6 +2804,83 @@ function TroubleshootingDetail({ post, troubleshooting, parsedBody, comments, us
     {fields.length > 0 && <div className="commune-room-native-details"><p className="eyebrow">Structured issue report</p><div className="commune-room-native-grid">{fields.map(([heading, body]) => <article className="commune-room-native-field" key={heading}><h3>{heading}</h3><p>{body}</p></article>)}</div></div>}
     {troubleshooting?.accepted_summary && <article className="commune-room-native-field commune-troubleshooting-resolution"><h3>Accepted fix / workaround</h3><p>{troubleshooting.accepted_summary}</p><p className="boundary-note">{troubleshooting.accepted_resolution_kind?.replace(/_/g, " ") ?? "resolution"} · recorded {troubleshooting.accepted_at ? new Date(troubleshooting.accepted_at).toLocaleString() : "time unavailable"}</p></article>}
     <TroubleshootingResolutionControls post={post} troubleshooting={troubleshooting} comments={comments} userId={userId} isModerator={isModerator} onMessage={onMessage} onChanged={onChanged} />
+  </div>;
+}
+
+function ResearchNotesReviewControls({ researchNote, postId, isModerator, onMessage, onChanged }: { researchNote?: ResearchNotesMetadata | null; postId: string; isModerator: boolean; onMessage: (message: string) => void; onChanged: () => Promise<void> }) {
+  const [reviewStatus, setReviewStatus] = useState<ResearchReviewStatus>(researchNote?.review_status ?? "submitted");
+  const [correctionNote, setCorrectionNote] = useState(researchNote?.correction_note ?? "");
+  useEffect(() => {
+    setReviewStatus(researchNote?.review_status ?? "submitted");
+    setCorrectionNote(researchNote?.correction_note ?? "");
+  }, [researchNote?.correction_note, researchNote?.review_status]);
+  if (!researchNote) return <p className="boundary-note">This legacy Research Notes post has no structured sidecar record yet. It still remains public and moderator-governed through the Commune post/thread model.</p>;
+  if (!isModerator) return <p className="boundary-note">Research-specific review labels are assigned by Commune reviewers. Comments, reports, and public discussion remain separate from evidence review state.</p>;
+  async function saveReviewStatus() {
+    const result = await updateResearchNotesReviewStatus({ researchNoteId: researchNote?.id, postId, reviewStatus, correctionNote });
+    onMessage(cleanCommuneMessage(result.message, "Research Notes review state could not be updated until the structured workflow migration is active."));
+    if (result.ok) await onChanged();
+  }
+  return <div className="commune-troubleshooting-controls commune-research-review-controls">
+    <p className="eyebrow">Research review controls</p>
+    <p className="boundary-note">Reviewer labels request citation, clarification, source repair, or overclaim correction. They do not erase the public post; public moderation controls remain separate.</p>
+    <div className="commune-form-grid">
+      <label><span>Review status</span><select value={reviewStatus} onChange={(event) => setReviewStatus(event.target.value as ResearchReviewStatus)}>{researchReviewStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+      <label className="wide-field"><span>Public correction / clarification note</span><textarea rows={3} value={correctionNote} onChange={(event) => setCorrectionNote(event.target.value)} placeholder="Public note only. Keep private reviewer notes in the review/history systems." /></label>
+    </div>
+    <div className="button-row"><button type="button" onClick={() => void saveReviewStatus()}>Save Research Notes review state</button></div>
+  </div>;
+}
+
+function safePublicHref(value?: string | null) {
+  try {
+    const url = new URL(String(value ?? ""));
+    return ["http:", "https:"].includes(url.protocol) ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function ResearchNotesDetail({ post, researchNote, parsedBody, isModerator, onMessage, onChanged }: { post: CommunePost; researchNote?: ResearchNotesMetadata | null; parsedBody: ReturnType<typeof splitPostSections>; isModerator: boolean; onMessage: (message: string) => void; onChanged: () => Promise<void> }) {
+  const section = (heading: string) => repoSectionValue(parsedBody, heading);
+  const value = (metadataValue?: string | null, fallbackHeading?: string) => String(metadataValue ?? "").trim() || (fallbackHeading ? section(fallbackHeading) : "");
+  const sourceLinks = researchNote?.source_links?.length ? researchNote.source_links : section("Source links").split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
+  const livingLibraryHref = safePublicHref(value(researchNote?.living_library_source_link, "Living Library source link"));
+  const fields = [
+    ["Evidence summary", value(researchNote?.evidence_summary, "Evidence summary")],
+    ["Observation", value(researchNote?.observation, "Observation")],
+    ["Interpretation", value(researchNote?.interpretation, "Interpretation")],
+    ["Uncertainty", value(researchNote?.uncertainty, "Uncertainty")],
+    ["Citation notes", value(researchNote?.citation_notes, "Citation notes")],
+    ["Context / discussion", value(researchNote?.context_discussion) || parsedBody.intro],
+    ["Geographic scope", value(researchNote?.geographic_scope, "Geographic scope")],
+    ["Method type", value(researchNote?.method_type, "Method type")],
+    ["Data type", value(researchNote?.data_type, "Data type")],
+    ["Ethics / sensitivity note", value(researchNote?.ethics_note, "Ethics / sensitivity note")],
+    ["Correction / clarification note", value(researchNote?.correction_note)]
+  ].filter(([, body]) => body);
+  return <div className="commune-research-detail">
+    <p className="eyebrow">Research Notes detail</p>
+    <div className="commune-info-grid">
+      <article className="commune-repo-identity-card">
+        <h3>{value(researchNote?.research_question, "Research question / topic") || post.title}</h3>
+        <dl className="mini-facts">
+          <div><dt>Domain</dt><dd>{value(researchNote?.domain, "Domain") || "Not specified"}</dd></div>
+          <div><dt>Evidence strength</dt><dd>{researchEvidenceLabel(researchNote?.evidence_strength || section("Evidence strength / confidence") || section("Confidence / evidence strength"))}</dd></div>
+          <div><dt>Review state</dt><dd>{researchReviewStatusLabel(researchNote?.review_status)}</dd></div>
+          <div><dt>Subsystem</dt><dd>{value(researchNote?.ecological_subsystem, "Ecological subsystem") || "Not specified"}</dd></div>
+        </dl>
+        <div className="button-row">{livingLibraryHref && <a className="button-link" href={livingLibraryHref} target="_blank" rel="noreferrer">Open Living Library source link</a>}</div>
+      </article>
+      <WarningCallout title="Research Notes boundary"><p>Research Notes separate evidence, observation, interpretation, and uncertainty. They are public research discussion, not Official Updates, Living Library source records, certification, or private research storage.</p></WarningCallout>
+    </div>
+    {fields.length > 0 && <div className="commune-room-native-details commune-research-native-details"><p className="eyebrow">Evidence-aware fields</p><div className="commune-room-native-grid">{fields.map(([heading, body]) => <article className="commune-room-native-field" key={heading}><h3>{heading}</h3><p>{body}</p></article>)}</div></div>}
+    {sourceLinks.length > 0 && <article className="commune-room-native-field commune-research-sources"><h3>Source links</h3><div className="button-row">{sourceLinks.map((link) => {
+      const href = safePublicHref(link);
+      return href ? <a className="button-link" href={href} target="_blank" rel="noreferrer" key={href}>{href}</a> : <span className="boundary-note" key={link}>{link}</span>;
+    })}</div><p className="boundary-note">Source links are public references only. The site does not verify full-text rights, hidden data, or Living Library authority automatically.</p></article>}
+    <WarningCallout title="Research safety"><p>Do not expose private participant data, sensitive ecological locations, copyrighted full-text papers without rights, private local Elysia data, credentials, local paths, or hidden review notes. Evidence strength is a review aid, not a truth badge.</p></WarningCallout>
+    <ResearchNotesReviewControls researchNote={researchNote} postId={post.id} isModerator={isModerator} onMessage={onMessage} onChanged={onChanged} />
   </div>;
 }
 
@@ -2950,15 +3177,17 @@ function PostDetail({ postId }: { postId: string }) {
   if (!post) return <section className="section-card"><h2>Post not found</h2><p>This post is not public, does not exist, or is still awaiting moderation.</p><p className="boundary-note">Account-backed posts may also be unavailable while Commune backend tables are being prepared.</p><Link className="button-link" to="/commune">Back to Commune</Link></section>;
   const parsedBody = splitPostSections(post.body);
   const troubleshooting = state.troubleshootingPosts.find((item) => item.post_id === post.id) ?? null;
+  const researchNote = state.researchNotes.find((item) => item.post_id === post.id) ?? null;
   const repositoryShowcase = state.repositoryShowcases.find((item) => item.post_id === post.id) ?? null;
   const iterationShowcase = state.iterationShowcases.find((item) => item.post_id === post.id) ?? null;
   const isRepositoryShowcase = post.post_type === "repository_showcase";
   const isIterationShowcase = post.post_type === "elysia_iteration_showcase";
   const isOfficialUpdate = post.post_type === "official_update";
   const isTroubleshooting = post.post_type === "troubleshooting";
+  const isResearchNotes = post.post_type === "research_note";
   const commentsLocked = isOfficialUpdate && officialUpdate?.comments_enabled === false;
   return <>
-    <section className={isOfficialUpdate ? "section-card commune-post-detail commune-official-post-detail" : "section-card commune-post-detail"}><p className="eyebrow">{post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>{isOfficialUpdate ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>}</p><StatusBadges labels={[post.status, post.visibility]} />{!isRepositoryShowcase && !isIterationShowcase && !isOfficialUpdate && !isTroubleshooting && parsedBody.intro && <p className="commune-post-body">{parsedBody.intro}</p>}{!isRepositoryShowcase && !isIterationShowcase && !isOfficialUpdate && !isTroubleshooting && parsedBody.sections.length > 0 && <div className="commune-room-native-details"><p className="eyebrow">Room-native details</p><div className="commune-room-native-grid">{parsedBody.sections.map((section) => <article className="commune-room-native-field" key={section.heading}><h3>{section.heading}</h3><p>{section.body}</p></article>)}</div></div>}{isRepositoryShowcase && <RepositoryShowcaseDetail post={post} showcase={repositoryShowcase} parsedBody={parsedBody} />}{isIterationShowcase && <ElysiaIterationShowcaseDetail post={post} iteration={iterationShowcase} parsedBody={parsedBody} />}{isOfficialUpdate && <OfficialUpdateDetail post={post} officialUpdate={officialUpdate} parsedBody={parsedBody} />}{isTroubleshooting && <TroubleshootingDetail post={post} troubleshooting={troubleshooting} parsedBody={parsedBody} comments={state.comments} userId={state.userId} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}<TagChips tags={post.tags} />{attachments.length > 0 && <div className="commune-media-section"><p className="eyebrow">Attached media</p><p className="commune-media-attribution">Attached to this post by {isOfficialUpdate ? "Elysia Ecobotics Official" : authorLink(post.author_username)}.</p><p className="boundary-note">Published attachments are read-only and remain governed by Commune moderation and safety policies.</p><div className="commune-media-grid">{attachments.map((item) => <article className="commune-media-card" key={item.id}>{item.media_kind === "image" && item.signed_url ? <button className="commune-media-image-button" type="button" onClick={() => setActiveMedia(item)}><img src={item.signed_url} alt={`Attached media: ${item.file_name}`} loading="lazy" /></button> : <div className="commune-media-unavailable"><strong>{item.file_name}</strong><p>{item.signed_url ? "This attachment can be opened from its signed public review URL." : "Attachment unavailable or still under review."}</p></div>}<div className="commune-media-meta"><strong>{item.file_name}</strong><span>{item.mime_type ?? item.media_kind}{item.file_size ? ` · ${item.file_size} bytes` : ""}</span></div></article>)}</div></div>}{isOfficialUpdate ? <OfficialCodeSnippets officialUpdate={officialUpdate} officialCodeSnippets={officialCodeSnippets} fallbackSnippets={snippets} isAdmin={state.isAdmin} onMessage={setMessage} onChanged={refresh} /> : <AttachedCodeSnippets snippets={snippets} authorUsername={post.author_username} postType={post.post_type} signedIn={state.signedIn} onMessage={setMessage} />}{isOfficialUpdate && state.isAdmin && <OfficialUpdateAdminPanel officialUpdate={officialUpdate} postId={post.id} onMessage={setMessage} onChanged={refresh} />}<ReactionBar targetType="post" targetId={post.id} signedIn={state.signedIn} onMessage={setMessage} /><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div><AdminContentControls targetType="post" targetId={post.id} isModerator={state.isModerator} onChanged={refresh} onMessage={setMessage} /></section>
+    <section className={isOfficialUpdate ? "section-card commune-post-detail commune-official-post-detail" : "section-card commune-post-detail"}><p className="eyebrow">{post.post_type === "research_note" ? "Research Notes" : post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>{isOfficialUpdate ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>}</p><StatusBadges labels={[post.status, post.visibility]} />{!isRepositoryShowcase && !isIterationShowcase && !isOfficialUpdate && !isTroubleshooting && !isResearchNotes && parsedBody.intro && <p className="commune-post-body">{parsedBody.intro}</p>}{!isRepositoryShowcase && !isIterationShowcase && !isOfficialUpdate && !isTroubleshooting && !isResearchNotes && parsedBody.sections.length > 0 && <div className="commune-room-native-details"><p className="eyebrow">Room-native details</p><div className="commune-room-native-grid">{parsedBody.sections.map((section) => <article className="commune-room-native-field" key={section.heading}><h3>{section.heading}</h3><p>{section.body}</p></article>)}</div></div>}{isRepositoryShowcase && <RepositoryShowcaseDetail post={post} showcase={repositoryShowcase} parsedBody={parsedBody} />}{isIterationShowcase && <ElysiaIterationShowcaseDetail post={post} iteration={iterationShowcase} parsedBody={parsedBody} />}{isOfficialUpdate && <OfficialUpdateDetail post={post} officialUpdate={officialUpdate} parsedBody={parsedBody} />}{isTroubleshooting && <TroubleshootingDetail post={post} troubleshooting={troubleshooting} parsedBody={parsedBody} comments={state.comments} userId={state.userId} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}{isResearchNotes && <ResearchNotesDetail post={post} researchNote={researchNote} parsedBody={parsedBody} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}<TagChips tags={post.tags} />{attachments.length > 0 && <div className="commune-media-section"><p className="eyebrow">Attached media</p><p className="commune-media-attribution">Attached to this post by {isOfficialUpdate ? "Elysia Ecobotics Official" : authorLink(post.author_username)}.</p><p className="boundary-note">Published attachments are read-only and remain governed by Commune moderation and safety policies.</p><div className="commune-media-grid">{attachments.map((item) => <article className="commune-media-card" key={item.id}>{item.media_kind === "image" && item.signed_url ? <button className="commune-media-image-button" type="button" onClick={() => setActiveMedia(item)}><img src={item.signed_url} alt={`Attached media: ${item.file_name}`} loading="lazy" /></button> : <div className="commune-media-unavailable"><strong>{item.file_name}</strong><p>{item.signed_url ? "This attachment can be opened from its signed public review URL." : "Attachment unavailable or still under review."}</p></div>}<div className="commune-media-meta"><strong>{item.file_name}</strong><span>{item.mime_type ?? item.media_kind}{item.file_size ? ` · ${item.file_size} bytes` : ""}</span></div></article>)}</div></div>}{isOfficialUpdate ? <OfficialCodeSnippets officialUpdate={officialUpdate} officialCodeSnippets={officialCodeSnippets} fallbackSnippets={snippets} isAdmin={state.isAdmin} onMessage={setMessage} onChanged={refresh} /> : <AttachedCodeSnippets snippets={snippets} authorUsername={post.author_username} postType={post.post_type} signedIn={state.signedIn} onMessage={setMessage} />}{isOfficialUpdate && state.isAdmin && <OfficialUpdateAdminPanel officialUpdate={officialUpdate} postId={post.id} onMessage={setMessage} onChanged={refresh} />}<ReactionBar targetType="post" targetId={post.id} signedIn={state.signedIn} onMessage={setMessage} /><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div><AdminContentControls targetType="post" targetId={post.id} isModerator={state.isModerator} onChanged={refresh} onMessage={setMessage} /></section>
     {activeMedia?.signed_url && <div className="commune-media-lightbox" role="dialog" aria-modal="true" aria-label={`Attachment preview: ${activeMedia.file_name}`} onClick={() => setActiveMedia(null)}><div className="commune-media-lightbox-panel" onClick={(event) => event.stopPropagation()}><button className="commune-media-lightbox-close" type="button" onClick={() => setActiveMedia(null)}>Close</button><img src={activeMedia.signed_url} alt={`Attached media: ${activeMedia.file_name}`} /></div></div>}
     <section className="section-card"><p className="eyebrow">Comments</p><h2>Comments and replies</h2><p className="boundary-note">{commentsLocked ? "Comments are locked for this Official Update. Existing public comments remain visible unless moderated, but new public comments are disabled by an administrator." : state.isAdmin ? "Admin comments publish directly and remain auditable." : "First participation in a post/thread is reviewed. After approval in that thread, later comments and replies can publish directly while remaining reportable and removable."}</p>{!thread && <p className="boundary-note">This published post is missing its discussion thread. Submitting a comment will try to repair the thread with normal account permissions before saving.</p>}{topLevelComments.map((item) => renderComment(item))}{!topLevelComments.length && <p>Moderated comments will appear here once the backend tables are active and replies are approved.</p>}{commentsLocked ? <p className="message">Comments are locked for this official update.</p> : <><label><span>Comment on this post</span><textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><div className="button-row"><button type="button" disabled={commentSubmitting} onClick={() => void submitThreadComment()}>{commentSubmitting ? "Submitting comment..." : "Submit comment"}</button></div></>}<p className="message">{commentStatus}</p></section>
     <section className="section-card"><p className="eyebrow">Report</p><h2>Report this post</h2><p>Reports are reviewed by moderators/administrators. Reporting does not automatically remove content unless urgent automated controls are later added. Ratings do not replace reports or moderation.</p><label><span>Report type</span><select value={report.type} onChange={(event) => setReport({ ...report, type: event.target.value })}>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span>Reason</span><textarea rows={3} value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value })} /></label><button type="button" onClick={() => void reportPost()}>Send report</button><p className="message">{message}</p></section>
@@ -3502,12 +3731,12 @@ export default function CommunePage() {
     {mode === "realtime" && <RealtimeFoundationPanel />}
     {routeMode === "code-review" && <CollaborativeCodeReviewPanel />}
     {postId && <PostDetail postId={postId} />}
-    {isRoom && effectiveRoomSlug && <RoomPage roomSlug={effectiveRoomSlug} roomId={selectedRoom?.id} posts={state.posts} officialUpdates={state.officialUpdates} troubleshootingPosts={state.troubleshootingPosts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} localDrafts={localDrafts} categories={categories} onRefresh={refresh} signedIn={state.signedIn} isAdmin={state.isAdmin} focusComposer={isRoomNew} />}
+    {isRoom && effectiveRoomSlug && <RoomPage roomSlug={effectiveRoomSlug} roomId={selectedRoom?.id} posts={state.posts} officialUpdates={state.officialUpdates} troubleshootingPosts={state.troubleshootingPosts} researchNotes={state.researchNotes} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} localDrafts={localDrafts} categories={categories} onRefresh={refresh} signedIn={state.signedIn} isAdmin={state.isAdmin} focusComposer={isRoomNew} />}
 
     {isLobby && <>
       <RedactionPanel />
       <RoomCards />
-      <CommunityFeed posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} filters={filters} signedIn={state.signedIn} troubleshootingPosts={state.troubleshootingPosts} />
+      <CommunityFeed posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} filters={filters} signedIn={state.signedIn} troubleshootingPosts={state.troubleshootingPosts} researchNotes={state.researchNotes} />
       <CommuneSideChannelPanel />
       <LocalDraftStudio localDrafts={localDrafts} filters={filters} />
     </>}
