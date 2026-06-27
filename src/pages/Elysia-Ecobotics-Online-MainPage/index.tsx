@@ -55,7 +55,7 @@ export default function OnlineMainPage() {
         <div className="subsystem-grid home-subsystem-grid">{subsystems.map((item) => <article key={item.name}><h3>{item.name}</h3><p>{item.detail}</p></article>)}</div>
       </section>
       <section className="feature-grid feature-grid--three home-polish-grid">
-        <FeatureCard title="Products"><p>Future physical products stay separate from digital Marketplace add-ons, starting with the planned affordable at-home gardening drone direction.</p><Link to="/products">See products</Link></FeatureCard>
+        <FeatureCard title="Products"><p>Future physical products stay separate from digital Marketplace add-ons, with broad directions in environmental robotics, sensing tools, repairable hardware, and field-support technology.</p><Link to="/products">See products</Link></FeatureCard>
         <FeatureCard title="Lab"><p>The Lab will hold people, partners, collaborators, volunteers, and team members by consent.</p><Link to="/lab">Meet the Lab</Link></FeatureCard>
         <FeatureCard title="Commune"><p>The Commune will support public posts, troubleshooting, code sharing, and repository showcases with visible safety boundaries.</p><Link to="/commune">Visit Commune</Link></FeatureCard>
       </section>

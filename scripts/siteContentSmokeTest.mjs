@@ -77,6 +77,29 @@ assert(homeMain.includes('variant="home-floating"'), "Homepage should use the fl
 assert(marketplaceHome.includes("marketplace-hero-side") && marketplaceHome.includes('variant="marketplace-column"'), "Marketplace should place the page mark with the right-side status column.");
 assert(missionPage.includes('brandMark="mission-centered"'), "Mission page should use the centered ceremonial brand mark placement.");
 assert(styles.includes('font-family: "Cormorant Garamond"') && styles.includes("font-family: Verdana") && styles.includes(".page-brand-mark--standard") && styles.includes(".page-brand-mark--home-floating") && styles.includes(".page-brand-mark--marketplace-column") && styles.includes(".page-brand-mark--mission-centered"), "Page brand mark typography and placement styles missing.");
+assert(productsPage.includes('title="Elysia Ecobotics Products"'), "Products page title should remain Elysia Ecobotics Products.");
+assert(productsPage.includes("Physical products from Elysia Ecobotics will appear here only when they are ready, tested, repairable, and honestly documented"), "Products page should keep broad future physical-products boundary copy.");
+assert(productsPage.includes("Environmental robotics") && productsPage.includes("sensing tools") && productsPage.includes("repairable") && productsPage.includes("field-support"), "Products page should use broad environmental robotics, sensing, repairable hardware, and field-support language.");
+assert(footer.includes("The private local Elysia core remains local, governed, and user-controlled."), "Shared public/private Elysia boundary copy should remain available on public pages.");
+const productsPublicCopy = `${productsPage}\n${homeMain}`.toLowerCase();
+for (const blockedProductPhrase of [
+  "ai-powered",
+  "at-home",
+  "gardening drone",
+  "garden drone",
+  "plant care",
+  "watering awareness",
+  "plant monitoring",
+  "gentle reminders",
+  "accessible garden care",
+  "plant-care modules",
+  "preorder",
+  "preorders",
+  "cart",
+  "carts"
+]) {
+  assert(!productsPublicCopy.includes(blockedProductPhrase), `Products page public copy should not reveal specific product-pipeline language: ${blockedProductPhrase}`);
+}
 assert(app.includes("lazy(() => import"), "App routes are not lazy-loaded.");
 assert(app.includes('path="commons-circle/admin-console"'), "Commons Circle admin console route missing.");
 assert(app.includes('path="commons-circle/:publicHandle"'), "Commons Circle public profile route missing.");
