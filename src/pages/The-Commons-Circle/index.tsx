@@ -288,7 +288,7 @@ export default function CommonsCirclePage() {
 
   return (
     <div className={homebaseClasses} style={homeStyle}>
-      <PageHero eyebrow="Membership" title="The Commons Circle">
+      <PageHero eyebrow="Membership" title="The Commons Circle" brandMark="standard">
         <p>Membership is not a gate around Elysia. It is a way to help sustain the public commons around her.</p>
         <p>A Commons account helps you participate in the public ecosystem around Elysia: Marketplace, Developer Forge, Living Library, Commune, saved items, stewardship recognition, and public contributions. It does not unlock private local Elysia memory and does not sync private local files, logs, passwords, or credentials by default.</p>
       </PageHero>

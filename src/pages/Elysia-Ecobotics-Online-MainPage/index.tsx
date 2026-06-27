@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import FeatureCard from "../../shared/components/FeatureCard";
+import PageBrandMark from "../../shared/components/PageBrandMark";
 import StatusBadge from "../../shared/components/StatusBadge";
 
 const subsystems = [
@@ -20,6 +21,7 @@ export default function OnlineMainPage() {
         <img className="home-hero__vine home-hero__vine--right" src="/images/home/home-right-vine.png" alt="" aria-hidden="true" />
         <img className="home-hero__geometry" src="/images/home/flower-of-life-pattern.png" alt="" aria-hidden="true" />
         <div className="home-hero__mist" aria-hidden="true" />
+        <PageBrandMark variant="home-floating" />
         <div className="home-hero__content">
           <p className="eyebrow">Public commons</p>
           <h1 id="home-title" className="home-hero__title">Elysia Ecobotics Online</h1>

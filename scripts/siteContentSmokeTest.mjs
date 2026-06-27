@@ -30,9 +30,20 @@ const legalIndex = await read("src/pages/Legal/index.tsx");
 const legalPolicies = await read("src/pages/Legal/legalPolicyPages.ts");
 const archive = await read("src/pages/The-Elysia-Archive/index.tsx");
 const styles = await read("src/styles.css");
+const pageHero = await read("src/shared/components/PageHero.tsx");
+const pageBrandMark = await read("src/shared/components/PageBrandMark.tsx");
+const homeMain = await read("src/pages/Elysia-Ecobotics-Online-MainPage/index.tsx");
 const marketplaceHome = await read("src/pages/The-Elysia-Marketplace/pages/HomePage.tsx");
 const marketplaceCard = await read("src/pages/The-Elysia-Marketplace/components/AddonCard.tsx");
 const marketplaceDetails = await read("src/pages/The-Elysia-Marketplace/components/AddonDetails.tsx");
+const productsPage = await read("src/pages/Elysia-Ecobotics-Products/index.tsx");
+const labPage = await read("src/pages/The-Elysia-Ecobotics-Lab/index.tsx");
+const forgePage = await read("src/pages/The-Developer-Forge/index.tsx");
+const livingLibraryPage = await read("src/pages/The-Living-Library/index.tsx");
+const workWithPage = await read("src/pages/Work-With-Elysia-Ecobotics/index.tsx");
+const storyPage = await read("src/pages/The-Story-of-Elysia/index.tsx");
+const aboutPage = await read("src/pages/About-Elysia-Ecobotics/index.tsx");
+const missionPage = await read("src/pages/The-Elysia-Mission/index.tsx");
 const sandboxHandoff = await read("src/shared/sandbox/sandboxHandoffBuilder.ts");
 
 const expectedNav = ["Home", "Archive", "Marketplace", "Products", "Lab", "Developer Forge", "Living Library", "Commune", "Work With", "Commons Circle", "Story", "About", "Mission", "Legal"];
@@ -45,6 +56,27 @@ for (const label of expectedNav) {
 
 assert(footer.includes("Elysia Ecobotics™ is an EcoSyneva Commons LLC initiative."), "Footer initiative trademark text missing.");
 assert(footer.includes("Elysia Ecobotics™ is a trademark of EcoSyneva Commons LLC."), "Footer trademark owner text missing.");
+assert(pageBrandMark.includes("page-brand-mark__name") && pageBrandMark.includes("page-brand-mark__tm") && pageBrandMark.includes("<sup") && pageBrandMark.includes("TM"), "Page brand mark should render text plus a separate TM superscript element.");
+assert(pageHero.includes("{brandMark && <PageBrandMark") && pageHero.includes('<h1 className="hero-title-brand-font">{title}</h1>'), "PageHero should keep the brand mark separate from the H1 title.");
+for (const [label, source] of [
+  ["Archive", archive],
+  ["Products", productsPage],
+  ["Lab", labPage],
+  ["Developer Forge", forgePage],
+  ["Living Library", livingLibraryPage],
+  ["Commune", commune],
+  ["Work With", workWithPage],
+  ["Commons Circle", commons],
+  ["Story", storyPage],
+  ["About", aboutPage],
+  ["Legal", legalIndex]
+]) {
+  assert(source.includes('brandMark="standard"'), `${label} should opt into the standard top-right Elysia Ecobotics page mark.`);
+}
+assert(homeMain.includes('variant="home-floating"'), "Homepage should use the floating hero brand mark placement.");
+assert(marketplaceHome.includes("marketplace-hero-side") && marketplaceHome.includes('variant="marketplace-column"'), "Marketplace should place the page mark with the right-side status column.");
+assert(missionPage.includes('brandMark="mission-centered"'), "Mission page should use the centered ceremonial brand mark placement.");
+assert(styles.includes('font-family: "Cormorant Garamond"') && styles.includes("font-family: Verdana") && styles.includes(".page-brand-mark--standard") && styles.includes(".page-brand-mark--home-floating") && styles.includes(".page-brand-mark--marketplace-column") && styles.includes(".page-brand-mark--mission-centered"), "Page brand mark typography and placement styles missing.");
 assert(app.includes("lazy(() => import"), "App routes are not lazy-loaded.");
 assert(app.includes('path="commons-circle/admin-console"'), "Commons Circle admin console route missing.");
 assert(app.includes('path="commons-circle/:publicHandle"'), "Commons Circle public profile route missing.");

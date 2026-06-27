@@ -311,7 +311,7 @@ export default function WorkWithPage() {
 
   return (
     <div className="page-stack work-with-page">
-      <PageHero eyebrow="Contribute" title="Work With Elysia Ecobotics">
+      <PageHero eyebrow="Contribute" title="Work With Elysia Ecobotics" brandMark="standard">
         <p>Elysia Ecobotics is still early. Current roles are volunteer, contributor, or collaborator roles unless a role is explicitly marked paid.</p>
         <p>Most opportunities are currently volunteer, contributor, or collaborator roles. Paid roles will only be listed when they actually exist.</p>
       </PageHero>

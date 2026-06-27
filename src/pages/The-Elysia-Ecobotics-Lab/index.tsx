@@ -4,7 +4,7 @@ import PageHero from "../../shared/components/PageHero";
 export default function LabPage() {
   return (
     <div className="page-stack">
-      <PageHero eyebrow="People and partners" title="The Elysia Ecobotics Lab">
+      <PageHero eyebrow="People and partners" title="The Elysia Ecobotics Lab" brandMark="standard">
         <p>The Lab is the human face of Elysia Ecobotics: the place for founders, collaborators, volunteers, advisors, partners, research helpers, artists, developers, moderators, and project teams as they become public.</p>
         <p className="boundary-note">Consent rule: nobody appears here without explicit permission. People may choose a real photo, avatar, no image, or limited public details.</p>
       </PageHero>

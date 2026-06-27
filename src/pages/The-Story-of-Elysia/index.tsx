@@ -8,7 +8,7 @@ function BadgeRow({ labels }: { labels: string[] }) {
 export default function StoryPage() {
   return (
     <div className="page-stack story-page">
-      <PageHero eyebrow="The Question" title="The Story of Elysia">
+      <PageHero eyebrow="The Question" title="The Story of Elysia" brandMark="standard">
         <p>Elysia began as a question:</p>
         <p>Could an AI companion be useful without becoming invasive, powerful without becoming reckless, and warm without surrendering truth?</p>
         <p>This is the public story of how that question became a local-first companion intelligence, a governed technical architecture, and the public commons growing around her.</p>

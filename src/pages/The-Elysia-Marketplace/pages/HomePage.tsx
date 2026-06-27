@@ -1,5 +1,6 @@
 import { BookOpen, GitPullRequest, Search, ShieldCheck, Store, UploadCloud } from "lucide-react";
 import { Link } from "react-router-dom";
+import PageBrandMark from "../../../shared/components/PageBrandMark";
 import { useMarketplaceContext } from "./useMarketplaceContext";
 
 const steps = [
@@ -31,18 +32,21 @@ export default function MarketplaceHomePage() {
             <Link className="button-link" to="/marketplace/manifest-api"><BookOpen size={18} /> View Manifest API</Link>
           </div>
         </div>
-        <aside className="hero-card production-card">
-          <ShieldCheck size={38} />
-          <h2>{supabaseConfigured ? "Supabase status" : "Seed catalog ready"}</h2>
-          <p>{catalogStatusMessage}</p>
-          {seedFallbackActive && <p className="boundary-note">Seed catalog fallback is active. This is a browse/demo fallback, not local installation state.</p>}
-          <dl className="mini-facts">
-            <div><dt>Catalog entries</dt><dd>{sortedAddons.length}</dd></div>
-            <div><dt>Local machine data</dt><dd>Not collected</dd></div>
-            <div><dt>Payments</dt><dd>Not present</dd></div>
-            <div><dt>Execution</dt><dd>Future local Elysia only</dd></div>
-          </dl>
-        </aside>
+        <div className="marketplace-hero-side">
+          <PageBrandMark variant="marketplace-column" />
+          <aside className="hero-card production-card">
+            <ShieldCheck size={38} />
+            <h2>{supabaseConfigured ? "Supabase status" : "Seed catalog ready"}</h2>
+            <p>{catalogStatusMessage}</p>
+            {seedFallbackActive && <p className="boundary-note">Seed catalog fallback is active. This is a browse/demo fallback, not local installation state.</p>}
+            <dl className="mini-facts">
+              <div><dt>Catalog entries</dt><dd>{sortedAddons.length}</dd></div>
+              <div><dt>Local machine data</dt><dd>Not collected</dd></div>
+              <div><dt>Payments</dt><dd>Not present</dd></div>
+              <div><dt>Execution</dt><dd>Future local Elysia only</dd></div>
+            </dl>
+          </aside>
+        </div>
       </header>
 
       <section className="section-card page-card">

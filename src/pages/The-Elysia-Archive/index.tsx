@@ -5,7 +5,7 @@ import StatusBadge from "../../shared/components/StatusBadge";
 export default function ArchivePage() {
   return (
     <div className="page-stack">
-      <PageHero eyebrow="Downloads" title="The Elysia Archive">
+      <PageHero eyebrow="Downloads" title="The Elysia Archive" brandMark="standard">
         <p>Elysia is a free, local-first AI companion application from Elysia Ecobotics™, an EcoSyneva Commons LLC initiative.</p>
         <p>No public installer, release download, or public source release is available yet. The Archive is being prepared to hold release notes, install instructions, checksums, signatures, compatibility notes, and historical versions when the first public release is ready.</p>
         <p>Until official releases appear here or in the linked public repository, treat third-party mirrors, reposted installers, and unofficial checksums as unverified.</p>

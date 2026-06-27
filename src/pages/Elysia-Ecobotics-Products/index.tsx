@@ -4,7 +4,7 @@ import PageHero from "../../shared/components/PageHero";
 export default function ProductsPage() {
   return (
     <div className="page-stack">
-      <PageHero eyebrow="Physical products" title="Elysia Ecobotics Products">
+      <PageHero eyebrow="Physical products" title="Elysia Ecobotics Products" brandMark="standard">
         <p>Physical products from Elysia Ecobotics will appear here as they become ready. The first planned direction is an affordable, AI-powered at-home gardening drone for practical plant care, accessibility, and ecological responsibility.</p>
         <p className="boundary-note">Nothing here is for sale, preorder, or shipping yet. Physical products may be mission-aligned and affordable, but they are commercial hardware with real material, labor, shipping, support, and maintenance costs.</p>
       </PageHero>

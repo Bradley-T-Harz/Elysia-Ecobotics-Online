@@ -102,7 +102,7 @@ function PolicyQuickLinks() {
 export default function LegalPage() {
   return (
     <div className="page-stack legal-page">
-      <PageHero eyebrow="Legal" title="Legal, Safety, and Community Policies">
+      <PageHero eyebrow="Legal" title="Legal, Safety, and Community Policies" brandMark="standard">
         <p>Elysia Ecobotics Online is a public website and commons around a private local-first Elysia core. These policies explain how the public site handles privacy, accounts, community participation, Marketplace add-ons, security review, copyright, volunteer requests, and stewardship recognition.</p>
         <p>The public website is cloud-facing. The private local Elysia core remains local, governed, and user-controlled. These policies do not turn private local Elysia memory, files, vaults, logs, passwords, or credentials into public website data.</p>
       </PageHero>

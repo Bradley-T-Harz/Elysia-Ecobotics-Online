@@ -3978,7 +3978,7 @@ export default function CommunePage() {
   const isRoom = !postId && !routeMode && Boolean(effectiveRoomSlug);
 
   return <div className="page-stack commune-page">
-    <PageHero eyebrow="Public community" title="The Elysia Commune">
+    <PageHero eyebrow="Public community" title="The Elysia Commune" brandMark="standard">
       <p>The Commune is the public gathering place for official updates, media blogs, troubleshooting, code sharing, repository showcases, community networking, project updates, research notes, and Elysia iteration showcases.</p>
       <p><strong>Share publicly. Redact first. Execute nowhere by default.</strong></p>
     </PageHero>

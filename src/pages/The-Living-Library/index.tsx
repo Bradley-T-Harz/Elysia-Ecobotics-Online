@@ -444,7 +444,7 @@ export default function LivingLibraryPage() {
 
   return (
     <div className="page-stack living-library-page">
-      <PageHero eyebrow={livingLibraryPageCopy.heroEyebrow} title={livingLibraryPageCopy.heroTitle}>
+      <PageHero eyebrow={livingLibraryPageCopy.heroEyebrow} title={livingLibraryPageCopy.heroTitle} brandMark="standard">
         <p>{livingLibraryPageCopy.heroBody}</p>
       </PageHero>
 
