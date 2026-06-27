@@ -93,6 +93,7 @@ export default function App() {
             <Route path="developer-forge/submissions" element={<DeveloperForgePage />} />
             <Route path="developer-forge/submissions/:id" element={<DeveloperForgePage />} />
             <Route path="developer-forge/docs" element={<DeveloperForgePage />} />
+            <Route path="developer-forge/docs/workbench" element={<DeveloperForgePage />} />
             <Route path="developer-forge/docs/manifest" element={<DeveloperForgePage />} />
             <Route path="developer-forge/docs/permissions" element={<DeveloperForgePage />} />
             <Route path="developer-forge/docs/security" element={<DeveloperForgePage />} />

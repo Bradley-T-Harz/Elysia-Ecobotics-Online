@@ -31,7 +31,7 @@ function allowHit(file, line, checkName) {
   if (normalized.endsWith("src/shared/sandbox/sandboxRequestValidator.ts") && /pattern|secret|scanner|scan|block|dangerous|SUPABASE_SERVICE_ROLE|service_role|postinstall|preinstall|child_process|exec|spawn|eval|new\s\+Function/i.test(line)) return true;
   if (normalized.endsWith("src/shared/sandbox/sandboxHandoffBuilder.ts") && /does not execute|website_executed_code|private_reviewer_notes_included/i.test(line)) return true;
   if (normalized.endsWith("src/shared/addons/browserArchiveInspector.ts") && /pattern|scanner|scan|blocked|inspect|archive|does not execute|will not execute|SUPABASE_SERVICE_ROLE|service_role|postinstall|preinstall|child_process|exec|spawn|eval|new\s\+Function/i.test(line)) return true;
-  if (normalized.endsWith("src/pages/The-Developer-Forge/developerForgeValidator.ts") && /pattern|blocked|scanner|scan|Static scan|secret-looking|dangerousShellPattern/i.test(line)) return true;
+  if (normalized.endsWith("src/pages/The-Developer-Forge/developerForgeValidator.ts") && /pattern|blocked|scanner|scan|Static scan|secret-looking|dangerousShellPattern|forbiddenManifestFields/i.test(line)) return true;
   if (normalized.includes("docs/") && /flag|scanner|warning|policy|`|does not execute|never executes|never installs|archive inspection|service-role|SUPABASE_SERVICE_ROLE|postinstall|preinstall/i.test(line)) return true;
   if (checkName === "package hook execution" && /blocked|scan|scanner|policy|documentation|does not execute|will not execute/i.test(line)) return true;
   if (["runtime eval", "Function constructor", "process exec", "process spawn", "Node child process"].includes(checkName) && /pattern|grep|scan|scanner|does not execute|will not execute/i.test(line)) return true;

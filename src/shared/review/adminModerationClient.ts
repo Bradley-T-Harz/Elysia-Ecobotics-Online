@@ -71,10 +71,30 @@ export type AddonDraftPermissionReview = {
 export type AddonValidationResultReview = {
   id: string;
   addon_draft_id: string;
-  severity: "error" | "warning" | "info";
+  severity: "blocked" | "error" | "warning" | "needs_reviewer" | "info";
   code: string;
   message: string;
   field_path: string | null;
+};
+
+export type AddonSubmissionSnapshotReview = {
+  id: string;
+  submission_id: string;
+  draft_id: string | null;
+  developer_user_id: string | null;
+  manifest_snapshot: Record<string, unknown>;
+  permissions_snapshot: AddonDraftPermissionReview[] | Record<string, unknown>[];
+  package_snapshot: AddonPackageMetadata | Record<string, unknown>;
+  validation_snapshot: Array<{ severity?: string; code?: string; message?: string; field_path?: string | null }>;
+  scan_snapshot: Array<{ severity?: string; code?: string; message?: string; field_path?: string | null }>;
+  marketplace_preview_snapshot: Record<string, unknown>;
+  package_sha256: string | null;
+  package_storage_bucket: string | null;
+  package_storage_path: string | null;
+  package_file_name: string | null;
+  package_size_bytes: number | null;
+  signature_status: string | null;
+  created_at: string;
 };
 
 export type AddonCompatibilityResultReview = {
@@ -170,6 +190,7 @@ export type AddonSubmissionReview = {
   permissions?: AddonDraftPermissionReview[];
   validationResults?: AddonValidationResultReview[];
   compatibilityResults?: AddonCompatibilityResultReview[];
+  snapshot?: AddonSubmissionSnapshotReview | null;
   listing?: MarketplaceListingReview | null;
   versions?: MarketplaceVersionReview[];
   publicationEvents?: MarketplacePublicationEvent[];
@@ -342,14 +363,15 @@ export async function loadAddonSubmissions(): Promise<{ rows: AddonSubmissionRev
   const draftIds = rows.map((row) => row.addon_draft_id).filter(Boolean);
   if (draftIds.length) {
     const warnings: string[] = [];
-    const [{ data: drafts, error: draftError }, { data: packages, error: packageError }, { data: permissions, error: permissionError }, { data: validation, error: validationError }, { data: compatibility, error: compatibilityError }] = await Promise.all([
+    const [{ data: drafts, error: draftError }, { data: packages, error: packageError }, { data: permissions, error: permissionError }, { data: validation, error: validationError }, { data: compatibility, error: compatibilityError }, { data: snapshots, error: snapshotError }] = await Promise.all([
       supabase.from("addon_drafts").select("id,owner_user_id,developer_profile_id,addon_name,addon_slug,short_summary,long_description,version,license,homepage_url,source_url,support_url,category,tags,icon_path,manifest_json,validation_status,permission_summary,risk_level,package_status,review_status").in("id", draftIds),
       supabase.from("addon_packages").select("id,addon_draft_id,version,storage_path,file_name,file_size,sha256,scan_status,scan_summary,archive_inspection_json,signature_status,created_at").in("addon_draft_id", draftIds).order("created_at", { ascending: false }),
       supabase.from("addon_draft_permissions").select("id,addon_draft_id,permission_key,reason,scope_json,risk_acknowledged").in("addon_draft_id", draftIds),
       supabase.from("addon_validation_results").select("id,addon_draft_id,severity,code,message,field_path").in("addon_draft_id", draftIds).order("created_at", { ascending: false }),
-      supabase.from("addon_compatibility_results").select("id,addon_draft_id,addon_package_id,elysia_version,addon_api_version,os,status,warnings,errors").in("addon_draft_id", draftIds).order("created_at", { ascending: false })
+      supabase.from("addon_compatibility_results").select("id,addon_draft_id,addon_package_id,elysia_version,addon_api_version,os,status,warnings,errors").in("addon_draft_id", draftIds).order("created_at", { ascending: false }),
+      supabase.from("addon_submission_snapshots").select("*").in("submission_id", rows.map((row) => row.id)).order("created_at", { ascending: false })
     ]);
-    [draftError, packageError, permissionError, validationError, compatibilityError].forEach((loadError) => {
+    [draftError, packageError, permissionError, validationError, compatibilityError, snapshotError].forEach((loadError) => {
       const message = sanitize(loadError);
       if (message) warnings.push(message);
     });
@@ -381,6 +403,11 @@ export async function loadAddonSubmissions(): Promise<{ rows: AddonSubmissionRev
     for (const row of compatibility ?? []) {
       const compatibilityRow = row as AddonCompatibilityResultReview;
       compatibilityByDraft.set(compatibilityRow.addon_draft_id, [...(compatibilityByDraft.get(compatibilityRow.addon_draft_id) ?? []), compatibilityRow]);
+    }
+    const snapshotBySubmission = new Map<string, AddonSubmissionSnapshotReview>();
+    for (const row of snapshots ?? []) {
+      const snapshotRow = row as AddonSubmissionSnapshotReview;
+      if (!snapshotBySubmission.has(snapshotRow.submission_id)) snapshotBySubmission.set(snapshotRow.submission_id, snapshotRow);
     }
 
     const { data: listings, error: listingError } = await supabase
@@ -420,6 +447,7 @@ export async function loadAddonSubmissions(): Promise<{ rows: AddonSubmissionRev
       row.permissions = permissionsByDraft.get(row.addon_draft_id) ?? [];
       row.validationResults = validationByDraft.get(row.addon_draft_id) ?? [];
       row.compatibilityResults = compatibilityByDraft.get(row.addon_draft_id) ?? [];
+      row.snapshot = snapshotBySubmission.get(row.id) ?? null;
       row.listing = listingBySubmission.get(row.id) as MarketplaceListingReview | undefined ?? null;
       row.versions = row.listing ? versionsByListing.get(row.listing.id) ?? [] : [];
       row.publicationEvents = row.listing ? eventsByListing.get(row.listing.id) ?? [] : [];
@@ -460,18 +488,23 @@ export async function publishAddonSubmission(id: string, privateNote = "") {
   const { data: draft, error: draftError } = await supabase.from("addon_drafts").select("*").eq("id", submissionRow.addon_draft_id).maybeSingle();
   if (draftError || !draft) return sanitize(draftError) ?? "Add-on draft lookup failed.";
   const draftRow = draft as NonNullable<AddonSubmissionReview["draft"]>;
+  const { data: snapshot, error: snapshotError } = await supabase.from("addon_submission_snapshots").select("*").eq("submission_id", id).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (snapshotError) return sanitize(snapshotError) ?? "Submission snapshot unavailable.";
+  const snapshotRow = snapshot as AddonSubmissionSnapshotReview | null;
   const { data: validationRows, error: validationError } = await supabase.from("addon_validation_results").select("severity,code,message").eq("addon_draft_id", submissionRow.addon_draft_id);
   if (validationError) return sanitize(validationError) ?? "Validation results unavailable.";
-  if ((validationRows ?? []).some((row) => (row as { severity?: string }).severity === "error") || draftRow.validation_status === "errors") return "Resolve blocking validation errors before publication.";
+  const validationSource = snapshotRow?.validation_snapshot?.length ? snapshotRow.validation_snapshot : validationRows ?? [];
+  if (validationSource.some((row) => ["blocked", "error"].includes((row as { severity?: string }).severity ?? "")) || ["blocked", "errors"].includes(draftRow.validation_status ?? "")) return "Resolve blocking validation errors before publication.";
   const { data: packages, error: packageError } = await supabase.from("addon_packages").select("*").eq("addon_draft_id", submissionRow.addon_draft_id).order("created_at", { ascending: false }).limit(1);
   if (packageError) return sanitize(packageError) ?? "Package metadata unavailable.";
   const latestPackage = Array.isArray(packages) ? packages[0] as AddonPackageMetadata | undefined : undefined;
-  if (latestPackage?.scan_status === "blocked") return "Blocked package scans cannot be published.";
+  const packageSnapshot = snapshotRow?.package_snapshot as AddonPackageMetadata | null | undefined;
+  if (latestPackage?.scan_status === "blocked" || packageSnapshot?.scan_status === "blocked" || snapshotRow?.scan_snapshot?.some((row) => ["blocked", "error"].includes(row.severity ?? ""))) return "Blocked package scans cannot be published.";
 
-  const manifest = draftRow.manifest_json ?? {};
+  const manifest = snapshotRow?.manifest_snapshot ?? draftRow.manifest_json ?? {};
   const slug = draftRow.addon_slug || manifestValue(manifest, "addon_id") || manifestValue(manifest, "id");
   if (!slug) return "Marketplace publication requires a stable add-on slug or manifest id.";
-  const version = marketplaceVersionFromDraft(draftRow);
+  const version = snapshotRow ? (manifestValue(snapshotRow.manifest_snapshot, "version") || marketplaceVersionFromDraft(draftRow)) : marketplaceVersionFromDraft(draftRow);
   const now = new Date().toISOString();
   const { data: listing, error: listingError } = await supabase.from("marketplace_listings").upsert({
     addon_id: slug,
@@ -479,8 +512,8 @@ export async function publishAddonSubmission(id: string, privateNote = "") {
     source_submission_id: id,
     name: draftRow.addon_name || manifestValue(manifest, "name") || slug,
     slug,
-    summary: draftRow.short_summary ?? manifestValue(manifest, "summary") ?? null,
-    description: draftRow.long_description ?? manifestValue(manifest, "description") ?? null,
+    summary: (snapshotRow?.marketplace_preview_snapshot?.summary as string | undefined) ?? draftRow.short_summary ?? manifestValue(manifest, "summary") ?? null,
+    description: (snapshotRow?.marketplace_preview_snapshot?.description as string | undefined) ?? draftRow.long_description ?? manifestValue(manifest, "description") ?? null,
     category: draftRow.category ?? null,
     tags: draftRow.tags ?? [],
     icon_url: draftRow.icon_path ?? null,
@@ -496,15 +529,16 @@ export async function publishAddonSubmission(id: string, privateNote = "") {
   }, { onConflict: "addon_id" }).select("id").single();
   if (listingError || !listing) return sanitize(listingError) ?? "Marketplace listing publication failed.";
   const listingId = (listing as { id: string }).id;
-  const packageSizeValue = latestPackage ? packageSize(latestPackage) : null;
+  const packageSizeValue = snapshotRow?.package_size_bytes ?? (latestPackage ? packageSize(latestPackage) : null);
+  const reviewedPackageId = packageSnapshot?.id ?? latestPackage?.id ?? null;
   const { data: versionRow, error: versionError } = await supabase.from("marketplace_addon_versions").upsert({
     listing_id: listingId,
     version,
     manifest_json: manifest,
-    package_id: latestPackage?.id ?? null,
-    package_sha256: latestPackage?.sha256 ?? null,
+    package_id: reviewedPackageId,
+    package_sha256: snapshotRow?.package_sha256 ?? latestPackage?.sha256 ?? null,
     package_size: packageSizeValue,
-    signature_status: latestPackage?.signature_status ?? "unsigned",
+    signature_status: snapshotRow?.signature_status ?? latestPackage?.signature_status ?? "unsigned",
     compatibility_status: "unknown",
     review_status: "published",
     published_at: now,
@@ -517,8 +551,8 @@ export async function publishAddonSubmission(id: string, privateNote = "") {
   await supabase.from("addon_submissions").update({ status: "published", reviewed_by: auth.user.id, reviewed_at: now, published_at: now, updated_at: now }).eq("id", id);
   await supabase.from("addon_drafts").update({ submission_status: "published", review_status: "published", published_at: now, updated_at: now }).eq("id", submissionRow.addon_draft_id);
   await writeReviewEvent(submissionRow.review_item_id, "marketplace_published", submissionRow.status, "approved", privateNote || null, { listing_id: listingId, addon_version_id: versionId });
-  await writePublicationEvent({ listingId, versionId, action: "published", note: privateNote || null, metadata: { addon_submission_id: id, package_sha256: latestPackage?.sha256 ?? null, signature_status: latestPackage?.signature_status ?? "unsigned" } });
-  await writeAudit("marketplace_listing_published", "marketplace_listings", listingId, { addon_submission_id: id, addon_version_id: versionId, private_note_present: Boolean(privateNote) });
+  await writePublicationEvent({ listingId, versionId, action: "published", note: privateNote || null, metadata: { addon_submission_id: id, snapshot_id: snapshotRow?.id ?? null, package_sha256: snapshotRow?.package_sha256 ?? latestPackage?.sha256 ?? null, signature_status: snapshotRow?.signature_status ?? latestPackage?.signature_status ?? "unsigned" } });
+  await writeAudit("marketplace_listing_published", "marketplace_listings", listingId, { addon_submission_id: id, addon_version_id: versionId, snapshot_id: snapshotRow?.id ?? null, private_note_present: Boolean(privateNote) });
   return "Submission published to Marketplace. This does not install or enable anything locally.";
 }
 

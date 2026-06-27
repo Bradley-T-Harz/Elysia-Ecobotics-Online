@@ -26,6 +26,12 @@ const publicProfile = await read("src/pages/Public-Commons-Profile/index.tsx");
 const commune = await read("src/pages/The-Elysia-Commune/index.tsx");
 const forgeValidator = await read("src/pages/The-Developer-Forge/developerForgeValidator.ts");
 const forgeTemplates = await read("src/pages/The-Developer-Forge/developerForgeTemplates.ts");
+const forgeApi = await read("src/pages/The-Developer-Forge/developerForgeApi.ts");
+const forgeWorkbench = await read("src/pages/The-Developer-Forge/ForgeWorkbench.tsx");
+const adminModerationClient = await read("src/shared/review/adminModerationClient.ts");
+const forgeSnapshotMigration = await read("supabase/migrations/2026_06_27_developer_forge_submission_snapshots.sql");
+const forgeSubmissionDocs = await read("docs/developer-forge/submission-review-process.md");
+const forgeWorkbenchDocs = await read("docs/developer-forge/workbench.md");
 const legalIndex = await read("src/pages/Legal/index.tsx");
 const legalPolicies = await read("src/pages/Legal/legalPolicyPages.ts");
 const archive = await read("src/pages/The-Elysia-Archive/index.tsx");
@@ -194,6 +200,24 @@ for (const blocked of ["vault_access", "credential_access", "private_memory_acce
 for (const scannerTerm of ["SUPABASE_SERVICE_ROLE", "AWS_ACCESS_KEY_ID", "reserved_name", "broad_filesystem_claim", "dangerousShellPattern"]) {
   assert(forgeValidator.includes(scannerTerm), `Developer Forge scanner coverage missing: ${scannerTerm}`);
 }
+assert(forgeValidator.includes("Ajv") && forgeValidator.includes("addFormats") && forgeValidator.includes("semver.valid"), "Developer Forge manifest validation should use Ajv, format checks, and semver validation.");
+assert(forgeValidator.includes('"blocked"') && forgeValidator.includes('"needs_reviewer"'), "Developer Forge validation should classify blocked and reviewer-needed findings.");
+assert(forgeWorkbench.includes("@monaco-editor/react") && forgeWorkbench.includes("react-markdown") && forgeWorkbench.includes("remark-gfm") && forgeWorkbench.includes("rehype-sanitize"), "Developer Forge workbench should wire Monaco and sanitized Markdown preview.");
+assert(forgeWorkbench.includes("prettier/standalone") && forgeWorkbench.includes("cmdk") && forgeWorkbench.includes("ForgeCommandPalette"), "Developer Forge workbench should wire Prettier formatting and a safe command palette.");
+assert(!forgeWorkbench.includes("npm install") && !forgeWorkbench.includes("run-shell") && !forgeWorkbench.includes("raw shell"), "Developer Forge command palette must not expose package install or shell actions.");
+assert(forgePage.includes("ForgeWorkbenchSurface") && forgePage.includes("Submit immutable snapshot for review") && forgePage.includes("Duplicate draft for revision"), "Developer Forge page should expose the workbench, immutable submission, and revision draft flow.");
+assert(forgePage.includes("This is not a terminal") && forgePage.includes("does not execute package code"), "Developer Forge workbench copy should preserve the no-terminal/no-execution boundary.");
+assert(forgeApi.includes("addon_submission_snapshots") && forgeApi.includes("createSubmissionSnapshot") && forgeApi.includes("isDraftLockedForEditing"), "Developer Forge API should create immutable snapshots and recognize locked drafts.");
+assert(forgeApi.includes("locked_at") && forgeApi.includes("locked_reason") && forgeApi.includes("submitted_for_marketplace_review"), "Developer Forge API should lock submitted drafts with an explicit reason.");
+assert(adminModerationClient.includes("addon_submission_snapshots") && adminModerationClient.includes("manifest_snapshot") && adminModerationClient.includes("marketplace_preview_snapshot"), "Admin Marketplace publishing should read immutable Developer Forge snapshots.");
+assert(adminPage.includes("Immutable review snapshot") && adminPage.includes("Private package inspection") && adminPage.includes("legacy submission from before the snapshot migration"), "Admin add-on review should surface immutable snapshot/package facts and migration fallback copy.");
+assert(forgeSnapshotMigration.includes("create table if not exists public.addon_submission_snapshots"), "Developer Forge snapshot migration table missing.");
+for (const snapshotField of ["manifest_snapshot", "permissions_snapshot", "package_snapshot", "validation_snapshot", "scan_snapshot", "marketplace_preview_snapshot", "signature_status"]) {
+  assert(forgeSnapshotMigration.includes(snapshotField), `Developer Forge snapshot migration missing ${snapshotField}.`);
+}
+assert(forgeSnapshotMigration.includes("enable row level security") && forgeSnapshotMigration.includes("developers read own addon submission snapshots") && forgeSnapshotMigration.includes("marketplace reviewers manage addon submission snapshots"), "Developer Forge snapshot migration should include RLS policies.");
+assert(forgeSnapshotMigration.includes("prevent_locked_addon_draft_owner_mutation") && forgeSnapshotMigration.includes("prevent_locked_addon_draft_child_mutation"), "Developer Forge snapshot migration should prevent silent owner mutation of submitted draft evidence.");
+assert(forgeSubmissionDocs.includes("immutable review snapshot") && forgeWorkbenchDocs.includes("Monaco") && forgeWorkbenchDocs.includes("sanitized") && forgeWorkbenchDocs.includes("must not run package code"), "Developer Forge docs should describe the workbench, snapshots, and no-execution boundary.");
 assert(forgeTemplates.includes("buildTemplatePackage"), "Developer Forge inert template package export missing.");
 assert(forgeTemplates.includes("checksums.json"), "Developer Forge template package checksum manifest missing.");
 

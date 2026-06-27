@@ -474,6 +474,25 @@ function PackageFacts({ pkg }: { pkg: NonNullable<AddonSubmissionReview["package
   return <article className="review-list-item admin-package-card"><strong>{fileName}</strong><dl className="mini-facts"><div><dt>Size</dt><dd>{fileSize ? `${fileSize} bytes` : "unknown"}</dd></div><div><dt>SHA-256</dt><dd>{pkg.sha256 ?? "missing"}</dd></div><div><dt>Scan</dt><dd>{pkg.scan_status ?? "not scanned"}</dd></div><div><dt>Signature</dt><dd>{pkg.signature_status ?? "unsigned"}</dd></div><div><dt>Storage</dt><dd>{pkg.storage_path ? "private package path recorded" : "no storage path"}</dd></div></dl>{pkg.scan_summary && <p>{pkg.scan_summary}</p>}{inspection && <details><summary>Archive inspection result</summary><dl className="mini-facts"><div><dt>Status</dt><dd>{String(inspection.status ?? "unknown")}</dd></div><div><dt>Risk</dt><dd>{String(inspection.risk_level ?? "unknown")}</dd></div><div><dt>Files</dt><dd>{Array.isArray(inspection.file_inventory) ? inspection.file_inventory.length : 0}</dd></div><div><dt>Manifest</dt><dd>{manifestSummary?.addon_id ?? "not available"}</dd></div></dl><p>{String(inspection.summary ?? "Archive inspection summary unavailable.")}</p>{fileInventory.length > 0 && <ul>{fileInventory.map((file) => <li key={file.path}>{file.path} · {file.size ?? 0} bytes</li>)}</ul>}{Array.isArray(inspection.errors) && inspection.errors.length > 0 && <p className="message">Blocking archive issues: {inspection.errors.length}</p>}{Array.isArray(inspection.warnings) && inspection.warnings.length > 0 && <p className="boundary-note">Archive warnings: {inspection.warnings.length}</p>}</details>}<p className="boundary-note">Review metadata only. The website does not execute package code, package scripts, build hooks, dependencies, or shell commands. Static/archive inspection does not prove safety.</p></article>;
 }
 
+function SubmissionPermissionFacts({ submission }: { submission: AddonSubmissionReview }) {
+  type PermissionFact = {
+    id?: string;
+    permission_key?: string;
+    reason?: string | null;
+    scope_json?: Record<string, unknown> | null;
+    risk_acknowledged?: boolean;
+  };
+  const permissions = (submission.snapshot?.permissions_snapshot?.length ? submission.snapshot.permissions_snapshot : submission.permissions ?? []) as PermissionFact[];
+  if (!permissions.length) return <p className="boundary-note">No permission declarations recorded.</p>;
+  return <>{permissions.map((permission, index) => {
+    const key = typeof permission.id === "string" ? permission.id : `${permission.permission_key ?? "permission"}-${index}`;
+    const label = typeof permission.permission_key === "string" ? permission.permission_key : "Unlabeled permission";
+    const reason = typeof permission.reason === "string" && permission.reason.trim() ? permission.reason : "No developer reason supplied.";
+    const scope = permission.scope_json && typeof permission.scope_json === "object" ? permission.scope_json : {};
+    return <article className="review-list-item" key={key}><strong>{label}</strong><span>{permission.risk_acknowledged ? "risk acknowledged" : "risk not acknowledged"}</span><p>{reason}</p><pre className="admin-json-preview">{JSON.stringify(scope, null, 2)}</pre></article>;
+  })}</>;
+}
+
 function MarketplacePublicationPanel({ submission }: { submission: AddonSubmissionReview }) {
   const listing = submission.listing;
   return <details open={Boolean(listing)}><summary>Marketplace publication status</summary>{listing ? <div><dl className="mini-facts"><div><dt>Listing</dt><dd>{listing.slug}</dd></div><div><dt>Status</dt><dd><StatusBadge status={listing.listing_status} /></dd></div><div><dt>Current version</dt><dd>{listing.current_version ?? "none"}</dd></div><div><dt>Published</dt><dd>{listing.published_at ?? "not published"}</dd></div><div><dt>Revoked</dt><dd>{listing.revoked_at ? `${listing.revoked_at}: ${listing.revocation_reason ?? "no reason"}` : "no"}</dd></div></dl>{submission.versions?.map((version) => <article className="review-list-item" key={version.id}><strong>Version {version.version}</strong><StatusBadge status={version.review_status ?? "unknown"} /><span>{version.signature_status}</span><span>{version.revoked_at ? `Revoked: ${version.revocation_reason ?? "no reason"}` : "Install intent eligible if listing is published and not revoked"}</span></article>)}{submission.publicationEvents?.length ? <details><summary>Private publication event trail</summary>{submission.publicationEvents.map((event) => <article className="review-list-item" key={event.id}><strong>{event.action}</strong><span>{event.created_at}</span><p>{event.note ?? "No private note."}</p></article>)}</details> : <p className="boundary-note">No publication events recorded yet.</p>}</div> : <p className="boundary-note">No Marketplace listing has been published from this submission yet.</p>}</details>;
@@ -486,7 +505,84 @@ function AddonSubmissionsPage() {
   const refresh = useCallback(async () => { const result = await loadAddonSubmissions(); setRows(result.rows); setMessages(result.warnings); }, []);
   useEffect(() => { if (gate.allowed) void refresh(); }, [gate.allowed, refresh]);
   if (!gate.allowed) return <Unauthorized warnings={gate.warnings} />;
-  return <div className="page-stack admin-page"><PageHero eyebrow="Admin review" title="Developer Forge Add-on Submissions"><p>Reviewers may inspect manifests, validation status, permission requests, private package metadata, and scan summaries. Approval does not install anything locally.</p></PageHero><AdminNav /><QueueMessages messages={messages} /><section className="section-card"><h2>{rows.length} add-on submission{rows.length === 1 ? "" : "s"}</h2>{!rows.length && <p>No pending items.</p>}{rows.map((submission) => <article className="review-list-item admin-detail-card admin-addon-inspection" key={submission.id}><div className="addon-card__topline"><strong>{submission.draft?.addon_name ?? submission.id}</strong><StatusBadge status={submission.status} /></div><p>{submission.review_summary ?? submission.draft?.short_summary ?? "No summary supplied."}</p><dl className="mini-facts"><div><dt>Slug</dt><dd>{submission.draft?.addon_slug ?? "unknown"}</dd></div><div><dt>Version</dt><dd>{submission.draft?.version ?? "unknown"}</dd></div><div><dt>Developer</dt><dd>{submission.developer?.display_name ?? submission.submitted_by}</dd></div><div><dt>Validation</dt><dd>{submission.draft?.validation_status ?? "not available"}</dd></div><div><dt>Risk</dt><dd>{submission.draft?.risk_level ?? "unknown"}</dd></div><div><dt>Packages</dt><dd>{submission.packages?.length ?? 0} private metadata row(s)</dd></div></dl><details><summary>Manifest JSON</summary><pre className="admin-json-preview">{JSON.stringify(submission.draft?.manifest_json ?? {}, null, 2)}</pre></details><details><summary>Permissions and risk reasons</summary>{submission.permissions?.length ? submission.permissions.map((permission) => <article className="review-list-item" key={permission.id}><strong>{permission.permission_key}</strong><span>{permission.risk_acknowledged ? "risk acknowledged" : "risk not acknowledged"}</span><p>{permission.reason ?? "No developer reason supplied."}</p><pre className="admin-json-preview">{JSON.stringify(permission.scope_json ?? {}, null, 2)}</pre></article>) : <p className="boundary-note">No permission declarations recorded.</p>}</details><details><summary>Validation and compatibility</summary>{submission.validationResults?.length ? submission.validationResults.map((result) => <article className="review-list-item" key={result.id}><strong>{result.severity}: {result.code}</strong><p>{result.message}</p><span>{result.field_path ?? "manifest"}</span></article>) : <p className="boundary-note">No validation rows recorded.</p>}{submission.compatibilityResults?.length ? submission.compatibilityResults.map((result) => <article className="review-list-item" key={result.id}><strong>{result.status}</strong><span>{result.elysia_version ?? "unknown Elysia version"}</span><p>{[...(result.warnings ?? []), ...(result.errors ?? [])].join(" · ") || "No compatibility details recorded."}</p></article>) : <p className="boundary-note">No compatibility rows recorded.</p>}</details><details open><summary>Private package inspection</summary>{submission.packages?.length ? submission.packages.map((pkg) => <PackageFacts pkg={pkg} key={pkg.id} />) : <p className="boundary-note">No private package metadata has been uploaded for this submission.</p>}</details><details><summary>Marketplace preview</summary><article className="addon-card"><div className="addon-card__topline"><strong>{submission.draft?.addon_name ?? "Untitled add-on"}</strong><span>{submission.draft?.version ?? "0.1.0"}</span></div><p>{submission.draft?.short_summary ?? "No summary supplied."}</p><dl className="mini-facts"><div><dt>Category</dt><dd>{submission.draft?.category ?? "uncategorized"}</dd></div><div><dt>License</dt><dd>{submission.draft?.license ?? "missing"}</dd></div><div><dt>Permissions</dt><dd>{submission.draft?.permission_summary ?? "No summary"}</dd></div><div><dt>Signature</dt><dd>{submission.packages?.[0]?.signature_status ?? "unsigned"}</dd></div></dl><p className="boundary-note">Preview only. Static scan does not prove safety. Marketplace publication still creates only a catalog entry and install intent surface.</p></article></details><MarketplacePublicationPanel submission={submission} /><AddonSubmissionActions submission={submission} onChanged={(message) => { setMessages([message]); void refresh(); }} /></article>)}</section></div>;
+  return <div className="page-stack admin-page">
+    <PageHero eyebrow="Admin review" title="Developer Forge Add-on Submissions">
+      <p>Reviewers may inspect manifests, validation status, permission requests, private package metadata, and scan summaries. Approval does not install anything locally.</p>
+    </PageHero>
+    <AdminNav />
+    <QueueMessages messages={messages} />
+    <section className="section-card">
+      <h2>{rows.length} add-on submission{rows.length === 1 ? "" : "s"}</h2>
+      {!rows.length && <p>No pending items.</p>}
+      {rows.map((submission) => {
+        const preview = submission.snapshot?.marketplace_preview_snapshot ?? {};
+        const previewPermissions = Array.isArray(preview.permissions) ? preview.permissions.join(", ") : submission.draft?.permission_summary ?? "No summary";
+        return <article className="review-list-item admin-detail-card admin-addon-inspection" key={submission.id}>
+          <div className="addon-card__topline">
+            <strong>{(preview.addon_name as string | undefined) ?? submission.draft?.addon_name ?? submission.id}</strong>
+            <StatusBadge status={submission.status} />
+          </div>
+          <p>{submission.review_summary ?? (preview.summary as string | undefined) ?? submission.draft?.short_summary ?? "No summary supplied."}</p>
+          <dl className="mini-facts">
+            <div><dt>Slug</dt><dd>{(preview.addon_slug as string | undefined) ?? submission.draft?.addon_slug ?? "unknown"}</dd></div>
+            <div><dt>Version</dt><dd>{(submission.snapshot?.manifest_snapshot?.version as string | undefined) ?? submission.draft?.version ?? "unknown"}</dd></div>
+            <div><dt>Developer</dt><dd>{submission.developer?.display_name ?? submission.submitted_by}</dd></div>
+            <div><dt>Validation</dt><dd>{submission.draft?.validation_status ?? "not available"}</dd></div>
+            <div><dt>Risk</dt><dd>{(preview.risk_level as string | undefined) ?? submission.draft?.risk_level ?? "unknown"}</dd></div>
+            <div><dt>Packages</dt><dd>{submission.packages?.length ?? 0} private metadata row(s)</dd></div>
+          </dl>
+          <details open>
+            <summary>Immutable review snapshot</summary>
+            {submission.snapshot ? <div>
+              <dl className="mini-facts">
+                <div><dt>Snapshot</dt><dd>{submission.snapshot.id}</dd></div>
+                <div><dt>Created</dt><dd>{submission.snapshot.created_at}</dd></div>
+                <div><dt>Package SHA-256</dt><dd>{submission.snapshot.package_sha256 ?? "not recorded"}</dd></div>
+                <div><dt>Signature</dt><dd>{submission.snapshot.signature_status ?? "unsigned"}</dd></div>
+              </dl>
+              <p className="boundary-note">Review and Marketplace publication use this frozen snapshot when available. Later draft edits must be submitted as an explicit revision.</p>
+            </div> : <p className="boundary-note">No immutable snapshot row is available. This may be a legacy submission from before the snapshot migration; apply the latest Supabase SQL before relying on publication.</p>}
+          </details>
+          <details>
+            <summary>Manifest JSON</summary>
+            <pre className="admin-json-preview">{JSON.stringify(submission.snapshot?.manifest_snapshot ?? submission.draft?.manifest_json ?? {}, null, 2)}</pre>
+          </details>
+          <details>
+            <summary>Permissions and risk reasons</summary>
+            <SubmissionPermissionFacts submission={submission} />
+          </details>
+          <details>
+            <summary>Validation and compatibility</summary>
+            {submission.snapshot?.validation_snapshot?.length ? submission.snapshot.validation_snapshot.map((result, index) => <article className="review-list-item" key={`${result.code}-${index}`}><strong>{result.severity}: {result.code}</strong><p>{result.message}</p><span>{result.field_path ?? "manifest"}</span></article>) : submission.validationResults?.length ? submission.validationResults.map((result) => <article className="review-list-item" key={result.id}><strong>{result.severity}: {result.code}</strong><p>{result.message}</p><span>{result.field_path ?? "manifest"}</span></article>) : <p className="boundary-note">No validation rows recorded.</p>}
+            {submission.compatibilityResults?.length ? submission.compatibilityResults.map((result) => <article className="review-list-item" key={result.id}><strong>{result.status}</strong><span>{result.elysia_version ?? "unknown Elysia version"}</span><p>{[...(result.warnings ?? []), ...(result.errors ?? [])].join(" · ") || "No compatibility details recorded."}</p></article>) : <p className="boundary-note">No compatibility rows recorded.</p>}
+          </details>
+          <details open>
+            <summary>Private package inspection</summary>
+            {submission.packages?.length ? submission.packages.map((pkg) => <PackageFacts pkg={pkg} key={pkg.id} />) : <p className="boundary-note">No private package metadata has been uploaded for this submission.</p>}
+          </details>
+          <details>
+            <summary>Marketplace preview</summary>
+            <article className="addon-card">
+              <div className="addon-card__topline">
+                <strong>{(preview.addon_name as string | undefined) ?? submission.draft?.addon_name ?? "Untitled add-on"}</strong>
+                <span>{(submission.snapshot?.manifest_snapshot?.version as string | undefined) ?? submission.draft?.version ?? "0.1.0"}</span>
+              </div>
+              <p>{(preview.summary as string | undefined) ?? submission.draft?.short_summary ?? "No summary supplied."}</p>
+              <dl className="mini-facts">
+                <div><dt>Category</dt><dd>{(preview.category as string | undefined) ?? submission.draft?.category ?? "uncategorized"}</dd></div>
+                <div><dt>License</dt><dd>{(submission.snapshot?.manifest_snapshot?.license as string | undefined) ?? submission.draft?.license ?? "missing"}</dd></div>
+                <div><dt>Permissions</dt><dd>{previewPermissions}</dd></div>
+                <div><dt>Signature</dt><dd>{submission.snapshot?.signature_status ?? submission.packages?.[0]?.signature_status ?? "unsigned"}</dd></div>
+              </dl>
+              <p className="boundary-note">Preview only. Static scan does not prove safety. Marketplace publication still creates only a catalog entry and install intent surface.</p>
+            </article>
+          </details>
+          <MarketplacePublicationPanel submission={submission} />
+          <AddonSubmissionActions submission={submission} onChanged={(message) => { setMessages([message]); void refresh(); }} />
+        </article>;
+      })}
+    </section>
+  </div>;
 }
 
 function VisibilityActions({ id, initialStatus, initialNote, onSave, onChanged }: { id: string; initialStatus: VisibilityState; initialNote?: string | null; onSave: (id: string, status: VisibilityState, note: string) => Promise<string>; onChanged: (message: string) => void }) {

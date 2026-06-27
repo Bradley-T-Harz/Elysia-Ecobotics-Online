@@ -1,5 +1,9 @@
 
-export type ValidationSeverity = "error" | "warning" | "info";
+import Ajv from "ajv";
+import addFormats from "ajv-formats";
+import semver from "semver";
+
+export type ValidationSeverity = "blocked" | "error" | "warning" | "needs_reviewer" | "info";
 
 export type ForgeValidationResult = {
   severity: ValidationSeverity;
@@ -69,6 +73,7 @@ export const supportedManifestSchema = "1.0";
 export const supportedAddonApi = "0.1";
 export const allowedRuntimeKinds = ["static", "local_worker", "connector", "theme", "skill_pack"];
 export const blockedPermissionKeys = ["vault_access", "credential_access", "private_memory_access", "silent_shell_execution", "read_all_files", "write_arbitrary_files", "silent_network_access", "silent_install"];
+export const forbiddenManifestFields = ["service_role_key", "private_key", "env", "local_elysia_memory", "hidden_reviewer_note", "install_command", "postinstall", "preinstall", "shell_command"];
 
 export const defaultPermissionCatalog: PermissionDefinition[] = [
   { permission_key: "theme_assets_read", title: "Theme assets read", description: "Read public theme or visual assets bundled with the add-on.", risk_level: "low", requires_user_approval: false },
@@ -94,14 +99,79 @@ const secretPatterns = [
 const localPathPattern = /(^|[\s"'=:])((\/home\/|\/Users\/|C:\\|[A-Z]:\\|~\/)[^\s"']*)/i;
 const localhostPattern = /https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?/i;
 const authorityPattern = /\b(admin|administrator|official|official partner|trusted|approved|endorsed by elysia|guaranteed safe|auto[- ]?approved|trusted reviewer)\b/i;
-const semverPattern = /^\d+\.\d+\.\d+([+-][A-Za-z0-9.-]+)?$/;
 const addonIdPattern = /^[a-z0-9][a-z0-9_.-]{2,80}\.[a-z0-9][a-z0-9_-]{1,80}$/;
 const reservedNamePattern = /\b(elysia|elysia ecobotics|ecosyneva|ecosyneva commons)\b/i;
 const dangerousShellPattern = /\b(postinstall|preinstall|install script|shell|curl\s|wget\s|bash\s|powershell|cmd\.exe|sudo\s|chmod\s|rm\s+-rf|scp\s|ssh\s|npm\s+install|pnpm\s+install|yarn\s+install)\b/i;
 const broadFilesystemPattern = /\b(read all files|write all files|whole home directory|entire disk|arbitrary filesystem|all local files|recursive home)\b/i;
 
+const manifestSchema = {
+  type: "object",
+  additionalProperties: true,
+  properties: {
+    schema_version: { type: "string", nullable: true },
+    addon_id: { type: "string", nullable: true },
+    name: { type: "string", nullable: true },
+    version: { type: "string", nullable: true },
+    description: { type: "string", nullable: true },
+    author: {
+      type: "object",
+      nullable: true,
+      additionalProperties: true,
+      properties: {
+        name: { type: "string", nullable: true },
+        url: { type: "string", format: "uri", nullable: true }
+      }
+    },
+    license: { type: "string", nullable: true },
+    entrypoints: { type: "array", nullable: true, items: {} },
+    permissions: { type: "array", nullable: true, items: { type: "string" } },
+    compatibility: {
+      type: "object",
+      nullable: true,
+      additionalProperties: true,
+      properties: {
+        elysia_min_version: { type: "string", nullable: true },
+        elysia_max_version: { type: "string", nullable: true },
+        addon_api_version: { type: "string", nullable: true }
+      }
+    },
+    runtime: {
+      type: "object",
+      nullable: true,
+      additionalProperties: true,
+      properties: {
+        kind: { type: "string", nullable: true },
+        requires_network: { type: "boolean", nullable: true },
+        requires_filesystem: { type: "boolean", nullable: true }
+      }
+    },
+    security: {
+      type: "object",
+      nullable: true,
+      additionalProperties: true,
+      properties: {
+        sandbox_required: { type: "boolean", nullable: true },
+        network_domains: { type: "array", nullable: true, items: { type: "string" } },
+        file_access: { type: "array", nullable: true, items: { type: "string" } }
+      }
+    }
+  }
+};
+
+const ajv = new Ajv({ allErrors: true, allowUnionTypes: true, strict: false });
+addFormats(ajv);
+const validateManifestShape = ajv.compile(manifestSchema);
+
 function add(results: ForgeValidationResult[], severity: ValidationSeverity, code: string, message: string, field_path?: string, fix_suggestion?: string) {
   results.push({ severity, code, message, field_path, fix_suggestion });
+}
+
+function pathFromAjv(instancePath?: string) {
+  return instancePath ? instancePath.replace(/^\//, "").replace(/\//g, ".") : "manifest";
+}
+
+function validSemver(value: string | undefined | null) {
+  return Boolean(value && semver.valid(value));
 }
 
 function validUrl(value: string | undefined | null) {
@@ -122,7 +192,7 @@ export function parseManifestText(text: string): { manifest: ForgeManifest | nul
   try {
     return { manifest: JSON.parse(text) as ForgeManifest, results: [] };
   } catch {
-    return { manifest: null, results: [{ severity: "error", code: "invalid_json", message: "Manifest JSON is not valid.", fix_suggestion: "Fix JSON syntax before validating." }] };
+    return { manifest: null, results: [{ severity: "blocked", code: "invalid_json", message: "Manifest JSON is not valid.", fix_suggestion: "Fix JSON syntax before validating." }] };
   }
 }
 
@@ -133,12 +203,20 @@ export function validateManifest(input: string | ForgeManifest, catalog: Permiss
   if (!manifest) return { manifest: null, results };
   const permissions = new Map(catalog.map((item) => [item.permission_key, item]));
 
+  if (!validateManifestShape(manifest)) {
+    for (const error of validateManifestShape.errors ?? []) {
+      add(results, "error", "schema_shape_error", error.message ? `Manifest schema shape issue: ${error.message}.` : "Manifest schema shape issue.", pathFromAjv(error.instancePath));
+    }
+  }
+
   for (const field of ["schema_version", "addon_id", "name", "version", "description", "license"] as const) {
     if (!manifest[field]) add(results, "error", `missing_${field}`, `Missing required field: ${field}.`, field, `Add ${field} to manifest.json.`);
   }
   if (manifest.schema_version && manifest.schema_version !== supportedManifestSchema) add(results, "error", "unsupported_schema", `Unsupported manifest schema ${manifest.schema_version}.`, "schema_version", `Use schema_version ${supportedManifestSchema}.`);
   if (manifest.addon_id && !addonIdPattern.test(manifest.addon_id)) add(results, "error", "invalid_addon_id", "addon_id must look like developer.addon-name and use lowercase letters, numbers, dots, hyphens, or underscores.", "addon_id");
-  if (manifest.version && !semverPattern.test(manifest.version)) add(results, "error", "invalid_version", "version must be semantic version format such as 0.1.0.", "version");
+  if (manifest.version && !validSemver(manifest.version)) add(results, "error", "invalid_version", "version must be semantic version format such as 0.1.0.", "version");
+  if (manifest.compatibility?.elysia_min_version && !validSemver(manifest.compatibility.elysia_min_version)) add(results, "warning", "invalid_elysia_min_semver", "compatibility.elysia_min_version should be valid semantic version format.", "compatibility.elysia_min_version");
+  if (manifest.compatibility?.elysia_max_version && !validSemver(manifest.compatibility.elysia_max_version)) add(results, "warning", "invalid_elysia_max_semver", "compatibility.elysia_max_version should be valid semantic version format.", "compatibility.elysia_max_version");
   if (!manifest.author?.name) add(results, "error", "missing_author", "author.name is required.", "author.name");
   if (manifest.author?.url && !validUrl(manifest.author.url)) add(results, "warning", "invalid_author_url", "author.url is not a valid HTTP(S) URL.", "author.url");
   for (const [field, value] of Object.entries({ homepage_url: manifest.homepage_url, source_url: manifest.source_url, support_url: manifest.support_url })) {
@@ -153,22 +231,34 @@ export function validateManifest(input: string | ForgeManifest, catalog: Permiss
   if (manifest.runtime?.requires_network && !manifest.security?.network_domains?.length) add(results, "warning", "network_domains_missing", "Runtime requires network but no security.network_domains are declared.", "security.network_domains");
   if (manifest.runtime?.requires_filesystem && !manifest.security?.file_access?.length) add(results, "warning", "file_access_missing", "Runtime requires filesystem but no security.file_access scopes are declared.", "security.file_access");
   if (manifest.security?.sandbox_required !== true && manifest.runtime?.kind !== "theme" && manifest.runtime?.kind !== "static") add(results, "warning", "sandbox_not_required", "Non-static runtimes should require a sandbox.", "security.sandbox_required");
+  for (const entrypoint of manifest.entrypoints ?? []) {
+    if (typeof entrypoint !== "object" || entrypoint === null || Array.isArray(entrypoint)) {
+      add(results, "error", "invalid_entrypoint", "Each entrypoint must be a structured object.", "entrypoints");
+      continue;
+    }
+    const path = "path" in entrypoint && typeof entrypoint.path === "string" ? entrypoint.path : "";
+    if (!path) add(results, "warning", "entrypoint_path_missing", "Entrypoint should declare a relative package path.", "entrypoints");
+    if (localPathPattern.test(path)) add(results, "error", "entrypoint_local_path", "Entrypoint cannot point to an absolute local path.", "entrypoints");
+  }
+  for (const field of forbiddenManifestFields) {
+    if (Object.prototype.hasOwnProperty.call(manifest, field)) add(results, "blocked", "forbidden_manifest_field", `Forbidden manifest field present: ${field}.`, field, "Remove private, executable, or reviewer-only fields from the public add-on manifest.");
+  }
 
   for (const permission of manifest.permissions ?? []) {
     const definition = permissions.get(permission);
     if (!definition) add(results, "error", "unknown_permission", `Unknown permission: ${permission}.`, "permissions", "Choose from the controlled permission catalog.");
-    else if (definition.risk_level === "blocked" || blockedPermissionKeys.includes(permission)) add(results, "error", "blocked_permission", `Blocked permission selected: ${permission}.`, "permissions", "Remove blocked permissions; local Elysia will not grant them.");
-    else if (definition.risk_level === "high") add(results, "warning", "high_risk_permission", `${definition.title} is high risk and requires careful review.`, "permissions");
+    else if (definition.risk_level === "blocked" || blockedPermissionKeys.includes(permission)) add(results, "blocked", "blocked_permission", `Blocked permission selected: ${permission}.`, "permissions", "Remove blocked permissions; local Elysia will not grant them.");
+    else if (definition.risk_level === "high") add(results, "needs_reviewer", "high_risk_permission", `${definition.title} is high risk and requires careful review.`, "permissions");
   }
 
   const text = JSON.stringify(manifest);
-  for (const secret of secretPatterns) if (secret.pattern.test(text)) add(results, "error", secret.code, `Manifest appears to include ${secret.label}.`, undefined, "Remove secrets and private material from the manifest.");
-  if (localPathPattern.test(text)) add(results, "error", "local_path", "Manifest appears to include an absolute local file path.", undefined, "Use relative package paths or user-selected local scopes only.");
+  for (const secret of secretPatterns) if (secret.pattern.test(text)) add(results, "blocked", secret.code, `Manifest appears to include ${secret.label}.`, undefined, "Remove secrets and private material from the manifest.");
+  if (localPathPattern.test(text)) add(results, "blocked", "local_path", "Manifest appears to include an absolute local file path.", undefined, "Use relative package paths or user-selected local scopes only.");
   if (localhostPattern.test(text)) add(results, "warning", "localhost_url", "Manifest includes a localhost/private URL that is not suitable for a public listing.");
   if (reservedNamePattern.test(String(manifest.name ?? "")) || reservedNamePattern.test(String(manifest.addon_id ?? ""))) add(results, "warning", "reserved_name", "Add-on name or id uses Elysia/EcoSyneva reserved wording. Reviewers must confirm this is authorized.", "name", "Use a distinct developer or project name unless you have administrator approval.");
   if (authorityPattern.test(text)) add(results, "warning", "authority_claim", "Manifest language may imply authority, endorsement, or guaranteed safety.", undefined, "Use careful public wording and avoid authority claims.");
-  if (broadFilesystemPattern.test(text)) add(results, "error", "broad_filesystem_claim", "Manifest language suggests broad filesystem access, which is not allowed for public Forge submissions.", undefined, "Replace broad access with explicit user-selected/project-scoped paths.");
-  if (manifest.runtime?.requires_network && (manifest.security?.network_domains ?? []).some((domain) => /\*|all domains|any domain|0\.0\.0\.0/i.test(domain))) add(results, "error", "undeclared_or_broad_network", "Network access must list specific declared domains, not wildcard/all-domain scopes.", "security.network_domains");
+  if (broadFilesystemPattern.test(text)) add(results, "blocked", "broad_filesystem_claim", "Manifest language suggests broad filesystem access, which is not allowed for public Forge submissions.", undefined, "Replace broad access with explicit user-selected/project-scoped paths.");
+  if (manifest.runtime?.requires_network && (manifest.security?.network_domains ?? []).some((domain) => /\*|all domains|any domain|0\.0\.0\.0/i.test(domain))) add(results, "blocked", "undeclared_or_broad_network", "Network access must list specific declared domains, not wildcard/all-domain scopes.", "security.network_domains");
   if (!manifest.source_url) add(results, "info", "source_url_missing", "Consider adding a source URL for reviewer context.", "source_url");
   if (!manifest.support_url) add(results, "info", "support_url_missing", "Consider adding a support URL for users.", "support_url");
 
@@ -178,13 +268,13 @@ export function validateManifest(input: string | ForgeManifest, catalog: Permiss
 export function staticSafetyScan(input: StaticScanInput): ForgeValidationResult[] {
   const results: ForgeValidationResult[] = [];
   const text = [input.manifestText, input.fileName, input.extraText].filter(Boolean).join("\n");
-  for (const secret of secretPatterns) if (secret.pattern.test(text)) add(results, "error", secret.code, `Static scan found ${secret.label}.`);
-  if (localPathPattern.test(text)) add(results, "error", "local_path", "Static scan found an absolute local path.");
+  for (const secret of secretPatterns) if (secret.pattern.test(text)) add(results, "blocked", secret.code, `Static scan found ${secret.label}.`);
+  if (localPathPattern.test(text)) add(results, "blocked", "local_path", "Static scan found an absolute local path.");
   if (localhostPattern.test(text)) add(results, "warning", "localhost_url", "Static scan found a localhost/private URL.");
-  if (dangerousShellPattern.test(text)) add(results, "warning", "script_like_text", "Static scan found script, package-install, or shell-like wording. The website will not execute it.");
-  if (broadFilesystemPattern.test(text)) add(results, "error", "broad_filesystem_claim", "Static scan found broad filesystem permission language.");
+  if (dangerousShellPattern.test(text)) add(results, "needs_reviewer", "script_like_text", "Static scan found script, package-install, or shell-like wording. The website will not execute it.");
+  if (broadFilesystemPattern.test(text)) add(results, "blocked", "broad_filesystem_claim", "Static scan found broad filesystem permission language.");
   if (/\b(official|trusted|approved|guaranteed safe|endorsed)\b/i.test(text)) add(results, "warning", "misleading_authority_claim", "Static scan found wording that may imply review, trust, or official authority before approval.");
-  if (/\.(exe|dll|dylib|so|sh|bat|cmd|ps1|app)$/i.test(input.fileName ?? "")) add(results, "error", "dangerous_extension", "Package file name uses an executable/script extension.");
+  if (/\.(exe|dll|dylib|so|sh|bat|cmd|ps1|app)$/i.test(input.fileName ?? "")) add(results, "blocked", "dangerous_extension", "Package file name uses an executable/script extension.");
   if ((input.fileSize ?? 0) > 50 * 1024 * 1024) add(results, "error", "package_too_large", "Package metadata exceeds the 50 MB Developer Forge intake limit.");
   if (!results.length) add(results, "info", "static_scan_initial_pass", "Static scan passed initial checks. This does not guarantee safety; local Elysia still verifies permissions before installation.");
   return results;
@@ -205,8 +295,9 @@ export function checkCompatibility(manifest: ForgeManifest | null): Compatibilit
 }
 
 export function validationStatus(results: ForgeValidationResult[]) {
+  if (results.some((item) => item.severity === "blocked")) return "blocked";
   if (results.some((item) => item.severity === "error")) return "errors";
-  if (results.some((item) => item.severity === "warning")) return "warnings";
+  if (results.some((item) => item.severity === "warning" || item.severity === "needs_reviewer")) return "warnings";
   return "valid";
 }
 
