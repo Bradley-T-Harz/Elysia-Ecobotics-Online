@@ -41,6 +41,8 @@ export type ProfileCustomization = {
   background_style: string;
   avatar_url?: string | null;
   banner_url?: string | null;
+  avatar_media_id?: string | null;
+  banner_media_id?: string | null;
   decal_set: string;
   selected_decals: string[];
   profile_layout: CommonsProfileLayoutKey;
@@ -315,6 +317,8 @@ export const defaultCustomization: ProfileCustomization = {
   background_style: DEFAULT_COMMONS_BACKGROUND_STYLE,
   avatar_url: null,
   banner_url: null,
+  avatar_media_id: null,
+  banner_media_id: null,
   decal_set: "none",
   selected_decals: [],
   profile_layout: DEFAULT_COMMONS_PROFILE_LAYOUT
@@ -597,7 +601,7 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
   const [visibilityRows, customizationRows, mediaRows, prefRows, savedAddons, savedSources, savedCitations, collectionRows, collectionItems, savedCommuneRows, followedRows, notificationRows, definitions, awarded] = await Promise.all([
     safeQuery<VisibilitySettings[]>(warnings, "Visibility settings", supabase.from("profile_visibility_settings").select("*").eq("user_id", userId).limit(1), []),
     safeQuery<ProfileCustomization[]>(warnings, "Profile customization", supabase.from("profile_customization").select("*").eq("user_id", userId).limit(1), []),
-    safeQuery<Array<{ media_type: string; public_url?: string | null; created_at?: string | null }>>(warnings, "Profile media", supabase.from("profile_media").select("media_type, public_url, created_at").eq("user_id", userId).eq("status", "active").order("created_at", { ascending: false }), []),
+    safeQuery<Array<{ id?: string | null; media_type: string; public_url?: string | null; created_at?: string | null }>>(warnings, "Profile media", supabase.from("profile_media").select("id, media_type, public_url, created_at").eq("user_id", userId).eq("status", "active").order("created_at", { ascending: false }), []),
     safeQuery<NotificationPreferences[]>(warnings, "Notification preferences", supabase.from("notification_preferences").select("*").eq("user_id", userId).limit(1), []),
     safeQuery<SavedAddonPreview[]>(warnings, "Saved add-ons", supabase.from("user_saved_addons").select("addon_slug, addon_name, addon_version_id, saved_at, notes").eq("user_id", userId).order("saved_at", { ascending: false }).limit(200), []),
     safeQuery<SavedLivingSourcePreview[]>(warnings, "Saved Living Library sources", supabase.from("user_saved_living_sources").select("id, source_id, source_name, source_url, category, saved_at, notes").eq("user_id", userId).order("saved_at", { ascending: false }).limit(200), []),
@@ -611,8 +615,10 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
     safeQuery<BadgeAwardRow[]>(warnings, "User badges", supabase.from("user_badges").select("badge_key, awarded_at, award_reason, award_source, evidence_type, evidence_id, visibility, revoked_at").eq("user_id", userId).is("revoked_at", null), [])
   ]);
 
-  const avatarUrl = mediaRows.find((row) => row.media_type === "avatar")?.public_url;
-  const bannerUrl = mediaRows.find((row) => row.media_type === "banner")?.public_url;
+  const avatarMedia = mediaRows.find((row) => row.media_type === "avatar");
+  const bannerMedia = mediaRows.find((row) => row.media_type === "banner");
+  const avatarUrl = avatarMedia?.public_url;
+  const bannerUrl = bannerMedia?.public_url;
   const localOnboarding = readLocalStorage<{ completed?: boolean; completedAt?: string }>(commonsStorageKeys.onboarding, {});
   const profileQualifiesForFreeMember = Boolean(profile && (profile.commons_onboarding_completed_at || localOnboarding.completed));
   let badgeAwards: BadgeAwardRow[] = [...awarded];
@@ -629,7 +635,14 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
         : [{ badge_key: "free_member", awarded_at: profile?.commons_onboarding_completed_at ?? localOnboarding.completedAt ?? new Date().toISOString(), award_source: "local_fallback", visibility: "public" }, ...badgeAwards];
     }
   }
-  const customization = normalizeProfileCustomization({ ...defaultCustomization, ...(customizationRows[0] ?? {}), avatar_url: avatarUrl ?? (profile?.avatar_url || null), banner_url: bannerUrl ?? customizationRows[0]?.banner_url ?? null });
+  const customization = normalizeProfileCustomization({
+    ...defaultCustomization,
+    ...(customizationRows[0] ?? {}),
+    avatar_url: avatarUrl ?? (profile?.avatar_url || null),
+    banner_url: bannerUrl ?? customizationRows[0]?.banner_url ?? null,
+    avatar_media_id: avatarMedia?.id ?? customizationRows[0]?.avatar_media_id ?? null,
+    banner_media_id: bannerMedia?.id ?? customizationRows[0]?.banner_media_id ?? null,
+  });
   const collectionSourceIds = collectionItems.reduce<Record<string, string[]>>((collections, item) => ({
     ...collections,
     [item.collection_id]: [...(collections[item.collection_id] ?? []), item.source_id]
@@ -872,16 +885,30 @@ export async function saveCustomization(settings: ProfileCustomization): Promise
   return error ? [friendlyBackendMessage("Profile customization", error.message)] : [];
 }
 
-export async function uploadProfileMedia(file: File, mediaType: "avatar" | "banner"): Promise<{ publicUrl?: string; warnings: string[] }> {
+function safeFileSuffix(fileName: string) {
+  const suffix = fileName
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(-80);
+  return suffix || "profile-image";
+}
+
+function safeStorageObjectId() {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+export async function uploadProfileMedia(file: File, mediaType: "avatar" | "banner"): Promise<{ publicUrl?: string; mediaId?: string | null; warnings: string[] }> {
   if (!supabase) return { warnings: [supabaseNotConfiguredMessage] };
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return { warnings: ["Sign in before uploading profile media."] };
   const allowed = ["image/png", "image/jpeg", "image/webp"];
   if (!allowed.includes(file.type)) return { warnings: ["Avatar and banner uploads must be PNG, JPG, JPEG, or WebP."] };
   if (file.size > 5 * 1024 * 1024) return { warnings: ["Avatar and banner uploads must be 5 MB or smaller."] };
-  const ext = file.name.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
   const bucket = mediaType === "avatar" ? "profile-avatars" : "profile-banners";
-  const storagePath = `${auth.user.id}/${mediaType}-${Date.now()}.${ext}`;
+  const folder = mediaType === "avatar" ? "avatars" : "banners";
+  const storagePath = `${auth.user.id}/${folder}/${safeStorageObjectId()}-${safeFileSuffix(file.name)}`;
   const upload = await supabase.storage.from(bucket).upload(storagePath, file, { upsert: true, contentType: file.type });
   if (upload.error) return { warnings: [friendlyBackendMessage("Profile media", upload.error.message)] };
   const { data } = supabase.storage.from(bucket).getPublicUrl(storagePath);
@@ -889,9 +916,9 @@ export async function uploadProfileMedia(file: File, mediaType: "avatar" | "bann
   const previous = await supabase.from("profile_media").update({ status: "hidden" }).eq("user_id", auth.user.id).eq("media_type", mediaType).eq("status", "active");
   if (previous.error) logBackendDetail("Profile media replacement", previous.error.message);
   const { data: mediaRow, error } = await supabase.from("profile_media").insert({ user_id: auth.user.id, media_type: mediaType, bucket, storage_path: storagePath, public_url: publicUrl, status: "active" }).select("id").single();
+  const mediaId = (mediaRow as { id?: string } | null)?.id ?? null;
   const warnings = error ? [friendlyBackendMessage("Profile media", error.message)] : [];
   if (!error) {
-    const mediaId = (mediaRow as { id?: string } | null)?.id ?? null;
     const customizationPatch = {
       [mediaType === "avatar" ? "avatar_media_id" : "banner_media_id"]: mediaId,
       updated_at: new Date().toISOString()
@@ -903,7 +930,7 @@ export async function uploadProfileMedia(file: File, mediaType: "avatar" | "bann
       if (profileResult.error) warnings.push(friendlyBackendMessage("Commons Profile avatar", profileResult.error.message));
     }
   }
-  return { publicUrl, warnings };
+  return { publicUrl, mediaId, warnings };
 }
 
 export async function removeProfileMedia(mediaType: "avatar" | "banner"): Promise<string[]> {
@@ -1078,7 +1105,7 @@ export async function loadPublicCommonsProfile(username: string): Promise<{ data
     safeQuery<Array<{ organization?: string | null; headline?: string | null; featured_public_links?: unknown }>>(warnings, "Public profile fields", supabase.from("profiles").select("organization, headline, featured_public_links").eq("id", profileRow.id).limit(1), []),
     safeQuery<VisibilitySettings[]>(warnings, "Public visibility", supabase.from("profile_visibility_settings").select("*").eq("user_id", profileRow.id).limit(1), []),
     safeQuery<ProfileCustomization[]>(warnings, "Public customization", supabase.from("profile_customization").select("*").eq("user_id", profileRow.id).limit(1), []),
-    safeQuery<Array<{ media_type: string; public_url?: string | null; created_at?: string | null }>>(warnings, "Public profile media", supabase.from("profile_media").select("media_type, public_url, created_at").eq("user_id", profileRow.id).eq("status", "active").order("created_at", { ascending: false }), []),
+    safeQuery<Array<{ id?: string | null; media_type: string; public_url?: string | null; created_at?: string | null }>>(warnings, "Public profile media", supabase.from("profile_media").select("id, media_type, public_url, created_at").eq("user_id", profileRow.id).eq("status", "active").order("created_at", { ascending: false }), []),
     safeQuery<BadgeDefinition[]>(warnings, "Public badges", supabase.from("badge_definitions").select("badge_key, name, description, badge_type, icon_path, category, rarity, sort_order, authority_linked, award_mode, rule_summary, is_manual_only, is_active").eq("is_active", true).order("sort_order", { ascending: true }), plannedBadges),
     safeQuery<BadgeAwardRow[]>(warnings, "Public user badges", supabase.from("user_badges").select("badge_key, awarded_at, award_reason, award_source, evidence_type, evidence_id, visibility, revoked_at").eq("user_id", profileRow.id).eq("visibility", "public").is("revoked_at", null), []),
     safeQuery<Array<{ id: string; title: string; description?: string | null; visibility: string; created_at?: string | null }>>(warnings, "Public collections", supabase.from("user_source_collections").select("id, title, description, visibility, created_at").eq("user_id", profileRow.id).eq("visibility", "public").limit(12), []),
@@ -1086,8 +1113,10 @@ export async function loadPublicCommonsProfile(username: string): Promise<{ data
     safeQuery<PublicCommuneCommentPreview[]>(warnings, "Public Commune comments", supabase.from("commune_comments").select("id, post_id, parent_comment_id, body, published_at, created_at").eq("user_id", profileRow.id).eq("status", "published").eq("visibility_state", "published").order("published_at", { ascending: false }).limit(6), [])
   ]);
   const { data: auth } = await supabase.auth.getUser();
-  const avatarUrl = mediaRows.find((row) => row.media_type === "avatar")?.public_url;
-  const bannerUrl = mediaRows.find((row) => row.media_type === "banner")?.public_url;
+  const avatarMedia = mediaRows.find((row) => row.media_type === "avatar");
+  const bannerMedia = mediaRows.find((row) => row.media_type === "banner");
+  const avatarUrl = avatarMedia?.public_url;
+  const bannerUrl = bannerMedia?.public_url;
   const visibility = { ...defaultVisibility, ...(visibilityRows[0] ?? {}) };
   const publicFields = publicFieldRows[0] ?? {};
   const publicProfileRow = {
@@ -1100,7 +1129,14 @@ export async function loadPublicCommonsProfile(username: string): Promise<{ data
     data: {
       profile: publicProfileRow,
       visibility,
-      customization: normalizeProfileCustomization({ ...defaultCustomization, ...(customizationRows[0] ?? {}), avatar_url: avatarUrl ?? profileRow.avatar_url ?? null, banner_url: bannerUrl ?? null }),
+      customization: normalizeProfileCustomization({
+        ...defaultCustomization,
+        ...(customizationRows[0] ?? {}),
+        avatar_url: avatarUrl ?? profileRow.avatar_url ?? null,
+        banner_url: bannerUrl ?? null,
+        avatar_media_id: avatarMedia?.id ?? customizationRows[0]?.avatar_media_id ?? null,
+        banner_media_id: bannerMedia?.id ?? customizationRows[0]?.banner_media_id ?? null,
+      }),
       badges: visibility.show_badges ? mergeBadges(definitions.length ? definitions : plannedBadges, awarded).filter((badge) => badge.visibility === "public") : [],
       publicCollections: visibility.show_source_collections ? collections.map((collection) => ({ ...collection, source_count: 0 })) : [],
       publicLinks: safePublicLinks(publicProfileRow.featured_public_links),

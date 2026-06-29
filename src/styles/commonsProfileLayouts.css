@@ -5,14 +5,108 @@
   --profile-layout-radius: 22px;
   --profile-layout-card-pad: 1.05rem;
   --profile-layout-avatar-size: clamp(4.5rem, 9vw, 7.5rem);
-  --profile-layout-card-bg: linear-gradient(135deg, rgba(5, 11, 15, 0.74), rgba(11, 21, 28, 0.5));
-  --profile-layout-card-line: rgba(183, 239, 230, 0.19);
-  --profile-layout-card-glow: 0 24px 68px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --commons-theme-surface: linear-gradient(135deg, rgba(5, 11, 15, 0.74), rgba(11, 21, 28, 0.5));
+  --commons-theme-surface-strong: linear-gradient(135deg, rgba(4, 10, 14, 0.82), rgba(10, 25, 32, 0.58));
+  --commons-theme-surface-soft: linear-gradient(135deg, rgba(5, 11, 15, 0.52), rgba(14, 27, 33, 0.34));
+  --commons-theme-muted: rgba(219, 238, 236, 0.78);
+  --commons-theme-eyebrow: var(--gold);
+  --commons-theme-chip-bg: color-mix(in srgb, var(--commons-accent) 16%, rgba(3, 10, 15, 0.72));
+  --commons-theme-chip-text: rgba(241, 255, 252, 0.92);
+  --commons-theme-notice-bg: linear-gradient(135deg, rgba(22, 19, 10, 0.62), rgba(8, 16, 17, 0.5));
+  --commons-theme-notice-border: rgba(216, 182, 111, 0.3);
+  --commons-theme-button-bg: linear-gradient(135deg, rgba(10, 24, 26, 0.8), rgba(9, 15, 20, 0.72));
+  --commons-theme-avatar-bg: radial-gradient(circle at 40% 30%, color-mix(in srgb, var(--commons-accent) 34%, rgba(255,255,255,.1)), transparent 60%), rgba(3, 10, 15, .82);
+  --commons-theme-shadow: 0 24px 68px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --profile-layout-card-bg: var(--commons-theme-surface);
+  --profile-layout-card-line: color-mix(in srgb, var(--commons-accent) 24%, rgba(183, 239, 230, 0.16));
+  --profile-layout-card-glow: var(--commons-theme-shadow);
   position: relative;
   z-index: 1;
   display: grid;
   gap: var(--profile-layout-gap);
   min-width: 0;
+}
+
+.commons-homebase.commons-theme-deep_grove .commons-profile-layout {
+  --commons-theme-surface: linear-gradient(135deg, rgba(5, 22, 16, 0.76), rgba(8, 38, 28, 0.5));
+  --commons-theme-surface-strong: linear-gradient(135deg, rgba(4, 18, 13, 0.86), rgba(12, 48, 34, 0.62));
+  --commons-theme-surface-soft: linear-gradient(135deg, rgba(4, 18, 13, 0.48), rgba(11, 39, 28, 0.32));
+  --commons-theme-muted: rgba(221, 246, 229, 0.8);
+  --commons-theme-eyebrow: #bfe7bf;
+  --commons-theme-chip-bg: rgba(36, 91, 61, 0.44);
+  --commons-theme-notice-bg: linear-gradient(135deg, rgba(25, 42, 21, 0.62), rgba(6, 19, 13, 0.5));
+  --commons-theme-notice-border: rgba(151, 220, 157, 0.3);
+  --commons-theme-button-bg: linear-gradient(135deg, rgba(20, 64, 43, 0.74), rgba(6, 22, 16, 0.72));
+  --commons-theme-avatar-bg: radial-gradient(circle at 38% 28%, rgba(114, 226, 152, 0.34), transparent 58%), rgba(4, 20, 13, 0.84);
+  --commons-theme-shadow: 0 24px 68px rgba(0, 0, 0, 0.26), 0 0 42px rgba(58, 164, 101, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.commons-homebase.commons-theme-starlit_archive .commons-profile-layout {
+  --commons-theme-surface: linear-gradient(135deg, rgba(7, 12, 25, 0.76), rgba(15, 26, 47, 0.5));
+  --commons-theme-surface-strong: linear-gradient(135deg, rgba(5, 10, 22, 0.86), rgba(17, 29, 55, 0.62));
+  --commons-theme-surface-soft: linear-gradient(135deg, rgba(7, 12, 25, 0.48), rgba(14, 24, 43, 0.32));
+  --commons-theme-muted: rgba(222, 231, 249, 0.8);
+  --commons-theme-eyebrow: #d6dff6;
+  --commons-theme-chip-bg: rgba(66, 83, 132, 0.42);
+  --commons-theme-notice-bg: linear-gradient(135deg, rgba(31, 34, 57, 0.62), rgba(7, 12, 25, 0.5));
+  --commons-theme-notice-border: rgba(167, 184, 231, 0.28);
+  --commons-theme-button-bg: linear-gradient(135deg, rgba(33, 45, 86, 0.72), rgba(8, 14, 28, 0.72));
+  --commons-theme-avatar-bg: radial-gradient(circle at 42% 26%, rgba(164, 181, 244, 0.32), transparent 58%), rgba(5, 10, 22, 0.84);
+}
+
+.commons-homebase.commons-theme-solar_meadow .commons-profile-layout {
+  --commons-theme-surface: linear-gradient(135deg, rgba(29, 22, 8, 0.74), rgba(54, 43, 14, 0.48));
+  --commons-theme-surface-strong: linear-gradient(135deg, rgba(25, 18, 6, 0.86), rgba(65, 50, 13, 0.6));
+  --commons-theme-surface-soft: linear-gradient(135deg, rgba(27, 20, 8, 0.46), rgba(57, 44, 16, 0.3));
+  --commons-theme-muted: rgba(250, 237, 201, 0.82);
+  --commons-theme-eyebrow: #f2cf75;
+  --commons-theme-chip-bg: rgba(123, 91, 30, 0.42);
+  --commons-theme-notice-bg: linear-gradient(135deg, rgba(74, 51, 13, 0.56), rgba(23, 19, 7, 0.5));
+  --commons-theme-notice-border: rgba(245, 205, 102, 0.34);
+  --commons-theme-button-bg: linear-gradient(135deg, rgba(92, 68, 24, 0.7), rgba(23, 19, 7, 0.72));
+  --commons-theme-avatar-bg: radial-gradient(circle at 42% 28%, rgba(245, 205, 102, 0.34), transparent 58%), rgba(24, 19, 7, 0.84);
+}
+
+.commons-homebase.commons-theme-moonlit_reef .commons-profile-layout {
+  --commons-theme-surface: linear-gradient(135deg, rgba(5, 16, 28, 0.76), rgba(9, 38, 56, 0.5));
+  --commons-theme-surface-strong: linear-gradient(135deg, rgba(4, 14, 26, 0.86), rgba(12, 47, 68, 0.62));
+  --commons-theme-surface-soft: linear-gradient(135deg, rgba(5, 16, 28, 0.48), rgba(11, 39, 58, 0.32));
+  --commons-theme-muted: rgba(221, 238, 255, 0.8);
+  --commons-theme-eyebrow: #aeeaf3;
+  --commons-theme-chip-bg: rgba(35, 91, 115, 0.42);
+  --commons-theme-notice-bg: linear-gradient(135deg, rgba(14, 48, 62, 0.58), rgba(5, 16, 28, 0.5));
+  --commons-theme-notice-border: rgba(141, 238, 220, 0.3);
+  --commons-theme-button-bg: linear-gradient(135deg, rgba(22, 68, 91, 0.72), rgba(5, 16, 28, 0.72));
+  --commons-theme-avatar-bg: radial-gradient(circle at 42% 28%, rgba(120, 192, 255, 0.34), transparent 58%), rgba(5, 15, 26, 0.84);
+}
+
+.commons-homebase.commons-theme-aether_blue .commons-profile-layout {
+  --commons-theme-surface: linear-gradient(135deg, rgba(6, 14, 33, 0.76), rgba(18, 35, 75, 0.5));
+  --commons-theme-surface-strong: linear-gradient(135deg, rgba(5, 12, 29, 0.86), rgba(22, 43, 91, 0.62));
+  --commons-theme-surface-soft: linear-gradient(135deg, rgba(6, 14, 33, 0.48), rgba(17, 33, 68, 0.32));
+  --commons-theme-muted: rgba(225, 232, 255, 0.82);
+  --commons-theme-eyebrow: #bacaff;
+  --commons-theme-chip-bg: rgba(58, 80, 151, 0.42);
+  --commons-theme-notice-bg: linear-gradient(135deg, rgba(26, 44, 93, 0.58), rgba(6, 14, 33, 0.5));
+  --commons-theme-notice-border: rgba(139, 174, 255, 0.3);
+  --commons-theme-button-bg: linear-gradient(135deg, rgba(35, 61, 127, 0.72), rgba(6, 14, 33, 0.72));
+  --commons-theme-avatar-bg: radial-gradient(circle at 42% 28%, rgba(139, 174, 255, 0.34), transparent 58%), rgba(6, 14, 33, 0.84);
+}
+
+.commons-homebase.commons-theme-high_contrast .commons-profile-layout {
+  --commons-theme-surface: linear-gradient(135deg, rgba(0, 0, 0, 0.86), rgba(7, 9, 11, 0.66));
+  --commons-theme-surface-strong: linear-gradient(135deg, rgba(0, 0, 0, 0.94), rgba(9, 11, 13, 0.8));
+  --commons-theme-surface-soft: linear-gradient(135deg, rgba(0, 0, 0, 0.62), rgba(7, 9, 11, 0.44));
+  --commons-theme-muted: rgba(255, 255, 255, 0.88);
+  --commons-theme-eyebrow: #ffffff;
+  --commons-theme-chip-bg: rgba(255, 255, 255, 0.12);
+  --commons-theme-chip-text: #ffffff;
+  --commons-theme-notice-bg: linear-gradient(135deg, rgba(0, 0, 0, 0.72), rgba(12, 12, 12, 0.62));
+  --commons-theme-notice-border: color-mix(in srgb, var(--commons-accent) 62%, white);
+  --commons-theme-button-bg: linear-gradient(135deg, rgba(0, 0, 0, 0.86), rgba(17, 17, 17, 0.78));
+  --commons-theme-avatar-bg: radial-gradient(circle at 42% 28%, rgba(255, 255, 255, 0.22), transparent 58%), rgba(0, 0, 0, 0.88);
+  --profile-layout-card-line: color-mix(in srgb, var(--commons-accent) 58%, white);
+  --commons-theme-shadow: 0 24px 68px rgba(0, 0, 0, 0.34), inset 0 0 0 1px color-mix(in srgb, var(--commons-accent) 34%, transparent);
 }
 
 .commons-profile-layout--public {
@@ -70,13 +164,13 @@
 .commons-profile-layout .commons-public-section-card--empty {
   min-height: auto;
   padding-block: calc(var(--profile-layout-card-pad) * 0.72);
-  background: linear-gradient(135deg, rgba(5, 11, 15, 0.52), rgba(14, 27, 33, 0.34));
+  background: var(--commons-theme-surface-soft);
 }
 
 .commons-profile-layout .commons-public-section-card__eyebrow,
 .commons-profile-layout .commons-public-contribution-card__type,
 .commons-profile-layout .commons-profile-summary-card__handle {
-  color: var(--gold);
+  color: var(--commons-theme-eyebrow);
   font-size: 0.72rem;
   font-weight: 900;
   letter-spacing: 0.12em;
@@ -109,18 +203,25 @@
   border-radius: calc(var(--profile-layout-radius) - 4px);
   background:
     radial-gradient(circle at 18% 18%, rgba(255, 255, 255, 0.12), transparent 12rem),
-    linear-gradient(135deg, rgba(4, 10, 14, 0.6), rgba(10, 25, 32, 0.36));
+    var(--commons-theme-surface-strong);
   padding: clamp(1rem, 3vw, 1.45rem);
 }
 
+.commons-profile-layout .commons-profile-summary-card .commons-profile-banner-layer,
 .commons-profile-layout .commons-profile-summary-card .commons-public-banner {
   position: absolute;
   inset: 0;
+  z-index: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0.36;
-  filter: saturate(0.9) brightness(0.74);
+  object-position: center;
+  opacity: 0.68;
+  filter: saturate(1.04) contrast(0.98) brightness(0.72);
+}
+
+.commons-profile-layout .commons-profile-summary-card.has-public-banner {
+  background: rgba(3, 10, 15, 0.46);
 }
 
 .commons-profile-layout .commons-profile-summary-card::after {
@@ -140,6 +241,7 @@
 .commons-profile-layout .commons-profile-summary-card__avatar .commons-avatar {
   width: var(--profile-layout-avatar-size);
   height: var(--profile-layout-avatar-size);
+  background: var(--commons-theme-avatar-bg);
 }
 
 .commons-profile-layout .commons-profile-summary-card__body {
@@ -172,8 +274,21 @@
 .commons-profile-layout .commons-public-contribution-card,
 .commons-profile-layout .commons-preview-card {
   border-color: rgba(183, 239, 230, 0.16);
-  background: linear-gradient(145deg, rgba(3, 8, 12, 0.62), rgba(13, 24, 31, 0.4));
+  background: var(--commons-theme-surface-soft);
   backdrop-filter: blur(10px);
+}
+
+.commons-profile-layout .commons-customization-badges span,
+.commons-profile-layout .commons-decal-chip,
+.commons-profile-layout--preview .commons-public-badge-list span {
+  background: var(--commons-theme-chip-bg);
+  color: var(--commons-theme-chip-text);
+  border-color: color-mix(in srgb, var(--commons-accent) 32%, rgba(255, 255, 255, 0.18));
+}
+
+.commons-profile-layout .commons-empty-state,
+.commons-profile-layout .boundary-note {
+  color: var(--commons-theme-muted);
 }
 
 .commons-profile-layout--classic-homebase {

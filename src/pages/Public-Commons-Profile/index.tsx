@@ -127,7 +127,7 @@ export default function PublicCommonsProfilePage() {
           <section className="commons-profile-slot commons-profile-slot--summary">
             <article className="section-card commons-homebase-hero commons-public-room-hero commons-public-section commons-public-card-glass commons-profile-summary-shell">
               <div className={`commons-profile-summary-card commons-profile-mantle commons-public-profile-mantle${customization.banner_url ? " has-public-banner" : ""}`}>
-                {customization.banner_url && <img className="commons-public-banner" src={customization.banner_url} alt="" aria-hidden="true" loading="lazy" />}
+                {customization.banner_url && <img className="commons-public-banner commons-profile-banner-layer" src={customization.banner_url} alt="" aria-hidden="true" loading="lazy" />}
                 <div className="commons-profile-summary-card__avatar">
                   <CommonsAvatarViewer src={customization.avatar_url} alt="Public Commons avatar" fallback={(profile.display_name || profile.username).slice(0, 1).toUpperCase()} viewLabel="View full public Commons profile picture" />
                 </div>

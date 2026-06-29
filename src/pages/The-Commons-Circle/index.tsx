@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
@@ -126,12 +126,14 @@ export default function CommonsCirclePage() {
   const [visibilityDraft, setVisibilityDraft] = useState<VisibilitySettings>(defaultVisibility);
   const [customizationDraft, setCustomizationDraft] = useState<ProfileCustomization>(defaultCustomization);
   const [savedCustomization, setSavedCustomization] = useState<ProfileCustomization>(defaultCustomization);
+  const [mediaStatus, setMediaStatus] = useState<string | null>(null);
   const [notificationDraft, setNotificationDraft] = useState<NotificationPreferences>(defaultNotificationPreferences);
   const [syncChoice, setSyncChoice] = useState(() => readLocalStorage<{ choice?: string }>(commonsStorageKeys.syncChoice, {}));
   const [onboardingDone, setOnboardingDone] = useState<OnboardingState>(() => readLocalStorage(commonsStorageKeys.onboarding, { skippedStewardship: false, welcomed: false }));
   const [verificationDrafts, setVerificationDrafts] = useState<StewardshipDraft[]>(() => readLocalStorage(commonsStorageKeys.stewardshipDrafts, []));
   const [contributionRequests, setContributionRequests] = useState<unknown[]>(() => readLocalStorage(commonsStorageKeys.contributionRequests, []));
   const [roleState, setRoleState] = useState<{ roles: AppRole[]; isAdmin: boolean; signedIn: boolean; warnings: string[] }>({ roles: [], isAdmin: false, signedIn: false, warnings: [] });
+  const localMediaPreviewUrls = useRef<Record<"avatar" | "banner", string | null>>({ avatar: null, banner: null });
 
   const pushMessage = useCallback((message: string) => {
     if (message.trim()) setMessages((current) => [message, ...current].slice(0, 6));
@@ -160,6 +162,14 @@ export default function CommonsCirclePage() {
   }, [refreshLocalCounts]);
 
   useEffect(() => { void refreshHomebase(); }, [refreshHomebase]);
+
+  useEffect(() => {
+    return () => {
+      Object.values(localMediaPreviewUrls.current).forEach((url) => {
+        if (url) URL.revokeObjectURL(url);
+      });
+    };
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -272,29 +282,66 @@ export default function CommonsCirclePage() {
     await refreshHomebase();
   }
 
+  function revokeLocalPreview(mediaType: "avatar" | "banner") {
+    const localPreviewUrl = localMediaPreviewUrls.current[mediaType];
+    if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl);
+    localMediaPreviewUrls.current[mediaType] = null;
+  }
+
   async function handleProfileMedia(file: File | null, mediaType: "avatar" | "banner") {
     if (!file) return;
+    const label = mediaType === "avatar" ? "Avatar" : "Banner";
+    const urlKey = mediaType === "avatar" ? "avatar_url" : "banner_url";
+    const idKey = mediaType === "avatar" ? "avatar_media_id" : "banner_media_id";
+
+    revokeLocalPreview(mediaType);
+    const localPreviewUrl = URL.createObjectURL(file);
+    localMediaPreviewUrls.current[mediaType] = localPreviewUrl;
+    setMediaStatus(`${label} selected. Uploading ${mediaType}...`);
+    setCustomizationDraft((current) => ({ ...current, [urlKey]: localPreviewUrl, [idKey]: null }));
+
     const result = await uploadProfileMedia(file, mediaType);
-    polishedActionMessages("profile-media", result.warnings, "Public profile media upload is not active yet. No file was published.").forEach(pushMessage);
-    if (result.publicUrl) {
-      const nextDraft = { ...customizationDraft, [mediaType === "avatar" ? "avatar_url" : "banner_url"]: result.publicUrl };
-      setCustomizationDraft(nextDraft);
-      setSavedCustomization((current) => ({ ...current, [mediaType === "avatar" ? "avatar_url" : "banner_url"]: result.publicUrl }));
-      pushMessage(`${mediaType === "avatar" ? "Avatar" : "Banner"} uploaded as public profile media. Private files still never use this bucket.`);
+    const visibleMessages = polishedActionMessages("profile-media", result.warnings, `${label} upload is not active yet. The selected image is only previewing in this browser.`);
+
+    if (result.publicUrl && result.mediaId) {
+      revokeLocalPreview(mediaType);
+      const mediaPatch = { [urlKey]: result.publicUrl, [idKey]: result.mediaId ?? null };
+      const nextDraft = { ...customizationDraft, ...mediaPatch };
+      setCustomizationDraft((current) => ({ ...current, ...mediaPatch }));
+      setSavedCustomization((current) => ({ ...current, ...mediaPatch }));
+      setMediaStatus(visibleMessages.length ? `${label} updated, but account sync reported: ${visibleMessages[0]}` : `${label} updated.`);
+      visibleMessages.forEach(pushMessage);
+      pushMessage(`${label} uploaded as public profile media. Private files still never use this bucket.`);
       await refreshHomebase({ preserveCustomization: nextDraft });
+      return;
     }
+
+    setMediaStatus(visibleMessages[0] ?? `${label} upload did not finish. The selected image is only previewing in this browser.`);
+    visibleMessages.forEach(pushMessage);
   }
 
   async function handleRemoveProfileMedia(mediaType: "avatar" | "banner") {
+    const label = mediaType === "avatar" ? "Avatar" : "Banner";
+    const urlKey = mediaType === "avatar" ? "avatar_url" : "banner_url";
+    const idKey = mediaType === "avatar" ? "avatar_media_id" : "banner_media_id";
+    setMediaStatus(`Removing ${mediaType}...`);
     const warnings = await removeProfileMedia(mediaType);
-    polishedActionMessages("profile-media-remove", warnings, "Public profile media removal is not active yet.").forEach(pushMessage);
+    const visibleMessages = polishedActionMessages("profile-media-remove", warnings, `${label} removal is not active yet.`);
+    visibleMessages.forEach(pushMessage);
+
     if (!warnings.length) {
-      const nextDraft = { ...customizationDraft, [mediaType === "avatar" ? "avatar_url" : "banner_url"]: null };
-      setCustomizationDraft(nextDraft);
-      setSavedCustomization((current) => ({ ...current, [mediaType === "avatar" ? "avatar_url" : "banner_url"]: null }));
-      pushMessage(`${mediaType === "avatar" ? "Avatar" : "Banner"} removed from public profile display. Initials fallback remains available.`);
+      revokeLocalPreview(mediaType);
+      const mediaPatch = { [urlKey]: null, [idKey]: null };
+      const nextDraft = { ...customizationDraft, ...mediaPatch };
+      setCustomizationDraft((current) => ({ ...current, ...mediaPatch }));
+      setSavedCustomization((current) => ({ ...current, ...mediaPatch }));
+      setMediaStatus(`${label} removed.`);
+      pushMessage(`${label} removed from public profile display. Initials and background fallback remain available.`);
       await refreshHomebase({ preserveCustomization: nextDraft });
+      return;
     }
+
+    setMediaStatus(`${label} removal failed: ${visibleMessages[0] ?? "Account storage is unavailable."}`);
   }
 
   return (
@@ -342,7 +389,8 @@ export default function CommonsCirclePage() {
       </section>
 
       <section className="section-card commons-homebase-hero">
-        <div className="commons-profile-mantle" style={savedCustomization.banner_url ? { backgroundImage: `linear-gradient(135deg, rgba(10, 20, 22, .35), rgba(18, 44, 48, .4)), url(${savedCustomization.banner_url})` } : undefined}>
+        <div className={`commons-profile-mantle${savedCustomization.banner_url ? " has-public-banner" : ""}`}>
+          {savedCustomization.banner_url && <img className="commons-public-banner commons-profile-banner-layer" src={savedCustomization.banner_url} alt="" aria-hidden="true" loading="lazy" />}
           <CommonsAvatarViewer src={savedCustomization.avatar_url} alt="Commons profile avatar" fallback={(profile?.display_name || profile?.username || "C").slice(0, 1).toUpperCase()} viewLabel="View full Commons profile picture" />
           <div>
             <p className="eyebrow">Private Account Homebase</p>
@@ -442,16 +490,18 @@ export default function CommonsCirclePage() {
           </div>
           <fieldset className="commons-decal-picker"><legend>Selected decorative markers</legend>{decalOptions.filter((decal) => decal !== "none").map((decal) => <label className="checkbox-line" key={decal}><input type="checkbox" checked={(customizationDraft.selected_decals ?? []).includes(decal)} onChange={() => toggleSelectedDecal(decal)} /><span>{formatDecalLabel(decal)}</span></label>)}</fieldset>
           <div className="commons-media-upload-row">
-            <label><span>Avatar upload</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleProfileMedia(event.target.files?.[0] ?? null, "avatar")} /></label>
-            <label><span>Banner upload</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleProfileMedia(event.target.files?.[0] ?? null, "banner")} /></label>
+            <label><span>Avatar upload</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { void handleProfileMedia(event.target.files?.[0] ?? null, "avatar"); event.currentTarget.value = ""; }} /></label>
+            <label><span>Banner upload</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { void handleProfileMedia(event.target.files?.[0] ?? null, "banner"); event.currentTarget.value = ""; }} /></label>
             <button type="button" onClick={() => void handleRemoveProfileMedia("avatar")} disabled={!savedCustomization.avatar_url && !customizationDraft.avatar_url}>Remove profile picture</button>
             <button type="button" onClick={() => void handleRemoveProfileMedia("banner")} disabled={!savedCustomization.banner_url && !customizationDraft.banner_url}>Remove banner</button>
           </div>
+          {mediaStatus && <p className="commons-media-status" aria-live="polite">{mediaStatus}</p>}
         </div>
         <CommonsBackgroundAtmosphere backgroundStyle={customizationDraft.background_style} accentColor={customizationDraft.accent_color} variant="preview" className={previewClasses}>
           <CommonsProfileLayoutFrame profileLayout={customizationDraft.profile_layout} variant="preview" className="commons-profile-preview-layout-frame">
             <section className="commons-profile-slot commons-profile-slot--summary">
-              <div className="commons-profile-summary-card commons-profile-summary-card--preview commons-profile-mantle" style={customizationDraft.banner_url ? { backgroundImage: `linear-gradient(135deg, rgba(10, 20, 22, .35), rgba(18, 44, 48, .4)), url(${customizationDraft.banner_url})` } : undefined}>
+              <div className={`commons-profile-summary-card commons-profile-summary-card--preview commons-profile-mantle${customizationDraft.banner_url ? " has-public-banner" : ""}`}>
+                {customizationDraft.banner_url && <img className="commons-public-banner commons-profile-banner-layer" src={customizationDraft.banner_url} alt="" aria-hidden="true" loading="lazy" />}
                 <div className="commons-profile-summary-card__avatar">
                   <CommonsAvatarViewer src={customizationDraft.avatar_url} alt="Draft Commons profile avatar preview" fallback={(profile?.display_name || profile?.username || "C").slice(0, 1).toUpperCase()} viewLabel="View full draft Commons profile picture" />
                 </div>
