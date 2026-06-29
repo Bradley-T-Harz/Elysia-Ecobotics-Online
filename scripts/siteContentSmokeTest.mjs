@@ -4,6 +4,15 @@ async function read(file) {
   return fs.readFile(new URL(`../${file}`, import.meta.url), "utf8");
 }
 
+async function exists(file) {
+  try {
+    await fs.access(new URL(`../${file}`, import.meta.url));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function assert(condition, message) {
   if (!condition) {
     console.error(message);
@@ -36,6 +45,9 @@ const legalIndex = await read("src/pages/Legal/index.tsx");
 const legalPolicies = await read("src/pages/Legal/legalPolicyPages.ts");
 const archive = await read("src/pages/The-Elysia-Archive/index.tsx");
 const styles = await read("src/styles.css");
+const commonsBackgroundCatalog = await read("src/shared/commonsBackgroundStyles.ts");
+const commonsBackgroundAtmosphere = await read("src/shared/components/CommonsBackgroundAtmosphere.tsx");
+const commonsBackgroundCss = await read("src/styles/commonsBackgrounds.css");
 const pageHero = await read("src/shared/components/PageHero.tsx");
 const pageBrandMark = await read("src/shared/components/PageBrandMark.tsx");
 const homeMain = await read("src/pages/Elysia-Ecobotics-Online-MainPage/index.tsx");
@@ -83,6 +95,30 @@ assert(homeMain.includes('variant="home-floating"'), "Homepage should use the fl
 assert(marketplaceHome.includes("marketplace-hero-side") && marketplaceHome.includes('variant="marketplace-column"'), "Marketplace should place the page mark with the right-side status column.");
 assert(missionPage.includes('brandMark="mission-centered"'), "Mission page should use the centered ceremonial brand mark placement.");
 assert(styles.includes('font-family: "Cormorant Garamond"') && styles.includes("font-family: Verdana") && styles.includes(".page-brand-mark--standard") && styles.includes(".page-brand-mark--home-floating") && styles.includes(".page-brand-mark--marketplace-column") && styles.includes(".page-brand-mark--mission-centered"), "Page brand mark typography and placement styles missing.");
+assert(styles.includes('@import "./styles/commonsBackgrounds.css";'), "Global styles should import Commons background atmosphere styles.");
+const commonsBackgroundOptions = [
+  ["soft_cyber_garden", "Soft Cyber Garden", "commons-background--soft-cyber-garden", "src/assets/commons/backgrounds/soft-cyber-garden-overlay.svg"],
+  ["starfield_mantle", "Starfield Mantle", "commons-background--starfield-mantle", ""],
+  ["living_archive", "Living Archive", "commons-background--living-archive", "src/assets/commons/backgrounds/living-archive-overlay.svg"],
+  ["clear_lantern", "Clear Lantern", "commons-background--clear-lantern", ""],
+  ["mycelium_glow", "Mycelium Glow", "commons-background--mycelium-glow", "src/assets/commons/backgrounds/mycelium-glow-overlay.svg"],
+  ["watershed_mist", "Watershed Mist", "commons-background--watershed-mist", "src/assets/commons/backgrounds/watershed-mist-overlay.svg"],
+  ["aurora_canopy", "Aurora Canopy", "commons-background--aurora-canopy", "src/assets/commons/backgrounds/aurora-canopy-overlay.png"],
+  ["solar_restoration", "Solar Restoration", "commons-background--solar-restoration", "src/assets/commons/backgrounds/solar-restoration-overlay.svg"],
+  ["obsidian_laboratory", "Obsidian Laboratory", "commons-background--obsidian-laboratory", ""],
+  ["field_notebook", "Field Notebook", "commons-background--field-notebook", "src/assets/commons/backgrounds/field-notebook-contours.svg"]
+];
+for (const [key, label, className, assetPath] of commonsBackgroundOptions) {
+  assert(commonsBackgroundCatalog.includes(`"${key}"`), `Commons background catalog missing key: ${key}`);
+  assert(commonsBackgroundCatalog.includes(`label: "${label}"`), `Commons background catalog missing display label: ${label}`);
+  assert(commonsBackgroundCatalog.includes(`className: "${className}"`), `Commons background catalog missing class for ${key}.`);
+  assert(commonsBackgroundCss.includes(`.${className}`), `Commons background CSS missing style class: ${className}`);
+  if (assetPath) assert(await exists(assetPath), `Commons background asset missing: ${assetPath}`);
+}
+assert(commonsBackgroundCatalog.includes('DEFAULT_COMMONS_BACKGROUND_STYLE') && commonsBackgroundCatalog.includes('"soft_cyber_garden"') && commonsBackgroundCatalog.includes("normalizeCommonsBackgroundStyle"), "Commons background catalog should normalize invalid values to Soft Cyber Garden.");
+assert(commonsBackgroundAtmosphere.includes("commons-atmosphere__base") && commonsBackgroundAtmosphere.includes("commons-atmosphere__texture") && commonsBackgroundAtmosphere.includes("commons-atmosphere__motif") && commonsBackgroundAtmosphere.includes("commons-atmosphere__glow") && commonsBackgroundAtmosphere.includes("data-commons-background-style"), "Commons background atmosphere component should render layered decorative background elements.");
+assert(commonsBackgroundCss.includes("aurora-canopy-overlay.png"), "Aurora Canopy should use the repo-local generated PNG overlay.");
+assert(!/url\(\s*["']?https?:\/\//i.test(commonsBackgroundCss), "Commons background CSS must not use remote background assets.");
 assert(productsPage.includes('title="Elysia Ecobotics Products"'), "Products page title should remain Elysia Ecobotics Products.");
 assert(productsPage.includes("Physical products from Elysia Ecobotics will appear here only when they are ready, tested, repairable, and honestly documented"), "Products page should keep broad future physical-products boundary copy.");
 assert(productsPage.includes("Environmental robotics") && productsPage.includes("sensing tools") && productsPage.includes("repairable") && productsPage.includes("field-support"), "Products page should use broad environmental robotics, sensing, repairable hardware, and field-support language.");
@@ -176,15 +212,19 @@ assert(commons.includes("Remove profile picture") && commons.includes("Avatar an
 assert(commons.includes("Unsaved preview. Press Save customization") && commons.includes("Saved customization is live on your public profile"), "Commons Circle customization should clearly distinguish unsaved preview from saved public profile styling.");
 assert(commons.includes("Avatar and banner media update immediately when selected") && commons.includes("Decorative markers are public visual labels"), "Commons Circle customization should honestly distinguish immediate media uploads from limited decorative markers.");
 assert(commons.includes("customizationClass(savedCustomization)") && commons.includes("customizationClass(customizationDraft)") && commons.includes("commons-customization-preview"), "Commons Circle live homebase should use saved customization while draft changes render in a bounded preview.");
+assert(commons.includes("COMMONS_BACKGROUND_STYLES.map") && commons.includes("style.label") && commons.includes("normalizeCommonsBackgroundStyle(customizationDraft.background_style)"), "Commons Circle Background style dropdown should use shared labels and normalized values.");
+assert(commons.includes("CommonsBackgroundAtmosphere") && commons.includes('variant="preview"') && commons.includes("getCommonsBackgroundStyleOption(customizationDraft.background_style).label"), "Commons Circle customization preview should use the shared atmosphere component and readable background labels.");
 assert(commons.includes("Revert preview") && commons.includes("setCustomizationDraft(savedCustomization)"), "Commons Circle customization should let users discard unsaved preview changes.");
 assert(publicProfile.includes("CommonsAvatarViewer") && commons.includes("CommonsAvatarViewer") && commonsSetup.includes("CommonsAvatarViewer"), "Commons avatar viewer should be wired into public profile, homebase, and setup preview.");
 assert(commonsAvatarViewer.includes('role="dialog"') && commonsAvatarViewer.includes('aria-modal="true"') && commonsAvatarViewer.includes("Escape") && commonsAvatarViewer.includes("commons-avatar-lightbox-image"), "Commons avatar viewer should provide a keyboard-closeable full-image lightbox.");
 assert(publicProfile.includes("safeAccentColor") && publicProfile.includes("--commons-accent"), "Public Commons profile should sanitize and apply the saved accent color.");
 assert(publicProfile.includes("data-commons-theme") && publicProfile.includes("data-commons-background") && publicProfile.includes("data-commons-layout"), "Public Commons profile should expose saved theme/background/layout presentation markers.");
+assert(publicProfile.includes("CommonsBackgroundAtmosphere") && publicProfile.includes('variant="public"') && publicProfile.includes("normalizeCommonsBackgroundStyle(customization.background_style)") && publicProfile.includes("getCommonsBackgroundStyleOption(backgroundStyle).label"), "Public Commons profile should use the shared background atmosphere and readable background labels.");
 assert(publicProfile.includes("commons-public-banner") && publicProfile.includes("customization.banner_url"), "Public Commons profile should render an uploaded public banner when active.");
 assert(publicProfile.includes("commons-public-profile-mantle") && publicProfile.includes("commons-public-room-hero"), "Public Commons profile should render saved customization in the main public room hero.");
 assert(publicProfile.includes("commons-customization-badges"), "Public Commons profile should visibly summarize selected presentation settings.");
 assert(commonsApi.includes("Public customization") && commonsApi.includes("Public profile media") && commonsApi.includes('eq("status", "active")'), "Public profile loader should load safe customization and active public media only.");
+assert(commonsApi.includes("DEFAULT_COMMONS_BACKGROUND_STYLE") && commonsApi.includes("normalizeCommonsBackgroundStyle(settings.background_style)") && commonsApi.includes("normalizeProfileCustomization"), "Commons Circle API should save/load normalized Background style values.");
 assert(styles.includes(".commons-public-banner") && styles.includes("object-fit: cover"), "Public Commons profile banner styling should render active banners safely.");
 assert(styles.includes(".commons-public-profile.commons-layout-compact_archive") && styles.includes(".commons-public-profile.commons-layout-garden_shelves"), "Public Commons profile layout choices should visibly affect the rendered profile.");
 assert(styles.includes(".commons-public-profile.commons-theme-high_contrast") && styles.includes(".commons-public-profile.commons-background-soft_cyber_garden"), "Public Commons profile should visibly apply saved theme and background variants.");

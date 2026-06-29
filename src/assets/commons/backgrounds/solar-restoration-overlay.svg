@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1200" viewBox="0 0 1440 1200" fill="none">
+  <defs>
+    <linearGradient id="sunBeam" x1="124" y1="0" x2="1040" y2="1200" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffe09b" stop-opacity=".22"/>
+      <stop offset=".45" stop-color="#ffe09b" stop-opacity=".06"/>
+      <stop offset="1" stop-color="#77ffb0" stop-opacity="0"/>
+    </linearGradient>
+    <pattern id="pollen" width="92" height="92" patternUnits="userSpaceOnUse">
+      <circle cx="12" cy="24" r="1.1" fill="#ffe28a" opacity=".16"/>
+      <circle cx="70" cy="62" r="1.6" fill="#fff0b8" opacity=".11"/>
+      <circle cx="40" cy="18" r=".85" fill="#93ffb6" opacity=".08"/>
+    </pattern>
+  </defs>
+  <rect width="1440" height="1200" fill="url(#pollen)" opacity=".85"/>
+  <path d="M0 0H430L956 1200H526L0 0Z" fill="url(#sunBeam)" opacity=".58"/>
+  <path d="M244 0H510L1110 1200H876L244 0Z" fill="url(#sunBeam)" opacity=".25"/>
+  <g stroke="#f8df90" stroke-opacity=".22" stroke-width="1.25" stroke-linecap="round">
+    <path d="M82 1140C154 1016 150 892 214 760C256 676 256 604 218 526"/>
+    <path d="M246 1160C310 1032 292 896 372 754C428 656 454 566 424 466"/>
+    <path d="M1186 1160C1126 1018 1168 858 1078 720C1018 626 982 544 1008 438"/>
+    <path d="M1328 1144C1246 1014 1234 868 1166 768C1110 686 1094 594 1138 496"/>
+    <path d="M722 1122C788 978 826 852 804 704C790 610 824 530 884 456"/>
+  </g>
+  <g stroke="#a9f2a8" stroke-opacity=".12" stroke-width="1">
+    <path d="M118 924C254 884 414 912 552 984C732 1078 912 1070 1108 956C1206 900 1304 884 1408 902"/>
+    <path d="M74 1012C264 966 430 1014 620 1084C826 1160 996 1128 1194 1038"/>
+  </g>
+  <g fill="#ffe28a" opacity=".18">
+    <circle cx="214" cy="760" r="2.5"/>
+    <circle cx="372" cy="754" r="2.3"/>
+    <circle cx="1078" cy="720" r="2.6"/>
+    <circle cx="804" cy="704" r="2.2"/>
+    <circle cx="1138" cy="496" r="2.1"/>
+  </g>
+</svg>

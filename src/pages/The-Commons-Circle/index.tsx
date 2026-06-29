@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
+import { COMMONS_BACKGROUND_STYLES, getCommonsBackgroundStyleOption, normalizeCommonsBackgroundStyle } from "../../shared/commonsBackgroundStyles";
+import CommonsBackgroundAtmosphere from "../../shared/components/CommonsBackgroundAtmosphere";
 import CommonsAvatarViewer from "../../shared/components/CommonsAvatarViewer";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
@@ -41,7 +43,6 @@ const membershipTiers = [
 ];
 
 const themeModes = ["deep_grove", "starlit_archive", "solar_meadow", "moonlit_reef", "aether_blue", "high_contrast"];
-const backgroundStyleOptions = ["soft_cyber_garden", "starfield_mantle", "living_archive", "clear_lantern"];
 const decalOptions = ["none", "leaf_glyph", "water_ripple", "star_map", "mushroom_badge", "circuit_vine", "pollinator", "wetland_reed", "moon_crest", "robotic_seed"];
 function BadgeRow({ labels }: { labels: string[] }) {
   return <div className="commons-badge-row">{labels.filter(Boolean).map((label) => <span key={label}>{label}</span>)}</div>;
@@ -73,7 +74,7 @@ function classToken(value: string | null | undefined, fallback: string) {
 }
 
 function customizationClass(settings: ProfileCustomization) {
-  return `commons-theme-${classToken(settings.theme_mode, "starlit_archive")} commons-background-${classToken(settings.background_style, "soft_cyber_garden")} commons-layout-${classToken(settings.profile_layout, "classic_homebase")}`;
+  return `commons-theme-${classToken(settings.theme_mode, "starlit_archive")} commons-background-${classToken(normalizeCommonsBackgroundStyle(settings.background_style), "soft_cyber_garden")} commons-layout-${classToken(settings.profile_layout, "classic_homebase")}`;
 }
 
 function formatDecalLabel(value: string) {
@@ -89,7 +90,7 @@ function styleSignature(settings: ProfileCustomization) {
   return JSON.stringify({
     theme_mode: settings.theme_mode || defaultCustomization.theme_mode,
     accent_color: settings.accent_color || defaultCustomization.accent_color,
-    background_style: settings.background_style || defaultCustomization.background_style,
+    background_style: normalizeCommonsBackgroundStyle(settings.background_style),
     decal_set: settings.decal_set || defaultCustomization.decal_set,
     selected_decals: [...(settings.selected_decals ?? [])].sort(),
     profile_layout: settings.profile_layout || defaultCustomization.profile_layout
@@ -185,7 +186,6 @@ export default function CommonsCirclePage() {
   const troubleshootingSignalCount = homebase?.notifications.filter((notice) => /troubleshooting|fix_proposed|resolution/i.test(`${notice.notification_type ?? ""} ${notice.source_type ?? ""}`)).length ?? 0;
   const homeStyle = { "--commons-accent": savedCustomization.accent_color || "#8ee8dc" } as CSSProperties;
   const homebaseClasses = `page-stack commons-circle-page commons-homebase ${customizationClass(savedCustomization)}`;
-  const previewStyle = { "--commons-accent": customizationDraft.accent_color || "#8ee8dc" } as CSSProperties;
   const previewClasses = `commons-customization-preview commons-homebase ${customizationClass(customizationDraft)}`;
   const hasUnsavedCustomization = styleSignature(customizationDraft) !== styleSignature(savedCustomization);
   const earnedBadges = useMemo(() => {
@@ -209,7 +209,8 @@ export default function CommonsCirclePage() {
   }
 
   function updateCustomizationDraft(patch: Partial<ProfileCustomization>) {
-    setCustomizationDraft((current) => ({ ...current, ...patch }));
+    const normalizedPatch = patch.background_style === undefined ? patch : { ...patch, background_style: normalizeCommonsBackgroundStyle(patch.background_style) };
+    setCustomizationDraft((current) => ({ ...current, ...normalizedPatch }));
   }
 
   function toggleSelectedDecal(decal: string) {
@@ -225,7 +226,7 @@ export default function CommonsCirclePage() {
   }
 
   async function saveProfileRoom() {
-    const savedDraft = { ...customizationDraft };
+    const savedDraft = { ...customizationDraft, background_style: normalizeCommonsBackgroundStyle(customizationDraft.background_style) };
     if (!homebase?.signedIn) {
       writeLocalStorage("commonsCircle.customizationDemo.v1", savedDraft);
       setSavedCustomization(savedDraft);
@@ -425,7 +426,7 @@ export default function CommonsCirclePage() {
           <div className="commons-studio-controls">
             <label><span>Theme mode</span><select value={customizationDraft.theme_mode} onChange={(event) => updateCustomizationDraft({ theme_mode: event.target.value })}>{themeModes.map((theme) => <option key={theme} value={theme}>{theme}</option>)}</select></label>
             <label><span>Accent color</span><input type="color" value={customizationDraft.accent_color} onChange={(event) => updateCustomizationDraft({ accent_color: event.target.value })} /></label>
-            <label><span>Background style</span><select value={customizationDraft.background_style} onChange={(event) => updateCustomizationDraft({ background_style: event.target.value })}>{backgroundStyleOptions.map((style) => <option key={style} value={style}>{style}</option>)}</select></label>
+            <label><span>Background style</span><select value={normalizeCommonsBackgroundStyle(customizationDraft.background_style)} onChange={(event) => updateCustomizationDraft({ background_style: event.target.value })}>{COMMONS_BACKGROUND_STYLES.map((style) => <option key={style.key} value={style.key}>{style.label}</option>)}</select></label>
             <label><span>Decorative marker set</span><select value={customizationDraft.decal_set} onChange={(event) => updateCustomizationDraft({ decal_set: event.target.value })}>{decalOptions.map((decal) => <option key={decal} value={decal}>{decal}</option>)}</select></label>
             <label><span>Profile layout</span><select value={customizationDraft.profile_layout} onChange={(event) => updateCustomizationDraft({ profile_layout: event.target.value })}><option value="classic_homebase">classic_homebase</option><option value="compact_archive">compact_archive</option><option value="garden_shelves">garden_shelves</option></select></label>
           </div>
@@ -437,19 +438,19 @@ export default function CommonsCirclePage() {
             <button type="button" onClick={() => void handleRemoveProfileMedia("banner")} disabled={!savedCustomization.banner_url && !customizationDraft.banner_url}>Remove banner</button>
           </div>
         </div>
-        <div className={previewClasses} style={previewStyle} aria-label="Bounded public profile room preview">
+        <CommonsBackgroundAtmosphere backgroundStyle={customizationDraft.background_style} accentColor={customizationDraft.accent_color} variant="preview" className={previewClasses}>
           <div className="commons-profile-mantle" style={customizationDraft.banner_url ? { backgroundImage: `linear-gradient(135deg, rgba(10, 20, 22, .35), rgba(18, 44, 48, .4)), url(${customizationDraft.banner_url})` } : undefined}>
             <CommonsAvatarViewer src={customizationDraft.avatar_url} alt="Draft Commons profile avatar preview" fallback={(profile?.display_name || profile?.username || "C").slice(0, 1).toUpperCase()} viewLabel="View full draft Commons profile picture" />
             <div>
               <p className="eyebrow">Public profile room preview</p>
               <h3>{profile?.display_name || profile?.username || "Website member"}</h3>
               <p>{profile?.username ? `@${profile.username}` : "Draft Commons Profile"}</p>
-              <div className="commons-customization-badges" aria-label="Draft public profile presentation settings"><span>{formatDecalLabel(customizationDraft.theme_mode || "starlit_archive")}</span><span>{formatDecalLabel(customizationDraft.background_style || "soft_cyber_garden")}</span><span>{formatDecalLabel(customizationDraft.profile_layout || "classic_homebase")}</span></div>
+              <div className="commons-customization-badges" aria-label="Draft public profile presentation settings"><span>{formatDecalLabel(customizationDraft.theme_mode || "starlit_archive")}</span><span>{getCommonsBackgroundStyleOption(customizationDraft.background_style).label}</span><span>{formatDecalLabel(customizationDraft.profile_layout || "classic_homebase")}</span></div>
             </div>
           </div>
           <DecalStrip settings={customizationDraft} />
           <p className="commons-empty-state">This preview is local until Save customization publishes these style choices to your public profile.</p>
-        </div>
+        </CommonsBackgroundAtmosphere>
         <p className="commons-empty-state">Decorative markers are public visual labels, not badges, rank, authority, or role claims.</p>
         <div className="button-row"><button className="button-primary" type="button" onClick={() => void saveProfileRoom()} disabled={!hasUnsavedCustomization}>Save customization</button>{hasUnsavedCustomization && <button type="button" onClick={revertCustomizationPreview}>Revert preview</button>}<span className="commons-empty-state">{hasUnsavedCustomization ? "Unsaved preview active" : "No unsaved style changes"}</span></div>
       </section>

@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1200" viewBox="0 0 1440 1200" fill="none">
+  <defs>
+    <radialGradient id="nodeGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#c6fff0" stop-opacity=".75"/>
+      <stop offset=".55" stop-color="#74f2cc" stop-opacity=".18"/>
+      <stop offset="1" stop-color="#74f2cc" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="vineStroke" x1="130" y1="1090" x2="1290" y2="70" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#6ff5c9" stop-opacity=".08"/>
+      <stop offset=".48" stop-color="#bbfff0" stop-opacity=".36"/>
+      <stop offset="1" stop-color="#68d9ff" stop-opacity=".1"/>
+    </linearGradient>
+    <pattern id="seedGrid" width="96" height="96" patternUnits="userSpaceOnUse">
+      <circle cx="12" cy="18" r="1.2" fill="#b7efe6" opacity=".12"/>
+      <circle cx="72" cy="64" r="1.6" fill="#8ee8dc" opacity=".09"/>
+      <path d="M0 48H96M48 0V96" stroke="#b7efe6" stroke-opacity=".035" stroke-width="1"/>
+    </pattern>
+  </defs>
+  <rect width="1440" height="1200" fill="url(#seedGrid)" opacity=".8"/>
+  <g stroke="url(#vineStroke)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M78 1112C184 972 154 792 298 686C427 591 502 665 624 532C746 399 754 237 916 148C1039 80 1138 112 1320 32"/>
+    <path d="M216 1008C302 924 286 814 374 740C450 676 534 696 596 622"/>
+    <path d="M610 550C652 498 692 488 758 496L808 452H882"/>
+    <path d="M888 158C930 216 994 236 1068 218C1132 202 1164 164 1218 170"/>
+    <path d="M120 246C270 276 356 240 472 164C558 108 652 106 728 136"/>
+    <path d="M1048 978C972 872 984 754 1076 684C1168 614 1226 646 1352 560"/>
+  </g>
+  <g stroke="#b7efe6" stroke-opacity=".16" stroke-width="1.1" stroke-linecap="round">
+    <path d="M102 1058h52v-36h34v-42h58"/>
+    <path d="M734 494v-52h42v-46h62"/>
+    <path d="M1086 680h54v-38h44v-58h72"/>
+    <path d="M468 164v64h52v46h82"/>
+    <path d="M1208 170v44h48v40h72"/>
+  </g>
+  <g fill="url(#nodeGlow)">
+    <circle cx="298" cy="686" r="18"/>
+    <circle cx="624" cy="532" r="22"/>
+    <circle cx="916" cy="148" r="20"/>
+    <circle cx="596" cy="622" r="14"/>
+    <circle cx="808" cy="452" r="15"/>
+    <circle cx="1076" cy="684" r="17"/>
+    <circle cx="472" cy="164" r="16"/>
+  </g>
+  <g fill="#b7efe6" opacity=".18">
+    <ellipse cx="132" cy="1036" rx="18" ry="6" transform="rotate(-28 132 1036)"/>
+    <ellipse cx="674" cy="504" rx="20" ry="6" transform="rotate(-18 674 504)"/>
+    <ellipse cx="1110" cy="660" rx="18" ry="6" transform="rotate(24 1110 660)"/>
+    <ellipse cx="496" cy="190" rx="15" ry="5" transform="rotate(31 496 190)"/>
+  </g>
+</svg>

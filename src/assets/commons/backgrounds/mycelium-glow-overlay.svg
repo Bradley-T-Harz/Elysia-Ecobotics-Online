@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1400" viewBox="0 0 1440 1400" fill="none">
+  <defs>
+    <radialGradient id="myceliumNode" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#fff0b8" stop-opacity=".8"/>
+      <stop offset=".45" stop-color="#e8d89b" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#e8d89b" stop-opacity="0"/>
+    </radialGradient>
+    <pattern id="soilGrain" width="80" height="80" patternUnits="userSpaceOnUse">
+      <circle cx="12" cy="18" r=".9" fill="#f2ddb0" opacity=".08"/>
+      <circle cx="42" cy="54" r=".75" fill="#a6ffd5" opacity=".055"/>
+      <circle cx="70" cy="28" r="1.1" fill="#f9e0a2" opacity=".065"/>
+    </pattern>
+  </defs>
+  <rect width="1440" height="1400" fill="url(#soilGrain)" opacity=".9"/>
+  <g stroke="#f5dfaa" stroke-opacity=".23" stroke-width="1.15" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M74 1160C212 1048 302 962 470 936C638 910 708 818 812 686C934 532 1080 468 1336 382"/>
+    <path d="M470 936C420 840 314 794 174 754"/>
+    <path d="M552 918C596 794 562 704 492 620C430 546 414 474 466 382"/>
+    <path d="M812 686C920 718 1010 796 1118 914C1186 988 1260 1026 1364 1046"/>
+    <path d="M760 748C736 858 794 958 924 1052C1016 1118 1058 1194 1048 1308"/>
+    <path d="M192 1244C338 1190 504 1180 636 1248C792 1328 906 1322 1058 1240"/>
+  </g>
+  <g stroke="#a9ffd8" stroke-opacity=".11" stroke-width=".9" stroke-linecap="round">
+    <path d="M204 1028C280 1008 316 966 342 900"/>
+    <path d="M320 790C396 774 454 738 496 676"/>
+    <path d="M910 574C962 584 1018 560 1060 514"/>
+    <path d="M1038 844C1112 826 1160 782 1196 718"/>
+    <path d="M928 1054C870 1088 812 1144 794 1224"/>
+  </g>
+  <g fill="url(#myceliumNode)">
+    <circle cx="470" cy="936" r="24"/>
+    <circle cx="812" cy="686" r="28"/>
+    <circle cx="1118" cy="914" r="22"/>
+    <circle cx="492" cy="620" r="18"/>
+    <circle cx="924" cy="1052" r="20"/>
+    <circle cx="342" cy="900" r="16"/>
+    <circle cx="1060" cy="514" r="17"/>
+  </g>
+  <g fill="#fff0b8" opacity=".18">
+    <circle cx="174" cy="754" r="2"/>
+    <circle cx="466" cy="382" r="2.4"/>
+    <circle cx="1336" cy="382" r="2.1"/>
+    <circle cx="1364" cy="1046" r="2.2"/>
+    <circle cx="1048" cy="1308" r="2.6"/>
+    <circle cx="636" cy="1248" r="2.2"/>
+  </g>
+</svg>

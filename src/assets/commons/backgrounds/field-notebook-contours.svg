@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="1300" viewBox="0 0 1440 1300" fill="none">
+  <defs>
+    <pattern id="notebookGrid" width="84" height="84" patternUnits="userSpaceOnUse">
+      <path d="M0 42H84M42 0V84" stroke="#efe0b2" stroke-opacity=".055"/>
+      <path d="M0 21H84M21 0V84" stroke="#efe0b2" stroke-opacity=".025"/>
+    </pattern>
+  </defs>
+  <rect width="1440" height="1300" fill="url(#notebookGrid)" opacity=".95"/>
+  <g stroke="#efe0b2" stroke-opacity=".2" stroke-width="1.2" stroke-linecap="round">
+    <path d="M80 238C244 154 390 184 518 282C650 384 780 404 916 314C1036 234 1194 194 1360 274"/>
+    <path d="M52 350C240 258 418 288 562 398C720 518 860 510 1012 404C1140 314 1266 314 1402 380"/>
+    <path d="M116 680C264 594 438 626 604 736C764 842 918 842 1084 730C1198 654 1302 640 1416 690"/>
+    <path d="M76 806C258 728 448 772 640 890C820 1000 978 976 1160 842C1254 774 1354 758 1424 806"/>
+    <path d="M168 1088C340 1002 516 1042 680 1136C842 1230 1028 1226 1248 1098"/>
+  </g>
+  <g stroke="#99ead6" stroke-opacity=".1" stroke-width="1" stroke-linecap="round">
+    <path d="M224 508H438"/>
+    <path d="M224 536H386"/>
+    <path d="M224 564H470"/>
+    <path d="M1092 168H1278"/>
+    <path d="M1092 196H1218"/>
+    <path d="M104 1166H324"/>
+    <path d="M104 1194H278"/>
+  </g>
+  <g stroke="#efe0b2" stroke-opacity=".16" stroke-width="1">
+    <path d="M168 132h92v28h-92z"/>
+    <path d="M1186 964h128v34h-128z"/>
+    <path d="M824 100h170"/>
+    <path d="M824 126h112"/>
+    <path d="M1014 100v84"/>
+    <path d="M118 930v84M94 972h84"/>
+  </g>
+</svg>

@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 import { useParams } from "react-router-dom";
+import { getCommonsBackgroundStyleOption, normalizeCommonsBackgroundStyle } from "../../shared/commonsBackgroundStyles";
+import CommonsBackgroundAtmosphere from "../../shared/components/CommonsBackgroundAtmosphere";
 import CommonsAvatarViewer from "../../shared/components/CommonsAvatarViewer";
 import PageHero from "../../shared/components/PageHero";
 import { loadPublicCommonsProfile } from "../The-Commons-Circle/commonsCircleApi";
@@ -31,7 +33,7 @@ function classToken(value: string | null | undefined, fallback: string) {
 }
 
 function customizationClass(settings: PublicCustomizationView) {
-  return `commons-theme-${classToken(settings.theme_mode, "starlit_archive")} commons-background-${classToken(settings.background_style, "soft_cyber_garden")} commons-layout-${classToken(settings.profile_layout, "classic_homebase")}`;
+  return `commons-theme-${classToken(settings.theme_mode, "starlit_archive")} commons-background-${classToken(normalizeCommonsBackgroundStyle(settings.background_style), "soft_cyber_garden")} commons-layout-${classToken(settings.profile_layout, "classic_homebase")}`;
 }
 
 function formatDecalLabel(value: string) {
@@ -102,21 +104,23 @@ export default function PublicCommonsProfilePage() {
 
   const { profile, visibility, customization, badges, publicCollections, publicLinks, publicCommunePosts, publicCommuneComments, isOwner } = profileData;
   const accentColor = safeAccentColor(customization.accent_color);
+  const backgroundStyle = normalizeCommonsBackgroundStyle(customization.background_style);
   const style = { "--commons-accent": accentColor } as CSSProperties;
   const profileClasses = `page-stack commons-public-profile commons-homebase ${customizationClass(customization)}`;
   const visibleName = visibility.show_display_name ? profile.display_name || profile.username : `@${profile.username}`;
   if (import.meta.env.DEV && warnings.length) console.warn("[Public Commons Profile]", warnings);
 
   return (
-    <div className={profileClasses} style={style} data-commons-theme={customization.theme_mode || "starlit_archive"} data-commons-background={customization.background_style || "soft_cyber_garden"} data-commons-layout={customization.profile_layout || "classic_homebase"}>
+    <div className={profileClasses} style={style} data-commons-theme={customization.theme_mode || "starlit_archive"} data-commons-background={backgroundStyle} data-commons-layout={customization.profile_layout || "classic_homebase"}>
       <PageHero eyebrow="Public Commons Profile" title={visibleName}>
         <p>This is a public Commons Circle profile. It does not expose private account email, private requests, saved shelves, local Elysia data, files, logs, vaults, credentials, or machine data.</p>
       </PageHero>
+      <CommonsBackgroundAtmosphere backgroundStyle={backgroundStyle} accentColor={accentColor} variant="public" className="commons-public-profile-atmosphere">
       <section className="section-card commons-homebase-hero commons-public-room-hero">
         <div className={`commons-profile-mantle commons-public-profile-mantle${customization.banner_url ? " has-public-banner" : ""}`}>
           {customization.banner_url && <img className="commons-public-banner" src={customization.banner_url} alt="" aria-hidden="true" loading="lazy" />}
           <CommonsAvatarViewer src={customization.avatar_url} alt="Public Commons avatar" fallback={(profile.display_name || profile.username).slice(0, 1).toUpperCase()} viewLabel="View full public Commons profile picture" />
-          <div className="commons-public-profile-title"><p className="eyebrow">@{profile.username}</p><h2>{visibleName}</h2>{profile.headline && <p>{profile.headline}</p>}<div className="commons-customization-badges" aria-label="Public profile presentation settings"><span>{formatDecalLabel(customization.theme_mode || "starlit_archive")}</span><span>{formatDecalLabel(customization.background_style || "soft_cyber_garden")}</span><span>{formatDecalLabel(customization.profile_layout || "classic_homebase")}</span></div></div>
+          <div className="commons-public-profile-title"><p className="eyebrow">@{profile.username}</p><h2>{visibleName}</h2>{profile.headline && <p>{profile.headline}</p>}<div className="commons-customization-badges" aria-label="Public profile presentation settings"><span>{formatDecalLabel(customization.theme_mode || "starlit_archive")}</span><span>{getCommonsBackgroundStyleOption(backgroundStyle).label}</span><span>{formatDecalLabel(customization.profile_layout || "classic_homebase")}</span></div></div>
         </div>
         <DecalStrip settings={customization} />
         {isOwner && <div className="button-row"><a className="button-link button-link--primary" href="/commons-circle">Edit in Commons Circle</a></div>}
@@ -147,6 +151,7 @@ export default function PublicCommonsProfilePage() {
       {visibility.show_source_collections && <section className="section-card commons-shelves"><p className="eyebrow">Public source collections</p><h2>Collections this member chose to show</h2>{publicCollections.length ? <div className="commons-shelf-grid">{publicCollections.map((collection) => <article className="commons-preview-card" key={collection.id || collection.title}><h3>{collection.title}</h3><p>{collection.description || "Public source collection"}</p><span>{collection.source_count} sources · {collection.visibility}</span></article>)}</div> : <p>No public collections are visible.</p>}</section>}
 
       {visibility.show_commune_posts && <section className="section-card commons-shelves"><p className="eyebrow">Public Commune contributions</p><h2>Published posts and comments</h2>{publicCommunePosts.length || publicCommuneComments.length ? <div className="commons-shelf-grid">{publicCommunePosts.map((post) => <article className="commons-preview-card" key={post.id}><h3>{post.title}</h3><p>{post.excerpt || post.post_type || "Published Commune post"}</p><a className="button-link" href={`/commune/posts/${post.id}`}>Read post</a></article>)}{publicCommuneComments.map((comment) => <article className="commons-preview-card" key={comment.id}><h3>{comment.parent_comment_id ? "Published reply" : "Published comment"}</h3><p>{previewText(comment.body)}</p><a className="button-link" href={`/commune/posts/${comment.post_id}`}>Open thread</a></article>)}</div> : <p>No public Commune contributions are visible yet.</p>}</section>}
+      </CommonsBackgroundAtmosphere>
     </div>
   );
 }

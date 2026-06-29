@@ -3,6 +3,7 @@ import type { LivingLibrarySource } from "../The-Living-Library/livingLibrarySou
 import type { FeaturedPublicLink, MarketplaceProfile } from "../The-Elysia-Marketplace/types";
 import { loadCurrentProfile } from "../The-Elysia-Marketplace/lib/marketplaceApi";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
+import { DEFAULT_COMMONS_BACKGROUND_STYLE, normalizeCommonsBackgroundStyle } from "../../shared/commonsBackgroundStyles";
 import { canReviewDomain, loadCurrentRoleState } from "../../shared/review/reviewClient";
 
 export type ProfileWithSetup = MarketplaceProfile & {
@@ -306,13 +307,17 @@ export const defaultVisibility: VisibilitySettings = {
 export const defaultCustomization: ProfileCustomization = {
   theme_mode: "starlit_archive",
   accent_color: "#8ee8dc",
-  background_style: "soft_cyber_garden",
+  background_style: DEFAULT_COMMONS_BACKGROUND_STYLE,
   avatar_url: null,
   banner_url: null,
   decal_set: "none",
   selected_decals: [],
   profile_layout: "classic_homebase"
 };
+
+function normalizeProfileCustomization(settings: ProfileCustomization): ProfileCustomization {
+  return { ...settings, background_style: normalizeCommonsBackgroundStyle(settings.background_style) };
+}
 
 export const defaultNotificationPreferences: NotificationPreferences = {
   commune_replies: true,
@@ -615,7 +620,7 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
         : [{ badge_key: "free_member", awarded_at: profile?.commons_onboarding_completed_at ?? localOnboarding.completedAt ?? new Date().toISOString(), award_source: "local_fallback", visibility: "public" }, ...badgeAwards];
     }
   }
-  const customization = { ...defaultCustomization, ...(customizationRows[0] ?? {}), avatar_url: avatarUrl ?? (profile?.avatar_url || null), banner_url: bannerUrl ?? customizationRows[0]?.banner_url ?? null };
+  const customization = normalizeProfileCustomization({ ...defaultCustomization, ...(customizationRows[0] ?? {}), avatar_url: avatarUrl ?? (profile?.avatar_url || null), banner_url: bannerUrl ?? customizationRows[0]?.banner_url ?? null });
   const collectionSourceIds = collectionItems.reduce<Record<string, string[]>>((collections, item) => ({
     ...collections,
     [item.collection_id]: [...(collections[item.collection_id] ?? []), item.source_id]
@@ -848,7 +853,7 @@ export async function saveCustomization(settings: ProfileCustomization): Promise
     user_id: auth.user.id,
     theme_mode: settings.theme_mode,
     accent_color: settings.accent_color,
-    background_style: settings.background_style,
+    background_style: normalizeCommonsBackgroundStyle(settings.background_style),
     decal_set: settings.decal_set,
     selected_decals: settings.selected_decals,
     profile_layout: settings.profile_layout,
@@ -1086,7 +1091,7 @@ export async function loadPublicCommonsProfile(username: string): Promise<{ data
     data: {
       profile: publicProfileRow,
       visibility,
-      customization: { ...defaultCustomization, ...(customizationRows[0] ?? {}), avatar_url: avatarUrl ?? profileRow.avatar_url ?? null, banner_url: bannerUrl ?? null },
+      customization: normalizeProfileCustomization({ ...defaultCustomization, ...(customizationRows[0] ?? {}), avatar_url: avatarUrl ?? profileRow.avatar_url ?? null, banner_url: bannerUrl ?? null }),
       badges: visibility.show_badges ? mergeBadges(definitions.length ? definitions : plannedBadges, awarded).filter((badge) => badge.visibility === "public") : [],
       publicCollections: visibility.show_source_collections ? collections.map((collection) => ({ ...collection, source_count: 0 })) : [],
       publicLinks: safePublicLinks(publicProfileRow.featured_public_links),

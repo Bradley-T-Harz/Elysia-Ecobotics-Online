@@ -1,0 +1,384 @@
+/* Commons Background Styles: layered atmosphere presets for profile rooms only. */
+
+.commons-atmosphere {
+  --commons-accent: #8ee8dc;
+  --commons-bg-border: color-mix(in srgb, var(--commons-accent) 32%, rgba(255, 255, 255, 0.16));
+  --commons-bg-panel: rgba(4, 11, 17, 0.72);
+  --commons-bg-panel-strong: rgba(4, 11, 17, 0.86);
+  --commons-bg-text-shadow: 0 2px 18px rgba(0, 0, 0, 0.56);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid var(--commons-bg-border);
+  border-radius: 24px;
+  background: #071015;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.025) inset, 0 28px 80px rgba(0, 0, 0, 0.32);
+}
+
+.commons-atmosphere__base,
+.commons-atmosphere__texture,
+.commons-atmosphere__motif,
+.commons-atmosphere__glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.commons-atmosphere__base { opacity: 1; }
+.commons-atmosphere__texture { opacity: 0.34; mix-blend-mode: screen; }
+.commons-atmosphere__motif {
+  opacity: 0.28;
+  background-position: center top;
+  background-repeat: repeat-y;
+  background-size: cover;
+}
+.commons-atmosphere__glow { opacity: 0.68; mix-blend-mode: screen; }
+.commons-atmosphere__content {
+  position: relative;
+  z-index: 1;
+  text-shadow: var(--commons-bg-text-shadow);
+}
+
+.commons-atmosphere--preview {
+  min-height: 190px;
+  border-radius: 18px;
+}
+
+.commons-atmosphere--public {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  min-height: 420px;
+}
+
+.commons-atmosphere--public .commons-atmosphere__content {
+  display: grid;
+  gap: 1rem;
+}
+
+.commons-atmosphere--preview .commons-atmosphere__motif {
+  background-size: 140% auto;
+  background-position: center 38%;
+}
+
+.commons-atmosphere--preview .commons-atmosphere__texture { opacity: 0.28; }
+.commons-atmosphere--preview .commons-atmosphere__glow { opacity: 0.58; }
+
+.commons-public-profile .commons-atmosphere.commons-public-profile-atmosphere .section-card,
+.commons-public-profile .commons-atmosphere.commons-public-profile-atmosphere .commons-homebase-hero {
+  background:
+    radial-gradient(circle at 14% 0%, color-mix(in srgb, var(--commons-accent) 12%, transparent), transparent 24rem),
+    linear-gradient(180deg, rgba(8, 14, 20, 0.84), rgba(5, 9, 13, 0.76));
+  backdrop-filter: blur(12px);
+}
+
+.commons-atmosphere.commons-customization-preview {
+  padding: 0.85rem;
+  background: #071015;
+}
+
+.commons-atmosphere.commons-customization-preview .commons-atmosphere__content {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.commons-atmosphere .commons-profile-mantle,
+.commons-atmosphere .commons-decal-strip,
+.commons-atmosphere .commons-empty-state,
+.commons-atmosphere .button-row {
+  position: relative;
+  z-index: 1;
+}
+
+.commons-atmosphere .commons-profile-mantle {
+  background:
+    radial-gradient(circle at 15% 18%, color-mix(in srgb, var(--commons-accent) 18%, transparent), transparent 22rem),
+    linear-gradient(135deg, rgba(8, 18, 22, 0.72), rgba(9, 13, 21, 0.74));
+  border-color: color-mix(in srgb, var(--commons-accent) 28%, rgba(255, 255, 255, 0.14));
+  backdrop-filter: blur(10px);
+}
+
+.commons-background--soft-cyber-garden .commons-atmosphere__base {
+  background:
+    radial-gradient(circle at 15% 20%, rgba(84, 216, 178, 0.2), transparent 28rem),
+    radial-gradient(circle at 85% 8%, rgba(94, 167, 255, 0.13), transparent 30rem),
+    linear-gradient(145deg, #061315 0%, #071b20 48%, #0c101d 100%);
+}
+.commons-background--soft-cyber-garden .commons-atmosphere__texture {
+  background:
+    repeating-linear-gradient(90deg, rgba(141, 238, 221, 0.06) 0 1px, transparent 1px 76px),
+    repeating-linear-gradient(0deg, rgba(141, 238, 221, 0.035) 0 1px, transparent 1px 92px);
+}
+.commons-background--soft-cyber-garden .commons-atmosphere__motif {
+  background-image: url("../assets/commons/backgrounds/soft-cyber-garden-overlay.svg");
+  opacity: 0.34;
+}
+.commons-background--soft-cyber-garden .commons-atmosphere__glow {
+  background:
+    radial-gradient(circle at 72% 38%, color-mix(in srgb, var(--commons-accent) 20%, transparent), transparent 24rem),
+    linear-gradient(110deg, transparent 12%, rgba(109, 255, 211, 0.08), transparent 56%);
+}
+
+.commons-background--starfield-mantle .commons-atmosphere__base {
+  background:
+    radial-gradient(circle at 76% 12%, rgba(155, 178, 255, 0.19), transparent 23rem),
+    radial-gradient(circle at 22% 86%, rgba(87, 216, 210, 0.09), transparent 24rem),
+    linear-gradient(160deg, #050711 0%, #0b1023 52%, #03060d 100%);
+}
+.commons-background--starfield-mantle .commons-atmosphere__texture {
+  opacity: 0.52;
+  background:
+    radial-gradient(circle at 7% 19%, rgba(255, 255, 255, 0.76) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 17% 73%, rgba(210, 230, 255, 0.58) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 31% 27%, rgba(255, 255, 255, 0.42) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 43% 88%, rgba(174, 215, 255, 0.44) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 61% 16%, rgba(255, 255, 255, 0.62) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 73% 55%, rgba(205, 242, 255, 0.52) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 89% 31%, rgba(255, 255, 255, 0.48) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 96% 80%, rgba(160, 220, 255, 0.5) 0 1px, transparent 1.5px);
+}
+.commons-background--starfield-mantle .commons-atmosphere__motif {
+  opacity: 0.2;
+  background:
+    radial-gradient(ellipse at 72% 20%, transparent 44%, rgba(181, 211, 255, 0.22) 44.5%, transparent 45.4%),
+    radial-gradient(ellipse at 35% 64%, transparent 52%, rgba(132, 219, 231, 0.16) 52.5%, transparent 53.2%),
+    linear-gradient(125deg, transparent 36%, rgba(203, 224, 255, 0.13) 36.2%, transparent 36.7%),
+    linear-gradient(26deg, transparent 58%, rgba(203, 224, 255, 0.1) 58.2%, transparent 58.6%);
+}
+.commons-background--starfield-mantle .commons-atmosphere__glow {
+  background: radial-gradient(circle at 50% 16%, rgba(180, 202, 255, 0.17), transparent 26rem);
+}
+
+.commons-background--living-archive .commons-atmosphere__base {
+  background:
+    radial-gradient(circle at 12% 12%, rgba(215, 182, 111, 0.15), transparent 24rem),
+    radial-gradient(circle at 78% 82%, rgba(102, 146, 95, 0.16), transparent 26rem),
+    linear-gradient(145deg, #161106 0%, #211a10 45%, #0d1411 100%);
+}
+.commons-background--living-archive .commons-atmosphere__texture {
+  background:
+    repeating-linear-gradient(0deg, rgba(238, 210, 150, 0.07) 0 1px, transparent 1px 28px),
+    repeating-linear-gradient(90deg, rgba(238, 210, 150, 0.04) 0 1px, transparent 1px 130px);
+}
+.commons-background--living-archive .commons-atmosphere__motif {
+  background-image: url("../assets/commons/backgrounds/living-archive-overlay.svg");
+  opacity: 0.36;
+}
+.commons-background--living-archive .commons-atmosphere__glow {
+  background:
+    radial-gradient(circle at 23% 38%, rgba(216, 182, 111, 0.22), transparent 22rem),
+    linear-gradient(90deg, rgba(216, 182, 111, 0.09), transparent 50%);
+}
+
+.commons-background--clear-lantern .commons-atmosphere__base {
+  background:
+    radial-gradient(circle at 50% 36%, rgba(240, 255, 238, 0.2), transparent 21rem),
+    radial-gradient(circle at 50% 58%, rgba(124, 226, 203, 0.12), transparent 30rem),
+    linear-gradient(150deg, #081014 0%, #0b1518 50%, #070a0e 100%);
+}
+.commons-background--clear-lantern .commons-atmosphere__texture {
+  opacity: 0.18;
+  background:
+    radial-gradient(circle at 50% 30%, rgba(255, 255, 240, 0.36), transparent 2px),
+    repeating-radial-gradient(circle at 50% 42%, rgba(255, 255, 245, 0.08) 0 1px, transparent 1px 38px);
+}
+.commons-background--clear-lantern .commons-atmosphere__motif {
+  opacity: 0.15;
+  background:
+    linear-gradient(90deg, transparent, rgba(245, 255, 233, 0.13), transparent),
+    linear-gradient(0deg, transparent, rgba(143, 240, 212, 0.08), transparent);
+}
+.commons-background--clear-lantern .commons-atmosphere__glow {
+  background:
+    radial-gradient(ellipse at 50% 36%, rgba(247, 255, 228, 0.26), transparent 26rem),
+    radial-gradient(ellipse at 50% 86%, rgba(132, 235, 204, 0.12), transparent 28rem);
+}
+
+.commons-background--mycelium-glow .commons-atmosphere__base {
+  background:
+    radial-gradient(circle at 18% 82%, rgba(205, 171, 89, 0.16), transparent 26rem),
+    radial-gradient(circle at 86% 20%, rgba(96, 178, 117, 0.12), transparent 28rem),
+    linear-gradient(150deg, #100d08 0%, #15150c 52%, #07120d 100%);
+}
+.commons-background--mycelium-glow .commons-atmosphere__texture {
+  background:
+    radial-gradient(circle at 8% 15%, rgba(255, 232, 172, 0.16) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 28% 70%, rgba(215, 255, 179, 0.14) 0 1px, transparent 2px),
+    radial-gradient(circle at 52% 28%, rgba(255, 225, 160, 0.13) 0 1px, transparent 2px),
+    radial-gradient(circle at 79% 76%, rgba(213, 255, 178, 0.13) 0 1px, transparent 2px),
+    repeating-linear-gradient(20deg, rgba(109, 82, 42, 0.08) 0 1px, transparent 1px 34px);
+}
+.commons-background--mycelium-glow .commons-atmosphere__motif {
+  background-image: url("../assets/commons/backgrounds/mycelium-glow-overlay.svg");
+  opacity: 0.42;
+}
+.commons-background--mycelium-glow .commons-atmosphere__glow {
+  background:
+    radial-gradient(circle at 25% 75%, rgba(255, 218, 122, 0.21), transparent 21rem),
+    radial-gradient(circle at 81% 24%, rgba(132, 235, 151, 0.16), transparent 22rem);
+}
+
+.commons-background--watershed-mist .commons-atmosphere__base {
+  background:
+    radial-gradient(circle at 80% 18%, rgba(90, 222, 214, 0.13), transparent 28rem),
+    radial-gradient(circle at 18% 80%, rgba(59, 119, 166, 0.22), transparent 30rem),
+    linear-gradient(160deg, #061018 0%, #0a2225 52%, #08131a 100%);
+}
+.commons-background--watershed-mist .commons-atmosphere__texture {
+  opacity: 0.38;
+  background:
+    repeating-linear-gradient(0deg, rgba(166, 228, 232, 0.08) 0 1px, transparent 1px 54px),
+    linear-gradient(180deg, transparent 15%, rgba(159, 225, 228, 0.12), transparent 42%, rgba(80, 151, 166, 0.09), transparent 82%);
+}
+.commons-background--watershed-mist .commons-atmosphere__motif {
+  background-image: url("../assets/commons/backgrounds/watershed-mist-overlay.svg");
+  opacity: 0.38;
+}
+.commons-background--watershed-mist .commons-atmosphere__glow {
+  background:
+    radial-gradient(ellipse at 58% 50%, rgba(126, 215, 209, 0.18), transparent 28rem),
+    linear-gradient(180deg, rgba(190, 246, 240, 0.08), transparent 45%, rgba(71, 156, 183, 0.12));
+}
+
+.commons-background--aurora-canopy .commons-atmosphere__base {
+  background:
+    radial-gradient(circle at 74% 18%, rgba(95, 221, 186, 0.16), transparent 31rem),
+    radial-gradient(circle at 28% 12%, rgba(156, 101, 255, 0.12), transparent 28rem),
+    linear-gradient(150deg, #030b12 0%, #071915 48%, #071022 100%);
+}
+.commons-background--aurora-canopy .commons-atmosphere__texture {
+  opacity: 0.24;
+  background:
+    radial-gradient(circle at 15% 10%, rgba(255, 255, 255, 0.5) 0 1px, transparent 1.5px),
+    radial-gradient(circle at 58% 24%, rgba(191, 255, 237, 0.42) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 89% 36%, rgba(220, 211, 255, 0.42) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 76% 80%, rgba(157, 252, 217, 0.34) 0 1px, transparent 1.6px);
+}
+.commons-background--aurora-canopy .commons-atmosphere__motif {
+  background-image: url("../assets/commons/backgrounds/aurora-canopy-overlay.png");
+  background-size: cover;
+  background-position: center top;
+  opacity: 0.5;
+  mix-blend-mode: screen;
+}
+.commons-background--aurora-canopy .commons-atmosphere__glow {
+  background:
+    linear-gradient(108deg, transparent 12%, rgba(85, 242, 208, 0.13) 32%, rgba(168, 114, 255, 0.1) 46%, transparent 72%),
+    radial-gradient(circle at 50% 20%, rgba(128, 240, 221, 0.18), transparent 28rem);
+}
+
+.commons-background--solar-restoration .commons-atmosphere__base {
+  background:
+    radial-gradient(circle at 16% 75%, rgba(129, 159, 86, 0.18), transparent 28rem),
+    radial-gradient(circle at 78% 14%, rgba(244, 185, 83, 0.18), transparent 29rem),
+    linear-gradient(145deg, #161306 0%, #1b2110 50%, #07120d 100%);
+}
+.commons-background--solar-restoration .commons-atmosphere__texture {
+  background:
+    radial-gradient(circle at 13% 27%, rgba(255, 219, 116, 0.18) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 36% 62%, rgba(255, 224, 131, 0.14) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 64% 35%, rgba(255, 240, 165, 0.18) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 87% 72%, rgba(255, 210, 98, 0.15) 0 1px, transparent 1.8px),
+    linear-gradient(116deg, transparent 15%, rgba(255, 220, 124, 0.08), transparent 55%);
+}
+.commons-background--solar-restoration .commons-atmosphere__motif {
+  background-image: url("../assets/commons/backgrounds/solar-restoration-overlay.svg");
+  opacity: 0.38;
+}
+.commons-background--solar-restoration .commons-atmosphere__glow {
+  background:
+    linear-gradient(122deg, rgba(255, 216, 111, 0.16), transparent 38%),
+    radial-gradient(circle at 82% 16%, rgba(255, 212, 95, 0.21), transparent 22rem);
+}
+
+.commons-background--obsidian-laboratory .commons-atmosphere__base {
+  background:
+    radial-gradient(circle at 76% 12%, rgba(74, 203, 236, 0.13), transparent 24rem),
+    radial-gradient(circle at 18% 78%, rgba(111, 128, 154, 0.13), transparent 25rem),
+    linear-gradient(145deg, #030507 0%, #090d13 54%, #020305 100%);
+}
+.commons-background--obsidian-laboratory .commons-atmosphere__texture {
+  opacity: 0.36;
+  background:
+    repeating-linear-gradient(90deg, rgba(99, 223, 255, 0.07) 0 1px, transparent 1px 70px),
+    repeating-linear-gradient(0deg, rgba(99, 223, 255, 0.045) 0 1px, transparent 1px 70px),
+    repeating-linear-gradient(180deg, transparent 0 8px, rgba(255, 255, 255, 0.025) 8px 9px);
+}
+.commons-background--obsidian-laboratory .commons-atmosphere__motif {
+  opacity: 0.24;
+  background:
+    linear-gradient(45deg, transparent 21%, rgba(103, 225, 255, 0.16) 21.2%, transparent 21.7%),
+    linear-gradient(135deg, transparent 68%, rgba(103, 225, 255, 0.12) 68.2%, transparent 68.7%),
+    radial-gradient(circle at 74% 28%, rgba(98, 232, 255, 0.32) 0 2px, transparent 2.5px),
+    radial-gradient(circle at 26% 72%, rgba(98, 232, 255, 0.23) 0 2px, transparent 2.5px);
+}
+.commons-background--obsidian-laboratory .commons-atmosphere__glow {
+  background:
+    linear-gradient(90deg, rgba(95, 219, 255, 0.09), transparent 38%, rgba(95, 219, 255, 0.06)),
+    radial-gradient(circle at 75% 18%, rgba(95, 219, 255, 0.16), transparent 20rem);
+}
+
+.commons-background--field-notebook .commons-atmosphere__base {
+  background:
+    radial-gradient(circle at 20% 22%, rgba(215, 182, 111, 0.13), transparent 23rem),
+    radial-gradient(circle at 82% 76%, rgba(125, 169, 106, 0.16), transparent 28rem),
+    linear-gradient(150deg, #10140c 0%, #182015 52%, #090d0b 100%);
+}
+.commons-background--field-notebook .commons-atmosphere__texture {
+  background:
+    repeating-linear-gradient(0deg, rgba(234, 222, 179, 0.075) 0 1px, transparent 1px 32px),
+    repeating-linear-gradient(90deg, rgba(234, 222, 179, 0.055) 0 1px, transparent 1px 32px),
+    radial-gradient(circle at 12% 15%, rgba(255, 238, 187, 0.08), transparent 10rem);
+}
+.commons-background--field-notebook .commons-atmosphere__motif {
+  background-image: url("../assets/commons/backgrounds/field-notebook-contours.svg");
+  opacity: 0.42;
+}
+.commons-background--field-notebook .commons-atmosphere__glow {
+  background:
+    linear-gradient(112deg, rgba(226, 196, 127, 0.1), transparent 42%),
+    radial-gradient(circle at 75% 65%, rgba(147, 200, 125, 0.14), transparent 24rem);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .commons-background--starfield-mantle .commons-atmosphere__texture {
+    animation: commons-stars-drift 28s linear infinite alternate;
+  }
+
+  .commons-background--aurora-canopy .commons-atmosphere__glow {
+    animation: commons-aurora-breathe 18s ease-in-out infinite alternate;
+  }
+}
+
+@keyframes commons-stars-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-1.2rem, 0.8rem, 0); }
+}
+
+@keyframes commons-aurora-breathe {
+  from { opacity: 0.44; transform: translate3d(-0.5rem, 0, 0); }
+  to { opacity: 0.7; transform: translate3d(0.5rem, -0.4rem, 0); }
+}
+
+@media (max-width: 720px) {
+  .commons-atmosphere--public {
+    padding: 0.7rem;
+    border-radius: 18px;
+  }
+
+  .commons-atmosphere__motif {
+    opacity: 0.22;
+    background-size: auto 100%;
+  }
+
+  .commons-background--aurora-canopy .commons-atmosphere__motif {
+    opacity: 0.34;
+    background-position: 58% top;
+  }
+
+  .commons-atmosphere__texture,
+  .commons-atmosphere__glow {
+    opacity: 0.42;
+  }
+}
