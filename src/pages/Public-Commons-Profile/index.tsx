@@ -108,6 +108,9 @@ export default function PublicCommonsProfilePage() {
   const style = { "--commons-accent": accentColor } as CSSProperties;
   const profileClasses = `page-stack commons-public-profile commons-homebase ${customizationClass(customization)}`;
   const visibleName = visibility.show_display_name ? profile.display_name || profile.username : `@${profile.username}`;
+  const hasPublicIdentityDetails = Boolean((visibility.show_bio && profile.bio) || profile.organization || (visibility.show_interests && profile.interests) || (visibility.show_website && profile.website_url) || (visibility.show_github && profile.github_url) || publicLinks.length);
+  const hasPublicCollections = publicCollections.length > 0;
+  const hasPublicContributions = publicCommunePosts.length > 0 || publicCommuneComments.length > 0;
   if (import.meta.env.DEV && warnings.length) console.warn("[Public Commons Profile]", warnings);
 
   return (
@@ -115,8 +118,8 @@ export default function PublicCommonsProfilePage() {
       <PageHero eyebrow="Public Commons Profile" title={visibleName}>
         <p>This is a public Commons Circle profile. It does not expose private account email, private requests, saved shelves, local Elysia data, files, logs, vaults, credentials, or machine data.</p>
       </PageHero>
-      <CommonsBackgroundAtmosphere backgroundStyle={backgroundStyle} accentColor={accentColor} variant="public" className="commons-public-profile-atmosphere">
-      <section className="section-card commons-homebase-hero commons-public-room-hero">
+      <CommonsBackgroundAtmosphere backgroundStyle={backgroundStyle} accentColor={accentColor} variant="public" className="commons-public-profile-atmosphere commons-public-atmosphere-stage">
+      <section className="section-card commons-homebase-hero commons-public-room-hero commons-public-section commons-public-card-glass">
         <div className={`commons-profile-mantle commons-public-profile-mantle${customization.banner_url ? " has-public-banner" : ""}`}>
           {customization.banner_url && <img className="commons-public-banner" src={customization.banner_url} alt="" aria-hidden="true" loading="lazy" />}
           <CommonsAvatarViewer src={customization.avatar_url} alt="Public Commons avatar" fallback={(profile.display_name || profile.username).slice(0, 1).toUpperCase()} viewLabel="View full public Commons profile picture" />
@@ -125,9 +128,10 @@ export default function PublicCommonsProfilePage() {
         <DecalStrip settings={customization} />
         {isOwner && <div className="button-row"><a className="button-link button-link--primary" href="/commons-circle">Edit in Commons Circle</a></div>}
       </section>
+      <div className="commons-public-atmosphere-reveal" aria-hidden="true" />
 
-      <section className="commons-homebase-grid">
-        <article className="section-card">
+      <section className="commons-homebase-grid commons-public-atmosphere-rail">
+        <article className={`section-card commons-public-section commons-public-card-glass${hasPublicIdentityDetails ? "" : " commons-public-section--empty"}`}>
           <p className="eyebrow">Profile</p>
           <h2>Public identity</h2>
           {visibility.show_bio && profile.bio && <p>{profile.bio}</p>}
@@ -136,21 +140,22 @@ export default function PublicCommonsProfilePage() {
           {visibility.show_website && profile.website_url && <p><a href={profile.website_url} target="_blank" rel="noreferrer">Website</a></p>}
           {visibility.show_github && profile.github_url && <p><a href={profile.github_url} target="_blank" rel="noreferrer">GitHub / code profile</a></p>}
           {publicLinks.map((link) => <p key={`${link.label}-${link.url}`}><a href={link.url} target="_blank" rel="noreferrer">{link.label}</a>{link.kind ? ` · ${link.kind}` : ""}</p>)}
-          {!profile.bio && !profile.organization && !profile.interests && !profile.website_url && !profile.github_url && !publicLinks.length && <p>No public profile fields are visible yet.</p>}
+          {!hasPublicIdentityDetails && <p>No public profile fields are visible yet.</p>}
           <p className="boundary-note">Profile display, badges, medallions, donations, and self-selection do not grant administrator, moderator, reviewer, guardian, developer trust, or paid-role authority.</p>
         </article>
-        <article className="section-card">
+        <article className="section-card commons-public-section commons-public-card-glass commons-public-section--compact">
           <p className="eyebrow">Stewardship</p>
           <h2>{visibility.show_stewardship_recognition ? "Public recognition" : "Hidden by member"}</h2>
           <p>{visibility.show_stewardship_recognition ? "Reviewed stewardship recognition can appear here later when the member chooses to show it." : "This member has hidden stewardship recognition from their public profile."}</p>
         </article>
       </section>
+      <div className="commons-public-atmosphere-reveal commons-public-atmosphere-reveal--slim" aria-hidden="true" />
 
-      {visibility.show_badges && <section className="section-card commons-medallion-wall"><p className="eyebrow">Medallions</p><h2>Public badges</h2>{badges.length ? <div className="commons-medallion-grid">{badges.map((badge) => <article className={`earned${badge.authority || badge.authority_linked ? " authority-linked" : ""}`} key={badge.badge_key}><PublicBadgeIcon badge={badge} /><h3>{badge.name}</h3><p>{badge.description}</p>{badge.rule_summary && <p className="commons-medallion-note">{badge.rule_summary}</p>}{badge.note && <p className="commons-medallion-note">{badge.note}</p>}<div className="commons-badge-row"><span>{badge.rarity}</span><span>{badge.category || badge.badge_type}</span>{(badge.authority || badge.authority_linked) && <span>authority-linked recognition</span>}</div></article>)}</div> : <p>No public badges are visible yet.</p>}<p className="boundary-note">Badges are recognition, not administrator, moderator, reviewer, guardian, developer trust, or paid-role authority.</p></section>}
+      {visibility.show_badges && <section className={`section-card commons-medallion-wall commons-public-section commons-public-card-glass${badges.length ? "" : " commons-public-section--empty"}`}><p className="eyebrow">Medallions</p><h2>Public badges</h2>{badges.length ? <div className="commons-medallion-grid">{badges.map((badge) => <article className={`earned commons-public-card-glass${badge.authority || badge.authority_linked ? " authority-linked" : ""}`} key={badge.badge_key}><PublicBadgeIcon badge={badge} /><h3>{badge.name}</h3><p>{badge.description}</p>{badge.rule_summary && <p className="commons-medallion-note">{badge.rule_summary}</p>}{badge.note && <p className="commons-medallion-note">{badge.note}</p>}<div className="commons-badge-row"><span>{badge.rarity}</span><span>{badge.category || badge.badge_type}</span>{(badge.authority || badge.authority_linked) && <span>authority-linked recognition</span>}</div></article>)}</div> : <p>No public badges are visible yet.</p>}<p className="boundary-note">Badges are recognition, not administrator, moderator, reviewer, guardian, developer trust, or paid-role authority.</p></section>}
 
-      {visibility.show_source_collections && <section className="section-card commons-shelves"><p className="eyebrow">Public source collections</p><h2>Collections this member chose to show</h2>{publicCollections.length ? <div className="commons-shelf-grid">{publicCollections.map((collection) => <article className="commons-preview-card" key={collection.id || collection.title}><h3>{collection.title}</h3><p>{collection.description || "Public source collection"}</p><span>{collection.source_count} sources · {collection.visibility}</span></article>)}</div> : <p>No public collections are visible.</p>}</section>}
+      {visibility.show_source_collections && <section className={`section-card commons-shelves commons-public-section commons-public-card-glass${hasPublicCollections ? "" : " commons-public-section--empty"}`}><p className="eyebrow">Public source collections</p><h2>Collections this member chose to show</h2>{publicCollections.length ? <div className="commons-shelf-grid commons-public-card-grid">{publicCollections.map((collection) => <article className="commons-preview-card commons-public-card-glass" key={collection.id || collection.title}><h3>{collection.title}</h3><p>{collection.description || "Public source collection"}</p><span>{collection.source_count} sources · {collection.visibility}</span></article>)}</div> : <p>No public collections are visible.</p>}</section>}
 
-      {visibility.show_commune_posts && <section className="section-card commons-shelves"><p className="eyebrow">Public Commune contributions</p><h2>Published posts and comments</h2>{publicCommunePosts.length || publicCommuneComments.length ? <div className="commons-shelf-grid">{publicCommunePosts.map((post) => <article className="commons-preview-card" key={post.id}><h3>{post.title}</h3><p>{post.excerpt || post.post_type || "Published Commune post"}</p><a className="button-link" href={`/commune/posts/${post.id}`}>Read post</a></article>)}{publicCommuneComments.map((comment) => <article className="commons-preview-card" key={comment.id}><h3>{comment.parent_comment_id ? "Published reply" : "Published comment"}</h3><p>{previewText(comment.body)}</p><a className="button-link" href={`/commune/posts/${comment.post_id}`}>Open thread</a></article>)}</div> : <p>No public Commune contributions are visible yet.</p>}</section>}
+      {visibility.show_commune_posts && <section className={`section-card commons-shelves commons-public-section commons-public-card-glass${hasPublicContributions ? "" : " commons-public-section--empty"}`}><p className="eyebrow">Public Commune contributions</p><h2>Published posts and comments</h2>{publicCommunePosts.length || publicCommuneComments.length ? <div className="commons-shelf-grid commons-public-card-grid">{publicCommunePosts.map((post) => <article className="commons-preview-card commons-public-card-glass" key={post.id}><h3>{post.title}</h3><p>{post.excerpt || post.post_type || "Published Commune post"}</p><a className="button-link" href={`/commune/posts/${post.id}`}>Read post</a></article>)}{publicCommuneComments.map((comment) => <article className="commons-preview-card commons-public-card-glass" key={comment.id}><h3>{comment.parent_comment_id ? "Published reply" : "Published comment"}</h3><p>{previewText(comment.body)}</p><a className="button-link" href={`/commune/posts/${comment.post_id}`}>Open thread</a></article>)}</div> : <p>No public Commune contributions are visible yet.</p>}</section>}
       </CommonsBackgroundAtmosphere>
     </div>
   );

@@ -41,40 +41,151 @@
 }
 
 .commons-atmosphere--preview {
-  min-height: 190px;
+  min-height: 260px;
   border-radius: 18px;
 }
 
 .commons-atmosphere--public {
   display: grid;
-  gap: 1rem;
-  padding: 1rem;
-  min-height: 420px;
+  gap: clamp(1rem, 2vw, 1.7rem);
+  padding: clamp(0.9rem, 2.4vw, 2rem);
+  min-height: 620px;
+  background: transparent;
 }
 
 .commons-atmosphere--public .commons-atmosphere__content {
   display: grid;
-  gap: 1rem;
+  gap: clamp(1rem, 2vw, 1.6rem);
 }
 
 .commons-atmosphere--preview .commons-atmosphere__motif {
-  background-size: 140% auto;
-  background-position: center 38%;
+  background-size: 126% auto;
+  background-position: center 30%;
 }
 
-.commons-atmosphere--preview .commons-atmosphere__texture { opacity: 0.28; }
-.commons-atmosphere--preview .commons-atmosphere__glow { opacity: 0.58; }
+.commons-atmosphere--preview .commons-atmosphere__texture { opacity: 0.4; }
+.commons-atmosphere--preview .commons-atmosphere__motif { opacity: 0.42; }
+.commons-atmosphere--preview .commons-atmosphere__glow { opacity: 0.72; }
+
+.commons-public-atmosphere-stage {
+  border-radius: 30px;
+  border-color: color-mix(in srgb, var(--commons-accent) 42%, rgba(255, 255, 255, 0.14));
+}
+
+.commons-public-atmosphere-stage .commons-atmosphere__base {
+  transform: scale(1.015);
+}
+
+.commons-public-atmosphere-stage .commons-atmosphere__texture {
+  opacity: 0.48;
+}
+
+.commons-public-atmosphere-stage .commons-atmosphere__motif {
+  opacity: 0.5;
+  background-size: max(100%, 1180px) auto;
+}
+
+.commons-public-atmosphere-stage .commons-atmosphere__glow {
+  opacity: 0.78;
+}
 
 .commons-public-profile .commons-atmosphere.commons-public-profile-atmosphere .section-card,
 .commons-public-profile .commons-atmosphere.commons-public-profile-atmosphere .commons-homebase-hero {
   background:
-    radial-gradient(circle at 14% 0%, color-mix(in srgb, var(--commons-accent) 12%, transparent), transparent 24rem),
-    linear-gradient(180deg, rgba(8, 14, 20, 0.84), rgba(5, 9, 13, 0.76));
+    radial-gradient(circle at 16% 0%, color-mix(in srgb, var(--commons-accent) 16%, transparent), transparent 24rem),
+    linear-gradient(135deg, rgba(4, 9, 13, 0.7), rgba(5, 12, 16, 0.52));
+  border-color: color-mix(in srgb, var(--commons-accent) 24%, rgba(255, 255, 255, 0.16));
+  box-shadow:
+    0 18px 60px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
   backdrop-filter: blur(12px);
 }
 
+.commons-public-profile .commons-public-card-glass {
+  background:
+    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--commons-accent) 13%, transparent), transparent 18rem),
+    linear-gradient(135deg, rgba(4, 9, 13, 0.68), rgba(5, 12, 16, 0.48));
+  border-color: color-mix(in srgb, var(--commons-accent) 22%, rgba(255, 255, 255, 0.15));
+  box-shadow:
+    0 18px 60px rgba(0, 0, 0, 0.26),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(12px);
+}
+
+.commons-public-profile .commons-public-room-hero {
+  position: relative;
+  inset: auto;
+  pointer-events: auto;
+  padding: clamp(1rem, 2.5vw, 1.8rem);
+}
+
+.commons-public-profile .commons-public-section {
+  position: relative;
+  z-index: 1;
+  min-height: auto;
+}
+
+.commons-public-profile .commons-public-section--compact,
+.commons-public-profile .commons-public-section--empty {
+  padding: clamp(0.8rem, 1.8vw, 1.15rem);
+}
+
+.commons-public-profile .commons-public-section--empty {
+  background:
+    radial-gradient(circle at 80% 0%, color-mix(in srgb, var(--commons-accent) 11%, transparent), transparent 16rem),
+    linear-gradient(135deg, rgba(4, 9, 13, 0.56), rgba(5, 12, 16, 0.38));
+}
+
+.commons-public-profile .commons-public-section--empty h2,
+.commons-public-profile .commons-public-section--compact h2 {
+  margin-bottom: 0.35rem;
+}
+
+.commons-public-profile .commons-public-section--empty p {
+  margin-block: 0.35rem;
+}
+
+.commons-public-atmosphere-rail {
+  gap: clamp(0.85rem, 1.8vw, 1.25rem);
+}
+
+.commons-public-atmosphere-reveal {
+  min-height: clamp(6rem, 14vw, 11rem);
+  border: 1px solid color-mix(in srgb, var(--commons-accent) 18%, rgba(255, 255, 255, 0.08));
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 18% 30%, color-mix(in srgb, var(--commons-accent) 19%, transparent), transparent 18rem),
+    linear-gradient(115deg, rgba(255, 255, 255, 0.035), transparent 45%, rgba(255, 255, 255, 0.025));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.035),
+    0 16px 56px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(2px);
+}
+
+.commons-public-atmosphere-reveal--slim {
+  min-height: clamp(3.5rem, 8vw, 6.5rem);
+}
+
+.commons-public-profile .commons-public-card-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.commons-public-profile .commons-preview-card.commons-public-card-glass,
+.commons-public-profile .earned.commons-public-card-glass {
+  min-height: 0;
+  background:
+    linear-gradient(145deg, rgba(4, 9, 13, 0.64), rgba(8, 16, 22, 0.42));
+}
+
+.commons-public-profile .commons-public-card-glass .boundary-note {
+  background: rgba(216, 182, 111, 0.13);
+  border-color: rgba(216, 182, 111, 0.34);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.5);
+}
+
 .commons-atmosphere.commons-customization-preview {
-  padding: 0.85rem;
+  padding: clamp(0.9rem, 2vw, 1.2rem);
   background: #071015;
 }
 
@@ -93,8 +204,8 @@
 
 .commons-atmosphere .commons-profile-mantle {
   background:
-    radial-gradient(circle at 15% 18%, color-mix(in srgb, var(--commons-accent) 18%, transparent), transparent 22rem),
-    linear-gradient(135deg, rgba(8, 18, 22, 0.72), rgba(9, 13, 21, 0.74));
+    radial-gradient(circle at 15% 18%, color-mix(in srgb, var(--commons-accent) 22%, transparent), transparent 22rem),
+    linear-gradient(135deg, rgba(8, 18, 22, 0.62), rgba(9, 13, 21, 0.6));
   border-color: color-mix(in srgb, var(--commons-accent) 28%, rgba(255, 255, 255, 0.14));
   backdrop-filter: blur(10px);
 }
@@ -365,6 +476,7 @@
   .commons-atmosphere--public {
     padding: 0.7rem;
     border-radius: 18px;
+    min-height: 480px;
   }
 
   .commons-atmosphere__motif {
@@ -380,5 +492,19 @@
   .commons-atmosphere__texture,
   .commons-atmosphere__glow {
     opacity: 0.42;
+  }
+
+  .commons-public-atmosphere-reveal {
+    min-height: 4rem;
+    border-radius: 18px;
+  }
+
+  .commons-public-profile .commons-public-section,
+  .commons-public-profile .commons-public-room-hero {
+    padding: 0.85rem;
+  }
+
+  .commons-public-profile .commons-public-card-grid {
+    grid-template-columns: 1fr;
   }
 }

@@ -116,9 +116,13 @@ for (const [key, label, className, assetPath] of commonsBackgroundOptions) {
   if (assetPath) assert(await exists(assetPath), `Commons background asset missing: ${assetPath}`);
 }
 assert(commonsBackgroundCatalog.includes('DEFAULT_COMMONS_BACKGROUND_STYLE') && commonsBackgroundCatalog.includes('"soft_cyber_garden"') && commonsBackgroundCatalog.includes("normalizeCommonsBackgroundStyle"), "Commons background catalog should normalize invalid values to Soft Cyber Garden.");
+assert(!commonsBackgroundCatalog.includes("profile_layout") && !commonsBackgroundCatalog.includes("decal_set"), "Commons background catalog must stay scoped to Background style, not layouts or decorative markers.");
 assert(commonsBackgroundAtmosphere.includes("commons-atmosphere__base") && commonsBackgroundAtmosphere.includes("commons-atmosphere__texture") && commonsBackgroundAtmosphere.includes("commons-atmosphere__motif") && commonsBackgroundAtmosphere.includes("commons-atmosphere__glow") && commonsBackgroundAtmosphere.includes("data-commons-background-style"), "Commons background atmosphere component should render layered decorative background elements.");
 assert(commonsBackgroundCss.includes("aurora-canopy-overlay.png"), "Aurora Canopy should use the repo-local generated PNG overlay.");
 assert(!/url\(\s*["']?https?:\/\//i.test(commonsBackgroundCss), "Commons background CSS must not use remote background assets.");
+for (const visibilityClass of ["commons-public-atmosphere-stage", "commons-public-atmosphere-rail", "commons-public-atmosphere-reveal", "commons-public-section", "commons-public-section--compact", "commons-public-section--empty", "commons-public-card-glass", "commons-public-card-grid"]) {
+  assert(commonsBackgroundCss.includes(`.${visibilityClass}`), `Commons background visibility CSS missing: ${visibilityClass}`);
+}
 assert(productsPage.includes('title="Elysia Ecobotics Products"'), "Products page title should remain Elysia Ecobotics Products.");
 assert(productsPage.includes("Physical products from Elysia Ecobotics will appear here only when they are ready, tested, repairable, and honestly documented"), "Products page should keep broad future physical-products boundary copy.");
 assert(productsPage.includes("Environmental robotics") && productsPage.includes("sensing tools") && productsPage.includes("repairable") && productsPage.includes("field-support"), "Products page should use broad environmental robotics, sensing, repairable hardware, and field-support language.");
@@ -220,6 +224,7 @@ assert(commonsAvatarViewer.includes('role="dialog"') && commonsAvatarViewer.incl
 assert(publicProfile.includes("safeAccentColor") && publicProfile.includes("--commons-accent"), "Public Commons profile should sanitize and apply the saved accent color.");
 assert(publicProfile.includes("data-commons-theme") && publicProfile.includes("data-commons-background") && publicProfile.includes("data-commons-layout"), "Public Commons profile should expose saved theme/background/layout presentation markers.");
 assert(publicProfile.includes("CommonsBackgroundAtmosphere") && publicProfile.includes('variant="public"') && publicProfile.includes("normalizeCommonsBackgroundStyle(customization.background_style)") && publicProfile.includes("getCommonsBackgroundStyleOption(backgroundStyle).label"), "Public Commons profile should use the shared background atmosphere and readable background labels.");
+assert(publicProfile.includes("commons-public-atmosphere-stage") && publicProfile.includes("commons-public-atmosphere-reveal") && publicProfile.includes("commons-public-card-glass") && publicProfile.includes("commons-public-section--empty"), "Public Commons profile should expose stage/reveal/glass/compact classes so Background styles remain visible.");
 assert(publicProfile.includes("commons-public-banner") && publicProfile.includes("customization.banner_url"), "Public Commons profile should render an uploaded public banner when active.");
 assert(publicProfile.includes("commons-public-profile-mantle") && publicProfile.includes("commons-public-room-hero"), "Public Commons profile should render saved customization in the main public room hero.");
 assert(publicProfile.includes("commons-customization-badges"), "Public Commons profile should visibly summarize selected presentation settings.");
