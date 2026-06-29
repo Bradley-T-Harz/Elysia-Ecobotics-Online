@@ -48,6 +48,9 @@ const styles = await read("src/styles.css");
 const commonsBackgroundCatalog = await read("src/shared/commonsBackgroundStyles.ts");
 const commonsBackgroundAtmosphere = await read("src/shared/components/CommonsBackgroundAtmosphere.tsx");
 const commonsBackgroundCss = await read("src/styles/commonsBackgrounds.css");
+const commonsProfileLayoutCatalog = await read("src/shared/commonsProfileLayouts.ts");
+const commonsProfileLayoutFrame = await read("src/shared/components/CommonsProfileLayoutFrame.tsx");
+const commonsProfileLayoutCss = await read("src/styles/commonsProfileLayouts.css");
 const pageHero = await read("src/shared/components/PageHero.tsx");
 const pageBrandMark = await read("src/shared/components/PageBrandMark.tsx");
 const homeMain = await read("src/pages/Elysia-Ecobotics-Online-MainPage/index.tsx");
@@ -123,6 +126,36 @@ assert(!/url\(\s*["']?https?:\/\//i.test(commonsBackgroundCss), "Commons backgro
 for (const visibilityClass of ["commons-public-atmosphere-stage", "commons-public-atmosphere-rail", "commons-public-atmosphere-reveal", "commons-public-section", "commons-public-section--compact", "commons-public-section--empty", "commons-public-card-glass", "commons-public-card-grid"]) {
   assert(commonsBackgroundCss.includes(`.${visibilityClass}`), `Commons background visibility CSS missing: ${visibilityClass}`);
 }
+const commonsProfileLayoutOptions = [
+  ["classic_homebase", "Classic Homebase", "commons-profile-layout--classic-homebase"],
+  ["compact_archive", "Compact Archive", "commons-profile-layout--compact-archive"],
+  ["garden_shelves", "Garden Shelves", "commons-profile-layout--garden-shelves"],
+  ["field_notebook_layout", "Field Notebook", "commons-profile-layout--field-notebook"],
+  ["constellation_map", "Constellation Map", "commons-profile-layout--constellation-map"],
+  ["stewardship_board", "Stewardship Board", "commons-profile-layout--stewardship-board"]
+];
+for (const [key, label, className] of commonsProfileLayoutOptions) {
+  assert(commonsProfileLayoutCatalog.includes(`"${key}"`), `Commons profile layout catalog missing key: ${key}`);
+  assert(commonsProfileLayoutCatalog.includes(`label: "${label}"`), `Commons profile layout catalog missing display label: ${label}`);
+  assert(commonsProfileLayoutCatalog.includes(`className: "${className}"`), `Commons profile layout catalog missing class for ${key}.`);
+  assert(commonsProfileLayoutCss.includes(`.${className}`), `Commons profile layout CSS missing style class: ${className}`);
+}
+assert(commonsProfileLayoutCatalog.includes("DEFAULT_COMMONS_PROFILE_LAYOUT") && commonsProfileLayoutCatalog.includes('"classic_homebase"') && commonsProfileLayoutCatalog.includes("normalizeCommonsProfileLayout"), "Commons profile layout catalog should normalize invalid values to Classic Homebase.");
+assert(!commonsProfileLayoutCatalog.includes("background_style") && !commonsProfileLayoutCatalog.includes("decal_set"), "Commons profile layout catalog must stay scoped to Profile layout, not Background style or decorative markers.");
+assert(commonsProfileLayoutFrame.includes("data-commons-profile-layout") && commonsProfileLayoutFrame.includes("`commons-profile-layout--${variant}`") && commonsProfileLayoutFrame.includes('variant = "public"'), "Commons profile layout frame should render public/preview variants and normalized layout metadata.");
+assert(styles.includes('@import "./styles/commonsProfileLayouts.css";'), "Global styles should import Commons profile layout styles.");
+for (const slotClass of ["commons-profile-slot--summary", "commons-profile-slot--identity", "commons-profile-slot--recognition", "commons-profile-slot--badges", "commons-profile-slot--collections", "commons-profile-slot--contributions"]) {
+  assert(publicProfile.includes(slotClass), `Public Commons profile missing semantic layout slot: ${slotClass}`);
+  assert(commonsProfileLayoutCss.includes(`.${slotClass}`), `Commons profile layout CSS missing semantic slot style: ${slotClass}`);
+}
+for (const cardClass of ["commons-profile-summary-card", "commons-profile-summary-card__avatar", "commons-profile-summary-card__body", "commons-profile-summary-card__handle", "commons-profile-summary-card__name", "commons-profile-summary-card__chips", "commons-profile-summary-card__edit", "commons-public-section-card", "commons-public-section-card--empty", "commons-public-section-card__eyebrow", "commons-public-identity-card", "commons-public-link-list", "commons-public-authority-note", "commons-public-recognition-card", "commons-public-badges-card", "commons-public-badge-list", "commons-public-badge-card", "commons-public-badge-tags", "commons-public-collections-card", "commons-public-collection-list", "commons-public-contributions-card", "commons-public-contribution-grid", "commons-public-contribution-card", "commons-public-contribution-card__type"]) {
+  assert(publicProfile.includes(cardClass) || commons.includes(cardClass), `Commons profile layout missing stable class hook: ${cardClass}`);
+}
+assert(publicProfile.includes("CommonsProfileLayoutFrame") && publicProfile.includes('variant="public"') && publicProfile.includes("profileLayout={profileLayout}"), "Public Commons profile should use one shared layout frame for all profile layouts.");
+assert(commons.includes("COMMONS_PROFILE_LAYOUTS.map") && commons.includes("layout.label") && commons.includes("normalizeCommonsProfileLayout(customizationDraft.profile_layout)"), "Commons Circle Profile layout dropdown should use shared labels and normalized values.");
+assert(commons.includes("CommonsProfileLayoutFrame") && commons.includes('variant="preview"') && commons.includes("getCommonsProfileLayoutOption(customizationDraft.profile_layout).label"), "Commons Circle customization preview should use the shared profile layout frame and readable layout labels.");
+assert(!commonsBackgroundCatalog.includes("field_notebook_layout") && !commonsBackgroundCatalog.includes("constellation_map") && !commonsBackgroundCatalog.includes("stewardship_board"), "Profile layout keys should not drift into the Background style catalog.");
+assert(!commonsProfileLayoutCatalog.includes("soft_cyber_garden") && !commonsProfileLayoutCatalog.includes("selected_decals"), "Background/decorative marker keys should not drift into the Profile layout catalog.");
 assert(productsPage.includes('title="Elysia Ecobotics Products"'), "Products page title should remain Elysia Ecobotics Products.");
 assert(productsPage.includes("Physical products from Elysia Ecobotics will appear here only when they are ready, tested, repairable, and honestly documented"), "Products page should keep broad future physical-products boundary copy.");
 assert(productsPage.includes("Environmental robotics") && productsPage.includes("sensing tools") && productsPage.includes("repairable") && productsPage.includes("field-support"), "Products page should use broad environmental robotics, sensing, repairable hardware, and field-support language.");
@@ -230,8 +263,9 @@ assert(publicProfile.includes("commons-public-profile-mantle") && publicProfile.
 assert(publicProfile.includes("commons-customization-badges"), "Public Commons profile should visibly summarize selected presentation settings.");
 assert(commonsApi.includes("Public customization") && commonsApi.includes("Public profile media") && commonsApi.includes('eq("status", "active")'), "Public profile loader should load safe customization and active public media only.");
 assert(commonsApi.includes("DEFAULT_COMMONS_BACKGROUND_STYLE") && commonsApi.includes("normalizeCommonsBackgroundStyle(settings.background_style)") && commonsApi.includes("normalizeProfileCustomization"), "Commons Circle API should save/load normalized Background style values.");
+assert(commonsApi.includes("DEFAULT_COMMONS_PROFILE_LAYOUT") && commonsApi.includes("normalizeCommonsProfileLayout(settings.profile_layout)") && commonsApi.includes("profile_layout: normalizeCommonsProfileLayout"), "Commons Circle API should save/load normalized Profile layout values.");
 assert(styles.includes(".commons-public-banner") && styles.includes("object-fit: cover"), "Public Commons profile banner styling should render active banners safely.");
-assert(styles.includes(".commons-public-profile.commons-layout-compact_archive") && styles.includes(".commons-public-profile.commons-layout-garden_shelves"), "Public Commons profile layout choices should visibly affect the rendered profile.");
+assert(styles.includes(".commons-public-profile.commons-layout-compact_archive") && styles.includes(".commons-public-profile.commons-layout-garden_shelves") && commonsProfileLayoutCss.includes(".commons-profile-layout--stewardship-board"), "Public Commons profile layout choices should visibly affect the rendered profile.");
 assert(styles.includes(".commons-public-profile.commons-theme-high_contrast") && styles.includes(".commons-public-profile.commons-background-soft_cyber_garden"), "Public Commons profile should visibly apply saved theme and background variants.");
 assert(styles.includes(".commons-customization-preview") && styles.includes(".commons-customization-preview .commons-profile-mantle"), "Commons Circle customization should style a bounded draft preview rather than restyling the whole live homebase.");
 assert(styles.includes(".commons-customization-badges"), "Public Commons profile should style visible customization markers.");

@@ -3,8 +3,10 @@ import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
 import { COMMONS_BACKGROUND_STYLES, getCommonsBackgroundStyleOption, normalizeCommonsBackgroundStyle } from "../../shared/commonsBackgroundStyles";
+import { COMMONS_PROFILE_LAYOUTS, getCommonsProfileLayoutOption, normalizeCommonsProfileLayout } from "../../shared/commonsProfileLayouts";
 import CommonsBackgroundAtmosphere from "../../shared/components/CommonsBackgroundAtmosphere";
 import CommonsAvatarViewer from "../../shared/components/CommonsAvatarViewer";
+import CommonsProfileLayoutFrame from "../../shared/components/CommonsProfileLayoutFrame";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
 import { loadCurrentRoleState } from "../../shared/review/reviewClient";
@@ -74,7 +76,7 @@ function classToken(value: string | null | undefined, fallback: string) {
 }
 
 function customizationClass(settings: ProfileCustomization) {
-  return `commons-theme-${classToken(settings.theme_mode, "starlit_archive")} commons-background-${classToken(normalizeCommonsBackgroundStyle(settings.background_style), "soft_cyber_garden")} commons-layout-${classToken(settings.profile_layout, "classic_homebase")}`;
+  return `commons-theme-${classToken(settings.theme_mode, "starlit_archive")} commons-background-${classToken(normalizeCommonsBackgroundStyle(settings.background_style), "soft_cyber_garden")} commons-layout-${classToken(normalizeCommonsProfileLayout(settings.profile_layout), "classic_homebase")}`;
 }
 
 function formatDecalLabel(value: string) {
@@ -93,7 +95,7 @@ function styleSignature(settings: ProfileCustomization) {
     background_style: normalizeCommonsBackgroundStyle(settings.background_style),
     decal_set: settings.decal_set || defaultCustomization.decal_set,
     selected_decals: [...(settings.selected_decals ?? [])].sort(),
-    profile_layout: settings.profile_layout || defaultCustomization.profile_layout
+    profile_layout: normalizeCommonsProfileLayout(settings.profile_layout)
   });
 }
 
@@ -209,7 +211,11 @@ export default function CommonsCirclePage() {
   }
 
   function updateCustomizationDraft(patch: Partial<ProfileCustomization>) {
-    const normalizedPatch = patch.background_style === undefined ? patch : { ...patch, background_style: normalizeCommonsBackgroundStyle(patch.background_style) };
+    const normalizedPatch = {
+      ...patch,
+      ...(patch.background_style === undefined ? {} : { background_style: normalizeCommonsBackgroundStyle(patch.background_style) }),
+      ...(patch.profile_layout === undefined ? {} : { profile_layout: normalizeCommonsProfileLayout(patch.profile_layout) }),
+    };
     setCustomizationDraft((current) => ({ ...current, ...normalizedPatch }));
   }
 
@@ -226,7 +232,11 @@ export default function CommonsCirclePage() {
   }
 
   async function saveProfileRoom() {
-    const savedDraft = { ...customizationDraft, background_style: normalizeCommonsBackgroundStyle(customizationDraft.background_style) };
+    const savedDraft = {
+      ...customizationDraft,
+      background_style: normalizeCommonsBackgroundStyle(customizationDraft.background_style),
+      profile_layout: normalizeCommonsProfileLayout(customizationDraft.profile_layout),
+    };
     if (!homebase?.signedIn) {
       writeLocalStorage("commonsCircle.customizationDemo.v1", savedDraft);
       setSavedCustomization(savedDraft);
@@ -428,7 +438,7 @@ export default function CommonsCirclePage() {
             <label><span>Accent color</span><input type="color" value={customizationDraft.accent_color} onChange={(event) => updateCustomizationDraft({ accent_color: event.target.value })} /></label>
             <label><span>Background style</span><select value={normalizeCommonsBackgroundStyle(customizationDraft.background_style)} onChange={(event) => updateCustomizationDraft({ background_style: event.target.value })}>{COMMONS_BACKGROUND_STYLES.map((style) => <option key={style.key} value={style.key}>{style.label}</option>)}</select></label>
             <label><span>Decorative marker set</span><select value={customizationDraft.decal_set} onChange={(event) => updateCustomizationDraft({ decal_set: event.target.value })}>{decalOptions.map((decal) => <option key={decal} value={decal}>{decal}</option>)}</select></label>
-            <label><span>Profile layout</span><select value={customizationDraft.profile_layout} onChange={(event) => updateCustomizationDraft({ profile_layout: event.target.value })}><option value="classic_homebase">classic_homebase</option><option value="compact_archive">compact_archive</option><option value="garden_shelves">garden_shelves</option></select></label>
+            <label><span>Profile layout</span><select value={normalizeCommonsProfileLayout(customizationDraft.profile_layout)} onChange={(event) => updateCustomizationDraft({ profile_layout: normalizeCommonsProfileLayout(event.target.value) })}>{COMMONS_PROFILE_LAYOUTS.map((layout) => <option key={layout.key} value={layout.key}>{layout.label}</option>)}</select></label>
           </div>
           <fieldset className="commons-decal-picker"><legend>Selected decorative markers</legend>{decalOptions.filter((decal) => decal !== "none").map((decal) => <label className="checkbox-line" key={decal}><input type="checkbox" checked={(customizationDraft.selected_decals ?? []).includes(decal)} onChange={() => toggleSelectedDecal(decal)} /><span>{formatDecalLabel(decal)}</span></label>)}</fieldset>
           <div className="commons-media-upload-row">
@@ -439,15 +449,53 @@ export default function CommonsCirclePage() {
           </div>
         </div>
         <CommonsBackgroundAtmosphere backgroundStyle={customizationDraft.background_style} accentColor={customizationDraft.accent_color} variant="preview" className={previewClasses}>
-          <div className="commons-profile-mantle" style={customizationDraft.banner_url ? { backgroundImage: `linear-gradient(135deg, rgba(10, 20, 22, .35), rgba(18, 44, 48, .4)), url(${customizationDraft.banner_url})` } : undefined}>
-            <CommonsAvatarViewer src={customizationDraft.avatar_url} alt="Draft Commons profile avatar preview" fallback={(profile?.display_name || profile?.username || "C").slice(0, 1).toUpperCase()} viewLabel="View full draft Commons profile picture" />
-            <div>
-              <p className="eyebrow">Public profile room preview</p>
-              <h3>{profile?.display_name || profile?.username || "Website member"}</h3>
-              <p>{profile?.username ? `@${profile.username}` : "Draft Commons Profile"}</p>
-              <div className="commons-customization-badges" aria-label="Draft public profile presentation settings"><span>{formatDecalLabel(customizationDraft.theme_mode || "starlit_archive")}</span><span>{getCommonsBackgroundStyleOption(customizationDraft.background_style).label}</span><span>{formatDecalLabel(customizationDraft.profile_layout || "classic_homebase")}</span></div>
-            </div>
-          </div>
+          <CommonsProfileLayoutFrame profileLayout={customizationDraft.profile_layout} variant="preview" className="commons-profile-preview-layout-frame">
+            <section className="commons-profile-slot commons-profile-slot--summary">
+              <div className="commons-profile-summary-card commons-profile-summary-card--preview commons-profile-mantle" style={customizationDraft.banner_url ? { backgroundImage: `linear-gradient(135deg, rgba(10, 20, 22, .35), rgba(18, 44, 48, .4)), url(${customizationDraft.banner_url})` } : undefined}>
+                <div className="commons-profile-summary-card__avatar">
+                  <CommonsAvatarViewer src={customizationDraft.avatar_url} alt="Draft Commons profile avatar preview" fallback={(profile?.display_name || profile?.username || "C").slice(0, 1).toUpperCase()} viewLabel="View full draft Commons profile picture" />
+                </div>
+                <div className="commons-profile-summary-card__body">
+                  <p className="commons-profile-summary-card__handle">@{profile?.username || "draft-profile"}</p>
+                  <h3 className="commons-profile-summary-card__name">{profile?.display_name || profile?.username || "Website member"}</h3>
+                  <p>{getCommonsProfileLayoutOption(customizationDraft.profile_layout).previewNote}</p>
+                  <div className="commons-customization-badges commons-profile-summary-card__chips" aria-label="Draft public profile presentation settings"><span>{formatDecalLabel(customizationDraft.theme_mode || "starlit_archive")}</span><span>{getCommonsBackgroundStyleOption(customizationDraft.background_style).label}</span><span>{getCommonsProfileLayoutOption(customizationDraft.profile_layout).label}</span></div>
+                </div>
+              </div>
+            </section>
+            <section className="commons-profile-slot commons-profile-slot--identity">
+              <article className="commons-public-section-card commons-public-identity-card">
+                <p className="commons-public-section-card__eyebrow">Identity</p>
+                <h4>Public identity</h4>
+                <p>Bio, interests, and public links stay gated by your visibility settings.</p>
+              </article>
+            </section>
+            <section className="commons-profile-slot commons-profile-slot--recognition">
+              <article className="commons-public-section-card commons-public-recognition-card">
+                <p className="commons-public-section-card__eyebrow">Recognition</p>
+                <h4>Recognition, not authority</h4>
+                <p>Badges and medallions remain public recognition only.</p>
+              </article>
+            </section>
+            <section className="commons-profile-slot commons-profile-slot--badges">
+              <article className="commons-public-section-card commons-public-badges-card">
+                <p className="commons-public-section-card__eyebrow">Badges</p>
+                <div className="commons-public-badge-list"><span>Free Member</span><span>Recognition</span><span>Public</span></div>
+              </article>
+            </section>
+            <section className="commons-profile-slot commons-profile-slot--collections">
+              <article className="commons-public-section-card commons-public-collections-card">
+                <p className="commons-public-section-card__eyebrow">Collections</p>
+                <p>Saved public collections arrange differently by layout.</p>
+              </article>
+            </section>
+            <section className="commons-profile-slot commons-profile-slot--contributions">
+              <article className="commons-public-section-card commons-public-contributions-card">
+                <p className="commons-public-section-card__eyebrow">Contributions</p>
+                <p>Published posts and comments keep their public source links.</p>
+              </article>
+            </section>
+          </CommonsProfileLayoutFrame>
           <DecalStrip settings={customizationDraft} />
           <p className="commons-empty-state">This preview is local until Save customization publishes these style choices to your public profile.</p>
         </CommonsBackgroundAtmosphere>

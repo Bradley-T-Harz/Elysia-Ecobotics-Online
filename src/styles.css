@@ -1,5 +1,6 @@
 @import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@600&display=swap");
 @import "./styles/commonsBackgrounds.css";
+@import "./styles/commonsProfileLayouts.css";
 
 :root {
   color-scheme: dark;

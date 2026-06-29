@@ -4,6 +4,11 @@ import type { FeaturedPublicLink, MarketplaceProfile } from "../The-Elysia-Marke
 import { loadCurrentProfile } from "../The-Elysia-Marketplace/lib/marketplaceApi";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
 import { DEFAULT_COMMONS_BACKGROUND_STYLE, normalizeCommonsBackgroundStyle } from "../../shared/commonsBackgroundStyles";
+import {
+  DEFAULT_COMMONS_PROFILE_LAYOUT,
+  normalizeCommonsProfileLayout,
+  type CommonsProfileLayoutKey,
+} from "../../shared/commonsProfileLayouts";
 import { canReviewDomain, loadCurrentRoleState } from "../../shared/review/reviewClient";
 
 export type ProfileWithSetup = MarketplaceProfile & {
@@ -38,7 +43,7 @@ export type ProfileCustomization = {
   banner_url?: string | null;
   decal_set: string;
   selected_decals: string[];
-  profile_layout: string;
+  profile_layout: CommonsProfileLayoutKey;
 };
 
 export type NotificationPreferences = {
@@ -312,11 +317,15 @@ export const defaultCustomization: ProfileCustomization = {
   banner_url: null,
   decal_set: "none",
   selected_decals: [],
-  profile_layout: "classic_homebase"
+  profile_layout: DEFAULT_COMMONS_PROFILE_LAYOUT
 };
 
 function normalizeProfileCustomization(settings: ProfileCustomization): ProfileCustomization {
-  return { ...settings, background_style: normalizeCommonsBackgroundStyle(settings.background_style) };
+  return {
+    ...settings,
+    background_style: normalizeCommonsBackgroundStyle(settings.background_style),
+    profile_layout: normalizeCommonsProfileLayout(settings.profile_layout),
+  };
 }
 
 export const defaultNotificationPreferences: NotificationPreferences = {
@@ -541,7 +550,7 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
       signedIn: Boolean(profile),
       supabaseConfigured: false,
       visibility: readLocalStorage("commonsCircle.publicVisibilityDemo.v1", defaultVisibility),
-      customization: readLocalStorage("commonsCircle.customizationDemo.v1", defaultCustomization),
+      customization: normalizeProfileCustomization(readLocalStorage("commonsCircle.customizationDemo.v1", defaultCustomization)),
       notificationPreferences: defaultNotificationPreferences,
       savedAddons: (profile?.saved_addon_ids ?? []).map((addon_slug) => ({ addon_slug, addon_name: addon_slug })),
       savedLivingSources: [],
@@ -856,7 +865,7 @@ export async function saveCustomization(settings: ProfileCustomization): Promise
     background_style: normalizeCommonsBackgroundStyle(settings.background_style),
     decal_set: settings.decal_set,
     selected_decals: settings.selected_decals,
-    profile_layout: settings.profile_layout,
+    profile_layout: normalizeCommonsProfileLayout(settings.profile_layout),
     updated_at: new Date().toISOString()
   };
   const { error } = await supabase.from("profile_customization").upsert(payload, { onConflict: "user_id" });
