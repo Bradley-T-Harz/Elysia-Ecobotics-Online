@@ -162,10 +162,11 @@ assert(commonsThemeModes.includes("DEFAULT_COMMONS_THEME_MODE") && commonsThemeM
 assert(commons.includes("COMMONS_THEME_MODES.map") && commons.includes("theme.label") && commons.includes("normalizeCommonsThemeMode(customizationDraft.theme_mode)"), "Commons Circle Theme mode dropdown should use shared readable labels and normalized values.");
 assert(!commons.includes("themeModes.map") && !commons.includes(">{theme}</option>"), "Commons Circle Theme mode dropdown should not render raw theme keys as option labels.");
 assert(publicProfile.includes("getCommonsThemeModeOption(themeMode).label") && commons.includes("getCommonsThemeModeOption(customizationDraft.theme_mode).label"), "Public and preview theme chips should use readable theme mode labels.");
-for (const mastheadClass of ["commons-profile-masthead", "commons-profile-masthead__banner", "commons-profile-masthead__identity", "commons-profile-masthead__avatar", "commons-profile-masthead__avatar-image", "commons-profile-masthead__edit"]) {
+for (const mastheadClass of ["commons-profile-masthead", "commons-profile-masthead--classic-homebase", "commons-profile-masthead__banner", "commons-profile-masthead__identity", "commons-profile-masthead__avatar", "commons-profile-masthead__avatar-image", "commons-profile-masthead__edit", "commons-avatar--masthead"]) {
   assert(publicProfile.includes(mastheadClass) || commons.includes(mastheadClass), `Commons profile masthead hook missing: ${mastheadClass}`);
 }
-assert(commonsProfileLayoutCss.includes(".commons-profile-layout--public.commons-profile-layout--classic-homebase .commons-profile-masthead") && commonsProfileLayoutCss.includes("1120px"), "Classic Homebase public masthead should have a wider, scoped public layout rule.");
+assert(commonsProfileLayoutCss.includes(".commons-profile-layout--public.commons-profile-layout--classic-homebase .commons-profile-masthead--classic-homebase") && commonsProfileLayoutCss.includes("1360px"), "Classic Homebase public masthead should use a Classic-only wider masthead modifier.");
+assert(!commonsProfileLayoutCss.includes("width: min(100%, 1120px)") && !styles.includes("commons-layout-classic_homebase .commons-public-room-hero {\n  max-width: 1120px;"), "Classic Homebase masthead should not keep the old 1120px cap.");
 for (const slotClass of ["commons-profile-slot--summary", "commons-profile-slot--identity", "commons-profile-slot--recognition", "commons-profile-slot--badges", "commons-profile-slot--collections", "commons-profile-slot--contributions"]) {
   assert(publicProfile.includes(slotClass), `Public Commons profile missing semantic layout slot: ${slotClass}`);
   assert(commonsProfileLayoutCss.includes(`.${slotClass}`), `Commons profile layout CSS missing semantic slot style: ${slotClass}`);

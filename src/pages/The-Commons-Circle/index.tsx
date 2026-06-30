@@ -199,6 +199,13 @@ export default function CommonsCirclePage() {
   const homeStyle = { "--commons-accent": savedCustomization.accent_color || "#8ee8dc" } as CSSProperties;
   const homebaseClasses = `page-stack commons-circle-page commons-homebase ${customizationClass(savedCustomization)}`;
   const previewClasses = `commons-customization-preview commons-homebase ${customizationClass(customizationDraft)}`;
+  const previewProfileLayout = normalizeCommonsProfileLayout(customizationDraft.profile_layout);
+  const isClassicHomebasePreview = previewProfileLayout === "classic_homebase";
+  const previewMastheadClassName = [
+    "commons-profile-summary-card commons-profile-summary-card--preview commons-profile-mantle commons-profile-masthead commons-profile-masthead__banner",
+    isClassicHomebasePreview ? "commons-profile-masthead--classic-homebase" : "",
+    customizationDraft.banner_url ? "has-public-banner" : ""
+  ].filter(Boolean).join(" ");
   const hasUnsavedCustomization = styleSignature(customizationDraft) !== styleSignature(savedCustomization);
   const earnedBadges = useMemo(() => {
     const earned = homebase?.userBadges.filter((badge) => badge.earned && !badge.revoked_at) ?? [];
@@ -502,11 +509,11 @@ export default function CommonsCirclePage() {
         <CommonsBackgroundAtmosphere backgroundStyle={customizationDraft.background_style} accentColor={customizationDraft.accent_color} variant="preview" className={previewClasses}>
           <CommonsProfileLayoutFrame profileLayout={customizationDraft.profile_layout} variant="preview" className="commons-profile-preview-layout-frame">
             <section className="commons-profile-slot commons-profile-slot--summary">
-              <div className={`commons-profile-summary-card commons-profile-summary-card--preview commons-profile-mantle commons-profile-masthead commons-profile-masthead__banner${customizationDraft.banner_url ? " has-public-banner" : ""}`}>
+              <div className={previewMastheadClassName}>
                 {customizationDraft.banner_url && <img className="commons-public-banner commons-profile-banner-layer commons-profile-masthead__banner-image" src={customizationDraft.banner_url} alt="" aria-hidden="true" loading="lazy" />}
                 <div className="commons-profile-masthead__banner-scrim" aria-hidden="true" />
                 <div className="commons-profile-summary-card__avatar commons-profile-masthead__avatar">
-                  <CommonsAvatarViewer src={customizationDraft.avatar_url} alt="Draft Commons profile avatar preview" fallback={(profile?.display_name || profile?.username || "C").slice(0, 1).toUpperCase()} viewLabel="View full draft Commons profile picture" imageClassName="commons-profile-masthead__avatar-image" />
+                  <CommonsAvatarViewer className={isClassicHomebasePreview ? "commons-avatar--masthead" : ""} src={customizationDraft.avatar_url} alt="Draft Commons profile avatar preview" fallback={(profile?.display_name || profile?.username || "C").slice(0, 1).toUpperCase()} viewLabel="View full draft Commons profile picture" imageClassName="commons-profile-masthead__avatar-image" />
                 </div>
                 <div className="commons-profile-summary-card__body commons-profile-masthead__identity commons-profile-masthead__body">
                   <p className="commons-profile-summary-card__handle commons-profile-masthead__handle">@{profile?.username || "draft-profile"}</p>

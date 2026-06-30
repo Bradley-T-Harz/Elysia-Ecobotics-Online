@@ -111,6 +111,15 @@ export default function PublicCommonsProfilePage() {
   const backgroundStyle = normalizeCommonsBackgroundStyle(customization.background_style);
   const profileLayout = normalizeCommonsProfileLayout(customization.profile_layout);
   const profileLayoutOption = getCommonsProfileLayoutOption(profileLayout);
+  const isClassicHomebase = profileLayout === "classic_homebase";
+  const mastheadClassName = [
+    "section-card commons-homebase-hero commons-public-room-hero commons-public-section commons-public-card-glass commons-profile-summary-shell commons-profile-masthead",
+    isClassicHomebase ? "commons-profile-masthead--classic-homebase" : ""
+  ].filter(Boolean).join(" ");
+  const mastheadBannerClassName = [
+    "commons-profile-summary-card commons-profile-mantle commons-public-profile-mantle commons-profile-masthead__banner",
+    customization.banner_url ? "has-public-banner" : ""
+  ].filter(Boolean).join(" ");
   const style = { "--commons-accent": accentColor } as CSSProperties;
   const profileClasses = `page-stack commons-public-profile commons-homebase ${customizationClass(customization)}`;
   const visibleName = visibility.show_display_name ? profile.display_name || profile.username : `@${profile.username}`;
@@ -127,12 +136,12 @@ export default function PublicCommonsProfilePage() {
       <CommonsBackgroundAtmosphere backgroundStyle={backgroundStyle} accentColor={accentColor} variant="public" className="commons-public-profile-atmosphere commons-public-atmosphere-stage">
         <CommonsProfileLayoutFrame profileLayout={profileLayout} variant="public" className="commons-public-profile-layout-frame">
           <section className="commons-profile-slot commons-profile-slot--summary">
-            <article className="section-card commons-homebase-hero commons-public-room-hero commons-public-section commons-public-card-glass commons-profile-summary-shell commons-profile-masthead">
-              <div className={`commons-profile-summary-card commons-profile-mantle commons-public-profile-mantle commons-profile-masthead__banner${customization.banner_url ? " has-public-banner" : ""}`}>
+            <article className={mastheadClassName}>
+              <div className={mastheadBannerClassName}>
                 {customization.banner_url && <img className="commons-public-banner commons-profile-banner-layer commons-profile-masthead__banner-image" src={customization.banner_url} alt="" aria-hidden="true" loading="lazy" />}
                 <div className="commons-profile-masthead__banner-scrim" aria-hidden="true" />
                 <div className="commons-profile-summary-card__avatar commons-profile-masthead__avatar">
-                  <CommonsAvatarViewer src={customization.avatar_url} alt="Public Commons avatar" fallback={(profile.display_name || profile.username).slice(0, 1).toUpperCase()} viewLabel="View full public Commons profile picture" imageClassName="commons-profile-masthead__avatar-image" />
+                  <CommonsAvatarViewer className={isClassicHomebase ? "commons-avatar--masthead" : ""} src={customization.avatar_url} alt="Public Commons avatar" fallback={(profile.display_name || profile.username).slice(0, 1).toUpperCase()} viewLabel="View full public Commons profile picture" imageClassName="commons-profile-masthead__avatar-image" />
                 </div>
                 <div className="commons-profile-summary-card__body commons-public-profile-title commons-profile-masthead__identity commons-profile-masthead__body">
                   <p className="eyebrow commons-profile-summary-card__handle commons-profile-masthead__handle">@{profile.username}</p>
