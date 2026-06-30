@@ -55,6 +55,18 @@ function BadgeIcon({ badge }: { badge: UserBadge }) {
   return <div className="medallion-icon-frame">{badge.icon_path && !failed ? <img className="medallion-icon" src={badge.icon_path} alt={`${badge.name} badge icon`} onError={() => setFailed(true)} /> : <span className="medallion-glyph">✦</span>}</div>;
 }
 
+function CommonsPrivateBannerArt({ src }: { src: string }) {
+  return (
+    <div className="commons-private-banner-art" aria-hidden="true">
+      <img className="commons-private-banner-art__backdrop" src={src} alt="" aria-hidden="true" loading="lazy" />
+      <div className="commons-private-banner-art__foreground-frame">
+        <img className="commons-private-banner-art__foreground" src={src} alt="" aria-hidden="true" loading="lazy" />
+      </div>
+      <div className="commons-private-banner-art__scrim" aria-hidden="true" />
+    </div>
+  );
+}
+
 function badgeLabels(badge: UserBadge) {
   return [badge.rarity, ...(badge.tags ?? [badge.category || badge.badge_type]), badge.authority || badge.authority_linked ? "authority-linked recognition" : "recognition", badge.award_source || badge.award_mode || "review-awarded", "earned"];
 }
@@ -399,7 +411,7 @@ export default function CommonsCirclePage() {
 
       <section className="section-card commons-homebase-hero">
         <div className={`commons-profile-mantle${savedCustomization.banner_url ? " has-public-banner" : ""}`}>
-          {savedCustomization.banner_url && <img className="commons-public-banner commons-profile-banner-layer" src={savedCustomization.banner_url} alt="" aria-hidden="true" loading="lazy" />}
+          {savedCustomization.banner_url && <CommonsPrivateBannerArt src={savedCustomization.banner_url} />}
           <CommonsAvatarViewer src={savedCustomization.avatar_url} alt="Commons profile avatar" fallback={(profile?.display_name || profile?.username || "C").slice(0, 1).toUpperCase()} viewLabel="View full Commons profile picture" />
           <div>
             <p className="eyebrow">Private Account Homebase</p>
@@ -510,7 +522,7 @@ export default function CommonsCirclePage() {
           <CommonsProfileLayoutFrame profileLayout={customizationDraft.profile_layout} variant="preview" className="commons-profile-preview-layout-frame">
             <section className="commons-profile-slot commons-profile-slot--summary">
               <div className={previewMastheadClassName}>
-                {customizationDraft.banner_url && <img className="commons-public-banner commons-profile-banner-layer commons-profile-masthead__banner-image" src={customizationDraft.banner_url} alt="" aria-hidden="true" loading="lazy" />}
+                {customizationDraft.banner_url && <CommonsPrivateBannerArt src={customizationDraft.banner_url} />}
                 <div className="commons-profile-masthead__banner-scrim" aria-hidden="true" />
                 <div className="commons-profile-summary-card__avatar commons-profile-masthead__avatar">
                   <CommonsAvatarViewer className={isClassicHomebasePreview ? "commons-avatar--masthead" : ""} src={customizationDraft.avatar_url} alt="Draft Commons profile avatar preview" fallback={(profile?.display_name || profile?.username || "C").slice(0, 1).toUpperCase()} viewLabel="View full draft Commons profile picture" imageClassName="commons-profile-masthead__avatar-image" />
