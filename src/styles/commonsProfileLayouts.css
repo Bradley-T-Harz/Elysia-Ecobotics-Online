@@ -304,6 +304,87 @@
   padding: clamp(0.95rem, 2vw, 1.2rem);
 }
 
+.commons-profile-layout--public.commons-profile-layout--classic-homebase .commons-profile-masthead {
+  width: min(100%, 1120px);
+  margin-inline: auto;
+}
+
+.commons-profile-layout--public.commons-profile-layout--classic-homebase .commons-profile-masthead__banner {
+  width: 100%;
+  min-height: clamp(220px, 24vw, 300px);
+  border-radius: 24px;
+  overflow: hidden;
+}
+
+.commons-profile-layout--classic-homebase .commons-profile-masthead__banner-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+}
+
+.commons-profile-layout--classic-homebase .commons-profile-masthead__banner-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.commons-profile-layout--classic-homebase .commons-profile-masthead__identity {
+  min-height: unset;
+  max-width: min(46rem, 100%);
+  padding: clamp(0.65rem, 1.3vw, 0.95rem) clamp(0.85rem, 1.7vw, 1.2rem);
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.commons-profile-layout--classic-homebase .commons-profile-masthead__handle {
+  margin: 0 0 0.15rem;
+  line-height: 1.1;
+}
+
+.commons-profile-layout--classic-homebase .commons-profile-masthead__name {
+  margin: 0 0 0.25rem;
+  line-height: 1.05;
+}
+
+.commons-profile-layout--classic-homebase .commons-profile-masthead__chips {
+  gap: 0.3rem;
+}
+
+.commons-profile-layout--public.commons-profile-layout--classic-homebase .commons-profile-masthead__avatar .commons-avatar {
+  width: clamp(96px, 9vw, 118px);
+  height: clamp(96px, 9vw, 118px);
+  min-width: clamp(96px, 9vw, 118px);
+  border-radius: 24px;
+}
+
+.commons-profile-layout--classic-homebase .commons-profile-masthead__avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  transform: scale(1.16);
+}
+
+.commons-profile-layout--preview.commons-profile-layout--classic-homebase .commons-profile-masthead__banner {
+  min-height: clamp(8.5rem, 24vw, 11.5rem);
+}
+
+.commons-profile-layout--preview.commons-profile-layout--classic-homebase .commons-profile-masthead__identity {
+  padding: 0.45rem 0.55rem;
+  gap: 0.24rem;
+}
+
+.commons-profile-layout--preview.commons-profile-layout--classic-homebase .commons-profile-masthead__avatar .commons-avatar {
+  width: clamp(56px, 8vw, 72px);
+  height: clamp(56px, 8vw, 72px);
+  min-width: clamp(56px, 8vw, 72px);
+  border-radius: 16px;
+}
+
 .commons-profile-layout--classic-homebase .commons-public-badge-list,
 .commons-profile-layout--classic-homebase .commons-public-collection-list,
 .commons-profile-layout--classic-homebase .commons-public-contribution-grid {

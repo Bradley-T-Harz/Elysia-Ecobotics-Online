@@ -51,6 +51,7 @@ const commonsBackgroundCss = await read("src/styles/commonsBackgrounds.css");
 const commonsProfileLayoutCatalog = await read("src/shared/commonsProfileLayouts.ts");
 const commonsProfileLayoutFrame = await read("src/shared/components/CommonsProfileLayoutFrame.tsx");
 const commonsProfileLayoutCss = await read("src/styles/commonsProfileLayouts.css");
+const commonsThemeModes = await read("src/shared/commonsThemeModes.ts");
 const pageHero = await read("src/shared/components/PageHero.tsx");
 const pageBrandMark = await read("src/shared/components/PageBrandMark.tsx");
 const homeMain = await read("src/pages/Elysia-Ecobotics-Online-MainPage/index.tsx");
@@ -144,6 +145,27 @@ assert(commonsProfileLayoutCatalog.includes("DEFAULT_COMMONS_PROFILE_LAYOUT") &&
 assert(!commonsProfileLayoutCatalog.includes("background_style") && !commonsProfileLayoutCatalog.includes("decal_set"), "Commons profile layout catalog must stay scoped to Profile layout, not Background style or decorative markers.");
 assert(commonsProfileLayoutFrame.includes("data-commons-profile-layout") && commonsProfileLayoutFrame.includes("`commons-profile-layout--${variant}`") && commonsProfileLayoutFrame.includes('variant = "public"'), "Commons profile layout frame should render public/preview variants and normalized layout metadata.");
 assert(styles.includes('@import "./styles/commonsProfileLayouts.css";'), "Global styles should import Commons profile layout styles.");
+const commonsThemeModeOptions = [
+  ["deep_grove", "Deep Grove"],
+  ["starlit_archive", "Starlit Archive"],
+  ["solar_meadow", "Solar Meadow"],
+  ["moonlit_reef", "Moonlit Reef"],
+  ["aether_blue", "Aether Blue"],
+  ["high_contrast", "High Contrast"]
+];
+for (const [key, label] of commonsThemeModeOptions) {
+  assert(commonsThemeModes.includes(`"${key}"`), `Commons theme mode catalog missing key: ${key}`);
+  assert(commonsThemeModes.includes(`label: "${label}"`), `Commons theme mode catalog missing readable label: ${label}`);
+  assert(commonsProfileLayoutCss.includes(`commons-theme-${key}`), `Commons theme mode CSS missing class: commons-theme-${key}`);
+}
+assert(commonsThemeModes.includes("DEFAULT_COMMONS_THEME_MODE") && commonsThemeModes.includes('"deep_grove"') && commonsThemeModes.includes("normalizeCommonsThemeMode"), "Commons theme mode catalog should normalize invalid values to Deep Grove.");
+assert(commons.includes("COMMONS_THEME_MODES.map") && commons.includes("theme.label") && commons.includes("normalizeCommonsThemeMode(customizationDraft.theme_mode)"), "Commons Circle Theme mode dropdown should use shared readable labels and normalized values.");
+assert(!commons.includes("themeModes.map") && !commons.includes(">{theme}</option>"), "Commons Circle Theme mode dropdown should not render raw theme keys as option labels.");
+assert(publicProfile.includes("getCommonsThemeModeOption(themeMode).label") && commons.includes("getCommonsThemeModeOption(customizationDraft.theme_mode).label"), "Public and preview theme chips should use readable theme mode labels.");
+for (const mastheadClass of ["commons-profile-masthead", "commons-profile-masthead__banner", "commons-profile-masthead__identity", "commons-profile-masthead__avatar", "commons-profile-masthead__avatar-image", "commons-profile-masthead__edit"]) {
+  assert(publicProfile.includes(mastheadClass) || commons.includes(mastheadClass), `Commons profile masthead hook missing: ${mastheadClass}`);
+}
+assert(commonsProfileLayoutCss.includes(".commons-profile-layout--public.commons-profile-layout--classic-homebase .commons-profile-masthead") && commonsProfileLayoutCss.includes("1120px"), "Classic Homebase public masthead should have a wider, scoped public layout rule.");
 for (const slotClass of ["commons-profile-slot--summary", "commons-profile-slot--identity", "commons-profile-slot--recognition", "commons-profile-slot--badges", "commons-profile-slot--collections", "commons-profile-slot--contributions"]) {
   assert(publicProfile.includes(slotClass), `Public Commons profile missing semantic layout slot: ${slotClass}`);
   assert(commonsProfileLayoutCss.includes(`.${slotClass}`), `Commons profile layout CSS missing semantic slot style: ${slotClass}`);

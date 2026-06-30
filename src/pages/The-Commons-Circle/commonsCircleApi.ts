@@ -9,6 +9,11 @@ import {
   normalizeCommonsProfileLayout,
   type CommonsProfileLayoutKey,
 } from "../../shared/commonsProfileLayouts";
+import {
+  DEFAULT_COMMONS_THEME_MODE,
+  normalizeCommonsThemeMode,
+  type CommonsThemeModeKey,
+} from "../../shared/commonsThemeModes";
 import { canReviewDomain, loadCurrentRoleState } from "../../shared/review/reviewClient";
 
 export type ProfileWithSetup = MarketplaceProfile & {
@@ -36,7 +41,7 @@ export type VisibilitySettings = {
 };
 
 export type ProfileCustomization = {
-  theme_mode: string;
+  theme_mode: CommonsThemeModeKey;
   accent_color: string;
   background_style: string;
   avatar_url?: string | null;
@@ -312,7 +317,7 @@ export const defaultVisibility: VisibilitySettings = {
 };
 
 export const defaultCustomization: ProfileCustomization = {
-  theme_mode: "starlit_archive",
+  theme_mode: DEFAULT_COMMONS_THEME_MODE,
   accent_color: "#8ee8dc",
   background_style: DEFAULT_COMMONS_BACKGROUND_STYLE,
   avatar_url: null,
@@ -327,6 +332,7 @@ export const defaultCustomization: ProfileCustomization = {
 function normalizeProfileCustomization(settings: ProfileCustomization): ProfileCustomization {
   return {
     ...settings,
+    theme_mode: normalizeCommonsThemeMode(settings.theme_mode),
     background_style: normalizeCommonsBackgroundStyle(settings.background_style),
     profile_layout: normalizeCommonsProfileLayout(settings.profile_layout),
   };
@@ -873,7 +879,7 @@ export async function saveCustomization(settings: ProfileCustomization): Promise
   if (!auth.user) return ["Sign in before saving profile customization."];
   const payload = {
     user_id: auth.user.id,
-    theme_mode: settings.theme_mode,
+    theme_mode: normalizeCommonsThemeMode(settings.theme_mode),
     accent_color: settings.accent_color,
     background_style: normalizeCommonsBackgroundStyle(settings.background_style),
     decal_set: settings.decal_set,

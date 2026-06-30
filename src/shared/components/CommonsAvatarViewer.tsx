@@ -5,10 +5,13 @@ type CommonsAvatarViewerProps = {
   alt: string;
   fallback: string;
   viewLabel: string;
+  className?: string;
+  imageClassName?: string;
 };
 
-export default function CommonsAvatarViewer({ src, alt, fallback, viewLabel }: CommonsAvatarViewerProps) {
+export default function CommonsAvatarViewer({ src, alt, fallback, viewLabel, className = "", imageClassName = "" }: CommonsAvatarViewerProps) {
   const [open, setOpen] = useState(false);
+  const avatarClassName = ["commons-avatar", className].filter(Boolean).join(" ");
 
   useEffect(() => {
     if (!open) return undefined;
@@ -20,13 +23,13 @@ export default function CommonsAvatarViewer({ src, alt, fallback, viewLabel }: C
   }, [open]);
 
   if (!src) {
-    return <div className="commons-avatar"><span>{fallback}</span></div>;
+    return <div className={avatarClassName}><span>{fallback}</span></div>;
   }
 
   return (
     <>
-      <button type="button" className="commons-avatar commons-avatar-button" onClick={() => setOpen(true)} aria-label={viewLabel}>
-        <img src={src} alt={alt} />
+      <button type="button" className={`${avatarClassName} commons-avatar-button`} onClick={() => setOpen(true)} aria-label={viewLabel}>
+        <img className={imageClassName} src={src} alt={alt} />
       </button>
       {open && (
         <div

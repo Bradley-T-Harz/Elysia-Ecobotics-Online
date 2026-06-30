@@ -3,6 +3,7 @@ import type { CSSProperties } from "react";
 import { useParams } from "react-router-dom";
 import { getCommonsBackgroundStyleOption, normalizeCommonsBackgroundStyle } from "../../shared/commonsBackgroundStyles";
 import { getCommonsProfileLayoutOption, normalizeCommonsProfileLayout } from "../../shared/commonsProfileLayouts";
+import { getCommonsThemeModeOption, normalizeCommonsThemeMode } from "../../shared/commonsThemeModes";
 import CommonsBackgroundAtmosphere from "../../shared/components/CommonsBackgroundAtmosphere";
 import CommonsAvatarViewer from "../../shared/components/CommonsAvatarViewer";
 import CommonsProfileLayoutFrame from "../../shared/components/CommonsProfileLayoutFrame";
@@ -35,7 +36,7 @@ function classToken(value: string | null | undefined, fallback: string) {
 }
 
 function customizationClass(settings: PublicCustomizationView) {
-  return `commons-theme-${classToken(settings.theme_mode, "starlit_archive")} commons-background-${classToken(normalizeCommonsBackgroundStyle(settings.background_style), "soft_cyber_garden")} commons-layout-${classToken(normalizeCommonsProfileLayout(settings.profile_layout), "classic_homebase")}`;
+  return `commons-theme-${classToken(normalizeCommonsThemeMode(settings.theme_mode), "deep_grove")} commons-background-${classToken(normalizeCommonsBackgroundStyle(settings.background_style), "soft_cyber_garden")} commons-layout-${classToken(normalizeCommonsProfileLayout(settings.profile_layout), "classic_homebase")}`;
 }
 
 function formatDecalLabel(value: string) {
@@ -106,6 +107,7 @@ export default function PublicCommonsProfilePage() {
 
   const { profile, visibility, customization, badges, publicCollections, publicLinks, publicCommunePosts, publicCommuneComments, isOwner } = profileData;
   const accentColor = safeAccentColor(customization.accent_color);
+  const themeMode = normalizeCommonsThemeMode(customization.theme_mode);
   const backgroundStyle = normalizeCommonsBackgroundStyle(customization.background_style);
   const profileLayout = normalizeCommonsProfileLayout(customization.profile_layout);
   const profileLayoutOption = getCommonsProfileLayoutOption(profileLayout);
@@ -118,28 +120,29 @@ export default function PublicCommonsProfilePage() {
   if (import.meta.env.DEV && warnings.length) console.warn("[Public Commons Profile]", warnings);
 
   return (
-    <div className={profileClasses} style={style} data-commons-theme={customization.theme_mode || "starlit_archive"} data-commons-background={backgroundStyle} data-commons-layout={profileLayout}>
+    <div className={profileClasses} style={style} data-commons-theme={themeMode} data-commons-background={backgroundStyle} data-commons-layout={profileLayout}>
       <PageHero eyebrow="Public Commons Profile" title={visibleName}>
         <p>This is a public Commons Circle profile. It does not expose private account email, private requests, saved shelves, local Elysia data, files, logs, vaults, credentials, or machine data.</p>
       </PageHero>
       <CommonsBackgroundAtmosphere backgroundStyle={backgroundStyle} accentColor={accentColor} variant="public" className="commons-public-profile-atmosphere commons-public-atmosphere-stage">
         <CommonsProfileLayoutFrame profileLayout={profileLayout} variant="public" className="commons-public-profile-layout-frame">
           <section className="commons-profile-slot commons-profile-slot--summary">
-            <article className="section-card commons-homebase-hero commons-public-room-hero commons-public-section commons-public-card-glass commons-profile-summary-shell">
-              <div className={`commons-profile-summary-card commons-profile-mantle commons-public-profile-mantle${customization.banner_url ? " has-public-banner" : ""}`}>
-                {customization.banner_url && <img className="commons-public-banner commons-profile-banner-layer" src={customization.banner_url} alt="" aria-hidden="true" loading="lazy" />}
-                <div className="commons-profile-summary-card__avatar">
-                  <CommonsAvatarViewer src={customization.avatar_url} alt="Public Commons avatar" fallback={(profile.display_name || profile.username).slice(0, 1).toUpperCase()} viewLabel="View full public Commons profile picture" />
+            <article className="section-card commons-homebase-hero commons-public-room-hero commons-public-section commons-public-card-glass commons-profile-summary-shell commons-profile-masthead">
+              <div className={`commons-profile-summary-card commons-profile-mantle commons-public-profile-mantle commons-profile-masthead__banner${customization.banner_url ? " has-public-banner" : ""}`}>
+                {customization.banner_url && <img className="commons-public-banner commons-profile-banner-layer commons-profile-masthead__banner-image" src={customization.banner_url} alt="" aria-hidden="true" loading="lazy" />}
+                <div className="commons-profile-masthead__banner-scrim" aria-hidden="true" />
+                <div className="commons-profile-summary-card__avatar commons-profile-masthead__avatar">
+                  <CommonsAvatarViewer src={customization.avatar_url} alt="Public Commons avatar" fallback={(profile.display_name || profile.username).slice(0, 1).toUpperCase()} viewLabel="View full public Commons profile picture" imageClassName="commons-profile-masthead__avatar-image" />
                 </div>
-                <div className="commons-profile-summary-card__body commons-public-profile-title">
-                  <p className="eyebrow commons-profile-summary-card__handle">@{profile.username}</p>
-                  <h2 className="commons-profile-summary-card__name">{visibleName}</h2>
+                <div className="commons-profile-summary-card__body commons-public-profile-title commons-profile-masthead__identity commons-profile-masthead__body">
+                  <p className="eyebrow commons-profile-summary-card__handle commons-profile-masthead__handle">@{profile.username}</p>
+                  <h2 className="commons-profile-summary-card__name commons-profile-masthead__name">{visibleName}</h2>
                   {profile.headline && <p>{profile.headline}</p>}
-                  <div className="commons-customization-badges commons-profile-summary-card__chips" aria-label="Public profile presentation settings"><span>{formatDecalLabel(customization.theme_mode || "starlit_archive")}</span><span>{getCommonsBackgroundStyleOption(backgroundStyle).label}</span><span>{profileLayoutOption.label}</span></div>
+                  <div className="commons-customization-badges commons-profile-summary-card__chips commons-profile-masthead__chips" aria-label="Public profile presentation settings"><span>{getCommonsThemeModeOption(themeMode).label}</span><span>{getCommonsBackgroundStyleOption(backgroundStyle).label}</span><span>{profileLayoutOption.label}</span></div>
                 </div>
               </div>
               <DecalStrip settings={customization} />
-              {isOwner && <div className="button-row commons-profile-summary-card__edit"><a className="button-link button-link--primary" href="/commons-circle">Edit in Commons Circle</a></div>}
+              {isOwner && <div className="button-row commons-profile-summary-card__edit commons-profile-masthead__edit"><a className="button-link button-link--primary" href="/commons-circle">Edit in Commons Circle</a></div>}
             </article>
           </section>
 
