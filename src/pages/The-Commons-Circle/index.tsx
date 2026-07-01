@@ -76,7 +76,15 @@ function classToken(value: string | null | undefined, fallback: string) {
 }
 
 function customizationClass(settings: ProfileCustomization) {
-  return `commons-theme-${classToken(normalizeCommonsThemeMode(settings.theme_mode), "deep_grove")} commons-background-${classToken(normalizeCommonsBackgroundStyle(settings.background_style), "soft_cyber_garden")} commons-layout-${classToken(normalizeCommonsProfileLayout(settings.profile_layout), "classic_homebase")}`;
+  return `${customizationSkinClass(settings)} ${customizationLayoutClass(settings)}`;
+}
+
+function customizationSkinClass(settings: ProfileCustomization) {
+  return `commons-theme-${classToken(normalizeCommonsThemeMode(settings.theme_mode), "deep_grove")} commons-background-${classToken(normalizeCommonsBackgroundStyle(settings.background_style), "soft_cyber_garden")}`;
+}
+
+function customizationLayoutClass(settings: ProfileCustomization) {
+  return `commons-layout-${classToken(normalizeCommonsProfileLayout(settings.profile_layout), "classic_homebase")}`;
 }
 
 function formatDecalLabel(value: string) {
@@ -197,7 +205,7 @@ export default function CommonsCirclePage() {
   const codeProposalSignalCount = homebase?.notifications.filter((notice) => /code_revision|proposal/i.test(`${notice.notification_type ?? ""} ${notice.source_type ?? ""}`)).length ?? 0;
   const troubleshootingSignalCount = homebase?.notifications.filter((notice) => /troubleshooting|fix_proposed|resolution/i.test(`${notice.notification_type ?? ""} ${notice.source_type ?? ""}`)).length ?? 0;
   const homeStyle = { "--commons-accent": savedCustomization.accent_color || "#8ee8dc" } as CSSProperties;
-  const homebaseClasses = `page-stack commons-circle-page commons-homebase ${customizationClass(savedCustomization)}`;
+  const homebaseClasses = `page-stack commons-circle-page commons-homebase ${customizationSkinClass(savedCustomization)}`;
   const previewClasses = `commons-customization-preview commons-homebase ${customizationClass(customizationDraft)}`;
   const previewProfileLayout = normalizeCommonsProfileLayout(customizationDraft.profile_layout);
   const isClassicHomebasePreview = previewProfileLayout === "classic_homebase";
@@ -397,11 +405,11 @@ export default function CommonsCirclePage() {
         </section>
       </section>
 
-      <section className="section-card commons-homebase-hero">
-        <div className={`commons-profile-mantle commons-circle-private-homebase-mantle${savedCustomization.banner_url ? " has-public-banner" : ""}`}>
-          {savedCustomization.banner_url && <img className="commons-public-banner commons-profile-banner-layer commons-circle-private-banner-image" src={savedCustomization.banner_url} alt="" aria-hidden="true" loading="lazy" />}
-          <CommonsAvatarViewer src={savedCustomization.avatar_url} alt="Commons profile avatar" fallback={(profile?.display_name || profile?.username || "C").slice(0, 1).toUpperCase()} viewLabel="View full Commons profile picture" />
-          <div>
+      <section className="section-card commons-homebase-hero commons-private-homebase">
+        <div className={`commons-profile-mantle commons-circle-private-homebase-mantle commons-private-homebase__mantle${savedCustomization.banner_url ? " has-public-banner" : ""}`}>
+          {savedCustomization.banner_url && <img className="commons-public-banner commons-profile-banner-layer commons-circle-private-banner-image commons-private-homebase__banner-image" src={savedCustomization.banner_url} alt="" aria-hidden="true" loading="lazy" />}
+          <CommonsAvatarViewer className="commons-private-homebase__avatar" src={savedCustomization.avatar_url} alt="Commons profile avatar" fallback={(profile?.display_name || profile?.username || "C").slice(0, 1).toUpperCase()} viewLabel="View full Commons profile picture" />
+          <div className="commons-private-homebase__identity">
             <p className="eyebrow">Private Account Homebase</p>
             <h2>{profile?.display_name || profile?.username || "Website member"}</h2>
             <p>{profile?.username ? `@${profile.username}` : "Sign in and create a Commons Profile to claim your public handle."}</p>

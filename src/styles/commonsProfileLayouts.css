@@ -338,6 +338,25 @@
   object-position: center;
 }
 
+.commons-profile-layout--public.commons-profile-layout--classic-homebase .commons-profile-masthead--classic-homebase .commons-profile-masthead__banner-image,
+.commons-profile-layout--public.commons-profile-layout--classic-homebase .commons-profile-masthead--classic-homebase.commons-profile-masthead__banner .commons-profile-masthead__banner-image {
+  position: absolute;
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  width: auto;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  transform-origin: center;
+  object-fit: contain;
+  object-position: center;
+}
+
 .commons-profile-layout--classic-homebase .commons-profile-masthead--classic-homebase .commons-profile-masthead__banner-scrim {
   position: absolute;
   inset: 0;
@@ -397,6 +416,24 @@
   min-height: clamp(10rem, 26vw, 14rem);
   padding: clamp(0.72rem, 1.8vw, 1rem);
   gap: clamp(0.58rem, 1.4vw, 0.84rem);
+}
+
+.commons-profile-layout--preview .commons-circle-customization-preview-mantle .commons-circle-customization-preview-banner-image {
+  position: absolute;
+  inset: auto;
+  top: 50%;
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  width: auto;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  padding: 0;
+  transform: translate(-50%, -50%);
+  transform-origin: center;
+  object-fit: contain;
+  object-position: center;
 }
 
 .commons-profile-layout--preview.commons-profile-layout--classic-homebase .commons-profile-masthead--classic-homebase .commons-profile-masthead__identity {
