@@ -741,8 +741,14 @@ create table if not exists public.profile_customization (
   decal_set text default 'none',
   selected_decals text[] default '{}',
   profile_layout text default 'classic_homebase',
+  banner_zoom numeric not null default 1,
+  banner_position_x numeric not null default 50,
+  banner_position_y numeric not null default 50,
   updated_at timestamptz not null default now(),
-  check (theme_mode in ('deep_grove','starlit_archive','solar_meadow','moonlit_reef','aether_blue','high_contrast'))
+  check (theme_mode in ('deep_grove','starlit_archive','solar_meadow','moonlit_reef','aether_blue','high_contrast')),
+  check (banner_zoom >= 0.5 and banner_zoom <= 2.0),
+  check (banner_position_x >= 0 and banner_position_x <= 100),
+  check (banner_position_y >= 0 and banner_position_y <= 100)
 );
 
 create table if not exists public.profile_media (

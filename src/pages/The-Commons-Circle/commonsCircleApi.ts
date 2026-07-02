@@ -51,6 +51,9 @@ export type ProfileCustomization = {
   decal_set: string;
   selected_decals: string[];
   profile_layout: CommonsProfileLayoutKey;
+  banner_zoom: number;
+  banner_position_x: number;
+  banner_position_y: number;
 };
 
 export type NotificationPreferences = {
@@ -326,15 +329,51 @@ export const defaultCustomization: ProfileCustomization = {
   banner_media_id: null,
   decal_set: "none",
   selected_decals: [],
-  profile_layout: DEFAULT_COMMONS_PROFILE_LAYOUT
+  profile_layout: DEFAULT_COMMONS_PROFILE_LAYOUT,
+  banner_zoom: 1,
+  banner_position_x: 50,
+  banner_position_y: 50
 };
 
-function normalizeProfileCustomization(settings: ProfileCustomization): ProfileCustomization {
+export const DEFAULT_COMMONS_BANNER_ZOOM = 1;
+export const DEFAULT_COMMONS_BANNER_POSITION_X = 50;
+export const DEFAULT_COMMONS_BANNER_POSITION_Y = 50;
+export const COMMONS_BANNER_ZOOM_MIN = 0.5;
+export const COMMONS_BANNER_ZOOM_MAX = 2;
+export const COMMONS_BANNER_POSITION_MIN = 0;
+export const COMMONS_BANNER_POSITION_MAX = 100;
+
+export function clampNumber(value: unknown, min: number, max: number, fallback: number) {
+  const numeric = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numeric)) return fallback;
+  return Math.min(max, Math.max(min, numeric));
+}
+
+export function normalizeCommonsBannerZoom(value: unknown) {
+  return clampNumber(value, COMMONS_BANNER_ZOOM_MIN, COMMONS_BANNER_ZOOM_MAX, DEFAULT_COMMONS_BANNER_ZOOM);
+}
+
+export function normalizeCommonsBannerPosition(value: unknown) {
+  return clampNumber(value, COMMONS_BANNER_POSITION_MIN, COMMONS_BANNER_POSITION_MAX, DEFAULT_COMMONS_BANNER_POSITION_X);
+}
+
+function normalizeProfileCustomization(settings: Partial<ProfileCustomization>): ProfileCustomization {
+  const merged = { ...defaultCustomization, ...settings };
   return {
-    ...settings,
-    theme_mode: normalizeCommonsThemeMode(settings.theme_mode),
-    background_style: normalizeCommonsBackgroundStyle(settings.background_style),
-    profile_layout: normalizeCommonsProfileLayout(settings.profile_layout),
+    ...merged,
+    accent_color: merged.accent_color || defaultCustomization.accent_color,
+    avatar_url: merged.avatar_url ?? null,
+    banner_url: merged.banner_url ?? null,
+    avatar_media_id: merged.avatar_media_id ?? null,
+    banner_media_id: merged.banner_media_id ?? null,
+    decal_set: merged.decal_set || defaultCustomization.decal_set,
+    selected_decals: Array.isArray(merged.selected_decals) ? merged.selected_decals : [],
+    theme_mode: normalizeCommonsThemeMode(merged.theme_mode),
+    background_style: normalizeCommonsBackgroundStyle(merged.background_style),
+    profile_layout: normalizeCommonsProfileLayout(merged.profile_layout),
+    banner_zoom: normalizeCommonsBannerZoom(merged.banner_zoom),
+    banner_position_x: normalizeCommonsBannerPosition(merged.banner_position_x),
+    banner_position_y: normalizeCommonsBannerPosition(merged.banner_position_y),
   };
 }
 
@@ -877,14 +916,18 @@ export async function saveCustomization(settings: ProfileCustomization): Promise
   if (!supabase) return [supabaseNotConfiguredMessage];
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return ["Sign in before saving profile customization."];
+  const normalized = normalizeProfileCustomization(settings);
   const payload = {
     user_id: auth.user.id,
-    theme_mode: normalizeCommonsThemeMode(settings.theme_mode),
-    accent_color: settings.accent_color,
-    background_style: normalizeCommonsBackgroundStyle(settings.background_style),
-    decal_set: settings.decal_set,
-    selected_decals: settings.selected_decals,
-    profile_layout: normalizeCommonsProfileLayout(settings.profile_layout),
+    theme_mode: normalized.theme_mode,
+    accent_color: normalized.accent_color,
+    background_style: normalized.background_style,
+    decal_set: normalized.decal_set,
+    selected_decals: normalized.selected_decals,
+    profile_layout: normalized.profile_layout,
+    banner_zoom: normalized.banner_zoom,
+    banner_position_x: normalized.banner_position_x,
+    banner_position_y: normalized.banner_position_y,
     updated_at: new Date().toISOString()
   };
   const { error } = await supabase.from("profile_customization").upsert(payload, { onConflict: "user_id" });

@@ -14,6 +14,13 @@ import { loadCurrentRoleState } from "../../shared/review/reviewClient";
 import type { AppRole } from "../../shared/review/reviewClient";
 import { CommonsCircleAdminEntryCard, userCanOpenCommonsAdminConsole } from "./CommonsCircleAdminConsolePage";
 import {
+  DEFAULT_COMMONS_BANNER_POSITION_X,
+  DEFAULT_COMMONS_BANNER_POSITION_Y,
+  DEFAULT_COMMONS_BANNER_ZOOM,
+  COMMONS_BANNER_POSITION_MAX,
+  COMMONS_BANNER_POSITION_MIN,
+  COMMONS_BANNER_ZOOM_MAX,
+  COMMONS_BANNER_ZOOM_MIN,
   commonsStorageKeys,
   defaultCustomization,
   defaultNotificationPreferences,
@@ -22,6 +29,8 @@ import {
   loadCommonsHomebase,
   markAllNotificationsRead,
   markNotificationRead,
+  normalizeCommonsBannerPosition,
+  normalizeCommonsBannerZoom,
   readLocalStorage,
   removeProfileMedia,
   saveCustomization,
@@ -103,8 +112,27 @@ function styleSignature(settings: ProfileCustomization) {
     background_style: normalizeCommonsBackgroundStyle(settings.background_style),
     decal_set: settings.decal_set || defaultCustomization.decal_set,
     selected_decals: [...(settings.selected_decals ?? [])].sort(),
-    profile_layout: normalizeCommonsProfileLayout(settings.profile_layout)
+    profile_layout: normalizeCommonsProfileLayout(settings.profile_layout),
+    banner_zoom: normalizeCommonsBannerZoom(settings.banner_zoom),
+    banner_position_x: normalizeCommonsBannerPosition(settings.banner_position_x),
+    banner_position_y: normalizeCommonsBannerPosition(settings.banner_position_y)
   });
+}
+
+function bannerFramingStyle(settings: ProfileCustomization) {
+  return {
+    "--commons-banner-zoom": String(normalizeCommonsBannerZoom(settings.banner_zoom)),
+    "--commons-banner-position-x": `${normalizeCommonsBannerPosition(settings.banner_position_x)}%`,
+    "--commons-banner-position-y": `${normalizeCommonsBannerPosition(settings.banner_position_y)}%`,
+  } as CSSProperties;
+}
+
+function formatBannerZoom(value: number) {
+  return `${Math.round(normalizeCommonsBannerZoom(value) * 100)}%`;
+}
+
+function formatBannerPosition(value: number) {
+  return `${Math.round(normalizeCommonsBannerPosition(value))}%`;
 }
 
 function DecalStrip({ settings }: { settings: ProfileCustomization }) {
@@ -241,6 +269,9 @@ export default function CommonsCirclePage() {
       ...(patch.theme_mode === undefined ? {} : { theme_mode: normalizeCommonsThemeMode(patch.theme_mode) }),
       ...(patch.background_style === undefined ? {} : { background_style: normalizeCommonsBackgroundStyle(patch.background_style) }),
       ...(patch.profile_layout === undefined ? {} : { profile_layout: normalizeCommonsProfileLayout(patch.profile_layout) }),
+      ...(patch.banner_zoom === undefined ? {} : { banner_zoom: normalizeCommonsBannerZoom(patch.banner_zoom) }),
+      ...(patch.banner_position_x === undefined ? {} : { banner_position_x: normalizeCommonsBannerPosition(patch.banner_position_x) }),
+      ...(patch.banner_position_y === undefined ? {} : { banner_position_y: normalizeCommonsBannerPosition(patch.banner_position_y) }),
     };
     setCustomizationDraft((current) => ({ ...current, ...normalizedPatch }));
   }
@@ -263,6 +294,9 @@ export default function CommonsCirclePage() {
       theme_mode: normalizeCommonsThemeMode(customizationDraft.theme_mode),
       background_style: normalizeCommonsBackgroundStyle(customizationDraft.background_style),
       profile_layout: normalizeCommonsProfileLayout(customizationDraft.profile_layout),
+      banner_zoom: normalizeCommonsBannerZoom(customizationDraft.banner_zoom),
+      banner_position_x: normalizeCommonsBannerPosition(customizationDraft.banner_position_x),
+      banner_position_y: normalizeCommonsBannerPosition(customizationDraft.banner_position_y),
     };
     if (!homebase?.signedIn) {
       writeLocalStorage("commonsCircle.customizationDemo.v1", savedDraft);
@@ -513,11 +547,30 @@ export default function CommonsCirclePage() {
             <button type="button" onClick={() => void handleRemoveProfileMedia("banner")} disabled={!savedCustomization.banner_url && !customizationDraft.banner_url}>Remove banner</button>
           </div>
           {mediaStatus && <p className="commons-media-status" aria-live="polite">{mediaStatus}</p>}
+          <fieldset className="commons-banner-framing-controls">
+            <legend>Banner framing</legend>
+            <label className="commons-banner-framing-row">
+              <span>Banner zoom</span>
+              <input type="range" min={COMMONS_BANNER_ZOOM_MIN} max={COMMONS_BANNER_ZOOM_MAX} step="0.01" value={normalizeCommonsBannerZoom(customizationDraft.banner_zoom)} onChange={(event) => updateCustomizationDraft({ banner_zoom: Number(event.target.value) })} />
+              <strong className="commons-banner-framing-value">{formatBannerZoom(customizationDraft.banner_zoom)}</strong>
+            </label>
+            <label className="commons-banner-framing-row">
+              <span>Horizontal position</span>
+              <input type="range" min={COMMONS_BANNER_POSITION_MIN} max={COMMONS_BANNER_POSITION_MAX} step="1" value={normalizeCommonsBannerPosition(customizationDraft.banner_position_x)} onChange={(event) => updateCustomizationDraft({ banner_position_x: Number(event.target.value) })} />
+              <strong className="commons-banner-framing-value">{formatBannerPosition(customizationDraft.banner_position_x)}</strong>
+            </label>
+            <label className="commons-banner-framing-row">
+              <span>Vertical position</span>
+              <input type="range" min={COMMONS_BANNER_POSITION_MIN} max={COMMONS_BANNER_POSITION_MAX} step="1" value={normalizeCommonsBannerPosition(customizationDraft.banner_position_y)} onChange={(event) => updateCustomizationDraft({ banner_position_y: Number(event.target.value) })} />
+              <strong className="commons-banner-framing-value">{formatBannerPosition(customizationDraft.banner_position_y)}</strong>
+            </label>
+            <button className="commons-banner-framing-reset" type="button" onClick={() => updateCustomizationDraft({ banner_zoom: DEFAULT_COMMONS_BANNER_ZOOM, banner_position_x: DEFAULT_COMMONS_BANNER_POSITION_X, banner_position_y: DEFAULT_COMMONS_BANNER_POSITION_Y })}>Reset banner framing</button>
+          </fieldset>
         </div>
         <CommonsBackgroundAtmosphere backgroundStyle={customizationDraft.background_style} accentColor={customizationDraft.accent_color} variant="preview" className={previewClasses}>
           <CommonsProfileLayoutFrame profileLayout={customizationDraft.profile_layout} variant="preview" className="commons-profile-preview-layout-frame">
             <section className="commons-profile-slot commons-profile-slot--summary">
-              <div className={previewMastheadClassName}>
+              <div className={previewMastheadClassName} style={bannerFramingStyle(customizationDraft)}>
                 {customizationDraft.banner_url && <img className="commons-public-banner commons-profile-banner-layer commons-profile-masthead__banner-image commons-circle-customization-preview-banner-image" src={customizationDraft.banner_url} alt="" aria-hidden="true" loading="lazy" />}
                 <div className="commons-profile-masthead__banner-scrim" aria-hidden="true" />
                 <div className="commons-profile-summary-card__avatar commons-profile-masthead__avatar">

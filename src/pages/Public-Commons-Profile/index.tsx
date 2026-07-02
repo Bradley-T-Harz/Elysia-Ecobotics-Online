@@ -8,7 +8,7 @@ import CommonsBackgroundAtmosphere from "../../shared/components/CommonsBackgrou
 import CommonsAvatarViewer from "../../shared/components/CommonsAvatarViewer";
 import CommonsProfileLayoutFrame from "../../shared/components/CommonsProfileLayoutFrame";
 import PageHero from "../../shared/components/PageHero";
-import { loadPublicCommonsProfile } from "../The-Commons-Circle/commonsCircleApi";
+import { loadPublicCommonsProfile, normalizeCommonsBannerPosition, normalizeCommonsBannerZoom } from "../The-Commons-Circle/commonsCircleApi";
 import type { PublicCommonsProfile, UserBadge } from "../The-Commons-Circle/commonsCircleApi";
 
 function PublicBadgeIcon({ badge }: { badge: UserBadge }) {
@@ -25,6 +25,9 @@ type PublicCustomizationView = {
   profile_layout?: string | null;
   decal_set?: string | null;
   selected_decals?: string[] | null;
+  banner_zoom?: number | null;
+  banner_position_x?: number | null;
+  banner_position_y?: number | null;
 };
 
 function safeAccentColor(value: string | null | undefined) {
@@ -46,6 +49,14 @@ function formatDecalLabel(value: string) {
 function visibleDecals(settings: PublicCustomizationView) {
   const decals = settings.selected_decals?.length ? settings.selected_decals : settings.decal_set && settings.decal_set !== "none" ? [settings.decal_set] : [];
   return decals.filter(Boolean);
+}
+
+function bannerFramingStyle(settings: PublicCustomizationView) {
+  return {
+    "--commons-banner-zoom": String(normalizeCommonsBannerZoom(settings.banner_zoom)),
+    "--commons-banner-position-x": `${normalizeCommonsBannerPosition(settings.banner_position_x)}%`,
+    "--commons-banner-position-y": `${normalizeCommonsBannerPosition(settings.banner_position_y)}%`,
+  } as CSSProperties;
 }
 
 function DecalStrip({ settings }: { settings: PublicCustomizationView }) {
@@ -137,7 +148,7 @@ export default function PublicCommonsProfilePage() {
         <CommonsProfileLayoutFrame profileLayout={profileLayout} variant="public" className="commons-public-profile-layout-frame">
           <section className="commons-profile-slot commons-profile-slot--summary">
             <article className={mastheadClassName}>
-              <div className={mastheadBannerClassName}>
+              <div className={mastheadBannerClassName} style={bannerFramingStyle(customization)}>
                 {customization.banner_url && <img className="commons-public-banner commons-profile-banner-layer commons-profile-masthead__banner-image" src={customization.banner_url} alt="" aria-hidden="true" loading="lazy" />}
                 <div className="commons-profile-masthead__banner-scrim" aria-hidden="true" />
                 <div className="commons-profile-summary-card__avatar commons-profile-masthead__avatar">
