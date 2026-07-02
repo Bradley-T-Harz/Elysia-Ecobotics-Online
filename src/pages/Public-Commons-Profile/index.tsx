@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
-import type { CSSProperties } from "react";
 import { useParams } from "react-router-dom";
 import { getCommonsBackgroundStyleOption, normalizeCommonsBackgroundStyle } from "../../shared/commonsBackgroundStyles";
 import { getCommonsProfileLayoutOption, normalizeCommonsProfileLayout } from "../../shared/commonsProfileLayouts";
 import { getCommonsThemeModeOption, normalizeCommonsThemeMode } from "../../shared/commonsThemeModes";
+import { commonsCustomizationStyle, customizationClass, safeCommonsAccentColor } from "../../shared/commonsCustomizationStyles";
 import CommonsBackgroundAtmosphere from "../../shared/components/CommonsBackgroundAtmosphere";
 import CommonsAvatarViewer from "../../shared/components/CommonsAvatarViewer";
 import CommonsProfileLayoutFrame from "../../shared/components/CommonsProfileLayoutFrame";
 import PageHero from "../../shared/components/PageHero";
-import { loadPublicCommonsProfile, normalizeCommonsBannerPosition, normalizeCommonsBannerZoom } from "../The-Commons-Circle/commonsCircleApi";
+import { loadPublicCommonsProfile } from "../The-Commons-Circle/commonsCircleApi";
 import type { PublicCommonsProfile, UserBadge } from "../The-Commons-Circle/commonsCircleApi";
 
 function PublicBadgeIcon({ badge }: { badge: UserBadge }) {
@@ -30,18 +30,6 @@ type PublicCustomizationView = {
   banner_position_y?: number | null;
 };
 
-function safeAccentColor(value: string | null | undefined) {
-  return /^#[0-9a-f]{6}$/i.test(value ?? "") ? value as string : "#8ee8dc";
-}
-
-function classToken(value: string | null | undefined, fallback: string) {
-  return (value || fallback).replace(/[^a-z0-9_-]/gi, "_");
-}
-
-function customizationClass(settings: PublicCustomizationView) {
-  return `commons-theme-${classToken(normalizeCommonsThemeMode(settings.theme_mode), "deep_grove")} commons-background-${classToken(normalizeCommonsBackgroundStyle(settings.background_style), "soft_cyber_garden")} commons-layout-${classToken(normalizeCommonsProfileLayout(settings.profile_layout), "classic_homebase")}`;
-}
-
 function formatDecalLabel(value: string) {
   return value.replace(/_/g, " ");
 }
@@ -49,14 +37,6 @@ function formatDecalLabel(value: string) {
 function visibleDecals(settings: PublicCustomizationView) {
   const decals = settings.selected_decals?.length ? settings.selected_decals : settings.decal_set && settings.decal_set !== "none" ? [settings.decal_set] : [];
   return decals.filter(Boolean);
-}
-
-function bannerFramingStyle(settings: PublicCustomizationView) {
-  return {
-    "--commons-banner-zoom": String(normalizeCommonsBannerZoom(settings.banner_zoom)),
-    "--commons-banner-position-x": `${normalizeCommonsBannerPosition(settings.banner_position_x)}%`,
-    "--commons-banner-position-y": `${normalizeCommonsBannerPosition(settings.banner_position_y)}%`,
-  } as CSSProperties;
 }
 
 function DecalStrip({ settings }: { settings: PublicCustomizationView }) {
@@ -117,7 +97,7 @@ export default function PublicCommonsProfilePage() {
   }
 
   const { profile, visibility, customization, badges, publicCollections, publicLinks, publicCommunePosts, publicCommuneComments, isOwner } = profileData;
-  const accentColor = safeAccentColor(customization.accent_color);
+  const accentColor = safeCommonsAccentColor(customization.accent_color);
   const themeMode = normalizeCommonsThemeMode(customization.theme_mode);
   const backgroundStyle = normalizeCommonsBackgroundStyle(customization.background_style);
   const profileLayout = normalizeCommonsProfileLayout(customization.profile_layout);
@@ -131,7 +111,7 @@ export default function PublicCommonsProfilePage() {
     "commons-profile-summary-card commons-profile-mantle commons-public-profile-mantle commons-profile-masthead__banner",
     customization.banner_url ? "has-public-banner" : ""
   ].filter(Boolean).join(" ");
-  const style = { "--commons-accent": accentColor } as CSSProperties;
+  const style = commonsCustomizationStyle(customization);
   const profileClasses = `page-stack commons-public-profile commons-homebase ${customizationClass(customization)}`;
   const visibleName = visibility.show_display_name ? profile.display_name || profile.username : `@${profile.username}`;
   const hasPublicIdentityDetails = Boolean((visibility.show_bio && profile.bio) || profile.organization || (visibility.show_interests && profile.interests) || (visibility.show_website && profile.website_url) || (visibility.show_github && profile.github_url) || publicLinks.length);
@@ -144,11 +124,11 @@ export default function PublicCommonsProfilePage() {
       <PageHero eyebrow="Public Commons Profile" title={visibleName}>
         <p>This is a public Commons Circle profile. It does not expose private account email, private requests, saved shelves, local Elysia data, files, logs, vaults, credentials, or machine data.</p>
       </PageHero>
-      <CommonsBackgroundAtmosphere backgroundStyle={backgroundStyle} accentColor={accentColor} variant="public" className="commons-public-profile-atmosphere commons-public-atmosphere-stage">
+      <CommonsBackgroundAtmosphere backgroundStyle={backgroundStyle} accentColor={accentColor} variant="public" className="commons-public-profile-atmosphere commons-public-atmosphere-stage" style={style}>
         <CommonsProfileLayoutFrame profileLayout={profileLayout} variant="public" className="commons-public-profile-layout-frame">
           <section className="commons-profile-slot commons-profile-slot--summary">
             <article className={mastheadClassName}>
-              <div className={mastheadBannerClassName} style={bannerFramingStyle(customization)}>
+              <div className={mastheadBannerClassName} style={style}>
                 {customization.banner_url && <img className="commons-public-banner commons-profile-banner-layer commons-profile-masthead__banner-image" src={customization.banner_url} alt="" aria-hidden="true" loading="lazy" />}
                 <div className="commons-profile-masthead__banner-scrim" aria-hidden="true" />
                 <div className="commons-profile-summary-card__avatar commons-profile-masthead__avatar">

@@ -2053,21 +2053,40 @@ code { color: var(--teal); overflow-wrap: anywhere; }
 }
 .commons-homebase {
   --commons-accent: #8ee8dc;
+  --commons-accent-soft: color-mix(in srgb, var(--commons-accent) 16%, transparent);
+  --commons-accent-border: color-mix(in srgb, var(--commons-accent) 34%, rgba(216, 226, 232, .18));
+  --commons-accent-glow: 0 0 34px color-mix(in srgb, var(--commons-accent) 18%, transparent);
+  --commons-accent-focus: color-mix(in srgb, var(--commons-accent) 82%, white);
   --commons-panel: rgba(7, 14, 20, .78);
   --commons-panel-strong: rgba(10, 24, 32, .94);
   --commons-panel-raised: rgba(15, 34, 45, .88);
-  --commons-line: color-mix(in srgb, var(--commons-accent) 26%, rgba(216, 226, 232, .15));
+  --commons-theme-surface: linear-gradient(135deg, rgba(5, 11, 15, 0.74), rgba(11, 21, 28, 0.5));
+  --commons-theme-surface-strong: linear-gradient(135deg, rgba(4, 10, 14, 0.82), rgba(10, 25, 32, 0.58));
+  --commons-theme-surface-soft: linear-gradient(135deg, rgba(5, 11, 15, 0.52), rgba(14, 27, 33, 0.34));
+  --commons-theme-text: #f1fbf7;
+  --commons-theme-muted: rgba(226, 243, 239, .78);
+  --commons-theme-eyebrow: var(--gold);
+  --commons-theme-chip-bg: color-mix(in srgb, var(--commons-accent) 16%, rgba(3, 10, 15, .72));
+  --commons-theme-chip-text: rgba(241, 255, 252, .92);
+  --commons-theme-panel-border: color-mix(in srgb, var(--commons-accent) 26%, rgba(216, 226, 232, .15));
+  --commons-theme-notice-bg: linear-gradient(135deg, rgba(22, 19, 10, .62), rgba(8, 16, 17, .5));
+  --commons-theme-notice-border: rgba(216, 182, 111, .3);
+  --commons-theme-button-bg: linear-gradient(135deg, rgba(10, 24, 26, .8), rgba(9, 15, 20, .72));
+  --commons-theme-avatar-bg: radial-gradient(circle at 40% 30%, color-mix(in srgb, var(--commons-accent) 34%, rgba(255,255,255,.1)), transparent 60%), rgba(3, 10, 15, .82);
+  --commons-theme-shadow: 0 24px 68px rgba(0, 0, 0, .24), inset 0 1px 0 rgba(255, 255, 255, .04);
+  --commons-theme-glow: 0 0 34px color-mix(in srgb, var(--commons-accent) 12%, transparent);
+  --commons-line: var(--commons-theme-panel-border);
   --commons-text: #f1fbf7;
-  --commons-muted: rgba(226, 243, 239, .78);
+  --commons-muted: var(--commons-theme-muted);
   color: var(--commons-text);
 }
 
 .commons-homebase .section-card {
   border-color: var(--commons-line);
   background:
-    radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--commons-accent) 10%, transparent), transparent 22rem),
-    linear-gradient(180deg, var(--commons-panel-strong), var(--commons-panel));
-  box-shadow: 0 24px 70px rgba(0, 0, 0, .32), inset 0 1px 0 rgba(255,255,255,.035);
+    radial-gradient(circle at 12% 0%, var(--commons-accent-soft), transparent 22rem),
+    var(--commons-theme-surface, linear-gradient(180deg, var(--commons-panel-strong), var(--commons-panel)));
+  box-shadow: var(--commons-theme-shadow, 0 24px 70px rgba(0, 0, 0, .32), inset 0 1px 0 rgba(255,255,255,.035));
 }
 
 .commons-homebase .section-card h2,
@@ -2086,16 +2105,36 @@ code { color: var(--teal); overflow-wrap: anywhere; }
 
 .commons-homebase .button-primary,
 .commons-homebase .button-link--primary {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--commons-accent) 22%, rgba(255,255,255,.05)), rgba(7, 14, 20, .9));
+  background: var(--commons-theme-button-bg);
   border-color: color-mix(in srgb, var(--commons-accent) 56%, rgba(255,255,255,.16));
-  color: color-mix(in srgb, var(--commons-accent) 82%, white);
+  color: var(--commons-accent-focus);
+  box-shadow: var(--commons-accent-glow);
 }
 
 .commons-homebase button,
 .commons-homebase .button-link {
-  border-color: color-mix(in srgb, var(--commons-accent) 22%, rgba(216, 226, 232, .15));
-  background: rgba(5, 12, 18, .68);
+  border-color: var(--commons-accent-border);
+  background: var(--commons-theme-button-bg);
   color: var(--commons-text);
+}
+
+.commons-homebase .boundary-note {
+  border-color: var(--commons-theme-notice-border);
+  background: var(--commons-theme-notice-bg);
+}
+
+.commons-homebase .eyebrow,
+.commons-homebase .commons-public-section-card__eyebrow,
+.commons-homebase .commons-profile-summary-card__handle {
+  color: var(--commons-theme-eyebrow);
+}
+
+.commons-homebase .commons-badge-row span,
+.commons-homebase .commons-decal-chip,
+.commons-homebase .commons-customization-badges span {
+  border-color: var(--commons-accent-border);
+  background: var(--commons-theme-chip-bg);
+  color: var(--commons-theme-chip-text);
 }
 
 .commons-admin-console {
@@ -2210,13 +2249,13 @@ code { color: var(--teal); overflow-wrap: anywhere; }
 .commons-private-homebase__mantle .commons-private-homebase__banner-image {
   position: absolute;
   inset: auto;
-  top: 50%;
-  left: 50%;
+  top: var(--commons-banner-position-y, 50%);
+  left: var(--commons-banner-position-x, 50%);
   right: auto;
   bottom: auto;
   box-sizing: border-box;
   width: auto;
-  height: 100%;
+  height: calc(100% * var(--commons-banner-zoom, 1));
   max-width: none;
   max-height: none;
   padding: 0;
@@ -2280,6 +2319,19 @@ code { color: var(--teal); overflow-wrap: anywhere; }
 .commons-profile-mantle p {
   color: inherit;
   margin-bottom: .25rem;
+}
+
+.commons-private-homebase__mantle {
+  border-color: var(--commons-theme-panel-border);
+  background:
+    radial-gradient(circle at 18% 20%, var(--commons-accent-soft), transparent 34%),
+    var(--commons-theme-surface-strong);
+  box-shadow: var(--commons-theme-shadow);
+}
+
+.commons-private-homebase__avatar {
+  background: var(--commons-theme-avatar-bg);
+  box-shadow: var(--commons-theme-glow);
 }
 
 .commons-avatar {

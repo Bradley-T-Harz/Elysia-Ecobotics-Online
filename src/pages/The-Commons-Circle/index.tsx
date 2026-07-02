@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties } from "react";
 import { Link } from "react-router-dom";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
 import { COMMONS_BACKGROUND_STYLES, getCommonsBackgroundStyleOption, normalizeCommonsBackgroundStyle } from "../../shared/commonsBackgroundStyles";
 import { COMMONS_PROFILE_LAYOUTS, getCommonsProfileLayoutOption, normalizeCommonsProfileLayout } from "../../shared/commonsProfileLayouts";
 import { COMMONS_THEME_MODES, getCommonsThemeModeOption, normalizeCommonsThemeMode } from "../../shared/commonsThemeModes";
+import { commonsCustomizationStyle, customizationClass, customizationSkinClass } from "../../shared/commonsCustomizationStyles";
 import CommonsBackgroundAtmosphere from "../../shared/components/CommonsBackgroundAtmosphere";
 import CommonsAvatarViewer from "../../shared/components/CommonsAvatarViewer";
 import CommonsProfileLayoutFrame from "../../shared/components/CommonsProfileLayoutFrame";
@@ -80,22 +80,6 @@ function privacyLabel(key: string) {
   return key.replace(/^show_/, "show ").replace(/_/g, " ");
 }
 
-function classToken(value: string | null | undefined, fallback: string) {
-  return (value || fallback).replace(/[^a-z0-9_-]/gi, "_");
-}
-
-function customizationClass(settings: ProfileCustomization) {
-  return `${customizationSkinClass(settings)} ${customizationLayoutClass(settings)}`;
-}
-
-function customizationSkinClass(settings: ProfileCustomization) {
-  return `commons-theme-${classToken(normalizeCommonsThemeMode(settings.theme_mode), "deep_grove")} commons-background-${classToken(normalizeCommonsBackgroundStyle(settings.background_style), "soft_cyber_garden")}`;
-}
-
-function customizationLayoutClass(settings: ProfileCustomization) {
-  return `commons-layout-${classToken(normalizeCommonsProfileLayout(settings.profile_layout), "classic_homebase")}`;
-}
-
 function formatDecalLabel(value: string) {
   return value.replace(/_/g, " ");
 }
@@ -117,14 +101,6 @@ function styleSignature(settings: ProfileCustomization) {
     banner_position_x: normalizeCommonsBannerPosition(settings.banner_position_x),
     banner_position_y: normalizeCommonsBannerPosition(settings.banner_position_y)
   });
-}
-
-function bannerFramingStyle(settings: ProfileCustomization) {
-  return {
-    "--commons-banner-zoom": String(normalizeCommonsBannerZoom(settings.banner_zoom)),
-    "--commons-banner-position-x": `${normalizeCommonsBannerPosition(settings.banner_position_x)}%`,
-    "--commons-banner-position-y": `${normalizeCommonsBannerPosition(settings.banner_position_y)}%`,
-  } as CSSProperties;
 }
 
 function formatBannerZoom(value: number) {
@@ -232,7 +208,8 @@ export default function CommonsCirclePage() {
   const unreadCount = homebase?.notifications.filter((notice) => !notice.read_at).length ?? 0;
   const codeProposalSignalCount = homebase?.notifications.filter((notice) => /code_revision|proposal/i.test(`${notice.notification_type ?? ""} ${notice.source_type ?? ""}`)).length ?? 0;
   const troubleshootingSignalCount = homebase?.notifications.filter((notice) => /troubleshooting|fix_proposed|resolution/i.test(`${notice.notification_type ?? ""} ${notice.source_type ?? ""}`)).length ?? 0;
-  const homeStyle = { "--commons-accent": savedCustomization.accent_color || "#8ee8dc" } as CSSProperties;
+  const homeStyle = commonsCustomizationStyle(savedCustomization);
+  const previewStyle = commonsCustomizationStyle(customizationDraft);
   const homebaseClasses = `page-stack commons-circle-page commons-homebase ${customizationSkinClass(savedCustomization)}`;
   const previewClasses = `commons-customization-preview commons-homebase ${customizationClass(customizationDraft)}`;
   const previewProfileLayout = normalizeCommonsProfileLayout(customizationDraft.profile_layout);
@@ -567,10 +544,10 @@ export default function CommonsCirclePage() {
             <button className="commons-banner-framing-reset" type="button" onClick={() => updateCustomizationDraft({ banner_zoom: DEFAULT_COMMONS_BANNER_ZOOM, banner_position_x: DEFAULT_COMMONS_BANNER_POSITION_X, banner_position_y: DEFAULT_COMMONS_BANNER_POSITION_Y })}>Reset banner framing</button>
           </fieldset>
         </div>
-        <CommonsBackgroundAtmosphere backgroundStyle={customizationDraft.background_style} accentColor={customizationDraft.accent_color} variant="preview" className={previewClasses}>
+        <CommonsBackgroundAtmosphere backgroundStyle={customizationDraft.background_style} accentColor={customizationDraft.accent_color} variant="preview" className={previewClasses} style={previewStyle}>
           <CommonsProfileLayoutFrame profileLayout={customizationDraft.profile_layout} variant="preview" className="commons-profile-preview-layout-frame">
             <section className="commons-profile-slot commons-profile-slot--summary">
-              <div className={previewMastheadClassName} style={bannerFramingStyle(customizationDraft)}>
+              <div className={previewMastheadClassName} style={previewStyle}>
                 {customizationDraft.banner_url && <img className="commons-public-banner commons-profile-banner-layer commons-profile-masthead__banner-image commons-circle-customization-preview-banner-image" src={customizationDraft.banner_url} alt="" aria-hidden="true" loading="lazy" />}
                 <div className="commons-profile-masthead__banner-scrim" aria-hidden="true" />
                 <div className="commons-profile-summary-card__avatar commons-profile-masthead__avatar">

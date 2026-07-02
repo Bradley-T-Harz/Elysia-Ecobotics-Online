@@ -1,30 +1,28 @@
 import type { CSSProperties, ReactNode } from "react";
 import { getCommonsBackgroundStyleOption } from "../commonsBackgroundStyles";
+import { safeCommonsAccentColor } from "../commonsCustomizationStyles";
 
 type CommonsBackgroundAtmosphereProps = {
   backgroundStyle: unknown;
   accentColor?: string | null;
   variant?: "preview" | "public";
   className?: string;
+  style?: CSSProperties;
   children: ReactNode;
 };
-
-function sanitizeAccentColor(value?: string | null) {
-  return typeof value === "string" && /^#[0-9a-f]{6}$/i.test(value)
-    ? value
-    : "#8ee8dc";
-}
 
 export default function CommonsBackgroundAtmosphere({
   backgroundStyle,
   accentColor,
   variant = "public",
   className = "",
+  style,
   children,
 }: CommonsBackgroundAtmosphereProps) {
   const option = getCommonsBackgroundStyleOption(backgroundStyle);
   const styleVars = {
-    "--commons-accent": sanitizeAccentColor(accentColor),
+    "--commons-accent": safeCommonsAccentColor(accentColor),
+    ...style,
   } as CSSProperties;
 
   return (

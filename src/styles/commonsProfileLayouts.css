@@ -18,13 +18,14 @@
   --commons-theme-avatar-bg: radial-gradient(circle at 40% 30%, color-mix(in srgb, var(--commons-accent) 34%, rgba(255,255,255,.1)), transparent 60%), rgba(3, 10, 15, .82);
   --commons-theme-shadow: 0 24px 68px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.04);
   --profile-layout-card-bg: var(--commons-theme-surface);
-  --profile-layout-card-line: color-mix(in srgb, var(--commons-accent) 24%, rgba(183, 239, 230, 0.16));
+  --profile-layout-card-line: var(--commons-theme-panel-border, color-mix(in srgb, var(--commons-accent) 24%, rgba(183, 239, 230, 0.16)));
   --profile-layout-card-glow: var(--commons-theme-shadow);
   position: relative;
   z-index: 1;
   display: grid;
   gap: var(--profile-layout-gap);
   min-width: 0;
+  color: var(--commons-theme-text, #f1fbf7);
 }
 
 .commons-homebase.commons-theme-deep_grove .commons-profile-layout {
@@ -273,8 +274,9 @@
 .commons-profile-layout .commons-public-badge-card,
 .commons-profile-layout .commons-public-contribution-card,
 .commons-profile-layout .commons-preview-card {
-  border-color: rgba(183, 239, 230, 0.16);
+  border-color: var(--commons-accent-border, rgba(183, 239, 230, 0.16));
   background: var(--commons-theme-surface-soft);
+  box-shadow: var(--commons-theme-glow, none);
   backdrop-filter: blur(10px);
 }
 
