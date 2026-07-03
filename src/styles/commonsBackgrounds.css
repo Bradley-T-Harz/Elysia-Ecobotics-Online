@@ -93,10 +93,10 @@
 .commons-public-profile .commons-atmosphere.commons-public-profile-atmosphere .commons-homebase-hero {
   background:
     radial-gradient(circle at 16% 0%, color-mix(in srgb, var(--commons-accent) 16%, transparent), transparent 24rem),
-    linear-gradient(135deg, rgba(4, 9, 13, 0.7), rgba(5, 12, 16, 0.52));
-  border-color: color-mix(in srgb, var(--commons-accent) 24%, rgba(255, 255, 255, 0.16));
+    var(--commons-theme-surface-strong);
+  border-color: color-mix(in srgb, var(--commons-accent) 24%, var(--commons-theme-panel-border, rgba(255, 255, 255, 0.16)));
   box-shadow:
-    0 18px 60px rgba(0, 0, 0, 0.28),
+    var(--commons-theme-shadow),
     inset 0 1px 0 rgba(255, 255, 255, 0.035);
   backdrop-filter: blur(12px);
 }
@@ -104,10 +104,10 @@
 .commons-public-profile .commons-public-card-glass {
   background:
     radial-gradient(circle at 12% 0%, color-mix(in srgb, var(--commons-accent) 13%, transparent), transparent 18rem),
-    linear-gradient(135deg, rgba(4, 9, 13, 0.68), rgba(5, 12, 16, 0.48));
-  border-color: color-mix(in srgb, var(--commons-accent) 22%, rgba(255, 255, 255, 0.15));
+    var(--commons-theme-surface);
+  border-color: color-mix(in srgb, var(--commons-accent) 28%, var(--commons-theme-panel-border, rgba(255, 255, 255, 0.15)));
   box-shadow:
-    0 18px 60px rgba(0, 0, 0, 0.26),
+    var(--commons-theme-shadow),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(12px);
 }
@@ -133,7 +133,7 @@
 .commons-public-profile .commons-public-section--empty {
   background:
     radial-gradient(circle at 80% 0%, color-mix(in srgb, var(--commons-accent) 11%, transparent), transparent 16rem),
-    linear-gradient(135deg, rgba(4, 9, 13, 0.56), rgba(5, 12, 16, 0.38));
+    var(--commons-theme-surface-soft);
 }
 
 .commons-public-profile .commons-public-section--empty h2,
@@ -151,14 +151,14 @@
 
 .commons-public-atmosphere-reveal {
   min-height: clamp(6rem, 14vw, 11rem);
-  border: 1px solid color-mix(in srgb, var(--commons-accent) 18%, rgba(255, 255, 255, 0.08));
+  border: 1px solid color-mix(in srgb, var(--commons-accent) 18%, var(--commons-theme-panel-border, rgba(255, 255, 255, 0.08)));
   border-radius: 24px;
   background:
     radial-gradient(circle at 18% 30%, color-mix(in srgb, var(--commons-accent) 19%, transparent), transparent 18rem),
-    linear-gradient(115deg, rgba(255, 255, 255, 0.035), transparent 45%, rgba(255, 255, 255, 0.025));
+    var(--commons-theme-surface-soft);
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.035),
-    0 16px 56px rgba(0, 0, 0, 0.18);
+    var(--commons-theme-glow);
   backdrop-filter: blur(2px);
 }
 
@@ -175,7 +175,8 @@
 .commons-public-profile .earned.commons-public-card-glass {
   min-height: 0;
   background:
-    linear-gradient(145deg, rgba(4, 9, 13, 0.64), rgba(8, 16, 22, 0.42));
+    radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--commons-accent) 10%, transparent), transparent 11rem),
+    var(--commons-theme-surface-soft);
 }
 
 .commons-public-profile .commons-public-card-glass .boundary-note {
