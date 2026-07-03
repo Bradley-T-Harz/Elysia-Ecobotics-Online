@@ -169,7 +169,36 @@ for (const mastheadClass of ["commons-profile-masthead", "commons-profile-masthe
   assert(publicProfile.includes(mastheadClass) || commons.includes(mastheadClass), `Commons profile masthead hook missing: ${mastheadClass}`);
 }
 assert(commonsProfileLayoutCss.includes(".commons-profile-layout--public.commons-profile-layout--classic-homebase .commons-profile-masthead--classic-homebase") && commonsProfileLayoutCss.includes("1360px"), "Classic Homebase public masthead should use a Classic-only wider masthead modifier.");
+assert(commonsProfileLayoutCss.includes(".commons-profile-layout--classic-homebase .commons-profile-masthead--classic-homebase .commons-profile-masthead__avatar") && commonsProfileLayoutCss.includes("justify-self: start"), "Classic Homebase avatar placement should remain protected by Classic-only masthead selectors.");
+assert(commonsProfileLayoutCss.includes(".commons-profile-layout--constellation-map .commons-profile-summary-card") && commonsProfileLayoutCss.includes("justify-items: center") && commonsProfileLayoutCss.includes("border-radius: 999px"), "Constellation Map avatar placement should remain protected by centered orbital summary-card geometry.");
 assert(!commonsProfileLayoutCss.includes("width: min(100%, 1120px)") && !styles.includes("commons-layout-classic_homebase .commons-public-room-hero {\n  max-width: 1120px;"), "Classic Homebase masthead should not keep the old 1120px cap.");
+for (const [label, layoutClass] of [
+  ["Compact Archive", "compact-archive"],
+  ["Garden Shelves", "garden-shelves"],
+  ["Field Notebook", "field-notebook"]
+]) {
+  const previewAvatarSelector = `.commons-profile-layout--preview.commons-profile-layout--${layoutClass} .commons-profile-masthead__avatar`;
+  const publicAvatarSelector = `.commons-profile-layout--public.commons-profile-layout--${layoutClass} .commons-profile-masthead__avatar`;
+  const previewScrimSelector = `.commons-profile-layout--preview.commons-profile-layout--${layoutClass} .commons-profile-masthead__banner-scrim`;
+  const publicScrimSelector = `.commons-profile-layout--public.commons-profile-layout--${layoutClass} .commons-profile-masthead__banner-scrim`;
+  assert(commonsProfileLayoutCss.includes(previewAvatarSelector), `${label} preview avatar should use a layout-specific upper-left placement selector.`);
+  assert(commonsProfileLayoutCss.includes(publicAvatarSelector), `${label} public avatar should use a layout-specific upper-left placement selector.`);
+  assert(commonsProfileLayoutCss.includes(previewScrimSelector) && commonsProfileLayoutCss.includes(publicScrimSelector), `${label} banner scrim should be scoped out of the summary-card grid for avatar placement.`);
+}
+const upperLeftAvatarPlacementRule = /\.commons-profile-layout--preview\.commons-profile-layout--compact-archive\s+\.commons-profile-masthead__avatar,[\s\S]*?\.commons-profile-layout--public\.commons-profile-layout--field-notebook\s+\.commons-profile-masthead__avatar\s*\{(?=[^}]*align-self:\s*start)(?=[^}]*justify-self:\s*start)/s;
+assert(upperLeftAvatarPlacementRule.test(commonsProfileLayoutCss), "Compact Archive, Garden Shelves, and Field Notebook avatars should share a scoped upper-left placement rule.");
+const stewardshipPreviewAvatarRule = /\.commons-profile-layout--preview\.commons-profile-layout--stewardship-board\s+\.commons-profile-masthead__avatar\s*\{(?=[^}]*position:\s*absolute)(?=[^}]*top:\s*clamp)(?=[^}]*right:\s*clamp)/s;
+assert(stewardshipPreviewAvatarRule.test(commonsProfileLayoutCss), "Stewardship Board preview should have a preview-only upper-right avatar placement override.");
+assert(!/\.commons-profile-layout--public\.commons-profile-layout--stewardship-board\s+\.commons-profile-masthead__avatar\s*\{/.test(commonsProfileLayoutCss), "Stewardship Board public avatar placement should not be targeted by the preview-only override.");
+for (const broadAvatarPlacementRule of [
+  /\n\.commons-avatar\s*\{(?=[^}]*(?:position|top|right|bottom|left|align-self|justify-self)\s*:)/s,
+  /\n\.commons-profile-masthead__avatar\s*\{(?=[^}]*(?:position|top|right|bottom|left|align-self|justify-self)\s*:)/s,
+  /\n\.commons-profile-summary-card__avatar\s*\{(?=[^}]*(?:position|top|right|bottom|left|align-self|justify-self)\s*:)/s,
+  /\n\.commons-profile-layout\s+\.commons-profile-masthead__avatar\s*\{/s,
+  /\n\.commons-profile-layout\s+\.commons-profile-summary-card__avatar\s*\{(?=[^}]*(?:top|right|bottom|left|align-self|justify-self)\s*:)/s
+]) {
+  assert(!broadAvatarPlacementRule.test(`${styles}\n${commonsProfileLayoutCss}`), "Profile layout avatar placement should not be implemented through broad/global avatar selectors.");
+}
 for (const slotClass of ["commons-profile-slot--summary", "commons-profile-slot--identity", "commons-profile-slot--recognition", "commons-profile-slot--badges", "commons-profile-slot--collections", "commons-profile-slot--contributions"]) {
   assert(publicProfile.includes(slotClass), `Public Commons profile missing semantic layout slot: ${slotClass}`);
   assert(commonsProfileLayoutCss.includes(`.${slotClass}`), `Commons profile layout CSS missing semantic slot style: ${slotClass}`);
