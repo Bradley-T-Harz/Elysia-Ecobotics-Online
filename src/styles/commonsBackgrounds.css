@@ -166,6 +166,10 @@
   min-height: clamp(3.5rem, 8vw, 6.5rem);
 }
 
+.commons-public-profile[data-commons-layout="constellation_map"] .commons-public-atmosphere-reveal--slim {
+  display: none;
+}
+
 .commons-public-profile .commons-public-card-grid {
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 0.75rem;
