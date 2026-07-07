@@ -2380,22 +2380,25 @@ code { color: var(--teal); overflow-wrap: anywhere; }
 .commons-avatar-lightbox {
   position: fixed;
   inset: 0;
-  z-index: 80;
+  z-index: 10000;
   display: grid;
   place-items: center;
-  padding: clamp(1rem, 4vw, 2rem);
-  background: rgba(1, 5, 8, .86);
+  isolation: isolate;
+  padding: clamp(0.75rem, 3vw, 2rem);
+  background: rgba(1, 5, 8, .88);
   backdrop-filter: blur(12px);
+  overscroll-behavior: contain;
 }
 
 .commons-avatar-lightbox-panel {
   position: relative;
-  width: min(92vw, 780px);
-  max-height: 88vh;
+  width: min(96vw, 92rem);
+  max-width: calc(100vw - clamp(1rem, 4vw, 3rem));
+  max-height: calc(100vh - clamp(1rem, 4vw, 3rem));
   display: grid;
   place-items: center;
-  padding: clamp(1rem, 3vw, 1.4rem);
-  border: 1px solid color-mix(in srgb, var(--commons-accent) 42%, rgba(255,255,255,.24));
+  padding: clamp(0.85rem, 2.4vw, 1.35rem);
+  border: 1px solid color-mix(in srgb, var(--commons-accent, var(--teal)) 42%, rgba(255,255,255,.24));
   border-radius: 22px;
   background: linear-gradient(180deg, rgba(6, 16, 22, .98), rgba(3, 9, 14, .98));
   box-shadow: 0 24px 80px rgba(0,0,0,.48);
@@ -2403,8 +2406,10 @@ code { color: var(--teal); overflow-wrap: anywhere; }
 
 .commons-avatar-lightbox-image {
   display: block;
-  max-width: 100%;
-  max-height: min(78vh, 720px);
+  width: auto;
+  height: auto;
+  max-width: min(100%, calc(100vw - clamp(2rem, 6vw, 4rem)));
+  max-height: min(84vh, 860px);
   object-fit: contain;
   object-position: center;
   border-radius: 18px;
@@ -2413,12 +2418,13 @@ code { color: var(--teal); overflow-wrap: anywhere; }
 
 .commons-avatar-lightbox-close {
   position: absolute;
+  z-index: 1;
   top: .75rem;
   right: .75rem;
   border: 1px solid rgba(255,255,255,.24);
   border-radius: 999px;
   background: rgba(3, 10, 15, .84);
-  color: var(--commons-text);
+  color: var(--commons-text, var(--text));
   padding: .45rem .75rem;
   cursor: pointer;
   font-weight: 800;
