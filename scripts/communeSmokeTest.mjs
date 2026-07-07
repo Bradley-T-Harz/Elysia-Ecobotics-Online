@@ -73,6 +73,7 @@ const jobPostBoundaryDoc = await read("docs/security/job-post-boundary.md");
 const jobPostContractDoc = await read("docs/api/job-post-contract.md");
 const communityVoteEnumMigration = await read("supabase/migrations/2026_07_05_01_commune_community_voting_room_enum.sql");
 const communityVoteMigration = await read("supabase/migrations/2026_07_05_02_commune_community_voting_room.sql");
+const softDeleteCleanupMigration = await read("supabase/migrations/2026_07_07_commune_soft_delete_cleanup.sql");
 const communityVotePolicyDoc = await read("docs/commune/community-voting-room-policy.md");
 const communityVoteBoundaryDoc = await read("docs/security/community-voting-room-boundary.md");
 const communityVoteContractDoc = await read("docs/api/community-vote-contract.md");
@@ -485,6 +486,18 @@ assert(accountApi.includes("flag_for_removal"), "Commune admin flag action shoul
 assert(accountApi.includes("hide_from_public"), "Commune admin hide action should write moderation history.");
 assert(accountApi.includes("soft_delete_from_public"), "Commune admin delete/remove action should write moderation history.");
 assert(accountApi.includes("hard_delete: false"), "Commune frontend delete/remove should be honest about soft-removal evidence retention.");
+assert(accountApi.includes('rpc("soft_delete_commune_post"') && accountApi.includes("Commune soft-delete cleanup is not available yet. Apply the latest Commune cleanup migration before deleting posts."), "Commune post delete should route through the authoritative soft-delete cleanup RPC and expose a migration-drift error.");
+assert(softDeleteCleanupMigration.includes("create or replace function public.soft_delete_commune_post") && softDeleteCleanupMigration.includes("security definer") && softDeleteCleanupMigration.includes("set search_path = public, auth"), "Commune soft-delete cleanup migration should define a safe authoritative RPC.");
+for (const dependency of ["user_saved_commune_posts", "commune_saved_posts", "user_notifications", "user_followed_commune_threads", "commune_content_reactions", "commune_code_revision_proposals"]) {
+  assert(softDeleteCleanupMigration.includes(dependency), `Commune soft-delete cleanup migration missing user-facing dependent cleanup for ${dependency}.`);
+}
+for (const sidecar of ["commune_troubleshooting_posts", "commune_research_notes", "commune_job_posts", "commune_repository_showcases", "commune_iteration_showcases", "commune_official_updates", "commune_vote_posts"]) {
+  assert(softDeleteCleanupMigration.includes(sidecar) && commonsApi.includes(sidecar), `Commune soft-delete cleanup and Signal Console filtering should cover sidecar table: ${sidecar}.`);
+}
+assert(softDeleteCleanupMigration.includes("audit_preserved") && softDeleteCleanupMigration.includes("commune_reports") && softDeleteCleanupMigration.includes("commune_moderation_events") && softDeleteCleanupMigration.includes("commune_vote_ballots") && softDeleteCleanupMigration.includes("commune_vote_events"), "Commune soft-delete cleanup should preserve audit/moderation/governance history explicitly.");
+assert(commonsApi.includes("isActivePublicCommunePost") && commonsApi.includes("loadActivePublicCommunePostMap") && commonsApi.includes("extractCommunePostIdFromActionUrl") && commonsApi.includes("filterNotificationsByActiveCommunePost"), "Commons Circle loaders should filter Commune ghost references through active public parent posts.");
+assert(commonsApi.includes("visibleSavedCommuneRows") && commonsApi.includes("visibleNotificationRows") && commonsApi.includes("filterFollowedThreadsByActiveCommunePost"), "Homebase/Saved Shelves should filter saved posts, notifications, and followed threads tied to deleted Commune posts.");
+assert(commonsApi.includes("visibleMyCommunityVoteRows") && commonsApi.includes("visibleReviewCommunityVoteRows") && commonsApi.includes("officialPostById") && commonsApi.includes("visiblePublicComments"), "Signal Console and public profile Commune contribution surfaces should filter sidecars/comments through active parent posts.");
 assert(reviewClient.includes('"moderated"') && reviewClient.includes("moderatedContentStates"), "Admin review should include a moderated recovery filter for hidden/removed Commune content.");
 assert(reviewClient.includes("enrichCommuneReviewItems"), "Admin review should enrich Commune review items with source moderation state.");
 assert(reviewClient.includes("restoreCommuneReviewSubject") && reviewClient.includes("restore_to_public"), "Admin review should support restoring hidden/flagged Commune content.");

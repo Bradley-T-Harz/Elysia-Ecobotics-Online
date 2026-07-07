@@ -412,6 +412,12 @@ function friendlyError(message: string, fallbackMessage: string) {
   return message;
 }
 
+const communeSoftDeleteCleanupUnavailableMessage = "Commune soft-delete cleanup is not available yet. Apply the latest Commune cleanup migration before deleting posts.";
+
+function isMissingCommuneSoftDeleteCleanup(message: string) {
+  return /soft_delete_commune_post|Could not find.*function|function .* does not exist|schema cache|PGRST202/i.test(message);
+}
+
 export function communeReactionKey(targetType: CommuneReactionTargetType, targetId: string) {
   return `${targetType}:${targetId}`;
 }
@@ -2346,6 +2352,24 @@ export async function moderateCommuneContentTarget(input: { targetType: CommuneR
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
   if (!account.userId || !account.isModerator) return { ok: false, message: "Commune moderation controls require an assigned moderator/admin role." };
+  if (input.targetType === "post" && input.action === "delete") {
+    const { error } = await supabase.rpc("soft_delete_commune_post", {
+      target_post_id: input.targetId,
+      moderation_note: input.reason || null
+    });
+    if (error) {
+      return {
+        ok: false,
+        message: isMissingCommuneSoftDeleteCleanup(error.message)
+          ? communeSoftDeleteCleanupUnavailableMessage
+          : friendlyError(error.message, "This Commune post could not be fully removed from user-facing surfaces yet.")
+      };
+    }
+    return {
+      ok: true,
+      message: "Content removed from public views. Saved shelves, notifications, Signal Console entries, followed threads, reactions, media, and user-facing sidecars tied to this post were cleaned up. Evidence remains in admin-only Commune history; hard delete is not performed from the public frontend."
+    };
+  }
   const table = input.targetType === "post" ? canonicalCommuneTables.posts : canonicalCommuneTables.comments;
   const currentSelect = input.targetType === "post" ? "id,status,post_type,visibility,visibility_state,moderation_status" : "id,status,post_id,thread_id,visibility_state";
   const { data: current, error: currentError } = await supabase.from(table).select(currentSelect).eq("id", input.targetId).maybeSingle();

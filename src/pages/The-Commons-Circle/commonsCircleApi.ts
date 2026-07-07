@@ -550,6 +550,94 @@ async function safeQuery<T>(warnings: string[], label: string, query: PromiseLik
   }
 }
 
+type ActivePublicCommunePost = {
+  id: string;
+  title?: string | null;
+  post_type?: string | null;
+  excerpt?: string | null;
+  status?: string | null;
+  visibility?: string | null;
+  visibility_state?: string | null;
+  hidden_at?: string | null;
+  removed_at?: string | null;
+  archived_at?: string | null;
+  published_at?: string | null;
+  created_at?: string | null;
+};
+
+export function isActivePublicCommunePost(post?: ActivePublicCommunePost | null) {
+  if (!post) return false;
+  const visibilityState = post.visibility_state ?? "published";
+  return post.status === "published"
+    && post.visibility === "public"
+    && (visibilityState === "published" || visibilityState === "public")
+    && !post.hidden_at
+    && !post.removed_at
+    && !post.archived_at;
+}
+
+function uniqueStringIds(values: Array<string | null | undefined>) {
+  return Array.from(new Set(values.flatMap((value) => value ? [value] : [])));
+}
+
+export function extractCommunePostIdFromActionUrl(actionUrl?: string | null) {
+  if (!actionUrl) return null;
+  const match = actionUrl.match(/\/commune\/posts\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?=$|[/?#])/i);
+  return match?.[1]?.toLowerCase() ?? null;
+}
+
+function notificationCommunePostId(notification: NotificationPreview) {
+  const actionPostId = extractCommunePostIdFromActionUrl(notification.action_url);
+  if (actionPostId) return actionPostId;
+  const sourceType = (notification.source_type ?? "").toLowerCase();
+  const notificationType = (notification.notification_type ?? "").toLowerCase();
+  if (!notification.source_id) return null;
+  if (["commune_post", "commune_posts", "community_vote", "commune_vote_post", "commune_vote_posts"].includes(sourceType)) return notification.source_id;
+  if (/commune_post|community_vote_post|commune_vote_post/.test(notificationType) && !/comment|reply/.test(notificationType)) return notification.source_id;
+  return null;
+}
+
+async function loadActivePublicCommunePostMap(postIds: Array<string | null | undefined>, warnings: string[]) {
+  const ids = uniqueStringIds(postIds);
+  if (!ids.length || !supabase) return new Map<string, ActivePublicCommunePost>();
+  const posts = await safeQuery<ActivePublicCommunePost[]>(
+    warnings,
+    "Active Commune parent posts",
+    supabase
+      .from("commune_posts")
+      .select("id, title, post_type, excerpt, status, visibility, visibility_state, hidden_at, removed_at, archived_at, published_at, created_at")
+      .in("id", ids),
+    []
+  );
+  return new Map(posts.filter(isActivePublicCommunePost).map((post) => [post.id, post]));
+}
+
+async function filterNotificationsByActiveCommunePost(notifications: NotificationPreview[], warnings: string[]) {
+  const postIds = uniqueStringIds(notifications.map(notificationCommunePostId));
+  if (!postIds.length) return notifications;
+  const activePosts = await loadActivePublicCommunePostMap(postIds, warnings);
+  return notifications.filter((notification) => {
+    const postId = notificationCommunePostId(notification);
+    return !postId || activePosts.has(postId);
+  });
+}
+
+async function filterFollowedThreadsByActiveCommunePost<T extends { thread_id: string }>(rows: T[], warnings: string[]) {
+  const threadIds = uniqueStringIds(rows.map((row) => row.thread_id));
+  if (!threadIds.length || !supabase) return rows;
+  const threads = await safeQuery<Array<{ id: string; post_id?: string | null; status?: string | null; visibility?: string | null }>>(
+    warnings,
+    "Followed Commune thread parent posts",
+    supabase.from("commune_threads").select("id, post_id, status, visibility").in("id", threadIds),
+    []
+  );
+  const activePosts = await loadActivePublicCommunePostMap(threads.map((thread) => thread.post_id), warnings);
+  const activeThreadIds = new Set(threads
+    .filter((thread) => thread.post_id && activePosts.has(thread.post_id) && !["hidden", "removed", "archived"].includes(thread.status ?? "") && (thread.visibility ?? "public") === "public")
+    .map((thread) => thread.id));
+  return rows.filter((row) => activeThreadIds.has(row.thread_id));
+}
+
 function orderedBadgeDefinitions(definitions: BadgeDefinition[]) {
   const definitionsByKey = new Map(definitions.map((definition) => [definition.badge_key, definition]));
   const plannedByKey = new Map(plannedBadges.map((definition) => [definition.badge_key, definition]));
@@ -718,6 +806,10 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
     source_count: collectionSourceIds[collection.id]?.length ?? 0,
     source_ids: collectionSourceIds[collection.id] ?? []
   }));
+  const activeSavedCommunePosts = await loadActivePublicCommunePostMap(savedCommuneRows.map((row) => row.post_id), warnings);
+  const visibleSavedCommuneRows = savedCommuneRows.filter((row) => row.post_id ? activeSavedCommunePosts.has(row.post_id) : Boolean(row.draft_id));
+  const visibleFollowedRows = await filterFollowedThreadsByActiveCommunePost(followedRows, warnings);
+  const visibleNotificationRows = await filterNotificationsByActiveCommunePost(notificationRows, warnings);
 
   return {
     profile,
@@ -732,9 +824,12 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
     savedLivingSources: savedSources,
     savedCitations,
     sourceCollections,
-    communePosts: savedCommuneRows.map((row) => ({ id: row.id, target_id: row.post_id || row.draft_id || null, title: row.notes || row.post_id || row.draft_id || "Saved Commune item", status: "saved", type: row.post_id ? "post" : "draft", updated_at: row.saved_at ?? undefined, source: "account" })),
-    followedThreads: followedRows.map((row) => ({ id: row.thread_id, title: `Thread ${row.thread_id.slice(0, 8)}`, unread_count: 0, muted: Boolean(row.muted), source: "account" })),
-    notifications: notificationRows,
+    communePosts: visibleSavedCommuneRows.map((row) => {
+      const parentPost = row.post_id ? activeSavedCommunePosts.get(row.post_id) : null;
+      return { id: row.id, target_id: row.post_id || row.draft_id || null, title: row.notes || parentPost?.title || row.draft_id || "Saved Commune item", status: "saved", type: row.post_id ? parentPost?.post_type || "post" : "draft", updated_at: row.saved_at ?? undefined, source: "account" };
+    }),
+    followedThreads: visibleFollowedRows.map((row) => ({ id: row.thread_id, title: `Thread ${row.thread_id.slice(0, 8)}`, unread_count: 0, muted: Boolean(row.muted), source: "account" })),
+    notifications: visibleNotificationRows,
     badgeDefinitions: definitions.length ? definitions : plannedBadges,
     userBadges: mergeBadges(definitions.length ? definitions : plannedBadges, badgeAwards),
     localLiving,
@@ -750,14 +845,12 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth.user?.id ?? null;
   if (!userId) return { signedIn: false, supabaseConfigured: true, userId: null, warnings: [], ...empty };
-  const signals = await safeQuery<NotificationPreview[]>(warnings, "Notifications", supabase.from("user_notifications").select("id, title, body, action_url, read_at, created_at, notification_type, source_type, source_id").eq("user_id", userId).order("created_at", { ascending: false }).limit(100), []);
+  const signalRows = await safeQuery<NotificationPreview[]>(warnings, "Notifications", supabase.from("user_notifications").select("id, title, body, action_url, read_at, created_at, notification_type, source_type, source_id").eq("user_id", userId).order("created_at", { ascending: false }).limit(100), []);
+  const signals = await filterNotificationsByActiveCommunePost(signalRows, warnings);
   const codeProposalActivityRows = await safeQuery<Omit<CodeProposalSignalPreview, "action_url" | "source_room" | "post_title">[]>(warnings, "Coding Cornucopia proposal activity", supabase.from("commune_code_revision_proposals").select("id, post_id, code_snippet_id, proposer_user_id, original_author_user_id, change_summary, explanation, proposal_status, submitted_at, decided_at, withdrawn_at, hidden_at, created_at, updated_at").or("original_author_user_id.eq." + userId + ",proposer_user_id.eq." + userId).order("created_at", { ascending: false }).limit(100), []);
   const proposalPostIds = Array.from(new Set(codeProposalActivityRows.map((proposal) => proposal.post_id).filter(Boolean)));
-  const proposalPosts = proposalPostIds.length
-    ? await safeQuery<Array<{ id: string; post_type?: string | null; title?: string | null }>>(warnings, "Coding Cornucopia proposal posts", supabase.from("commune_posts").select("id, post_type, title").in("id", proposalPostIds), [])
-    : [];
-  const proposalPostById = new Map(proposalPosts.map((post) => [post.id, post]));
-  const codeProposalActivity = codeProposalActivityRows.map((proposal) => ({
+  const proposalPostById = await loadActivePublicCommunePostMap(proposalPostIds, warnings);
+  const codeProposalActivity = codeProposalActivityRows.filter((proposal) => !proposal.hidden_at && proposal.proposal_status !== "hidden_by_moderation" && proposalPostById.has(proposal.post_id)).map((proposal) => ({
     ...proposal,
     source_room: proposalPostById.get(proposal.post_id)?.post_type === "troubleshooting" ? "troubleshooting_grove" as const : "coding_cornucopia" as const,
     post_title: proposalPostById.get(proposal.post_id)?.title ?? null,
@@ -777,13 +870,12 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
     ? await safeQuery<TroubleshootingSignalRow[]>(warnings, "Troubleshooting Grove review activity", supabase.from("commune_troubleshooting_posts").select(troubleshootingSelect).in("troubleshooting_status", ["needs_information", "fix_proposed", "in_progress"]).order("updated_at", { ascending: false }).limit(100), [])
     : [];
   const troubleshootingPostIds = Array.from(new Set([...myTroubleshootingRows, ...reviewTroubleshootingRows].map((row) => row.post_id).filter(Boolean) as string[]));
-  const troubleshootingPosts = troubleshootingPostIds.length
-    ? await safeQuery<Array<{ id: string; title?: string | null }>>(warnings, "Troubleshooting Grove linked posts", supabase.from("commune_posts").select("id, title").in("id", troubleshootingPostIds), [])
-    : [];
-  const troubleshootingTitleByPostId = new Map(troubleshootingPosts.map((post) => [post.id, post.title ?? null]));
-  const mapTroubleshooting = (row: TroubleshootingSignalRow, role: TroubleshootingSignalPreview["role_context"]): TroubleshootingSignalPreview => ({ ...row, post_title: row.post_id ? troubleshootingTitleByPostId.get(row.post_id) ?? null : null, action_url: row.post_id ? "/commune/posts/" + row.post_id : "/commune/troubleshooting", role_context: role });
-  const myTroubleshootingIssues = myTroubleshootingRows.map((row) => mapTroubleshooting(row, row.accepted_summary || row.resolved_at || row.closed_at ? "resolution" : "owner"));
-  const troubleshootingNeedingReview = reviewTroubleshootingRows.map((row) => mapTroubleshooting(row, "reviewer"));
+  const troubleshootingPostById = await loadActivePublicCommunePostMap(troubleshootingPostIds, warnings);
+  const visibleMyTroubleshootingRows = myTroubleshootingRows.filter((row) => row.post_id && troubleshootingPostById.has(row.post_id));
+  const visibleReviewTroubleshootingRows = reviewTroubleshootingRows.filter((row) => row.post_id && troubleshootingPostById.has(row.post_id));
+  const mapTroubleshooting = (row: TroubleshootingSignalRow, role: TroubleshootingSignalPreview["role_context"]): TroubleshootingSignalPreview => ({ ...row, post_title: row.post_id ? troubleshootingPostById.get(row.post_id)?.title ?? null : null, action_url: row.post_id ? "/commune/posts/" + row.post_id : "/commune/troubleshooting", role_context: role });
+  const myTroubleshootingIssues = visibleMyTroubleshootingRows.map((row) => mapTroubleshooting(row, row.accepted_summary || row.resolved_at || row.closed_at ? "resolution" : "owner"));
+  const troubleshootingNeedingReview = visibleReviewTroubleshootingRows.map((row) => mapTroubleshooting(row, "reviewer"));
   const troubleshootingResolutionActivity = [...myTroubleshootingIssues, ...troubleshootingNeedingReview]
     .filter((row) => Boolean(row.accepted_summary || row.accepted_at || row.resolved_at || row.troubleshooting_status === "resolved" || row.troubleshooting_status === "workaround_found"));
   const troubleshootingActivity = Array.from(new Map([...myTroubleshootingIssues, ...troubleshootingNeedingReview, ...troubleshootingResolutionActivity].map((row) => [row.role_context + ":" + row.id, row])).values());
@@ -795,13 +887,12 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
     ? await safeQuery<ResearchNotesSignalRow[]>(warnings, "Research Notes review activity", supabase.from("commune_research_notes").select(researchSelect).in("review_status", ["submitted", "needs_citation", "needs_clarification", "source_issue", "overclaiming_evidence"]).order("updated_at", { ascending: false }).limit(100), [])
     : [];
   const researchPostIds = Array.from(new Set([...myResearchRows, ...reviewResearchRows].map((row) => row.post_id).filter(Boolean) as string[]));
-  const researchPosts = researchPostIds.length
-    ? await safeQuery<Array<{ id: string; title?: string | null }>>(warnings, "Research Notes linked posts", supabase.from("commune_posts").select("id, title").in("id", researchPostIds), [])
-    : [];
-  const researchTitleByPostId = new Map(researchPosts.map((post) => [post.id, post.title ?? null]));
-  const mapResearch = (row: ResearchNotesSignalRow, role: ResearchNotesSignalPreview["role_context"]): ResearchNotesSignalPreview => ({ ...row, post_title: row.post_id ? researchTitleByPostId.get(row.post_id) ?? null : null, action_url: row.post_id ? "/commune/posts/" + row.post_id : "/commune/research-notes", role_context: role });
-  const myResearchNotes = myResearchRows.map((row) => mapResearch(row, ["needs_citation", "needs_clarification", "source_issue", "overclaiming_evidence"].includes(row.review_status ?? "") ? "clarification" : "owner"));
-  const researchNotesNeedingReview = reviewResearchRows.map((row) => mapResearch(row, "reviewer"));
+  const researchPostById = await loadActivePublicCommunePostMap(researchPostIds, warnings);
+  const visibleMyResearchRows = myResearchRows.filter((row) => row.post_id && researchPostById.has(row.post_id));
+  const visibleReviewResearchRows = reviewResearchRows.filter((row) => row.post_id && researchPostById.has(row.post_id));
+  const mapResearch = (row: ResearchNotesSignalRow, role: ResearchNotesSignalPreview["role_context"]): ResearchNotesSignalPreview => ({ ...row, post_title: row.post_id ? researchPostById.get(row.post_id)?.title ?? null : null, action_url: row.post_id ? "/commune/posts/" + row.post_id : "/commune/research-notes", role_context: role });
+  const myResearchNotes = visibleMyResearchRows.map((row) => mapResearch(row, ["needs_citation", "needs_clarification", "source_issue", "overclaiming_evidence"].includes(row.review_status ?? "") ? "clarification" : "owner"));
+  const researchNotesNeedingReview = visibleReviewResearchRows.map((row) => mapResearch(row, "reviewer"));
   const researchClarificationActivity = [...myResearchNotes, ...researchNotesNeedingReview]
     .filter((row) => ["needs_citation", "needs_clarification", "source_issue", "overclaiming_evidence", "corrected"].includes(row.review_status ?? "") || Boolean(row.correction_note || row.corrected_at));
   const researchNotesActivity = Array.from(new Map([...myResearchNotes, ...researchNotesNeedingReview, ...researchClarificationActivity].map((row) => [row.role_context + ":" + row.id, row])).values());
@@ -811,6 +902,9 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const reviewRepoRows = canReviewCommune
     ? await safeQuery<RepositoryShowcaseSignalRow[]>(warnings, "Repository Showcase review activity", supabase.from("commune_repository_showcases").select(repoSelect).in("status", ["pending_review", "in_review", "needs_information"]).order("updated_at", { ascending: false }).limit(100), [])
     : [];
+  const repoPostById = await loadActivePublicCommunePostMap([...myRepoRows, ...reviewRepoRows].map((row) => row.post_id), warnings);
+  const visibleMyRepoRows = myRepoRows.filter((row) => row.post_id && repoPostById.has(row.post_id));
+  const visibleReviewRepoRows = reviewRepoRows.filter((row) => row.post_id && repoPostById.has(row.post_id));
   const repoActionUrl = (row: RepositoryShowcaseSignalRow) => {
     if ((row.sandbox_review_requested || row.sandbox_review_status) && (row.id || row.post_id)) {
       const params = new URLSearchParams();
@@ -821,8 +915,8 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
     return row.post_id ? "/commune/posts/" + row.post_id : "/commune/repository-showcase/sandbox-request?showcase=" + row.id;
   };
   const mapRepo = (row: RepositoryShowcaseSignalRow, role: RepositoryShowcaseSignalPreview["role_context"]): RepositoryShowcaseSignalPreview => ({ ...row, action_url: repoActionUrl(row), role_context: role });
-  const myRepositoryShowcases = myRepoRows.map((row) => mapRepo(row, row.sandbox_review_requested ? "sandbox" : "owner"));
-  const repositoryShowcasesNeedingReview = reviewRepoRows.map((row) => mapRepo(row, "reviewer"));
+  const myRepositoryShowcases = visibleMyRepoRows.map((row) => mapRepo(row, row.sandbox_review_requested ? "sandbox" : "owner"));
+  const repositoryShowcasesNeedingReview = visibleReviewRepoRows.map((row) => mapRepo(row, "reviewer"));
   const repositorySandboxActivity = [...myRepositoryShowcases, ...repositoryShowcasesNeedingReview]
     .filter((row) => row.sandbox_review_requested || (row.sandbox_review_status && row.sandbox_review_status !== "not_requested"));
   const repositoryShowcaseActivity = Array.from(new Map([...myRepositoryShowcases, ...repositoryShowcasesNeedingReview, ...repositorySandboxActivity].map((row) => [row.role_context + ":" + row.id, row])).values());
@@ -833,6 +927,9 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const reviewIterationRows = canReviewCommune
     ? await safeQuery<IterationShowcaseSignalRow[]>(warnings, "Elysia Iteration Showcase review activity", supabase.from("commune_iteration_showcases").select(iterationSelect).in("status", ["pending_review", "in_review", "needs_information"]).order("updated_at", { ascending: false }).limit(100), [])
     : [];
+  const iterationPostById = await loadActivePublicCommunePostMap([...myIterationRows, ...reviewIterationRows].map((row) => row.post_id), warnings);
+  const visibleMyIterationRows = myIterationRows.filter((row) => row.post_id && iterationPostById.has(row.post_id));
+  const visibleReviewIterationRows = reviewIterationRows.filter((row) => row.post_id && iterationPostById.has(row.post_id));
   const iterationActionUrl = (row: IterationShowcaseSignalRow) => {
     if ((row.sandbox_review_requested || row.sandbox_review_status) && (row.id || row.post_id)) {
       const params = new URLSearchParams();
@@ -843,8 +940,8 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
     return row.post_id ? "/commune/posts/" + row.post_id : "/commune/elysia-iteration-showcase/sandbox-request?iteration=" + row.id;
   };
   const mapIteration = (row: IterationShowcaseSignalRow, role: ElysiaIterationShowcaseSignalPreview["role_context"]): ElysiaIterationShowcaseSignalPreview => ({ ...row, action_url: iterationActionUrl(row), role_context: role });
-  const myIterationShowcases = myIterationRows.map((row) => mapIteration(row, row.sandbox_review_requested ? "sandbox" : "owner"));
-  const iterationShowcasesNeedingReview = reviewIterationRows.map((row) => mapIteration(row, "reviewer"));
+  const myIterationShowcases = visibleMyIterationRows.map((row) => mapIteration(row, row.sandbox_review_requested ? "sandbox" : "owner"));
+  const iterationShowcasesNeedingReview = visibleReviewIterationRows.map((row) => mapIteration(row, "reviewer"));
   const iterationSandboxActivity = [...myIterationShowcases, ...iterationShowcasesNeedingReview]
     .filter((row) => row.sandbox_review_requested || (row.sandbox_review_status && row.sandbox_review_status !== "not_requested"));
   const iterationShowcaseActivity = Array.from(new Map([...myIterationShowcases, ...iterationShowcasesNeedingReview, ...iterationSandboxActivity].map((row) => [row.role_context + ":" + row.id, row])).values());
@@ -855,9 +952,12 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const reviewJobRows = canReviewCommune
     ? await safeQuery<JobPostSignalRow[]>(warnings, "Job Post review activity", supabase.from("commune_job_posts").select(jobSelect).in("anti_scam_review_status", ["not_reviewed", "needs_pay_clarification", "needs_contact_clarification", "needs_location_clarification", "suspicious"]).order("updated_at", { ascending: false }).limit(100), [])
     : [];
+  const jobPostById = await loadActivePublicCommunePostMap([...myJobRows, ...reviewJobRows].map((row) => row.post_id), warnings);
+  const visibleMyJobRows = myJobRows.filter((row) => row.post_id && jobPostById.has(row.post_id));
+  const visibleReviewJobRows = reviewJobRows.filter((row) => row.post_id && jobPostById.has(row.post_id));
   const mapJob = (row: JobPostSignalRow, role: JobPostSignalPreview["role_context"]): JobPostSignalPreview => ({ ...row, action_url: row.post_id ? "/commune/posts/" + row.post_id : "/commune/rooms/job-post", role_context: role });
-  const myJobPosts = myJobRows.map((row) => mapJob(row, ["filled", "closed", "archived", "needs_clarification"].includes(row.application_status ?? "") ? "status" : "owner"));
-  const jobPostsNeedingReview = reviewJobRows.map((row) => mapJob(row, "reviewer"));
+  const myJobPosts = visibleMyJobRows.map((row) => mapJob(row, ["filled", "closed", "archived", "needs_clarification"].includes(row.application_status ?? "") ? "status" : "owner"));
+  const jobPostsNeedingReview = visibleReviewJobRows.map((row) => mapJob(row, "reviewer"));
   const jobPostStatusActivity = [...myJobPosts, ...jobPostsNeedingReview]
     .filter((row) => ["filled", "closed", "archived", "needs_clarification"].includes(row.application_status ?? "") || ["needs_pay_clarification", "needs_contact_clarification", "needs_location_clarification", "suspicious", "removed"].includes(row.anti_scam_review_status ?? "") || Boolean(row.public_correction_note));
   const jobPostActivity = Array.from(new Map([...myJobPosts, ...jobPostsNeedingReview, ...jobPostStatusActivity].map((row) => [row.role_context + ":" + row.id, row])).values());
@@ -868,6 +968,9 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const reviewCommunityVoteRows = canReviewCommune
     ? await safeQuery<CommunityVoteSignalRow[]>(warnings, "Community Voting Room review activity", supabase.from("commune_vote_posts").select(voteSelect).in("vote_status", ["open", "closed", "accepted", "declined", "posted_to_official_update", "archived"]).order("updated_at", { ascending: false }).limit(100), [])
     : [];
+  const votePostById = await loadActivePublicCommunePostMap([...myCommunityVoteRows, ...reviewCommunityVoteRows].map((row) => row.post_id), warnings);
+  const visibleMyCommunityVoteRows = myCommunityVoteRows.filter((row) => votePostById.has(row.post_id));
+  const visibleReviewCommunityVoteRows = reviewCommunityVoteRows.filter((row) => votePostById.has(row.post_id));
   const mapCommunityVote = (row: CommunityVoteSignalRow, role: CommunityVoteSignalPreview["role_context"]): CommunityVoteSignalPreview => ({ ...row, action_url: row.post_id ? "/commune/posts/" + row.post_id : "/commune/community-vote", role_context: role });
   const voteClosingSoon = (row: CommunityVoteSignalRow) => {
     if (!row.closes_at || row.vote_status !== "open") return false;
@@ -876,8 +979,8 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
     const hours = (closesAt - Date.now()) / (1000 * 60 * 60);
     return hours >= 0 && hours <= 48;
   };
-  const myCommunityVotes = myCommunityVoteRows.map((row) => mapCommunityVote(row, "author"));
-  const communityVotesNeedingAttention = reviewCommunityVoteRows
+  const myCommunityVotes = visibleMyCommunityVoteRows.map((row) => mapCommunityVote(row, "author"));
+  const communityVotesNeedingAttention = visibleReviewCommunityVoteRows
     .filter((row) => voteClosingSoon(row) || row.vote_status === "closed" || ["accepted", "declined", "posted_to_official_update", "archived"].includes(row.vote_status ?? ""))
     .map((row) => mapCommunityVote(row, voteClosingSoon(row) ? "closing_soon" : row.vote_status === "closed" ? "reviewer" : "outcome"));
   const communityVoteLifecycleActivity = [...myCommunityVotes, ...communityVotesNeedingAttention]
@@ -890,9 +993,12 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const reviewOfficialRows = canReviewCommune
     ? await safeQuery<OfficialUpdateSignalRow[]>(warnings, "Official Update review activity", supabase.from("commune_official_updates").select(officialSelect).in("official_status", ["published", "updated", "corrected", "retracted", "monitoring", "resolved"]).order("updated_at", { ascending: false }).limit(100), [])
     : [];
+  const officialPostById = await loadActivePublicCommunePostMap([...myOfficialRows, ...reviewOfficialRows].map((row) => row.post_id), warnings);
+  const visibleMyOfficialRows = myOfficialRows.filter((row) => row.post_id && officialPostById.has(row.post_id));
+  const visibleReviewOfficialRows = reviewOfficialRows.filter((row) => row.post_id && officialPostById.has(row.post_id));
   const mapOfficial = (row: OfficialUpdateSignalRow, role: OfficialUpdateSignalPreview["role_context"]): OfficialUpdateSignalPreview => ({ ...row, action_url: row.post_id ? "/commune/posts/" + row.post_id : "/commune/official-updates", role_context: role });
-  const myOfficialUpdates = myOfficialRows.map((row) => mapOfficial(row, "author"));
-  const officialUpdatesNeedingAttention = reviewOfficialRows.filter((row) => ["critical", "urgent"].includes(row.severity ?? "") || ["retracted", "corrected", "monitoring"].includes(row.official_status ?? "")).map((row) => mapOfficial(row, "reviewer"));
+  const myOfficialUpdates = visibleMyOfficialRows.map((row) => mapOfficial(row, "author"));
+  const officialUpdatesNeedingAttention = visibleReviewOfficialRows.filter((row) => ["critical", "urgent"].includes(row.severity ?? "") || ["retracted", "corrected", "monitoring"].includes(row.official_status ?? "")).map((row) => mapOfficial(row, "reviewer"));
   const officialUpdateActivity = Array.from(new Map([...myOfficialUpdates, ...officialUpdatesNeedingAttention].map((row) => [row.role_context + ":" + row.id, row])).values());
   const proposalNotificationIds = signals
     .filter((signal) => /code_revision|proposal/i.test((signal.notification_type ?? "") + " " + (signal.source_type ?? "")))
@@ -1207,9 +1313,19 @@ export async function loadPublicCommonsProfile(username: string): Promise<{ data
     safeQuery<BadgeDefinition[]>(warnings, "Public badges", supabase.from("badge_definitions").select("badge_key, name, description, badge_type, icon_path, category, rarity, sort_order, authority_linked, award_mode, rule_summary, is_manual_only, is_active").eq("is_active", true).order("sort_order", { ascending: true }), plannedBadges),
     safeQuery<BadgeAwardRow[]>(warnings, "Public user badges", supabase.from("user_badges").select("badge_key, awarded_at, award_reason, award_source, evidence_type, evidence_id, visibility, revoked_at").eq("user_id", profileRow.id).eq("visibility", "public").is("revoked_at", null), []),
     safeQuery<Array<{ id: string; title: string; description?: string | null; visibility: string; created_at?: string | null }>>(warnings, "Public collections", supabase.from("user_source_collections").select("id, title, description, visibility, created_at").eq("user_id", profileRow.id).eq("visibility", "public").limit(12), []),
-    safeQuery<PublicCommunePostPreview[]>(warnings, "Public Commune posts", supabase.from("commune_posts").select("id, title, post_type, excerpt, published_at, created_at").eq("user_id", profileRow.id).eq("status", "published").eq("visibility", "public").order("published_at", { ascending: false }).limit(6), []),
+    safeQuery<Array<PublicCommunePostPreview & ActivePublicCommunePost>>(warnings, "Public Commune posts", supabase.from("commune_posts").select("id, title, post_type, excerpt, status, visibility, visibility_state, hidden_at, removed_at, archived_at, published_at, created_at").eq("user_id", profileRow.id).eq("status", "published").eq("visibility", "public").order("published_at", { ascending: false }).limit(6), []),
     safeQuery<PublicCommuneCommentPreview[]>(warnings, "Public Commune comments", supabase.from("commune_comments").select("id, post_id, parent_comment_id, body, published_at, created_at").eq("user_id", profileRow.id).eq("status", "published").eq("visibility_state", "published").order("published_at", { ascending: false }).limit(6), [])
   ]);
+  const visiblePublicPosts = publicPosts.filter(isActivePublicCommunePost).map((post) => ({
+    id: post.id,
+    title: post.title,
+    post_type: post.post_type,
+    excerpt: post.excerpt,
+    published_at: post.published_at,
+    created_at: post.created_at
+  }));
+  const activeCommentPostById = await loadActivePublicCommunePostMap(publicComments.map((comment) => comment.post_id), warnings);
+  const visiblePublicComments = publicComments.filter((comment) => activeCommentPostById.has(comment.post_id));
   const { data: auth } = await supabase.auth.getUser();
   const avatarMedia = mediaRows.find((row) => row.media_type === "avatar");
   const bannerMedia = mediaRows.find((row) => row.media_type === "banner");
@@ -1238,8 +1354,8 @@ export async function loadPublicCommonsProfile(username: string): Promise<{ data
       badges: visibility.show_badges ? mergeBadges(definitions.length ? definitions : plannedBadges, awarded).filter((badge) => badge.visibility === "public") : [],
       publicCollections: visibility.show_source_collections ? collections.map((collection) => ({ ...collection, source_count: 0 })) : [],
       publicLinks: safePublicLinks(publicProfileRow.featured_public_links),
-      publicCommunePosts: visibility.show_commune_posts ? publicPosts : [],
-      publicCommuneComments: visibility.show_commune_posts ? publicComments : [],
+      publicCommunePosts: visibility.show_commune_posts ? visiblePublicPosts : [],
+      publicCommuneComments: visibility.show_commune_posts ? visiblePublicComments : [],
       isOwner: auth.user?.id === profileRow.id
     },
     warnings

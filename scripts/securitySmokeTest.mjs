@@ -73,6 +73,9 @@ if (failures.length) {
 }
 
 const communityVoteMigration = await fs.readFile("supabase/migrations/2026_07_05_02_commune_community_voting_room.sql", "utf8");
+const softDeleteCleanupMigration = await fs.readFile("supabase/migrations/2026_07_07_commune_soft_delete_cleanup.sql", "utf8");
+const commonsCircleApi = await fs.readFile("src/pages/The-Commons-Circle/commonsCircleApi.ts", "utf8");
+const communeAccountApi = await fs.readFile("src/pages/The-Elysia-Commune/communeAccountApi.ts", "utf8");
 const communityVoteSecurity = [
   ["RLS enabled on vote posts", /alter table public\.commune_vote_posts enable row level security/i],
   ["RLS enabled on vote options", /alter table public\.commune_vote_options enable row level security/i],
@@ -98,6 +101,35 @@ const communityVoteFailures = communityVoteSecurity
   .map(([name]) => name);
 if (communityVoteFailures.length) {
   console.error(`Community Voting Room security checks failed:\n${communityVoteFailures.join("\n")}`);
+  process.exit(1);
+}
+
+const softDeleteCleanupSecurity = [
+  ["cleanup RPC exists", /create or replace function public\.soft_delete_commune_post/i],
+  ["cleanup RPC is security definer", /security definer/i],
+  ["cleanup RPC has safe search path", /set search_path = public, auth/i],
+  ["cleanup RPC requires Commune reviewer", /current_user_can_review_domain\('commune'::public\.review_domain\)/i],
+  ["cleanup removes saved shelf rows", /delete from public\.user_saved_commune_posts/i],
+  ["cleanup removes legacy saved rows", /delete from public\.commune_saved_posts/i],
+  ["cleanup removes notifications", /delete from public\.user_notifications/i],
+  ["cleanup removes followed threads", /delete from public\.user_followed_commune_threads/i],
+  ["cleanup removes reactions", /delete from public\.commune_content_reactions/i],
+  ["cleanup hides code proposals", /commune_code_revision_proposals[\s\S]*hidden_by_moderation/i],
+  ["cleanup archives Community Voting Room sidecar", /commune_vote_posts[\s\S]*vote_status = 'archived'/i],
+  ["cleanup preserves audit history", /audit_preserved[\s\S]*commune_reports[\s\S]*commune_moderation_events[\s\S]*review_items[\s\S]*review_events[\s\S]*commune_vote_ballots[\s\S]*commune_vote_events/i],
+  ["cleanup grants execute only to authenticated", /revoke all on function public\.soft_delete_commune_post\(uuid, text\) from public;[\s\S]*grant execute on function public\.soft_delete_commune_post\(uuid, text\) to authenticated/i],
+  ["saved rows require active parent on select", /users select own active saved commune posts[\s\S]*post\.status = 'published'[\s\S]*post\.visibility = 'public'[\s\S]*post\.removed_at is null/i],
+  ["delete helper calls cleanup RPC", /rpc\("soft_delete_commune_post"/i],
+  ["missing RPC has migration drift error", /Commune soft-delete cleanup is not available yet\. Apply the latest Commune cleanup migration before deleting posts\./i],
+  ["Commons loaders have active parent filter", /isActivePublicCommunePost[\s\S]*loadActivePublicCommunePostMap[\s\S]*filterNotificationsByActiveCommunePost/i],
+  ["Signal Console sidecars use visible filtered rows", /visibleMyCommunityVoteRows[\s\S]*visibleReviewCommunityVoteRows[\s\S]*officialPostById/i],
+  ["Public profile comments filtered by parent", /visiblePublicComments[\s\S]*activeCommentPostById/i]
+];
+const softDeleteFailures = softDeleteCleanupSecurity
+  .filter(([, pattern]) => !pattern.test(softDeleteCleanupMigration + "\n" + communeAccountApi + "\n" + commonsCircleApi))
+  .map(([name]) => name);
+if (softDeleteFailures.length) {
+  console.error(`Commune soft-delete cleanup security checks failed:\n${softDeleteFailures.join("\n")}`);
   process.exit(1);
 }
 
