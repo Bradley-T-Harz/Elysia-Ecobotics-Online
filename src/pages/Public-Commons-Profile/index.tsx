@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { getCommonsBackgroundStyleOption, normalizeCommonsBackgroundStyle } from "../../shared/commonsBackgroundStyles";
+import { getCommonsDecorativeMarkerOption, normalizeCommonsDecorativeMarkerSet } from "../../shared/commonsDecorativeMarkers";
 import { getCommonsProfileLayoutOption, normalizeCommonsProfileLayout } from "../../shared/commonsProfileLayouts";
 import { getCommonsThemeModeOption, normalizeCommonsThemeMode } from "../../shared/commonsThemeModes";
 import { commonsCustomizationStyle, customizationClass, safeCommonsAccentColor } from "../../shared/commonsCustomizationStyles";
@@ -30,19 +31,16 @@ type PublicCustomizationView = {
   banner_position_y?: number | null;
 };
 
-function formatDecalLabel(value: string) {
-  return value.replace(/_/g, " ");
-}
-
-function visibleDecals(settings: PublicCustomizationView) {
-  const decals = settings.selected_decals?.length ? settings.selected_decals : settings.decal_set && settings.decal_set !== "none" ? [settings.decal_set] : [];
-  return decals.filter(Boolean);
-}
-
-function DecalStrip({ settings }: { settings: PublicCustomizationView }) {
-  const decals = visibleDecals(settings);
-  if (!decals.length) return null;
-  return <div className="commons-decal-strip commons-public-decal-strip" aria-label="Selected public profile decorative markers">{decals.map((decal) => <span className="commons-decal-chip" key={decal}>{formatDecalLabel(decal)}</span>)}</div>;
+function CommonsPublicHeroDecorativeMarker({ decalSet }: { decalSet: unknown }) {
+  const markerKey = normalizeCommonsDecorativeMarkerSet(decalSet);
+  if (markerKey === "none") return null;
+  const marker = getCommonsDecorativeMarkerOption(markerKey);
+  if (!marker) return null;
+  return (
+    <div className="commons-public-profile-hero-marker" aria-hidden="true">
+      <img src={marker.imageUrl} alt="" draggable={false} loading="lazy" />
+    </div>
+  );
 }
 
 function previewText(value: string, max = 180) {
@@ -121,9 +119,12 @@ export default function PublicCommonsProfilePage() {
 
   return (
     <div className={profileClasses} style={style} data-commons-theme={themeMode} data-commons-background={backgroundStyle} data-commons-layout={profileLayout}>
-      <PageHero eyebrow="Public Commons Profile" title={visibleName}>
-        <p>This is a public Commons Circle profile. It does not expose private account email, private requests, saved shelves, local Elysia data, files, logs, vaults, credentials, or machine data.</p>
-      </PageHero>
+      <div className="commons-public-profile-top-hero">
+        <PageHero eyebrow="Public Commons Profile" title={visibleName}>
+          <p>This is a public Commons Circle profile. It does not expose private account email, private requests, saved shelves, local Elysia data, files, logs, vaults, credentials, or machine data.</p>
+        </PageHero>
+        <CommonsPublicHeroDecorativeMarker decalSet={customization.decal_set} />
+      </div>
       <CommonsBackgroundAtmosphere backgroundStyle={backgroundStyle} accentColor={accentColor} variant="public" className="commons-public-profile-atmosphere commons-public-atmosphere-stage" style={style}>
         <CommonsProfileLayoutFrame profileLayout={profileLayout} variant="public" className="commons-public-profile-layout-frame">
           <section className="commons-profile-slot commons-profile-slot--summary">
@@ -141,7 +142,6 @@ export default function PublicCommonsProfilePage() {
                   <div className="commons-customization-badges commons-profile-summary-card__chips commons-profile-masthead__chips" aria-label="Public profile presentation settings"><span>{getCommonsThemeModeOption(themeMode).label}</span><span>{getCommonsBackgroundStyleOption(backgroundStyle).label}</span><span>{profileLayoutOption.label}</span></div>
                 </div>
               </div>
-              <DecalStrip settings={customization} />
               {isOwner && <div className="button-row commons-profile-summary-card__edit commons-profile-masthead__edit"><a className="button-link button-link--primary" href="/commons-circle">Edit in Commons Circle</a></div>}
             </article>
           </section>

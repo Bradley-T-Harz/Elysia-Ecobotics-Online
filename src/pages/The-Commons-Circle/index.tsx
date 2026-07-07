@@ -2,6 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
 import { COMMONS_BACKGROUND_STYLES, getCommonsBackgroundStyleOption, normalizeCommonsBackgroundStyle } from "../../shared/commonsBackgroundStyles";
+import {
+  COMMONS_DECORATIVE_MARKER_SET_OPTIONS,
+  normalizeCommonsDecorativeMarkerSet,
+  resolveCommonsDecorativeMarkers,
+} from "../../shared/commonsDecorativeMarkers";
 import { COMMONS_PROFILE_LAYOUTS, getCommonsProfileLayoutOption, normalizeCommonsProfileLayout } from "../../shared/commonsProfileLayouts";
 import { COMMONS_THEME_MODES, getCommonsThemeModeOption, normalizeCommonsThemeMode } from "../../shared/commonsThemeModes";
 import { commonsCustomizationStyle, customizationClass, customizationSkinClass } from "../../shared/commonsCustomizationStyles";
@@ -54,7 +59,6 @@ const membershipTiers = [
   { name: "Founding Steward", purpose: "Early project recognition for meaningful early support of Elysia Ecobotics and the commons around her.", awarded: "Manually assigned by an administrator.", status: "Early recognition", note: "Not pay-to-win power." }
 ];
 
-const decalOptions = ["none", "leaf_glyph", "water_ripple", "star_map", "mushroom_badge", "circuit_vine", "pollinator", "wetland_reed", "moon_crest", "robotic_seed"];
 function BadgeRow({ labels }: { labels: string[] }) {
   return <div className="commons-badge-row">{labels.filter(Boolean).map((label) => <span key={label}>{label}</span>)}</div>;
 }
@@ -80,13 +84,8 @@ function privacyLabel(key: string) {
   return key.replace(/^show_/, "show ").replace(/_/g, " ");
 }
 
-function formatDecalLabel(value: string) {
-  return value.replace(/_/g, " ");
-}
-
 function visibleDecals(settings: ProfileCustomization) {
-  const decals = settings.selected_decals?.length ? settings.selected_decals : settings.decal_set && settings.decal_set !== "none" ? [settings.decal_set] : [];
-  return decals.filter(Boolean);
+  return resolveCommonsDecorativeMarkers(settings);
 }
 
 function styleSignature(settings: ProfileCustomization) {
@@ -94,8 +93,8 @@ function styleSignature(settings: ProfileCustomization) {
     theme_mode: normalizeCommonsThemeMode(settings.theme_mode),
     accent_color: settings.accent_color || defaultCustomization.accent_color,
     background_style: normalizeCommonsBackgroundStyle(settings.background_style),
-    decal_set: settings.decal_set || defaultCustomization.decal_set,
-    selected_decals: [...(settings.selected_decals ?? [])].sort(),
+    decal_set: normalizeCommonsDecorativeMarkerSet(settings.decal_set),
+    selected_decals: [],
     profile_layout: normalizeCommonsProfileLayout(settings.profile_layout),
     banner_zoom: normalizeCommonsBannerZoom(settings.banner_zoom),
     banner_position_x: normalizeCommonsBannerPosition(settings.banner_position_x),
@@ -114,7 +113,7 @@ function formatBannerPosition(value: number) {
 function DecalStrip({ settings }: { settings: ProfileCustomization }) {
   const decals = visibleDecals(settings);
   if (!decals.length) return null;
-  return <div className="commons-decal-strip" aria-label="Selected profile decals">{decals.map((decal) => <span className="commons-decal-chip" key={decal}>{formatDecalLabel(decal)}</span>)}</div>;
+  return <div className="commons-decal-strip" aria-label="Selected profile decals">{decals.map((decal) => <span className="commons-decal-chip" key={decal.key}>{decal.label}</span>)}</div>;
 }
 
 
@@ -245,19 +244,13 @@ export default function CommonsCirclePage() {
       ...patch,
       ...(patch.theme_mode === undefined ? {} : { theme_mode: normalizeCommonsThemeMode(patch.theme_mode) }),
       ...(patch.background_style === undefined ? {} : { background_style: normalizeCommonsBackgroundStyle(patch.background_style) }),
+      ...(patch.decal_set === undefined ? {} : { decal_set: normalizeCommonsDecorativeMarkerSet(patch.decal_set), selected_decals: [] }),
       ...(patch.profile_layout === undefined ? {} : { profile_layout: normalizeCommonsProfileLayout(patch.profile_layout) }),
       ...(patch.banner_zoom === undefined ? {} : { banner_zoom: normalizeCommonsBannerZoom(patch.banner_zoom) }),
       ...(patch.banner_position_x === undefined ? {} : { banner_position_x: normalizeCommonsBannerPosition(patch.banner_position_x) }),
       ...(patch.banner_position_y === undefined ? {} : { banner_position_y: normalizeCommonsBannerPosition(patch.banner_position_y) }),
     };
     setCustomizationDraft((current) => ({ ...current, ...normalizedPatch }));
-  }
-
-  function toggleSelectedDecal(decal: string) {
-    setCustomizationDraft((current) => {
-      const selected = current.selected_decals ?? [];
-      return { ...current, selected_decals: selected.includes(decal) ? selected.filter((item) => item !== decal) : [...selected, decal] };
-    });
   }
 
   function revertCustomizationPreview() {
@@ -270,6 +263,8 @@ export default function CommonsCirclePage() {
       ...customizationDraft,
       theme_mode: normalizeCommonsThemeMode(customizationDraft.theme_mode),
       background_style: normalizeCommonsBackgroundStyle(customizationDraft.background_style),
+      decal_set: normalizeCommonsDecorativeMarkerSet(customizationDraft.decal_set),
+      selected_decals: [],
       profile_layout: normalizeCommonsProfileLayout(customizationDraft.profile_layout),
       banner_zoom: normalizeCommonsBannerZoom(customizationDraft.banner_zoom),
       banner_position_x: normalizeCommonsBannerPosition(customizationDraft.banner_position_x),
@@ -513,10 +508,9 @@ export default function CommonsCirclePage() {
             <label><span>Theme mode</span><select value={normalizeCommonsThemeMode(customizationDraft.theme_mode)} onChange={(event) => updateCustomizationDraft({ theme_mode: normalizeCommonsThemeMode(event.target.value) })}>{COMMONS_THEME_MODES.map((theme) => <option key={theme.key} value={theme.key}>{theme.label}</option>)}</select></label>
             <label><span>Accent color</span><input type="color" value={customizationDraft.accent_color} onChange={(event) => updateCustomizationDraft({ accent_color: event.target.value })} /></label>
             <label><span>Background style</span><select value={normalizeCommonsBackgroundStyle(customizationDraft.background_style)} onChange={(event) => updateCustomizationDraft({ background_style: event.target.value })}>{COMMONS_BACKGROUND_STYLES.map((style) => <option key={style.key} value={style.key}>{style.label}</option>)}</select></label>
-            <label><span>Decorative marker set</span><select value={customizationDraft.decal_set} onChange={(event) => updateCustomizationDraft({ decal_set: event.target.value })}>{decalOptions.map((decal) => <option key={decal} value={decal}>{decal}</option>)}</select></label>
+            <label><span>Decorative marker set</span><select value={normalizeCommonsDecorativeMarkerSet(customizationDraft.decal_set)} onChange={(event) => updateCustomizationDraft({ decal_set: normalizeCommonsDecorativeMarkerSet(event.target.value) })}>{COMMONS_DECORATIVE_MARKER_SET_OPTIONS.map((option) => <option key={option.key} value={option.key}>{option.label}</option>)}</select></label>
             <label><span>Profile layout</span><select value={normalizeCommonsProfileLayout(customizationDraft.profile_layout)} onChange={(event) => updateCustomizationDraft({ profile_layout: normalizeCommonsProfileLayout(event.target.value) })}>{COMMONS_PROFILE_LAYOUTS.map((layout) => <option key={layout.key} value={layout.key}>{layout.label}</option>)}</select></label>
           </div>
-          <fieldset className="commons-decal-picker"><legend>Selected decorative markers</legend>{decalOptions.filter((decal) => decal !== "none").map((decal) => <label className="checkbox-line" key={decal}><input type="checkbox" checked={(customizationDraft.selected_decals ?? []).includes(decal)} onChange={() => toggleSelectedDecal(decal)} /><span>{formatDecalLabel(decal)}</span></label>)}</fieldset>
           <div className="commons-media-upload-row">
             <label><span>Avatar upload</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { void handleProfileMedia(event.target.files?.[0] ?? null, "avatar"); event.currentTarget.value = ""; }} /></label>
             <label><span>Banner upload</span><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { void handleProfileMedia(event.target.files?.[0] ?? null, "banner"); event.currentTarget.value = ""; }} /></label>

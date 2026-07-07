@@ -2495,6 +2495,57 @@ code { color: var(--teal); overflow-wrap: anywhere; }
   color: color-mix(in srgb, var(--commons-accent) 76%, white);
 }
 
+
+.commons-public-profile .commons-public-profile-top-hero {
+  position: relative;
+}
+
+.commons-public-profile .commons-public-profile-top-hero .page-hero-block {
+  position: relative;
+  overflow: hidden;
+  padding-right: clamp(9rem, 24vw, 18rem);
+}
+
+.commons-public-profile .commons-public-profile-hero-marker {
+  position: absolute;
+  right: clamp(2rem, 7vw, 6rem);
+  top: 50%;
+  transform: translateY(-50%);
+  width: clamp(7rem, 14vw, 14rem);
+  opacity: 0.84;
+  pointer-events: none;
+  user-select: none;
+  z-index: 1;
+}
+
+.commons-public-profile .commons-public-profile-hero-marker img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  filter:
+    drop-shadow(0 0 1.1rem color-mix(in srgb, var(--commons-accent) 42%, transparent))
+    drop-shadow(0 18px 34px rgba(0, 0, 0, 0.42));
+}
+
+@media (max-width: 760px) {
+  .commons-public-profile .commons-public-profile-top-hero .page-hero-block {
+    padding-right: clamp(1rem, 4vw, 1.5rem);
+    padding-bottom: clamp(7rem, 22vw, 8.5rem);
+  }
+
+  .commons-public-profile .commons-public-profile-hero-marker {
+    top: auto;
+    right: clamp(1.1rem, 5vw, 1.75rem);
+    bottom: clamp(0.75rem, 3vw, 1.15rem);
+    transform: none;
+    width: clamp(5.5rem, 24vw, 8.25rem);
+    opacity: 0.72;
+  }
+}
+
 .commons-customization-badges {
   display: flex;
   flex-wrap: wrap;

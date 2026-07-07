@@ -20,6 +20,15 @@ function assert(condition, message) {
   }
 }
 
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function cssRuleIncludes(css, selector, requiredParts) {
+  const match = css.match(new RegExp(`${escapeRegExp(selector)}\\s*\\{([\\s\\S]*?)\\}`));
+  return Boolean(match && requiredParts.every((part) => match[1].includes(part)));
+}
+
 const nav = await read("src/shared/components/SiteNav.tsx");
 const footer = await read("src/shared/components/SiteFooter.tsx");
 const app = await read("src/App.tsx");
@@ -48,6 +57,7 @@ const legalPolicies = await read("src/pages/Legal/legalPolicyPages.ts");
 const archive = await read("src/pages/The-Elysia-Archive/index.tsx");
 const styles = await read("src/styles.css");
 const commonsBackgroundCatalog = await read("src/shared/commonsBackgroundStyles.ts");
+const commonsDecorativeMarkers = await read("src/shared/commonsDecorativeMarkers.ts");
 const commonsBackgroundAtmosphere = await read("src/shared/components/CommonsBackgroundAtmosphere.tsx");
 const commonsBackgroundCss = await read("src/styles/commonsBackgrounds.css");
 const commonsProfileLayoutCatalog = await read("src/shared/commonsProfileLayouts.ts");
@@ -165,6 +175,36 @@ assert(commonsThemeModes.includes("DEFAULT_COMMONS_THEME_MODE") && commonsThemeM
 assert(commons.includes("COMMONS_THEME_MODES.map") && commons.includes("theme.label") && commons.includes("normalizeCommonsThemeMode(customizationDraft.theme_mode)"), "Commons Circle Theme mode dropdown should use shared readable labels and normalized values.");
 assert(!commons.includes("themeModes.map") && !commons.includes(">{theme}</option>"), "Commons Circle Theme mode dropdown should not render raw theme keys as option labels.");
 assert(publicProfile.includes("getCommonsThemeModeOption(themeMode).label") && commons.includes("getCommonsThemeModeOption(customizationDraft.theme_mode).label"), "Public and preview theme chips should use readable theme mode labels.");
+const commonsDecorativeMarkerOptions = [
+  ["leaf_glyph", "Leaf Glyph", "leaf_glyph.png", "commons-public-decorative-marker--leaf-glyph"],
+  ["water_ripple", "Water Ripple", "water_ripple.png", "commons-public-decorative-marker--water-ripple"],
+  ["star_map", "Star Map", "star_map.png", "commons-public-decorative-marker--star-map"],
+  ["mushroom_badge", "Mushroom Button", "mushroom_badge.png", "commons-public-decorative-marker--mushroom-badge"],
+  ["circuit_vine", "Circuit Vine", "circuit_vine.png", "commons-public-decorative-marker--circuit-vine"],
+  ["pollinator", "Pollinator", "pollinator.png", "commons-public-decorative-marker--pollinator"],
+  ["wetland_reed", "Wetland Reed", "wetland_reed.png", "commons-public-decorative-marker--wetland-reed"],
+  ["moon_crest", "Moon Crest", "moon_crest.png", "commons-public-decorative-marker--moon-crest"],
+  ["robotic_seed", "Robotic Seed", "robotic_seed.png", "commons-public-decorative-marker--robotic-seed"],
+];
+for (const [key, label, assetName, className] of commonsDecorativeMarkerOptions) {
+  assert(commonsDecorativeMarkers.includes(`key: "${key}"`), `Commons decorative marker catalog missing stable key: ${key}`);
+  assert(commonsDecorativeMarkers.includes(`label: "${label}"`), `Commons decorative marker catalog missing display label: ${label}`);
+  assert(commonsDecorativeMarkers.includes(className), `Commons decorative marker catalog class missing for ${key}.`);
+  assert(await exists(`src/assets/commons/decorative-markers/${assetName}`), `Commons decorative marker asset missing: ${assetName}`);
+}
+const oldMushroomLabel = "Mushroom " + "Badge";
+assert(commonsDecorativeMarkers.includes("COMMONS_DECORATIVE_MARKERS") && commonsDecorativeMarkers.includes("COMMONS_DECORATIVE_MARKER_KEYS") && commonsDecorativeMarkers.includes("COMMONS_DECORATIVE_MARKER_SET_OPTIONS") && commonsDecorativeMarkers.includes("normalizeCommonsDecorativeMarkerSet") && commonsDecorativeMarkers.includes("normalizeCommonsSelectedDecorativeMarkers"), "Commons decorative marker catalog should export keys, options, and normalizers.");
+assert(commonsDecorativeMarkers.includes('key: "none", label: "None"') && commonsDecorativeMarkers.includes("formatCommonsDecorativeMarkerLabel") && commonsDecorativeMarkers.includes("resolveCommonsDecorativeMarkers"), "Commons decorative marker catalog should include None, labels, and public resolution behavior.");
+assert(commonsDecorativeMarkers.includes('label: "Mushroom Button"') && commonsDecorativeMarkers.includes('key: "mushroom_badge"') && !commonsDecorativeMarkers.includes(oldMushroomLabel), "Mushroom decorative marker must keep the database key but display as Mushroom Button.");
+assert(!/https?:\/\//i.test(commonsDecorativeMarkers), "Commons decorative marker catalog must not use remote marker image URLs.");
+assert(commons.includes("COMMONS_DECORATIVE_MARKER_SET_OPTIONS.map") && commons.includes("option.label") && !commons.includes(">{decal}</option>"), "Commons Circle decorative marker dropdown should use shared readable labels, not raw keys.");
+assert(!commons.includes("Selected decorative markers") && !commons.includes("commons-decal-picker") && !commons.includes("toggleSelectedDecal") && !commons.includes("COMMONS_DECORATIVE_MARKERS.map") && !commons.includes("selected_decals).includes"), "Commons Circle should no longer render selected decorative marker checkbox controls.");
+assert(publicProfile.includes("getCommonsDecorativeMarkerOption") && publicProfile.includes("normalizeCommonsDecorativeMarkerSet") && publicProfile.includes("CommonsPublicHeroDecorativeMarker") && publicProfile.includes("customization.decal_set"), "Public Commons profile should resolve decorative markers from decal_set only.");
+assert(publicProfile.includes("commons-public-profile-hero-marker") && publicProfile.includes("aria-hidden=\"true\"") && publicProfile.includes("alt=\"\"") && publicProfile.includes("draggable={false}"), "Public Commons profile should render a single non-interactive hero marker image.");
+assert(!publicProfile.includes("resolveCommonsDecorativeMarkers(") && !publicProfile.includes("commons-public-decorative-marker-layer"), "Public Commons profile marker rendering must ignore selected_decals and old multi-marker layer logic.");
+assert(cssRuleIncludes(styles, ".commons-public-profile .commons-public-profile-hero-marker", ["position: absolute", "right:", "width: clamp(7rem, 14vw, 14rem)", "pointer-events: none", "user-select: none"]) && cssRuleIncludes(styles, ".commons-public-profile .commons-public-profile-hero-marker img", ["filter:", "object-fit: contain"]), "Public hero marker CSS should be public-scoped and visibly positioned in the top hero.");
+assert(!styles.includes(".commons-public-profile .commons-public-decorative-marker-layer") && !styles.includes(".commons-public-profile .commons-public-decorative-marker--"), "Old multi-marker public layout overlay CSS should be removed.");
+assert(!commons.includes("commons-public-profile-hero-marker") && !commons.includes("commons-public-decorative-marker-layer"), "Customization Studio preview must not render decorative marker PNG overlays.");
 for (const mastheadClass of ["commons-profile-masthead", "commons-profile-masthead--classic-homebase", "commons-profile-masthead__banner", "commons-profile-masthead__identity", "commons-profile-masthead__avatar", "commons-profile-masthead__avatar-image", "commons-profile-masthead__edit", "commons-avatar--masthead"]) {
   assert(publicProfile.includes(mastheadClass) || commons.includes(mastheadClass), `Commons profile masthead hook missing: ${mastheadClass}`);
 }
