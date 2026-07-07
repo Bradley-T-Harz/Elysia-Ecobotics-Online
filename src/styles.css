@@ -3297,6 +3297,104 @@ code { color: var(--teal); overflow-wrap: anywhere; }
   background: rgba(3, 8, 13, 0.32);
 }
 
+.commune-vote-post-card,
+.commune-vote-post-detail {
+  border-color: rgba(142, 232, 220, 0.32);
+  background:
+    radial-gradient(circle at 92% 8%, rgba(142, 232, 220, 0.15), transparent 13rem),
+    linear-gradient(135deg, rgba(10, 24, 28, 0.94), rgba(7, 13, 20, 0.88));
+}
+
+.commune-vote-card,
+.commune-vote-detail,
+.commune-vote-admin-panel,
+.commune-vote-composer {
+  display: grid;
+  gap: 0.8rem;
+  margin: 1rem 0;
+  padding: 0.9rem;
+  border: 1px solid rgba(142, 232, 220, 0.24);
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 96% 0%, rgba(216, 182, 111, 0.09), transparent 11rem),
+    rgba(3, 8, 13, 0.34);
+}
+
+.commune-vote-status {
+  border: 1px solid rgba(142, 232, 220, 0.26);
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  background: rgba(142, 232, 220, 0.09);
+  color: var(--text);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.commune-vote-option-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 0.75rem;
+}
+
+.commune-vote-option-card {
+  display: grid;
+  gap: 0.45rem;
+  width: 100%;
+  min-height: 118px;
+  padding: 0.75rem;
+  border: 1px solid rgba(142, 232, 220, 0.2);
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.22);
+  color: var(--text);
+  text-align: left;
+}
+
+button.commune-vote-option-card {
+  cursor: pointer;
+}
+
+button.commune-vote-option-card:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.commune-vote-option-card--selected {
+  border-color: rgba(216, 182, 111, 0.48);
+  box-shadow: inset 0 0 0 1px rgba(216, 182, 111, 0.2);
+}
+
+.commune-vote-result-bar {
+  display: block;
+  width: 100%;
+  height: 0.55rem;
+  overflow: hidden;
+  border: 1px solid rgba(142, 232, 220, 0.18);
+  border-radius: 999px;
+  background: rgba(3, 8, 13, 0.72);
+}
+
+.commune-vote-result-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(142, 232, 220, 0.78), rgba(216, 182, 111, 0.82));
+}
+
+.commune-vote-event-list {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.commune-vote-boundary-note {
+  margin: 0;
+  padding: 0.7rem;
+  border: 1px solid rgba(216, 182, 111, 0.24);
+  border-radius: 12px;
+  background: rgba(216, 182, 111, 0.08);
+  color: var(--muted);
+}
+
 .commune-post-detail .tag-row span,
 .commune-post-card .tag-row span {
   border: 1px solid rgba(142, 232, 220, 0.24);

@@ -197,6 +197,22 @@ export type OfficialUpdateSignalPreview = {
   action_url: string;
   role_context: "author" | "reviewer" | "notification";
 };
+export type CommunityVoteSignalPreview = {
+  post_id: string;
+  created_by?: string | null;
+  question?: string | null;
+  vote_status?: string | null;
+  opens_at?: string | null;
+  closes_at?: string | null;
+  results_visibility?: string | null;
+  allow_comments?: boolean | null;
+  admin_outcome_summary?: string | null;
+  official_update_post_id?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  action_url: string;
+  role_context: "author" | "reviewer" | "closing_soon" | "outcome";
+};
 export type BadgeDefinition = { badge_key: string; name: string; description: string; badge_type: string; category?: string | null; rarity: string; is_active?: boolean; icon_path?: string | null; tags?: string[]; authority?: boolean; authority_linked?: boolean | null; award_mode?: string | null; rule_summary?: string | null; is_manual_only?: boolean | null; sort_order?: number | null; note?: string; default_status?: string };
 export type BadgeAwardRow = { badge_key: string; awarded_at?: string | null; award_reason?: string | null; award_source?: string | null; evidence_type?: string | null; evidence_id?: string | null; visibility?: "public" | "private" | null; revoked_at?: string | null };
 export type UserBadge = BadgeDefinition & BadgeAwardRow & { visibility?: "public" | "private" | null; earned: true };
@@ -267,6 +283,10 @@ export type SignalConsoleData = {
   officialUpdateActivity: OfficialUpdateSignalPreview[];
   myOfficialUpdates: OfficialUpdateSignalPreview[];
   officialUpdatesNeedingAttention: OfficialUpdateSignalPreview[];
+  communityVoteActivity: CommunityVoteSignalPreview[];
+  myCommunityVotes: CommunityVoteSignalPreview[];
+  communityVotesNeedingAttention: CommunityVoteSignalPreview[];
+  communityVoteLifecycleActivity: CommunityVoteSignalPreview[];
   unreadCount: number;
   codeProposalCount: number;
   troubleshootingCount: number;
@@ -275,6 +295,7 @@ export type SignalConsoleData = {
   iterationShowcaseCount: number;
   jobPostCount: number;
   officialUpdateCount: number;
+  communityVoteCount: number;
 };
 
 export type PublicCommonsProfile = {
@@ -724,7 +745,7 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
 
 export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const warnings: string[] = [];
-  const empty = { signals: [], codeProposalActivity: [], needsMyReview: [], mySubmittedProposals: [], troubleshootingActivity: [], myTroubleshootingIssues: [], troubleshootingNeedingReview: [], troubleshootingResolutionActivity: [], researchNotesActivity: [], myResearchNotes: [], researchNotesNeedingReview: [], researchClarificationActivity: [], repositoryShowcaseActivity: [], myRepositoryShowcases: [], repositoryShowcasesNeedingReview: [], repositorySandboxActivity: [], iterationShowcaseActivity: [], myIterationShowcases: [], iterationShowcasesNeedingReview: [], iterationSandboxActivity: [], jobPostActivity: [], myJobPosts: [], jobPostsNeedingReview: [], jobPostStatusActivity: [], officialUpdateActivity: [], myOfficialUpdates: [], officialUpdatesNeedingAttention: [], unreadCount: 0, codeProposalCount: 0, troubleshootingCount: 0, researchNotesCount: 0, repositoryShowcaseCount: 0, iterationShowcaseCount: 0, jobPostCount: 0, officialUpdateCount: 0 };
+  const empty = { signals: [], codeProposalActivity: [], needsMyReview: [], mySubmittedProposals: [], troubleshootingActivity: [], myTroubleshootingIssues: [], troubleshootingNeedingReview: [], troubleshootingResolutionActivity: [], researchNotesActivity: [], myResearchNotes: [], researchNotesNeedingReview: [], researchClarificationActivity: [], repositoryShowcaseActivity: [], myRepositoryShowcases: [], repositoryShowcasesNeedingReview: [], repositorySandboxActivity: [], iterationShowcaseActivity: [], myIterationShowcases: [], iterationShowcasesNeedingReview: [], iterationSandboxActivity: [], jobPostActivity: [], myJobPosts: [], jobPostsNeedingReview: [], jobPostStatusActivity: [], officialUpdateActivity: [], myOfficialUpdates: [], officialUpdatesNeedingAttention: [], communityVoteActivity: [], myCommunityVotes: [], communityVotesNeedingAttention: [], communityVoteLifecycleActivity: [], unreadCount: 0, codeProposalCount: 0, troubleshootingCount: 0, researchNotesCount: 0, repositoryShowcaseCount: 0, iterationShowcaseCount: 0, jobPostCount: 0, officialUpdateCount: 0, communityVoteCount: 0 };
   if (!hasSupabaseConfig || !supabase) return { signedIn: false, supabaseConfigured: false, userId: null, warnings: [supabaseNotConfiguredMessage], ...empty };
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth.user?.id ?? null;
@@ -840,6 +861,29 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const jobPostStatusActivity = [...myJobPosts, ...jobPostsNeedingReview]
     .filter((row) => ["filled", "closed", "archived", "needs_clarification"].includes(row.application_status ?? "") || ["needs_pay_clarification", "needs_contact_clarification", "needs_location_clarification", "suspicious", "removed"].includes(row.anti_scam_review_status ?? "") || Boolean(row.public_correction_note));
   const jobPostActivity = Array.from(new Map([...myJobPosts, ...jobPostsNeedingReview, ...jobPostStatusActivity].map((row) => [row.role_context + ":" + row.id, row])).values());
+
+  type CommunityVoteSignalRow = Omit<CommunityVoteSignalPreview, "action_url" | "role_context">;
+  const voteSelect = "post_id, created_by, question, vote_status, opens_at, closes_at, results_visibility, allow_comments, admin_outcome_summary, official_update_post_id, created_at, updated_at";
+  const myCommunityVoteRows = await safeQuery<CommunityVoteSignalRow[]>(warnings, "Community Voting Room activity", supabase.from("commune_vote_posts").select(voteSelect).eq("created_by", userId).order("updated_at", { ascending: false }).limit(100), []);
+  const reviewCommunityVoteRows = canReviewCommune
+    ? await safeQuery<CommunityVoteSignalRow[]>(warnings, "Community Voting Room review activity", supabase.from("commune_vote_posts").select(voteSelect).in("vote_status", ["open", "closed", "accepted", "declined", "posted_to_official_update", "archived"]).order("updated_at", { ascending: false }).limit(100), [])
+    : [];
+  const mapCommunityVote = (row: CommunityVoteSignalRow, role: CommunityVoteSignalPreview["role_context"]): CommunityVoteSignalPreview => ({ ...row, action_url: row.post_id ? "/commune/posts/" + row.post_id : "/commune/community-vote", role_context: role });
+  const voteClosingSoon = (row: CommunityVoteSignalRow) => {
+    if (!row.closes_at || row.vote_status !== "open") return false;
+    const closesAt = new Date(row.closes_at).getTime();
+    if (!Number.isFinite(closesAt)) return false;
+    const hours = (closesAt - Date.now()) / (1000 * 60 * 60);
+    return hours >= 0 && hours <= 48;
+  };
+  const myCommunityVotes = myCommunityVoteRows.map((row) => mapCommunityVote(row, "author"));
+  const communityVotesNeedingAttention = reviewCommunityVoteRows
+    .filter((row) => voteClosingSoon(row) || row.vote_status === "closed" || ["accepted", "declined", "posted_to_official_update", "archived"].includes(row.vote_status ?? ""))
+    .map((row) => mapCommunityVote(row, voteClosingSoon(row) ? "closing_soon" : row.vote_status === "closed" ? "reviewer" : "outcome"));
+  const communityVoteLifecycleActivity = [...myCommunityVotes, ...communityVotesNeedingAttention]
+    .filter((row) => ["closed", "accepted", "declined", "posted_to_official_update", "archived"].includes(row.vote_status ?? "") || voteClosingSoon(row) || Boolean(row.admin_outcome_summary || row.official_update_post_id));
+  const communityVoteActivity = Array.from(new Map([...myCommunityVotes, ...communityVotesNeedingAttention, ...communityVoteLifecycleActivity].map((row) => [row.role_context + ":" + row.post_id, row])).values());
+
   type OfficialUpdateSignalRow = Omit<OfficialUpdateSignalPreview, "action_url" | "role_context">;
   const officialSelect = "id, post_id, admin_user_id, brand_author_name, update_type, official_status, severity, pinned, important, comments_enabled, correction_status, correction_note, published_at, updated_at";
   const myOfficialRows = await safeQuery<OfficialUpdateSignalRow[]>(warnings, "Official Update activity", supabase.from("commune_official_updates").select(officialSelect).eq("admin_user_id", userId).order("updated_at", { ascending: false }).limit(100), []);
@@ -885,6 +929,10 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
     officialUpdateActivity,
     myOfficialUpdates,
     officialUpdatesNeedingAttention,
+    communityVoteActivity,
+    myCommunityVotes,
+    communityVotesNeedingAttention,
+    communityVoteLifecycleActivity,
     unreadCount: signals.filter((signal) => !signal.read_at).length,
     codeProposalCount: new Set([...codeProposalActivity.map((proposal) => proposal.id), ...proposalNotificationIds]).size,
     troubleshootingCount: new Set(troubleshootingActivity.map((item) => item.id)).size,
@@ -892,7 +940,8 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
     repositoryShowcaseCount: new Set(repositoryShowcaseActivity.map((item) => item.id)).size,
     iterationShowcaseCount: new Set(iterationShowcaseActivity.map((item) => item.id)).size,
     jobPostCount: new Set(jobPostActivity.map((item) => item.id)).size,
-    officialUpdateCount: new Set(officialUpdateActivity.map((item) => item.id)).size
+    officialUpdateCount: new Set(officialUpdateActivity.map((item) => item.id)).size,
+    communityVoteCount: new Set(communityVoteActivity.map((item) => item.post_id)).size
   };
 }
 

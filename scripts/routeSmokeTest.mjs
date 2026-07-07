@@ -21,6 +21,7 @@ const requiredRoutes = [
   "/trust", "/manifest-api", "/admin"
 ];
 const app = await import("node:fs/promises").then((fs) => fs.readFile(new URL("../src/App.tsx", import.meta.url), "utf8"));
+const communePage = await import("node:fs/promises").then((fs) => fs.readFile(new URL("../src/pages/The-Elysia-Commune/index.tsx", import.meta.url), "utf8"));
 const missing = requiredRoutes.filter((route) => {
   if (route === "/") return !app.includes("<Route index");
   const path = route.replace(/^\//, "");
@@ -39,6 +40,18 @@ if (!matchPath({ path: "commons-circle/:publicHandle" }, "/commons-circle/@bradl
 }
 if (!matchPath({ path: "commons/:publicHandle" }, "/commons/@bradley-harz")) {
   console.error("Legacy Commons public profile route does not match /commons/@username.");
+  process.exit(1);
+}
+if (!matchPath({ path: "commune/:roomSlug" }, "/commune/community-vote")) {
+  console.error("Generic Commune room route does not match /commune/community-vote.");
+  process.exit(1);
+}
+if (!matchPath({ path: "commune/rooms/:roomSlug" }, "/commune/rooms/community-vote")) {
+  console.error("Generic Commune rooms route does not match /commune/rooms/community-vote.");
+  process.exit(1);
+}
+if (!communePage.includes("community_vote: \"community-vote\"")) {
+  console.error("Community Voting Room should be mapped through roomSlugByPostType instead of requiring an explicit App route.");
   process.exit(1);
 }
 if (matchPath({ path: "commons-circle/@:username" }, "/commons-circle/@bradley-harz")) {

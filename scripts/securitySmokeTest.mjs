@@ -72,4 +72,33 @@ if (failures.length) {
   process.exit(1);
 }
 
+const communityVoteMigration = await fs.readFile("supabase/migrations/2026_07_05_02_commune_community_voting_room.sql", "utf8");
+const communityVoteSecurity = [
+  ["RLS enabled on vote posts", /alter table public\.commune_vote_posts enable row level security/i],
+  ["RLS enabled on vote options", /alter table public\.commune_vote_options enable row level security/i],
+  ["RLS enabled on vote ballots", /alter table public\.commune_vote_ballots enable row level security/i],
+  ["RLS enabled on vote events", /alter table public\.commune_vote_events enable row level security/i],
+  ["anon cannot insert ballots", /grant select, insert, update on table public\.commune_vote_ballots to authenticated/i],
+  ["own-ballot insert policy", /users insert own open vote ballots/i],
+  ["own-ballot update policy", /users update own open vote ballots/i],
+  ["open vote status restriction", /v\.vote_status = 'open'/i],
+  ["open window starts restriction", /v\.opens_at is null or now\(\) >= v\.opens_at/i],
+  ["open window closes restriction", /v\.closes_at is null or now\(\) <= v\.closes_at/i],
+  ["unique ballot per voter", /unique \(vote_post_id, voter_user_id\)/i],
+  ["option belongs to same vote", /foreign key \(option_id, vote_post_id\)[\s\S]*references public\.commune_vote_options\(id, vote_post_id\)/i],
+  ["admin manage metadata policy", /admins manage vote metadata/i],
+  ["admin manage options policy", /admins manage vote options/i],
+  ["admin manage events policy", /admins create vote events/i],
+  ["aggregate result function", /commune_vote_result_summary/i],
+  ["aggregate result omits voter ids", /returns table \([\s\S]*vote_post_id uuid[\s\S]*option_id uuid[\s\S]*ballot_count bigint[\s\S]*total_ballots bigint[\s\S]*percentage numeric[\s\S]*\)/i],
+  ["staff/public event visibility", /event_visibility = 'public'/i]
+];
+const communityVoteFailures = communityVoteSecurity
+  .filter(([, pattern]) => !pattern.test(communityVoteMigration))
+  .map(([name]) => name);
+if (communityVoteFailures.length) {
+  console.error(`Community Voting Room security checks failed:\n${communityVoteFailures.join("\n")}`);
+  process.exit(1);
+}
+
 console.log("Security smoke test ok.");

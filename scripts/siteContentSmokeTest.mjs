@@ -44,6 +44,10 @@ const adminPage = await read("src/pages/Admin/index.tsx");
 const reviewClient = await read("src/shared/review/reviewClient.ts");
 const publicProfile = await read("src/pages/Public-Commons-Profile/index.tsx");
 const commune = await read("src/pages/The-Elysia-Commune/index.tsx");
+const signalConsole = await read("src/pages/The-Commons-Circle/SignalConsolePage.tsx");
+const communityVotePolicyDoc = await read("docs/commune/community-voting-room-policy.md");
+const communityVoteBoundaryDoc = await read("docs/security/community-voting-room-boundary.md");
+const communityVoteContractDoc = await read("docs/api/community-vote-contract.md");
 const forgeValidator = await read("src/pages/The-Developer-Forge/developerForgeValidator.ts");
 const forgeTemplates = await read("src/pages/The-Developer-Forge/developerForgeTemplates.ts");
 const forgeApi = await read("src/pages/The-Developer-Forge/developerForgeApi.ts");
@@ -549,5 +553,12 @@ assert(marketplaceCard.includes("Unsigned or unverified package"), "Marketplace 
 assert(marketplaceDetails.includes("Install intent blocked"), "Marketplace details must block install intent for revoked/unavailable listings.");
 assert(marketplaceDetails.includes("This website does not install this add-on locally"), "Marketplace details local-install boundary copy missing.");
 assert(sandboxHandoff.includes("private_reviewer_notes_included") && sandboxHandoff.includes("false"), "Sandbox handoff must explicitly exclude private reviewer notes.");
+assert(commune.includes("Community Voting Room") && commune.includes("Community votes guide stewardship decisions"), "Commune should include Community Voting Room advisory copy.");
+assert(commune.includes("They do not automatically change site policy") && commune.includes("Marketplace behavior") && commune.includes("Developer Forge behavior") && commune.includes("Official Updates"), "Community Voting Room should state it is not automatic site/policy/legal/safety/Marketplace/Developer Forge/Official Update governance.");
+assert(commune.includes("Anonymous visitors can view Community Voting Room votes") && commune.includes("Signed-in members can cast one ballot") && commune.includes("Admins control lifecycle and outcomes"), "Community Voting Room should explain anonymous, member, and admin roles.");
+assert(signalConsole.includes("Community Voting Room activity") && signalConsole.includes("Community Voting Room attention") && signalConsole.includes("Official Update remains separate"), "Signal Console should include Community Voting Room category/copy.");
+assert(communityVotePolicyDoc.includes("advisory governance feature") && communityVotePolicyDoc.includes("Anonymous visitors cannot vote") && communityVotePolicyDoc.includes("Official Update remains separate"), "Community Voting Room policy doc missing purpose/anonymous/Official Update boundary.");
+assert(communityVoteBoundaryDoc.includes("Authenticated members can read their own ballot") && communityVoteBoundaryDoc.includes("aggregate counts only") && communityVoteBoundaryDoc.includes("does not automatically create Official Updates"), "Community Voting Room boundary doc missing ballot privacy/result/Official Update boundary.");
+assert(communityVoteContractDoc.includes("commune_vote_posts") && communityVoteContractDoc.includes("castCommunityVoteBallot") && communityVoteContractDoc.includes("Voting Room signals remain separate from Official Update signals"), "Community Vote API contract doc missing table/helper/signal separation contract.");
 
 console.log("Site content smoke test ok.");

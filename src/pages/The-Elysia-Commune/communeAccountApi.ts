@@ -3,7 +3,7 @@ import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../Th
 import type { SandboxRunResult } from "./codeDiagnosticTypes";
 import { communeFallbackCategories, communeReportReasons, parseCommuneTags, scanCommuneTextForSecrets, validateCommuneMediaFile } from "./communeSafety";
 
-export type CommunePostType = "media_garden" | "troubleshooting" | "code_sharing" | "repository_showcase" | "community_network" | "job_post" | "official_update" | "research_note" | "elysia_iteration_showcase";
+export type CommunePostType = "media_garden" | "troubleshooting" | "code_sharing" | "repository_showcase" | "community_network" | "job_post" | "research_note" | "elysia_iteration_showcase" | "community_vote" | "official_update";
 export type CommunePostStatus = "draft" | "pending_review" | "in_review" | "needs_information" | "approved" | "published" | "rejected" | "hidden" | "archived" | "deleted_by_user" | "removed_by_moderator";
 export type CommuneRoom = { id: string; slug: string; name: string; description?: string | null; room_type: string; requires_moderation: boolean };
 export type CommunePost = { id: string; user_id?: string; author_username?: string | null; post_type: CommunePostType; title: string; body: string; excerpt?: string | null; tags?: string[] | null; links?: string[] | null; repository_url?: string | null; status: CommunePostStatus; visibility: string; published_at?: string | null; last_activity_at?: string | null; created_at?: string | null };
@@ -168,6 +168,69 @@ export type OfficialUpdateCodeSnippet = {
   created_at?: string | null;
   updated_at?: string | null;
 };
+export type CommunityVoteStatus = "draft" | "scheduled" | "open" | "closed" | "accepted" | "declined" | "posted_to_official_update" | "archived";
+export type CommunityVoteDecisionType = "single_choice_guidance";
+export type CommunityVoteResultsVisibility = "always" | "after_vote" | "after_close" | "staff_only";
+export type CommunityVoteEventType = "created" | "scheduled" | "opened" | "closed" | "reopened" | "accepted" | "declined" | "posted_to_official_update" | "archived" | "outcome_updated" | "comments_enabled" | "comments_disabled";
+export type CommunityVoteEventVisibility = "public" | "staff";
+export type CommunityVoteLifecycleAction = "open" | "close" | "reopen" | "accept" | "decline" | "archive" | "mark_posted_to_official_update" | "update_outcome" | "enable_comments" | "disable_comments";
+export type CommunityVotePost = {
+  post_id: string;
+  created_by?: string | null;
+  question: string;
+  context?: string | null;
+  decision_type: CommunityVoteDecisionType;
+  vote_status: CommunityVoteStatus;
+  visibility: "public";
+  opens_at?: string | null;
+  closes_at?: string | null;
+  results_visibility: CommunityVoteResultsVisibility;
+  allow_comments: boolean;
+  admin_outcome_summary?: string | null;
+  official_update_post_id?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+export type CommunityVoteOption = {
+  id: string;
+  vote_post_id: string;
+  option_label: string;
+  option_description?: string | null;
+  display_order: number;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+export type CommunityVoteBallot = {
+  id?: string | null;
+  vote_post_id: string;
+  option_id: string;
+  voter_user_id?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+export type CommunityVoteResultSummary = {
+  vote_post_id: string;
+  option_id: string;
+  ballot_count: number;
+  total_ballots: number;
+  percentage?: number | null;
+};
+export type CommunityVoteEvent = {
+  id: string;
+  vote_post_id: string;
+  actor_user_id?: string | null;
+  event_type: CommunityVoteEventType;
+  event_note?: string | null;
+  event_visibility: CommunityVoteEventVisibility;
+  created_at?: string | null;
+};
+export type CommunityVoteView = {
+  vote: CommunityVotePost;
+  options: CommunityVoteOption[];
+  viewerBallot: CommunityVoteBallot | null;
+  results: CommunityVoteResultSummary[];
+  events: CommunityVoteEvent[];
+};
 export type RepositoryShowcaseMetadata = {
   id: string;
   user_id?: string | null;
@@ -232,7 +295,7 @@ export type ElysiaIterationShowcaseMetadata = {
 };
 export type CommuneModerationItem = { id: string; kind: "post" | "comment" | "upload" | "repo" | "iteration" | "job" | "sandbox" | "report"; title: string; status: string; created_at?: string | null; summary?: string | null };
 export type CommuneAccountState = { signedIn: boolean; userId: string | null; username: string | null; roles: AppRole[]; isAdmin: boolean; isModerator: boolean; warnings: string[] };
-export type LoadCommuneData = { rooms: CommuneRoom[]; posts: CommunePost[]; comments: CommuneComment[]; threads: CommuneThread[]; media: CommuneMediaAttachment[]; troubleshootingPosts: TroubleshootingMetadata[]; jobPosts: JobPostMetadata[]; researchNotes: ResearchNotesMetadata[]; repositoryShowcases: RepositoryShowcaseMetadata[]; iterationShowcases: ElysiaIterationShowcaseMetadata[]; officialUpdates: OfficialUpdateMetadata[]; officialCodeSnippets: OfficialUpdateCodeSnippet[]; savedPostIds: string[]; followedThreadIds: string[]; account: CommuneAccountState; warnings: string[] };
+export type LoadCommuneData = { rooms: CommuneRoom[]; posts: CommunePost[]; comments: CommuneComment[]; threads: CommuneThread[]; media: CommuneMediaAttachment[]; troubleshootingPosts: TroubleshootingMetadata[]; jobPosts: JobPostMetadata[]; researchNotes: ResearchNotesMetadata[]; repositoryShowcases: RepositoryShowcaseMetadata[]; iterationShowcases: ElysiaIterationShowcaseMetadata[]; officialUpdates: OfficialUpdateMetadata[]; officialCodeSnippets: OfficialUpdateCodeSnippet[]; votePosts: CommunityVoteView[]; savedPostIds: string[]; followedThreadIds: string[]; account: CommuneAccountState; warnings: string[] };
 export type CommuneCategory = { id: string; slug: string; title: string; description?: string | null; sort_order?: number | null; is_active?: boolean | null };
 export type CommuneCodeSnippet = {
   id: string;
@@ -265,9 +328,10 @@ export const postTypeOptions: { value: CommunePostType; label: string }[] = [
   { value: "repository_showcase", label: "Repository Showcase" },
   { value: "community_network", label: "Community Network" },
   { value: "job_post", label: "Job Post" },
-  { value: "official_update", label: "Official Update" },
   { value: "research_note", label: "Research Notes" },
-  { value: "elysia_iteration_showcase", label: "Elysia Iteration Showcase" }
+  { value: "elysia_iteration_showcase", label: "Elysia Iteration Showcase" },
+  { value: "community_vote", label: "Community Voting Room" },
+  { value: "official_update", label: "Official Update" }
 ];
 
 export const reportTypes = [...communeReportReasons];
@@ -287,6 +351,10 @@ const canonicalCommuneTables = {
   officialUpdates: "commune_official_updates",
   officialCodeSnippets: "commune_official_update_code_snippets",
   officialEvents: "commune_official_update_events",
+  communityVotePosts: "commune_vote_posts",
+  communityVoteOptions: "commune_vote_options",
+  communityVoteBallots: "commune_vote_ballots",
+  communityVoteEvents: "commune_vote_events",
   sandboxReviews: "commune_sandbox_review_requests",
   reports: "commune_reports",
   media: "commune_media",
@@ -331,6 +399,7 @@ function friendlyError(message: string, fallbackMessage: string) {
   if (/commune_job_posts/i.test(message)) return "Job Post structured metadata is not active until `2026_06_26_job_post_structured_workflow.sql` is applied in Supabase.";
   if (/commune_research_notes/i.test(message)) return "Research Notes structured metadata is not active until `2026_06_26_research_notes_structured_workflow.sql` is applied in Supabase.";
   if (/commune_official_updates|commune_official_update_code_snippets|commune_official_update_events/i.test(message)) return "Official Update structured metadata is not active until `2026_06_26_official_update_structured_workflow.sql` is applied in Supabase.";
+  if (/commune_vote_posts|commune_vote_options|commune_vote_ballots|commune_vote_events|commune_vote_result_summary/i.test(message)) return "Community Voting Room tables are not available yet. Apply the community voting room migration before using this feature.";
   if (/commune_thread_participant_approvals/i.test(message)) return "Commune thread participation approvals are not active yet. Apply `2026_06_21_commune_thread_participant_approvals.sql` in Supabase, then try again.";
   if (/commune_comments/i.test(message) && /author_username|published_at|updated_at|hidden_at|hidden_by|moderation_reason|schema cache|Could not find|does not exist|relation/i.test(message)) return "Comment could not be saved because the live comments table is missing a required column. Apply `2026_06_22_commune_comments_schema_drift_repair.sql` in Supabase, then refresh and try again.";
   if (/user_notifications|user_followed_commune_threads|notify_commune_published_comment|commune_notify_published_comment|muted/i.test(message)) return "Comment could not be saved because the published-comment notification dependency is missing or drifted. Apply `2026_06_22_commune_comment_notification_dependency_repair.sql` in Supabase, then refresh and try again.";
@@ -428,6 +497,10 @@ const iterationShowcaseSelect = "id,post_id,author_user_id,iteration_type,versio
 const iterationShowcaseFallbackSelect = "id,post_id,author_user_id,iteration_type,version_build_label,what_changed,why_it_matters,known_limitations,next_step,sandbox_review_requested,status,created_at,updated_at";
 const officialUpdateSelect = "id,post_id,admin_user_id,brand_author_name,update_type,official_status,severity,audience,summary,effective_date,release_version,affected_systems,related_room_slug,related_repo_url,related_migration,related_links,known_limitations,migration_required,user_action_required,pinned,important,comments_enabled,correction_note,correction_status,supersedes_update_id,superseded_by_update_id,published_at,corrected_at,retracted_at,archived_at,created_at,updated_at";
 const officialCodeSelect = "id,official_update_id,post_id,admin_user_id,language,file_name,code_text,context_note,correction_note,sort_order,public_visible,edited_by,edited_at,created_at,updated_at";
+const communityVotePostSelect = "post_id,created_by,question,context,decision_type,vote_status,visibility,opens_at,closes_at,results_visibility,allow_comments,admin_outcome_summary,official_update_post_id,created_at,updated_at";
+const communityVoteOptionSelect = "id,vote_post_id,option_label,option_description,display_order,created_at,updated_at";
+const communityVoteBallotSelect = "id,vote_post_id,option_id,voter_user_id,created_at,updated_at";
+const communityVoteEventSelect = "id,vote_post_id,actor_user_id,event_type,event_note,event_visibility,created_at";
 
 const troubleshootingIssueTypes: TroubleshootingIssueType[] = ["bug", "install_issue", "account_auth", "deployment", "supabase_rls", "cloudflare", "frontend_ui", "backend_api", "sandbox_runner", "marketplace", "commune", "profile", "documentation", "other"];
 const troubleshootingStatuses: TroubleshootingStatus[] = ["open", "needs_information", "in_progress", "workaround_found", "fix_proposed", "resolved", "closed", "archived"];
@@ -440,6 +513,10 @@ const jobPostPaidStatuses: JobPostPaidVolunteerStatus[] = ["paid", "volunteer", 
 const jobPostLocationModes: JobPostLocationMode[] = ["remote", "hybrid", "local", "field_based", "unspecified"];
 const jobPostApplicationStatuses: JobPostApplicationStatus[] = ["open", "reviewing", "filled", "closed", "archived", "needs_clarification"];
 const jobPostAntiScamStatuses: JobPostAntiScamReviewStatus[] = ["not_reviewed", "reviewed_clear", "needs_pay_clarification", "needs_contact_clarification", "needs_location_clarification", "suspicious", "removed"];
+const communityVoteStatuses: CommunityVoteStatus[] = ["draft", "scheduled", "open", "closed", "accepted", "declined", "posted_to_official_update", "archived"];
+const communityVoteDecisionTypes: CommunityVoteDecisionType[] = ["single_choice_guidance"];
+const communityVoteResultsVisibilities: CommunityVoteResultsVisibility[] = ["always", "after_vote", "after_close", "staff_only"];
+const communityVoteEventTypes: CommunityVoteEventType[] = ["created", "scheduled", "opened", "closed", "reopened", "accepted", "declined", "posted_to_official_update", "archived", "outcome_updated", "comments_enabled", "comments_disabled"];
 
 function normalizeTroubleshootingIssueType(value?: string | null): TroubleshootingIssueType {
   const normalized = String(value ?? "").toLowerCase().replace(/[\s-]+/g, "_");
@@ -831,6 +908,124 @@ export async function loadOfficialUpdateForPost(postId: string): Promise<{ offic
   return { officialUpdate: officialUpdates[0] ?? null, codeSnippets, warnings: [] };
 }
 
+function normalizeCommunityVotePost(row: Partial<CommunityVotePost>): CommunityVotePost {
+  return {
+    post_id: String(row.post_id ?? ""),
+    created_by: row.created_by ?? null,
+    question: String(row.question ?? ""),
+    context: row.context ?? null,
+    decision_type: normalizeEnumValue(row.decision_type, communityVoteDecisionTypes, "single_choice_guidance"),
+    vote_status: normalizeEnumValue(row.vote_status, communityVoteStatuses, "draft"),
+    visibility: "public",
+    opens_at: row.opens_at ?? null,
+    closes_at: row.closes_at ?? null,
+    results_visibility: normalizeEnumValue(row.results_visibility, communityVoteResultsVisibilities, "after_vote"),
+    allow_comments: row.allow_comments !== false,
+    admin_outcome_summary: row.admin_outcome_summary ?? null,
+    official_update_post_id: row.official_update_post_id ?? null,
+    created_at: row.created_at ?? null,
+    updated_at: row.updated_at ?? null
+  };
+}
+
+function normalizeCommunityVoteOption(row: Partial<CommunityVoteOption>): CommunityVoteOption {
+  return {
+    id: String(row.id ?? ""),
+    vote_post_id: String(row.vote_post_id ?? ""),
+    option_label: String(row.option_label ?? ""),
+    option_description: row.option_description ?? null,
+    display_order: Number(row.display_order ?? 0),
+    created_at: row.created_at ?? null,
+    updated_at: row.updated_at ?? null
+  };
+}
+
+function normalizeCommunityVoteBallot(row: Partial<CommunityVoteBallot>): CommunityVoteBallot {
+  return {
+    id: row.id ?? null,
+    vote_post_id: String(row.vote_post_id ?? ""),
+    option_id: String(row.option_id ?? ""),
+    voter_user_id: row.voter_user_id ?? null,
+    created_at: row.created_at ?? null,
+    updated_at: row.updated_at ?? null
+  };
+}
+
+function normalizeCommunityVoteResult(row: Partial<CommunityVoteResultSummary>): CommunityVoteResultSummary {
+  return {
+    vote_post_id: String(row.vote_post_id ?? ""),
+    option_id: String(row.option_id ?? ""),
+    ballot_count: Number(row.ballot_count ?? 0),
+    total_ballots: Number(row.total_ballots ?? 0),
+    percentage: row.percentage == null ? null : Number(row.percentage)
+  };
+}
+
+function normalizeCommunityVoteEvent(row: Partial<CommunityVoteEvent>): CommunityVoteEvent {
+  return {
+    id: String(row.id ?? ""),
+    vote_post_id: String(row.vote_post_id ?? ""),
+    actor_user_id: row.actor_user_id ?? null,
+    event_type: normalizeEnumValue(row.event_type, communityVoteEventTypes, "created"),
+    event_note: row.event_note ?? null,
+    event_visibility: normalizeEnumValue(row.event_visibility, ["public", "staff"] as const, "public"),
+    created_at: row.created_at ?? null
+  };
+}
+
+export function isCommunityVoteEffectivelyOpen(vote: Pick<CommunityVotePost, "vote_status" | "opens_at" | "closes_at">, now = new Date()): boolean {
+  if (vote.vote_status !== "open") return false;
+  const opensAt = vote.opens_at ? new Date(vote.opens_at) : null;
+  const closesAt = vote.closes_at ? new Date(vote.closes_at) : null;
+  if (opensAt && Number.isFinite(opensAt.getTime()) && now < opensAt) return false;
+  if (closesAt && Number.isFinite(closesAt.getTime()) && now > closesAt) return false;
+  return true;
+}
+
+export async function loadVotePostsForPosts(postIds: string[], account?: CommuneAccountState): Promise<CommunityVoteView[]> {
+  if (!supabase || !postIds.length) return [];
+  const { data: voteRows, error: voteError } = await supabase.from(canonicalCommuneTables.communityVotePosts).select(communityVotePostSelect).in("post_id", postIds);
+  if (voteError) {
+    if (import.meta.env.DEV) console.warn("[Community Voting Room load]", friendlyError(voteError.message, "Community Voting Room metadata is not active yet."));
+    return [];
+  }
+  const votes = ((voteRows ?? []) as Partial<CommunityVotePost>[]).map(normalizeCommunityVotePost).filter((row) => row.post_id);
+  const voteIds = votes.map((vote) => vote.post_id);
+  if (!voteIds.length) return [];
+
+  const [optionsResult, resultsResult, ballotsResult, eventsResult] = await Promise.all([
+    supabase.from(canonicalCommuneTables.communityVoteOptions).select(communityVoteOptionSelect).in("vote_post_id", voteIds).order("display_order", { ascending: true }),
+    supabase.rpc("commune_vote_result_summary", { target_vote_post_ids: voteIds }),
+    account?.userId ? supabase.from(canonicalCommuneTables.communityVoteBallots).select(communityVoteBallotSelect).in("vote_post_id", voteIds).eq("voter_user_id", account.userId) : Promise.resolve({ data: [], error: null }),
+    supabase.from(canonicalCommuneTables.communityVoteEvents).select(communityVoteEventSelect).in("vote_post_id", voteIds).order("created_at", { ascending: false })
+  ]);
+
+  if (optionsResult.error && import.meta.env.DEV) console.warn("[Community Voting Room options]", friendlyError(optionsResult.error.message, "Community Voting Room options are not active yet."));
+  if (resultsResult.error && import.meta.env.DEV) console.warn("[Community Voting Room results]", friendlyError(resultsResult.error.message, "Community Voting Room aggregate results are not active yet."));
+  if (ballotsResult.error && import.meta.env.DEV) console.warn("[Community Voting Room viewer ballot]", friendlyError(ballotsResult.error.message, "Community Voting Room ballots are not active yet."));
+  if (eventsResult.error && import.meta.env.DEV) console.warn("[Community Voting Room events]", friendlyError(eventsResult.error.message, "Community Voting Room events are not active yet."));
+
+  const options = ((optionsResult.data ?? []) as Partial<CommunityVoteOption>[]).map(normalizeCommunityVoteOption).filter((row) => row.id && row.vote_post_id);
+  const results = ((resultsResult.data ?? []) as Partial<CommunityVoteResultSummary>[]).map(normalizeCommunityVoteResult).filter((row) => row.vote_post_id && row.option_id);
+  const ballots = ((ballotsResult.data ?? []) as Partial<CommunityVoteBallot>[]).map(normalizeCommunityVoteBallot).filter((row) => row.vote_post_id && row.option_id);
+  const events = ((eventsResult.data ?? []) as Partial<CommunityVoteEvent>[]).map(normalizeCommunityVoteEvent).filter((row) => row.id && row.vote_post_id);
+
+  return votes.map((vote) => ({
+    vote,
+    options: options.filter((option) => option.vote_post_id === vote.post_id).sort((a, b) => a.display_order - b.display_order),
+    viewerBallot: ballots.find((ballot) => ballot.vote_post_id === vote.post_id) ?? null,
+    results: results.filter((result) => result.vote_post_id === vote.post_id),
+    events: events.filter((event) => event.vote_post_id === vote.post_id)
+  }));
+}
+
+export async function loadCommunityVoteForPost(postId: string): Promise<{ communityVote: CommunityVoteView | null; warnings: string[] }> {
+  if (!supabase) return { communityVote: null, warnings: [supabaseNotConfiguredMessage] };
+  const account = await accountState();
+  const rows = await loadVotePostsForPosts([postId], account);
+  return { communityVote: rows[0] ?? null, warnings: [] };
+}
+
 async function loadPublishedMediaForPosts(postIds: string[]): Promise<CommuneMediaAttachment[]> {
   if (!supabase || !postIds.length) return [];
   const client = supabase;
@@ -864,7 +1059,7 @@ export async function loadCategories(): Promise<{ categories: CommuneCategory[];
 
 export async function loadCommuneData(roomSlug?: string, postId?: string): Promise<LoadCommuneData> {
   const account = await accountState();
-  if (!hasSupabaseConfig || !supabase) return { rooms: [], posts: [], comments: [], threads: [], media: [], troubleshootingPosts: [], jobPosts: [], researchNotes: [], repositoryShowcases: [], iterationShowcases: [], officialUpdates: [], officialCodeSnippets: [], savedPostIds: [], followedThreadIds: [], account, warnings: [supabaseNotConfiguredMessage] };
+  if (!hasSupabaseConfig || !supabase) return { rooms: [], posts: [], comments: [], threads: [], media: [], troubleshootingPosts: [], jobPosts: [], researchNotes: [], repositoryShowcases: [], iterationShowcases: [], officialUpdates: [], officialCodeSnippets: [], votePosts: [], savedPostIds: [], followedThreadIds: [], account, warnings: [supabaseNotConfiguredMessage] };
   const warnings = [...account.warnings];
   const roomsQuery = supabase.from(canonicalCommuneTables.rooms).select("id, slug, name, description, room_type, requires_moderation").order("name");
   const { data: rooms, error: roomError } = await roomsQuery;
@@ -898,6 +1093,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
   const iterationShowcases = await loadIterationShowcasesForPosts(postIds);
   const officialUpdates = await loadOfficialUpdatesForPosts(postIds);
   const officialCodeSnippets = await loadOfficialCodeSnippetsForPosts(postIds);
+  const votePosts = await loadVotePostsForPosts(postIds, account);
   let savedPostIds: string[] = [];
   let followedThreadIds: string[] = [];
   if (account.userId) {
@@ -908,7 +1104,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
     savedPostIds = (saves ?? []).map((row) => row.post_id).filter(Boolean) as string[];
     followedThreadIds = (follows ?? []).map((row) => row.thread_id).filter(Boolean) as string[];
   }
-  return { rooms: (rooms ?? []) as CommuneRoom[], posts: (posts ?? []) as CommunePost[], comments: (comments ?? []) as CommuneComment[], threads: (threads ?? []) as CommuneThread[], media, troubleshootingPosts, jobPosts, researchNotes, repositoryShowcases, iterationShowcases, officialUpdates, officialCodeSnippets, savedPostIds, followedThreadIds, account, warnings };
+  return { rooms: (rooms ?? []) as CommuneRoom[], posts: (posts ?? []) as CommunePost[], comments: (comments ?? []) as CommuneComment[], threads: (threads ?? []) as CommuneThread[], media, troubleshootingPosts, jobPosts, researchNotes, repositoryShowcases, iterationShowcases, officialUpdates, officialCodeSnippets, votePosts, savedPostIds, followedThreadIds, account, warnings };
 }
 
 export async function ensureCommuneThreadForPost(post: CommunePost): Promise<{ ok: boolean; thread?: CommuneThread; message: string }> {
@@ -1153,6 +1349,220 @@ export async function updateOfficialUpdateMetadata(input: { officialUpdateId: st
   await createOfficialUpdateEvent({ officialUpdateId: input.officialUpdateId, postId: input.postId, actorId: account.userId, action: input.action, publicNote: input.correctionNote, metadata: patch });
   await notifyOfficialUpdateSelf({ userId: account.userId, title: "Official Update lifecycle changed", body: `Official Update action recorded: ${input.action.replace(/_/g, " ")}.`, postId: input.postId, sourceId: input.officialUpdateId, type: "official_update_lifecycle" });
   return { ok: true, message: "Official Update metadata updated and an audit event was recorded." };
+}
+
+async function createCommunityVoteEvent(input: { postId?: string | null; actorId?: string | null; eventType: CommunityVoteEventType; eventNote?: string | null; eventVisibility?: CommunityVoteEventVisibility }) {
+  if (!supabase || !input.postId) return;
+  const { error } = await supabase.from(canonicalCommuneTables.communityVoteEvents).insert({
+    vote_post_id: input.postId,
+    actor_user_id: input.actorId || null,
+    event_type: input.eventType,
+    event_note: input.eventNote || null,
+    event_visibility: input.eventVisibility || "public"
+  });
+  if (error && import.meta.env.DEV) console.warn("[Community Voting Room event]", friendlyError(error.message, "Community Voting Room events are not active yet."));
+}
+
+function initialCommunityVoteStatus(input: { status?: CommunityVoteStatus; opensAt?: string | null }): CommunityVoteStatus {
+  if (input.status && ["draft", "scheduled", "open"].includes(input.status)) return input.status;
+  if (input.opensAt) {
+    const opensAt = new Date(input.opensAt);
+    if (Number.isFinite(opensAt.getTime()) && opensAt > new Date()) return "scheduled";
+  }
+  return "open";
+}
+
+export async function submitCommunityVotePost(input: {
+  question: string;
+  context?: string;
+  tags?: string;
+  links?: string;
+  roomId?: string;
+  options: Array<{ label: string; description?: string }>;
+  opensAt?: string | null;
+  closesAt?: string | null;
+  resultsVisibility?: CommunityVoteResultsVisibility;
+  initialStatus?: CommunityVoteStatus;
+  allowComments?: boolean;
+  officialUpdatePostId?: string | null;
+  acknowledgement?: boolean;
+}): Promise<{ ok: boolean; message: string; postId?: string }> {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId || !account.isAdmin) return { ok: false, message: "Community Voting Room vote creation is restricted to administrators. Members can vote, but they cannot create or control governance votes." };
+  if (input.acknowledgement === false) return { ok: false, message: "Confirm that Community votes guide stewardship decisions and do not automatically change site policy, legal/safety rules, Marketplace, Developer Forge, Elysia behavior, or Official Updates." };
+  const question = input.question.trim();
+  const context = input.context?.trim() || "";
+  if (!question) return { ok: false, message: "Add a clear voting question before publishing a Community Voting Room vote." };
+  const options = input.options
+    .map((option) => ({ label: option.label.trim(), description: option.description?.trim() || "" }))
+    .filter((option) => option.label);
+  if (options.length < 2) return { ok: false, message: "Community Voting Room votes need at least two non-empty options." };
+  const uniqueLabels = new Set(options.map((option) => option.label.toLowerCase()));
+  if (uniqueLabels.size !== options.length) return { ok: false, message: "Community Voting Room options must have distinct labels." };
+  if (input.opensAt && input.closesAt) {
+    const opensAt = new Date(input.opensAt);
+    const closesAt = new Date(input.closesAt);
+    if (Number.isFinite(opensAt.getTime()) && Number.isFinite(closesAt.getTime()) && closesAt <= opensAt) return { ok: false, message: "The vote close time must be after the open time." };
+  }
+  const scan = scanCommuneTextForSecrets([
+    question,
+    context,
+    input.tags ?? "",
+    input.links ?? "",
+    input.officialUpdatePostId ?? "",
+    ...options.flatMap((option) => [option.label, option.description])
+  ].join("\n"));
+  if (scan.blocked) return { ok: false, message: "Community vote blocked because it appears to contain private or secret material: " + scan.warnings.join(", ") + ". Remove it before publishing." };
+
+  const now = new Date().toISOString();
+  const voteStatus = initialCommunityVoteStatus({ status: input.initialStatus, opensAt: input.opensAt });
+  const postId = crypto.randomUUID();
+  const links = splitList(input.links ?? "").map(publicHttpUrlOrNull).filter(Boolean) as string[];
+  const { error: postError } = await supabase.from(canonicalCommuneTables.posts).insert({
+    id: postId,
+    user_id: account.userId,
+    author_username: account.username,
+    post_type: "community_vote",
+    title: question,
+    body: context || question,
+    excerpt: excerpt(context || question),
+    tags: parseCommuneTags(input.tags ?? ""),
+    links,
+    status: "published",
+    moderation_status: "approved",
+    published_at: now,
+    safety_acknowledgements: { public_boundary: true, no_secrets: true, community_vote_guidance: true, not_automatic_governance: true, official_update_separate: true }
+  });
+  if (postError) return { ok: false, message: friendlyError(postError.message, "Community Voting Room publishing is blocked by the current admin-only database policy.") };
+
+  const { data: thread } = await supabase.from(canonicalCommuneTables.threads).insert({
+    post_id: postId,
+    room_id: input.roomId || null,
+    title: question,
+    created_by: account.userId,
+    visibility: "public",
+    status: input.allowComments === false ? "locked" : "open",
+    locked_at: input.allowComments === false ? now : null,
+    locked_by: input.allowComments === false ? account.userId : null,
+    lock_reason: input.allowComments === false ? "Community Voting Room comments disabled by administrator." : null
+  }).select("id").single();
+  const threadId = (thread as { id?: string } | null)?.id ?? null;
+  await grantThreadParticipationApproval({ threadId, postId, userId: account.userId, approvedBy: account.userId, source: "admin_direct_community_vote" });
+
+  const { error: voteError } = await supabase.from(canonicalCommuneTables.communityVotePosts).insert({
+    post_id: postId,
+    created_by: account.userId,
+    question,
+    context: context || null,
+    decision_type: "single_choice_guidance",
+    vote_status: voteStatus,
+    visibility: "public",
+    opens_at: input.opensAt || null,
+    closes_at: input.closesAt || null,
+    results_visibility: input.resultsVisibility || "after_vote",
+    allow_comments: input.allowComments !== false,
+    official_update_post_id: input.officialUpdatePostId || null
+  });
+  if (voteError) {
+    await supabase.from(canonicalCommuneTables.posts).update({ status: "archived", visibility: "private_draft", moderation_status: "archived", moderation_reason: "Community vote sidecar insert failed; archived by client cleanup.", updated_at: now }).eq("id", postId);
+    return { ok: false, postId, message: friendlyError(voteError.message, "Community Voting Room post was created, but vote metadata could not be saved. The post was archived by best-effort cleanup.") };
+  }
+
+  const optionRows = options.map((option, index) => ({
+    vote_post_id: postId,
+    option_label: option.label,
+    option_description: option.description || null,
+    display_order: index
+  }));
+  const { error: optionError } = await supabase.from(canonicalCommuneTables.communityVoteOptions).insert(optionRows);
+  if (optionError) {
+    await supabase.from(canonicalCommuneTables.posts).update({ status: "archived", visibility: "private_draft", moderation_status: "archived", moderation_reason: "Community vote option insert failed; archived by client cleanup.", updated_at: now }).eq("id", postId);
+    return { ok: false, postId, message: friendlyError(optionError.message, "Community Voting Room post was created, but options could not be saved. The post was archived by best-effort cleanup.") };
+  }
+
+  await createCommunityVoteEvent({ postId, actorId: account.userId, eventType: "created", eventNote: "Community vote created. Votes guide stewardship decisions and do not automatically change Official Updates or site policy." });
+  if (voteStatus === "open") await createCommunityVoteEvent({ postId, actorId: account.userId, eventType: "opened", eventNote: "Community vote opened for member guidance." });
+  if (voteStatus === "scheduled") await createCommunityVoteEvent({ postId, actorId: account.userId, eventType: "scheduled", eventNote: "Community vote scheduled to open later." });
+  await recordCommuneGovernanceEvent({ actorId: account.userId, targetType: "post", targetId: postId, action: "admin_community_vote_created", fromStatus: "draft", toStatus: voteStatus, metadata: { post_type: "community_vote", option_count: options.length, results_visibility: input.resultsVisibility || "after_vote", official_update_post_id: input.officialUpdatePostId || null } });
+  await createReviewHistoryItem({ domain: "commune", sourceTable: canonicalCommuneTables.communityVotePosts, sourceId: postId, submittedBy: account.userId, title: question, summary: "Admin-created Community Voting Room guidance vote. Results are advisory and Official Update remains separate.", status: "approved", eventType: "admin_community_vote_created", metadata: { post_id: postId, thread_id: threadId, vote_status: voteStatus, option_count: options.length } });
+  return { ok: true, postId, message: "Community Voting Room vote created. Member ballots are advisory guidance; administrators still control outcomes and Official Updates remain separate." };
+}
+
+export async function castCommunityVoteBallot(input: { votePostId: string; optionId: string; vote?: CommunityVotePost | null; options?: CommunityVoteOption[] }): Promise<{ ok: boolean; message: string }> {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId) return { ok: false, message: "Sign in to cast a Community Voting Room ballot. Anonymous visitors can view public votes, but they cannot vote." };
+  if (!input.votePostId || !input.optionId) return { ok: false, message: "Choose an option before casting your Community Voting Room ballot." };
+  if (input.vote && !isCommunityVoteEffectivelyOpen(input.vote)) return { ok: false, message: "This Community Voting Room vote is not open for ballots right now." };
+  if (input.options?.length && !input.options.some((option) => option.vote_post_id === input.votePostId && option.id === input.optionId)) return { ok: false, message: "That option does not belong to this Community Voting Room vote." };
+  const now = new Date().toISOString();
+  const { error } = await supabase.from(canonicalCommuneTables.communityVoteBallots).upsert({
+    vote_post_id: input.votePostId,
+    option_id: input.optionId,
+    voter_user_id: account.userId,
+    updated_at: now
+  }, { onConflict: "vote_post_id,voter_user_id" });
+  if (error) return { ok: false, message: friendlyError(error.message, "Community Voting Room ballot could not be saved. Closed votes and out-of-window votes are rejected by database policy.") };
+  return { ok: true, message: "Community vote recorded. Votes guide stewardship decisions; they do not automatically change policy, safety rules, Marketplace, Developer Forge, Elysia behavior, or Official Updates." };
+}
+
+export async function updateCommunityVoteLifecycle(input: {
+  votePostId: string;
+  action: CommunityVoteLifecycleAction;
+  adminOutcomeSummary?: string;
+  officialUpdatePostId?: string | null;
+  commentsEnabled?: boolean;
+  eventNote?: string;
+}): Promise<{ ok: boolean; message: string }> {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const account = await accountState();
+  if (!account.userId || !account.isAdmin) return { ok: false, message: "Only administrators can change Community Voting Room lifecycle state or outcomes." };
+  const now = new Date().toISOString();
+  const patch: Record<string, unknown> = { updated_at: now };
+  const eventByAction: Record<CommunityVoteLifecycleAction, CommunityVoteEventType> = {
+    open: "opened",
+    close: "closed",
+    reopen: "reopened",
+    accept: "accepted",
+    decline: "declined",
+    archive: "archived",
+    mark_posted_to_official_update: "posted_to_official_update",
+    update_outcome: "outcome_updated",
+    enable_comments: "comments_enabled",
+    disable_comments: "comments_disabled"
+  };
+  const statusByAction: Partial<Record<CommunityVoteLifecycleAction, CommunityVoteStatus>> = {
+    open: "open",
+    close: "closed",
+    reopen: "open",
+    accept: "accepted",
+    decline: "declined",
+    archive: "archived",
+    mark_posted_to_official_update: "posted_to_official_update"
+  };
+  if (statusByAction[input.action]) patch.vote_status = statusByAction[input.action];
+  if (typeof input.adminOutcomeSummary === "string") patch.admin_outcome_summary = input.adminOutcomeSummary.trim() || null;
+  if (typeof input.officialUpdatePostId !== "undefined") patch.official_update_post_id = input.officialUpdatePostId || null;
+  if (typeof input.commentsEnabled === "boolean") patch.allow_comments = input.commentsEnabled;
+  if (input.action === "enable_comments") patch.allow_comments = true;
+  if (input.action === "disable_comments") patch.allow_comments = false;
+
+  const { error } = await supabase.from(canonicalCommuneTables.communityVotePosts).update(patch).eq("post_id", input.votePostId);
+  if (error) return { ok: false, message: friendlyError(error.message, "Community Voting Room lifecycle change could not be saved.") };
+
+  const commentsEnabled = typeof input.commentsEnabled === "boolean" ? input.commentsEnabled : input.action === "enable_comments" ? true : input.action === "disable_comments" ? false : undefined;
+  if (typeof commentsEnabled === "boolean") {
+    const threadPatch = commentsEnabled
+      ? { status: "open", locked_at: null, locked_by: null, lock_reason: null, updated_at: now }
+      : { status: "locked", locked_at: now, locked_by: account.userId, lock_reason: "Community Voting Room comments disabled by administrator.", updated_at: now };
+    await supabase.from(canonicalCommuneTables.threads).update(threadPatch).eq("post_id", input.votePostId);
+  }
+
+  const eventType = eventByAction[input.action];
+  await createCommunityVoteEvent({ postId: input.votePostId, actorId: account.userId, eventType, eventNote: input.eventNote || input.adminOutcomeSummary || null });
+  await recordCommuneGovernanceEvent({ actorId: account.userId, targetType: "post", targetId: input.votePostId, action: `community_vote_${eventType}`, metadata: { patch, official_update_post_id: input.officialUpdatePostId || null } });
+  return { ok: true, message: "Community Voting Room lifecycle updated. The vote remains advisory and Official Update publishing remains a separate admin action." };
 }
 
 export async function createOfficialCodeSnippet(input: { officialUpdateId: string; postId: string; language: string; fileName?: string; codeText: string; contextNote?: string; correctionNote?: string }): Promise<{ ok: boolean; message: string }> {
@@ -1787,6 +2197,7 @@ export async function submitCommunePost(input: { postType: CommunePostType; room
     if (!media.ok) return { ok: false, message: media.message };
   }
   if (input.postType === "official_update" && !account.isAdmin) return { ok: false, message: "Official Updates are restricted to authorized administrators. Community users cannot self-assign official publishing authority." };
+  if (input.postType === "community_vote") return { ok: false, message: "Community Voting Room votes must be created through the admin vote form so options, lifecycle status, ballot privacy, and advisory-governance boundaries are saved together." };
   const tags = parseCommuneTags(input.tags);
   const links = splitList(input.links);
   const postId = crypto.randomUUID();
@@ -1831,6 +2242,8 @@ export async function submitComment(input: { postId: string; threadId: string; b
   if (!account.isModerator) {
     const { officialUpdate } = await loadOfficialUpdateForPost(input.postId);
     if (officialUpdate && officialUpdate.comments_enabled === false) return { ok: false, status: "failed", message: "Comments are locked for this Official Update. Public discussion is disabled by an administrator for this notice." };
+    const { communityVote } = await loadCommunityVoteForPost(input.postId);
+    if (communityVote && communityVote.vote.allow_comments === false) return { ok: false, status: "failed", message: "Comments are locked for this Community Voting Room vote. Public discussion is disabled by an administrator for this guidance vote." };
   }
   const id = crypto.randomUUID();
   const approvedParticipant = await hasThreadParticipationApproval({ threadId: input.threadId, postId: input.postId, userId: account.userId, isModerator: account.isModerator });

@@ -71,6 +71,11 @@ const jobPostWorkflowMigration = await read("supabase/migrations/2026_06_26_job_
 const jobPostPolicyDoc = await read("docs/commune/job-post-policy.md");
 const jobPostBoundaryDoc = await read("docs/security/job-post-boundary.md");
 const jobPostContractDoc = await read("docs/api/job-post-contract.md");
+const communityVoteEnumMigration = await read("supabase/migrations/2026_07_05_01_commune_community_voting_room_enum.sql");
+const communityVoteMigration = await read("supabase/migrations/2026_07_05_02_commune_community_voting_room.sql");
+const communityVotePolicyDoc = await read("docs/commune/community-voting-room-policy.md");
+const communityVoteBoundaryDoc = await read("docs/security/community-voting-room-boundary.md");
+const communityVoteContractDoc = await read("docs/api/community-vote-contract.md");
 const workWithPage = await read("src/pages/Work-With-Elysia-Ecobotics/index.tsx");
 const communeCommentSchemaCoverage = `${migration}\n${commentDirectPublishMigration}\n${commentSchemaRepairMigration}\n${commentNotificationRepairMigration}`;
 const styles = await read("src/styles.css");
@@ -123,17 +128,35 @@ assert(commonsPage.includes("Open Signal Console") && commonsPage.includes("/com
 assert(commonsPage.includes("Troubleshooting Grove proposed fixes/status updates"), "Commons Circle signal preview should mention Troubleshooting Grove support activity.");
 assert(commonsPage.includes("Research Notes citation/source activity"), "Commons Circle signal preview should mention Research Notes activity.");
 
-for (const roomSlug of ["media-garden", "troubleshooting-grove", "coding-cornucopia", "code-sharing", "repository-showcase", "community-network", "job-post", "official-updates", "research-notes", "elysia-iteration-showcase"]) {
+for (const roomSlug of ["media-garden", "troubleshooting-grove", "coding-cornucopia", "code-sharing", "repository-showcase", "community-network", "job-post", "research-notes", "elysia-iteration-showcase", "community-vote", "official-updates"]) {
   assert(page.includes(roomSlug), `Missing Commune room slug: ${roomSlug}`);
 }
 
-const requiredLobbyRooms = ["Media Garden", "Troubleshooting Grove", "Coding Cornucopia", "Repository Showcase", "Community Network", "Job Post", "Official Update", "Research Notes", "Elysia Iteration Showcase"];
+const requiredLobbyRooms = ["Media Garden", "Troubleshooting Grove", "Coding Cornucopia", "Repository Showcase", "Community Network", "Job Post", "Research Notes", "Elysia Iteration Showcase", "Community Voting Room", "Official Update"];
 let roomCursor = -1;
 for (const roomName of requiredLobbyRooms) {
   const nextRoom = page.indexOf(`name: "${roomName}"`);
   assert(nextRoom > roomCursor, `Commune room definition missing or out of order: ${roomName}`);
   roomCursor = nextRoom;
 }
+const finalRoomOrder = requiredLobbyRooms.slice(-3).join(" > ");
+assert(finalRoomOrder === "Elysia Iteration Showcase > Community Voting Room > Official Update", "Community Voting Room must be second-last and Official Update last.");
+assert(accountApi.includes('"community_vote"') && accountApi.includes("submitCommunityVotePost") && accountApi.includes("castCommunityVoteBallot") && accountApi.includes("updateCommunityVoteLifecycle"), "Community Voting Room API helpers/types missing.");
+assert(accountApi.includes("loadVotePostsForPosts") && accountApi.includes("commune_vote_result_summary") && accountApi.includes("Community Voting Room tables are not available yet"), "Community Voting Room loader or friendly drift error missing.");
+assert(page.includes("CommunityVoteComposer") && page.includes("Create community vote") && page.includes("CommunityVoteDetail") && page.includes("commune-vote-result-bar") && page.includes("CommunityVoteAdminPanel"), "Community Voting Room UI create/detail/result/admin controls missing.");
+assert(page.includes("Community votes guide stewardship decisions") && page.includes("They do not automatically change site policy") && page.includes("Official Updates"), "Community Voting Room advisory governance copy missing.");
+assert(page.includes("Anonymous visitors can view Community Voting Room votes") && page.includes("Signed-in members can cast one ballot"), "Community Voting Room anonymous/member voting copy missing.");
+assert(page.includes("Open") && page.includes("Close") && page.includes("Reopen") && page.includes("Accept") && page.includes("Decline") && page.includes("Mark posted to Official Update"), "Community Voting Room lifecycle control labels missing.");
+assert(styles.includes(".commune-vote-card") && styles.includes(".commune-vote-detail") && styles.includes(".commune-vote-option-card") && styles.includes(".commune-vote-result-fill") && styles.includes(".commune-vote-admin-panel"), "Community Voting Room scoped styles missing.");
+assert(communityVoteEnumMigration.includes("add value if not exists 'community_vote'"), "Community Voting Room enum migration missing community_vote.");
+assert(communityVoteMigration.includes("commune_vote_posts") && communityVoteMigration.includes("commune_vote_options") && communityVoteMigration.includes("commune_vote_ballots") && communityVoteMigration.includes("commune_vote_events"), "Community Voting Room migration missing vote tables.");
+assert(communityVoteMigration.includes("commune_vote_result_summary") && communityVoteMigration.includes("security definer") && !/returns table \([^)]*voter_user_id/i.test(communityVoteMigration), "Community Voting Room aggregate result function should not expose voter_user_id.");
+assert(communityVoteMigration.includes("enable row level security") && communityVoteMigration.includes("users insert own open vote ballots") && communityVoteMigration.includes("users update own open vote ballots"), "Community Voting Room migration missing ballot RLS.");
+assert(communityVotePolicyDoc.includes("advisory governance") && communityVotePolicyDoc.includes("Official Update remains separate"), "Community Voting Room policy doc missing advisory/Official Update boundary.");
+assert(communityVoteBoundaryDoc.includes("aggregate counts only") && communityVoteBoundaryDoc.includes("Closed") && communityVoteBoundaryDoc.includes("reject ballot writes"), "Community Voting Room security boundary doc missing privacy/closed-vote boundary.");
+assert(communityVoteContractDoc.includes("loadVotePostsForPosts") && communityVoteContractDoc.includes("submitCommunityVotePost") && communityVoteContractDoc.includes("castCommunityVoteBallot") && communityVoteContractDoc.includes("Signal Console"), "Community Voting Room API contract doc missing helper/signal contract.");
+assert(commonsApi.includes("CommunityVoteSignalPreview") && commonsApi.includes("commune_vote_posts") && commonsApi.includes("communityVoteActivity"), "Signal Console should load direct Community Voting Room activity records.");
+assert(signalConsolePage.includes("Community Voting Room activity") && signalConsolePage.includes("Community Voting Room attention") && signalConsolePage.includes("Official Update remains separate"), "Signal Console should render Community Voting Room sections and boundary copy.");
 
 for (const anchor of ["commune-lobby", "commune-search", "commune-feed", "commune-rooms", "commune-post-composer", "commune-repository-showcase", "commune-repository-showcase-sandbox-request", "commune-elysia-iteration-showcase-sandbox-request", "commune-sandbox-review", "commune-code-review", "commune-local-drafts"]) {
   assert(page.includes(anchor), `Missing Commune anchor: ${anchor}`);
