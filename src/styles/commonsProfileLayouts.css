@@ -708,15 +708,15 @@
   --profile-constellation-safe-inline: clamp(3.25rem, 6.7vw, 5.85rem);
   --profile-constellation-safe-inline-end: clamp(2rem, 4.4vw, 4.1rem);
   scroll-margin-top: 11rem;
-  padding-block-start: clamp(1.75rem, 3.6vw, 3.15rem);
+  padding-block-start: clamp(3.25rem, 5vw, 5.15rem);
 }
 
 .commons-profile-layout--public.commons-profile-layout--constellation-map::before {
-  opacity: 0.42;
+  opacity: 0.4;
 }
 
 .commons-profile-layout--public.commons-profile-layout--constellation-map::after {
-  opacity: 0.28;
+  opacity: 0.26;
 }
 
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-section-card {
@@ -725,67 +725,104 @@
   overflow: hidden;
 }
 
+.commons-profile-layout--public.commons-profile-layout--constellation-map .commons-profile-summary-card__chips {
+  gap: 0.25rem;
+  margin-block-start: 0;
+  transform: translateY(-0.65rem);
+}
+
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-section-card__eyebrow {
   transform: translate(clamp(0.12rem, 0.5vw, 0.35rem), clamp(0.08rem, 0.35vw, 0.18rem));
   margin-block-end: clamp(0.05rem, 0.25vw, 0.12rem);
 }
 
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-profile-slot--identity {
-  transform: translate(0.35rem, 0.55rem);
+  transform: translate(-1.25rem, 0.4rem);
 }
 
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-profile-slot--badges {
-  transform: translate(0.85rem, -0.05rem);
+  transform: translate(3.5rem, -0.15rem);
 }
 
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-profile-slot--recognition {
-  transform: translate(0.15rem, 0.35rem);
+  transform: translate(1.25rem, 0.9rem);
 }
 
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-profile-slot--collections {
-  transform: translate(-1.15rem, 0);
+  transform: translate(-2.9rem, -0.55rem);
 }
 
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-identity-card {
-  min-height: clamp(20.75rem, 29vw, 26.25rem);
+  width: min(calc(100% + 2rem), 33rem);
+  min-height: clamp(12.85rem, calc(22vw - 3.5rem), 17.35rem);
+  justify-self: start;
+  border-radius: clamp(112px, 11.5vw, 188px) clamp(54px, 5.8vw, 92px) clamp(70px, 7vw, 112px) clamp(128px, 12.5vw, 204px);
   padding: clamp(1.8rem, 4vw, 2.7rem);
-  padding-block: clamp(1.55rem, 3vw, 2rem) clamp(1.55rem, 3vw, 2.2rem);
-  padding-inline-start: var(--profile-constellation-safe-inline);
-  padding-inline-end: var(--profile-constellation-safe-inline-end);
+  padding-block: clamp(1.25rem, 2.35vw, 1.65rem) clamp(1rem, 2vw, 1.45rem);
+  padding-inline-start: clamp(2rem, 4.4vw, 3.25rem);
+  padding-inline-end: clamp(1.25rem, 3vw, 2.25rem);
   align-content: center;
-  gap: clamp(0.42rem, 0.8vw, 0.62rem);
+  gap: clamp(0.28rem, 0.55vw, 0.45rem);
 }
 
-.commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-identity-card .commons-public-section-card__eyebrow,
+.commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-identity-card .commons-public-section-card__eyebrow {
+  transform: translate(clamp(2.6rem, 2.75vw, 2.95rem), clamp(1.2rem, 1.45vw, 1.55rem));
+}
+
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-badges-card .commons-public-section-card__eyebrow {
-  transform: translate(clamp(0.28rem, 0.7vw, 0.52rem), clamp(0.16rem, 0.45vw, 0.32rem));
+  transform: translate(clamp(5.2rem, 5.6vw, 6.1rem), clamp(2rem, 2.25vw, 2.38rem));
 }
 
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-identity-card > :where(h2, .commons-public-link-list),
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-identity-card > p:not(.commons-public-section-card__eyebrow):not(.commons-public-authority-note) {
-  transform: translate(clamp(0.12rem, 0.45vw, 0.34rem), -0.25rem);
+  max-width: min(100%, 32.75rem);
+  justify-self: center;
+  line-height: 1.45;
+  transform: translate(clamp(0.55rem, 0.75vw, 0.8rem), -0.95rem);
+}
+
+.commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-identity-card > h2 {
+  transform: translate(clamp(0.55rem, 0.75vw, 0.8rem), -0.45rem);
 }
 
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-recognition-card,
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-collections-card {
-  min-height: clamp(10.5rem, 15.5vw, 14rem);
+  min-height: clamp(12rem, 17vw, 15.9rem);
   padding-inline: clamp(1.55rem, 3.4vw, 2.55rem);
 }
 
+.commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-recognition-card {
+  width: calc(100% - 2.45rem);
+  justify-self: start;
+}
+
+.commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-collections-card {
+  width: calc(100% - 2.65rem);
+  justify-self: end;
+}
+
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-badges-card {
-  min-height: clamp(15.25rem, 21vw, 18.75rem);
+  width: min(calc(100% + 4.75rem), 35rem);
+  min-height: clamp(8.6rem, calc(18vw - 4.8rem), 10.95rem);
+  justify-self: end;
   padding: clamp(1.55rem, 3.4vw, 2.45rem);
-  padding-block: clamp(1.45rem, 2.6vw, 1.9rem) clamp(1.1rem, 2.1vw, 1.55rem);
-  padding-inline-start: var(--profile-constellation-safe-inline);
-  padding-inline-end: var(--profile-constellation-safe-inline-end);
+  padding-block: clamp(1rem, 2vw, 1.45rem) clamp(0.75rem, 1.55vw, 1.15rem);
+  padding-inline-start: clamp(2rem, 4.5vw, 3.25rem);
+  padding-inline-end: clamp(1.25rem, 3.1vw, 2.35rem);
   align-content: center;
+  gap: clamp(0.28rem, 0.6vw, 0.5rem);
+}
+
+.commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-badges-card > h2 {
+  transform: translate(3.15rem, 0.25rem);
 }
 
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-authority-note {
   width: min(100%, 32rem);
   margin-block-start: clamp(0.3rem, 0.9vw, 0.55rem);
-  border-radius: 999px;
-  padding: clamp(0.65rem, 1.35vw, 0.85rem) clamp(0.85rem, 2vw, 1.2rem);
+  border-radius: clamp(28px, 3.8vw, 46px);
+  padding: clamp(0.62rem, 1.2vw, 0.82rem) clamp(1.05rem, 2.2vw, 1.5rem);
+  line-height: 1.42;
   background:
     radial-gradient(circle at 12% 15%, rgba(216, 182, 111, 0.18), transparent 9rem),
     var(--commons-theme-notice-bg);
@@ -796,40 +833,116 @@
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-badges-card .commons-public-authority-note {
   justify-self: center;
   margin-inline: auto;
+  border-radius: clamp(26px, 3.1vw, 34px) clamp(36px, 4vw, 48px) clamp(4px, 0.85vw, 10px) clamp(30px, 3.6vw, 42px);
   transform: translate(0.15rem, -0.55rem);
 }
 
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-identity-card .commons-public-authority-note {
-  max-width: min(84%, 23.5rem);
-  transform: translate(0.35rem, -0.95rem);
+  max-width: min(100%, 33.5rem);
+  transform: translate(0.45rem, -2.05rem);
 }
 
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-badges-card .commons-public-authority-note {
+  --commons-badges-note-cut-left-x: clamp(44px, 3.55vw, 58px);
+  --commons-badges-note-cut-left-y: clamp(26px, 2.25vw, 34px);
+  --commons-badges-note-cut-right-x: clamp(84px, 6.25vw, 100px);
+  --commons-badges-note-cut-right-y: clamp(44px, 3.85vw, 58px);
+  position: relative;
+  isolation: isolate;
+  z-index: 0;
   margin-block-start: clamp(0.15rem, 0.8vw, 0.4rem);
-  max-width: min(84%, 22rem);
-  transform: translate(0.35rem, -1.15rem);
+  max-width: min(94%, 21.85rem);
+  border: 0;
+  border-radius: clamp(32px, 3.4vw, 44px) clamp(40px, 3.9vw, 54px) clamp(12px, 1.2vw, 18px) clamp(12px, 1.2vw, 18px);
+  padding: clamp(0.72rem, 1.25vw, 0.92rem) clamp(1.85rem, 3.35vw, 2.35rem) clamp(1rem, 1.55vw, 1.2rem) clamp(1.15rem, 2.35vw, 1.65rem);
+  line-height: 1.42;
+  background: transparent;
+  box-shadow: none;
+  clip-path: none;
+  overflow: visible;
+  transform: translate(0.2rem, -0.05rem);
 }
+
+.commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-badges-card .commons-public-authority-note::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  border-radius: clamp(32px, 3.4vw, 44px) clamp(40px, 3.9vw, 54px) 0 0;
+  background: var(--commons-theme-notice-border, rgba(216, 182, 111, 0.34));
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% calc(100% - var(--commons-badges-note-cut-right-y)),
+    calc(100% - var(--commons-badges-note-cut-right-x)) 100%,
+    var(--commons-badges-note-cut-left-x) 100%,
+    0 calc(100% - var(--commons-badges-note-cut-left-y))
+  );
+}
+
+.commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-badges-card .commons-public-authority-note::after {
+  content: "";
+  position: absolute;
+  inset: 1.2px;
+  z-index: -1;
+  pointer-events: none;
+  border-radius: clamp(31px, 3.3vw, 43px) clamp(39px, 3.8vw, 53px) 0 0;
+  background:
+    radial-gradient(circle at 12% 15%, rgba(216, 182, 111, 0.18), transparent 9rem),
+    var(--commons-theme-notice-bg);
+  clip-path: polygon(
+    0 0,
+    100% 0,
+    100% calc(100% - var(--commons-badges-note-cut-right-y)),
+    calc(100% - var(--commons-badges-note-cut-right-x)) 100%,
+    var(--commons-badges-note-cut-left-x) 100%,
+    0 calc(100% - var(--commons-badges-note-cut-left-y))
+  );
+}
+
 
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-badge-card,
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-contribution-card {
-  border-radius: clamp(54px, 8vw, 104px);
+  border-radius: clamp(66px, 8.7vw, 120px);
+}
+
+.commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-badge-list {
+  grid-template-columns: minmax(min(100%, 19.5rem), 23.35rem);
+  justify-content: center;
+  width: 100%;
+  transform: translate(0.2rem, -0.85rem);
 }
 
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-badge-card {
-  width: min(100%, 25rem);
-  max-width: min(92%, 25.5rem);
-  padding: clamp(1.05rem, 2.1vw, 1.45rem);
+  width: min(100%, 23.35rem);
+  max-width: 23.35rem;
+  border-radius: clamp(26px, 3.2vw, 42px);
+  padding: clamp(0.85rem, 1.35vw, 1.05rem) clamp(1.55rem, 2.8vw, 2.1rem) clamp(1rem, 1.6vw, 1.25rem);
   justify-self: center;
+  line-height: 1.36;
+}
+
+.commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-badge-card p {
+  max-width: min(100%, 20rem);
+}
+
+.commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-badge-tags {
+  gap: 0.38rem;
+  margin-block-start: clamp(0.2rem, 0.5vw, 0.35rem);
+  transform: translateY(-0.15rem);
 }
 
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-contributions-card {
-  min-height: auto;
+  width: min(calc(100% - 6.5rem), 91.25rem);
+  min-height: clamp(21.25rem, 18.2vw, 23.75rem);
+  justify-self: center;
   padding: clamp(1.45rem, 3vw, 2.25rem) clamp(1.3rem, 4vw, 2.9rem);
-  padding-block: clamp(0.8rem, 1.45vw, 1.1rem) clamp(0.55rem, 1vw, 0.85rem);
+  padding-block: clamp(1.1rem, 2vw, 1.65rem) clamp(1.2rem, 2.15vw, 1.8rem);
   padding-inline-start: clamp(3.25rem, 6.4vw, 5.75rem);
   padding-inline-end: clamp(4.45rem, 8.2vw, 7.8rem);
   align-content: start;
-  row-gap: clamp(0.16rem, 0.45vw, 0.32rem);
+  row-gap: 0;
 }
 
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-contributions-card > .commons-public-section-card__eyebrow {
@@ -837,22 +950,89 @@
 }
 
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-contributions-card > h2 {
-  margin-block-end: clamp(0.12rem, 0.45vw, 0.28rem);
+  margin-block-end: 0;
 }
 
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-contribution-grid {
-  gap: clamp(1.05rem, 2.1vw, 1.55rem);
-  align-items: stretch;
-  padding-inline: clamp(0.5rem, 1vw, 0.85rem) clamp(1.45rem, 2.8vw, 2.35rem);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 19rem), 22rem));
+  justify-content: center;
+  gap: clamp(0.9rem, 1.6vw, 1.35rem);
+  align-items: start;
+  margin-block-start: clamp(0.85rem, 1.3vw, 1.15rem);
+  padding-inline: clamp(0.5rem, 1vw, 0.85rem) clamp(1.6rem, 3.2vw, 2.4rem);
 }
 
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-contribution-card {
-  padding: clamp(0.95rem, 1.75vw, 1.2rem);
+  display: grid;
+  align-self: start;
+  align-content: center;
+  width: min(100%, 22rem);
+  min-height: clamp(7.4rem, 6.8vw, 8.7rem);
+  max-width: 22rem;
+  justify-self: center;
+  border-radius: clamp(22px, 2.8vw, 38px);
+  padding: clamp(0.72rem, 0.95vw, 0.9rem) clamp(1rem, 1.8vw, 1.35rem) clamp(0.7rem, 0.95vw, 0.9rem);
+  gap: clamp(0.32rem, 0.55vw, 0.48rem);
+  line-height: 1.32;
+}
+
+.commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-contribution-card > * {
+  margin: 0;
+}
+
+.commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-contribution-card__type {
+  line-height: 1.1;
+}
+
+.commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-contribution-card h3 {
+  margin: 0;
+  line-height: 1.16;
+}
+
+.commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-contribution-card p {
+  margin: 0;
+  line-height: 1.28;
+}
+
+.commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-contribution-card .button-link {
+  justify-self: start;
+  margin-block-start: clamp(0.08rem, 0.3vw, 0.22rem);
+  transform: none;
+}
+
+@media (min-width: 1180px) {
+  .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-contributions-card {
+    width: min(calc(100% - 11.5rem), 85.75rem);
+    min-height: clamp(17.35rem, 14.2vw, 19.15rem);
+    padding-block: clamp(0.95rem, 1.55vw, 1.25rem) clamp(1rem, 1.7vw, 1.35rem);
+    padding-inline-start: clamp(2.7rem, 4.8vw, 4.6rem);
+    padding-inline-end: clamp(3.1rem, 5.2vw, 5.2rem);
+  }
+
+  .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-contributions-card > .commons-public-section-card__eyebrow {
+    transform: translate(0.85rem, 0.75rem);
+  }
+
+  .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-contributions-card > h2 {
+    transform: translateY(0.15rem);
+  }
+
+  .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-contribution-grid {
+    grid-template-columns: repeat(3, minmax(17rem, 1fr));
+    gap: clamp(1.5rem, 1.9vw, 2.1rem);
+    margin-block-start: clamp(0.75rem, 1vw, 1.05rem);
+    padding-inline: clamp(0.35rem, 0.8vw, 0.65rem);
+  }
+
+  .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-public-contribution-card {
+    width: 100%;
+    max-width: 21.25rem;
+  }
 }
 
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-profile-summary-card__edit,
 .commons-profile-layout--public.commons-profile-layout--constellation-map .commons-profile-masthead__edit {
-  margin-block-start: clamp(1.45rem, 2.8vw, 2.05rem);
+  margin-block-start: clamp(2rem, 3.2vw, 2.75rem);
   justify-content: center;
 }
 
