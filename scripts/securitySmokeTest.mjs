@@ -4,6 +4,13 @@ import path from "node:path";
 const roots = ["src", "supabase", "public", "docs", "packages", "scripts", "services"];
 const includeExtensions = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".sql", ".md", ".json", ".txt"]);
 
+function assert(condition, message) {
+  if (!condition) {
+    console.error(message);
+    process.exit(1);
+  }
+}
+
 const checks = [
   { name: "service role key strings", pattern: /SERVICE_ROLE|SUPABASE_SERVICE|SUPABASE_SERVICE_ROLE|service_role/ },
   { name: "private key material", pattern: /BEGIN [A-Z ]*PRIVATE KEY/ },
@@ -76,6 +83,25 @@ const communityVoteMigration = await fs.readFile("supabase/migrations/2026_07_05
 const softDeleteCleanupMigration = await fs.readFile("supabase/migrations/2026_07_07_commune_soft_delete_cleanup.sql", "utf8");
 const commonsCircleApi = await fs.readFile("src/pages/The-Commons-Circle/commonsCircleApi.ts", "utf8");
 const communeAccountApi = await fs.readFile("src/pages/The-Elysia-Commune/communeAccountApi.ts", "utf8");
+const communeSafety = await fs.readFile("src/pages/The-Elysia-Commune/communeSafety.ts", "utf8");
+const secretSafetyWarningFixture = "Do not upload .env files, API keys, tokens, credentials, private logs, or vault data.";
+assert(secretSafetyWarningFixture.includes(".env") && secretSafetyWarningFixture.includes("API keys") && secretSafetyWarningFixture.includes("credentials"), "Security fixture should cover .env warning language without secret assignments.");
+const realSecretAssignmentFixtures = [
+  "fixture SUPABASE_SERVICE_ROLE_KEY=...",
+  "fixture OPENAI_API_KEY=...",
+  "fixture CLOUDFLARE_API_TOKEN=...",
+  "fixture password=...",
+  "fixture SECRET_KEY=...",
+  "fixture -----BEGIN PRIVATE KEY-----"
+];
+for (const realSecretFixture of realSecretAssignmentFixtures) {
+  assert(/=|BEGIN/.test(realSecretFixture), `Real secret fixture should remain hard-blockable: ${realSecretFixture}`);
+}
+assert(communeSafety.includes("hardSecretPatterns") && communeSafety.includes("hardSecretHit") && communeSafety.includes("blocked: hardSecretHit"), "Commune secret scanner should hard-block actual secret material.");
+assert(communeSafety.includes("secretReferencePatterns") && communeSafety.includes("warningOnlyHit") && communeSafety.includes("containsSecretSafetyInstruction"), "Commune secret scanner should differentiate warning-only/prohibitive references from secret material.");
+assert(communeSafety.includes(".env file reference") && communeSafety.includes("sensitive key/value assignment") && communeSafety.includes("service-role secret assignment"), "Commune scanner should mention both .env warning references and real assignment blocks.");
+assert(!communeSafety.includes("isAdmin") && !communeSafety.includes("adminDirectPublish"), "Commune secret scanner must not contain a blanket admin bypass.");
+assert(communeAccountApi.includes("if (scan.blocked) return { ok: false, message: \"Official Update blocked") && communeAccountApi.includes("if (!account.userId || !account.isAdmin) return"), "Official Update should remain admin-only while still hard-blocking scanner failures.");
 const communityVoteSecurity = [
   ["RLS enabled on vote posts", /alter table public\.commune_vote_posts enable row level security/i],
   ["RLS enabled on vote options", /alter table public\.commune_vote_options enable row level security/i],

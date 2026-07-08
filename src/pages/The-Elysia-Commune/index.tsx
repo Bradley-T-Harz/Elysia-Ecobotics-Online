@@ -1248,7 +1248,7 @@ function CommuneFocusedToolbar() {
 function Doctrine() {
   return <section className="commune-doctrine-grid">
     <WarningCallout title="Share carefully">
-      <p>Do not upload secrets, private Elysia memory, private logs, .env files, credentials, personal documents, or unredacted customer/user data. Public posts are not private support tickets. Anything drafted here should be safe to be public.</p>
+      <p>Do not upload .env files, API keys, tokens, credentials, private logs, or vault data. Do not upload private Elysia memory, personal documents, or unredacted customer/user data. Public posts are not private support tickets. Anything drafted here should be safe to be public.</p>
     </WarningCallout>
     <WarningCallout title="Execute nowhere by default">
       <p>Community code must not run directly on Supabase, Cloudflare backend, Elysia core, Bradley's machine, or any shared website server. Repository showcases and sandbox requests are metadata and review requests only.</p>

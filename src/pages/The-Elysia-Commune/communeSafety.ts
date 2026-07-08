@@ -32,6 +32,10 @@ export const MAX_COMMUNE_TAG_LENGTH = 32;
 
 export type CommuneSecretScanResult = {
   blocked: boolean;
+  hardSecretHit: boolean;
+  warningOnlyHit: boolean;
+  safetyInstructionHit: boolean;
+  reasons: string[];
   warnings: string[];
 };
 
@@ -41,20 +45,76 @@ export type CommuneMediaValidationResult = {
   message: string;
 };
 
-const secretPatterns: { label: string; pattern: RegExp; blocks: boolean }[] = [
-  { label: ".env content or filename", pattern: /(^|[\/\\\s])\.env(\b|$)/i, blocks: true },
-  { label: "service-role secret", pattern: /SUPABASE_SERVICE_ROLE|service_role/i, blocks: true },
-  { label: "private key material", pattern: /BEGIN [A-Z ]*PRIVATE KEY/i, blocks: true },
-  { label: "GitHub token", pattern: /\b(ghp_|github_pat_)[A-Za-z0-9_]{12,}/i, blocks: true },
-  { label: "API key wording", pattern: /\b(API_KEY|SECRET|TOKEN|PASSWORD|AWS_ACCESS_KEY_ID)\b/i, blocks: true },
-  { label: "OpenAI-style key", pattern: /\bsk-[A-Za-z0-9_-]{12,}\b/i, blocks: true },
-  { label: "absolute local path", pattern: /(^|[\s"'=:])(\/home\/|C:\\|[A-Z]:\\|~\/)/i, blocks: false },
-  { label: "vault or credentials wording", pattern: /\b(vault|credentials?)\b/i, blocks: false }
+const hardSecretPatterns: { label: string; pattern: RegExp }[] = [
+  { label: "sensitive key/value assignment", pattern: /^\s*["']?(?:[A-Z][A-Z0-9_]*_)?(?:OPENAI_API_KEY|CLOUDFLARE_API_TOKEN|API[_-]?KEY|TOKEN|SECRET|PASSWORD|PRIVATE[_-]?KEY|DATABASE[_-]?URL|AWS_ACCESS_KEY_ID)(?:_[A-Z0-9]+)?["']?\s*[:=]\s*["']?[^\r\n]*/im },
+  { label: "service-role secret assignment", pattern: /^\s*["']?SUPABASE[_-]?SERVICE[_-]?ROLE(?:[_-]?KEY)?["']?\s*[:=]\s*["']?[^\r\n]*/im },
+  { label: "private key material", pattern: /BEGIN [A-Z ]*PRIVATE KEY|BEGIN OPENSSH PRIVATE KEY/i },
+  { label: "GitHub token", pattern: /\b(ghp_|github_pat_)[A-Za-z0-9_]{12,}/i },
+  { label: "OpenAI-style key", pattern: /\bsk-[A-Za-z0-9_-]{12,}\b/i },
+  { label: "authorization bearer token", pattern: /^\s*Authorization\s*:\s*Bearer\s+[A-Za-z0-9._~+/=-]{16,}/im }
 ];
 
+const secretReferencePatterns: { label: string; pattern: RegExp }[] = [
+  { label: ".env file reference", pattern: /(^|[\/\\\s`"'])\.env(\b|$)/i },
+  { label: "API key reference", pattern: /\b(?:API\s+keys?|API[_-]?KEYS?)\b/i },
+  { label: "service-role key reference", pattern: /\bservice[-_\s]?role\s+keys?\b|SUPABASE_SERVICE_ROLE(?:_KEY)?\b|service_role\b/i },
+  { label: "token reference", pattern: /\b(?:access\s+tokens?|auth(?:entication)?\s+tokens?|tokens?)\b/i },
+  { label: "password reference", pattern: /\bpasswords?\b/i },
+  { label: "secret reference", pattern: /\bsecrets?\b/i },
+  { label: "private log reference", pattern: /\bprivate\s+(?:machine\s+|local\s+)?logs?\b/i },
+  { label: "vault reference", pattern: /\bvault(?:\s+(?:data|material|content|files?))?\b/i },
+  { label: "credentials reference", pattern: /\bcredentials?\b/i },
+  { label: "absolute local path", pattern: /(^|[\s"'=:])(\/home\/|C:\\|[A-Z]:\\|~\/)/i }
+];
+
+const secretSafetyInstructionPatterns = [
+  /\b(?:do not|don't|never|should not|please do not|avoid)\s+(?:\w+\s+){0,6}(?:upload(?:ed)?|share(?:d)?|post(?:ed|ing)?|paste|include|expose|publish|send)\b/i,
+  /\busers?\s+should\s+not\b/i,
+  /\bredact(?:ed|ing|ion)?\b/i,
+  /\bremove\b.{0,80}\bbefore\s+post(?:ing)?\b/i,
+  /\bprivate\s+files?\s+should\s+not\s+be\s+posted\b/i,
+  /\bAPI\s+keys?\s+should\s+not\s+be\s+shared\b/i
+];
+
+function matchedSecretLabels(patterns: { label: string; pattern: RegExp }[], text: string) {
+  return patterns.filter((item) => item.pattern.test(text)).map((item) => item.label);
+}
+
+function uniqueSecretLabels(labels: string[]) {
+  return Array.from(new Set(labels));
+}
+
+export function hasHardSecretMaterial(text: string) {
+  return hardSecretPatterns.some((item) => item.pattern.test(text));
+}
+
+export function containsSecretSafetyInstruction(text: string) {
+  return secretSafetyInstructionPatterns.some((pattern) => pattern.test(text));
+}
+
+export function classifyCommuneSecretRisk(text: string): CommuneSecretScanResult {
+  const hardReasons = matchedSecretLabels(hardSecretPatterns, text);
+  const warningReasons = matchedSecretLabels(secretReferencePatterns, text);
+  const reasons = uniqueSecretLabels([...hardReasons, ...warningReasons]);
+  const hardSecretHit = hardReasons.length > 0;
+  const warningOnlyHit = !hardSecretHit && warningReasons.length > 0;
+  return {
+    blocked: hardSecretHit,
+    hardSecretHit,
+    warningOnlyHit,
+    safetyInstructionHit: containsSecretSafetyInstruction(text),
+    reasons,
+    warnings: reasons
+  };
+}
+
+export function isWarningOnlySecretReference(text: string) {
+  const risk = classifyCommuneSecretRisk(text);
+  return risk.warningOnlyHit && risk.safetyInstructionHit;
+}
+
 export function scanCommuneTextForSecrets(text: string): CommuneSecretScanResult {
-  const warnings = secretPatterns.filter((item) => item.pattern.test(text)).map((item) => item.label);
-  return { blocked: secretPatterns.some((item) => item.blocks && item.pattern.test(text)), warnings };
+  return classifyCommuneSecretRisk(text);
 }
 
 export function validateCommuneMediaFile(file: Pick<File, "name" | "size" | "type">): CommuneMediaValidationResult {

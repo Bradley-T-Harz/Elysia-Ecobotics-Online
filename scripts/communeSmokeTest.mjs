@@ -279,6 +279,38 @@ for (const secret of [".env", "SUPABASE_SERVICE_ROLE", "service_role", "BEGIN [A
   assert(safety.includes(secret), `Missing secret scanner pattern: ${secret}`);
 }
 
+const warningOnlySecretSafetyFixtures = [
+  "Do not upload .env files, API keys, tokens, credentials, private logs, or vault data.",
+  "Never share credentials, access tokens, private machine logs, local vault material, or environment-variable files.",
+  "Users should redact secrets before posting."
+];
+for (const warningOnlyFixture of warningOnlySecretSafetyFixtures) {
+  assert(/do not|never|redact|should/i.test(warningOnlyFixture), `Secret safety warning fixture is not prohibitive: ${warningOnlyFixture}`);
+}
+assert(safety.includes("classifyCommuneSecretRisk") && safety.includes("hasHardSecretMaterial") && safety.includes("containsSecretSafetyInstruction") && safety.includes("isWarningOnlySecretReference"), "Commune secret scanner should expose hard-secret and warning-only classifier helpers.");
+assert(safety.includes("hardSecretPatterns") && safety.includes("secretReferencePatterns") && safety.includes("blocked: hardSecretHit") && safety.includes("warningOnlyHit"), "Commune secret scanner should separate hard secret hits from warning-only references.");
+assert(safety.includes(".env file reference") && safety.includes("API key reference") && safety.includes("credentials reference") && safety.includes("private log reference") && safety.includes("vault reference"), "Warning-only secret safety references should be classified without requiring removal.");
+assert(!/\.env[^\n]+blocks:\s*true/i.test(safety), ".env warning language must not be hard-blocked by mention alone.");
+assert(page.includes("Do not upload .env files, API keys, tokens, credentials, private logs, or vault data."), "Commune public safety copy should preserve direct .env/API key/token/credential/private log/vault warning language.");
+const hardSecretAssignmentFixtures = [
+  "fixture SUPABASE_SERVICE_ROLE_KEY=...",
+  "fixture OPENAI_API_KEY=...",
+  "fixture CLOUDFLARE_API_TOKEN=...",
+  "fixture password=...",
+  "fixture SECRET_KEY=...",
+  "fixture DATABASE_URL=...",
+  "fixture -----BEGIN PRIVATE KEY-----",
+  "fixture -----BEGIN OPENSSH PRIVATE KEY-----"
+];
+for (const hardSecretFixture of hardSecretAssignmentFixtures) {
+  assert(/=|BEGIN/.test(hardSecretFixture), `Hard secret fixture should represent assignment or key block material: ${hardSecretFixture}`);
+}
+for (const hardSecretPattern of ["OPENAI_API_KEY", "CLOUDFLARE_API_TOKEN", "SUPABASE[_-]?SERVICE[_-]?ROLE", "DATABASE[_-]?URL", "PRIVATE[_-]?KEY", "PASSWORD", "TOKEN", "BEGIN OPENSSH PRIVATE KEY"]) {
+  assert(safety.includes(hardSecretPattern), `Missing hard secret scanner coverage: ${hardSecretPattern}`);
+}
+assert(!safety.includes("isAdmin") && !safety.includes("adminDirectPublish"), "Commune secret scanner must not implement an admin bypass.");
+assert(accountApi.includes("if (scan.blocked) return { ok: false, message: \"Official Update blocked") && accountApi.includes("if (!account.userId || !account.isAdmin) return"), "Official Update publishing should stay admin-restricted while still blocking hard secret hits.");
+
 for (const category of ["general", "troubleshooting", "repositories", "living-library", "developer-forge", "marketplace-addons", "field-notes", "announcements", "questions", "safety-and-boundaries"]) {
   assert(safety.includes(`"${category}"`), `Missing fallback category: ${category}`);
   assert(migration.includes(`'${category}'`), `Missing seeded DB category: ${category}`);
