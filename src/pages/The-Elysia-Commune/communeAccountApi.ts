@@ -6,7 +6,7 @@ import { communeFallbackCategories, communeReportReasons, parseCommuneTags, scan
 export type CommunePostType = "media_garden" | "troubleshooting" | "code_sharing" | "repository_showcase" | "community_network" | "job_post" | "research_note" | "elysia_iteration_showcase" | "community_vote" | "official_update";
 export type CommunePostStatus = "draft" | "pending_review" | "in_review" | "needs_information" | "approved" | "published" | "rejected" | "hidden" | "archived" | "deleted_by_user" | "removed_by_moderator";
 export type CommuneRoom = { id: string; slug: string; name: string; description?: string | null; room_type: string; requires_moderation: boolean };
-export type CommunePost = { id: string; user_id?: string; author_username?: string | null; post_type: CommunePostType; title: string; body: string; excerpt?: string | null; tags?: string[] | null; links?: string[] | null; repository_url?: string | null; status: CommunePostStatus; visibility: string; published_at?: string | null; last_activity_at?: string | null; created_at?: string | null };
+export type CommunePost = { id: string; user_id?: string; author_username?: string | null; post_type: CommunePostType; title: string; body: string; excerpt?: string | null; tags?: string[] | null; links?: string[] | null; repository_url?: string | null; status: CommunePostStatus; visibility: string; visibility_state?: string | null; hidden_at?: string | null; removed_at?: string | null; archived_at?: string | null; published_at?: string | null; last_activity_at?: string | null; created_at?: string | null };
 export type CommuneThread = { id: string; post_id?: string | null; room_id?: string | null; title: string; status: string; visibility: string; last_reply_at?: string | null };
 export type CommuneComment = { id: string; thread_id: string; post_id?: string | null; parent_comment_id?: string | null; user_id?: string; author_username?: string | null; body: string; status: string; created_at?: string | null; published_at?: string | null };
 export type CommuneMediaAttachment = { id: string; post_id: string; file_name: string; mime_type?: string | null; file_size?: number | null; media_kind: "image" | "document" | "code_text" | "archive" | "other"; visibility_state: string; storage_bucket?: string | null; storage_path?: string | null; signed_url?: string | null; created_at?: string | null };
@@ -988,14 +988,26 @@ export function isCommunityVoteEffectivelyOpen(vote: Pick<CommunityVotePost, "vo
   return true;
 }
 
+export function isActivePublicCommunePost(post?: Pick<CommunePost, "status" | "visibility" | "visibility_state" | "hidden_at" | "removed_at" | "archived_at"> | null): boolean {
+  if (!post) return false;
+  const blockedVisibilityStates = ["flagged", "hidden", "removed", "archived", "revoked"];
+  return post.status === "published"
+    && post.visibility === "public"
+    && !blockedVisibilityStates.includes(String(post.visibility_state ?? "").toLowerCase())
+    && !post.hidden_at
+    && !post.removed_at
+    && !post.archived_at;
+}
+
 export async function loadVotePostsForPosts(postIds: string[], account?: CommuneAccountState): Promise<CommunityVoteView[]> {
   if (!supabase || !postIds.length) return [];
+  const activeParentPostIds = new Set(postIds);
   const { data: voteRows, error: voteError } = await supabase.from(canonicalCommuneTables.communityVotePosts).select(communityVotePostSelect).in("post_id", postIds);
   if (voteError) {
     if (import.meta.env.DEV) console.warn("[Community Voting Room load]", friendlyError(voteError.message, "Community Voting Room metadata is not active yet."));
     return [];
   }
-  const votes = ((voteRows ?? []) as Partial<CommunityVotePost>[]).map(normalizeCommunityVotePost).filter((row) => row.post_id);
+  const votes = ((voteRows ?? []) as Partial<CommunityVotePost>[]).map(normalizeCommunityVotePost).filter((row) => row.post_id && activeParentPostIds.has(row.post_id));
   const voteIds = votes.map((vote) => vote.post_id);
   if (!voteIds.length) return [];
 
@@ -1072,7 +1084,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
   if (roomError) warnings.push(roomError.message);
   const candidateRoomSlugs = roomSlugCandidates(roomSlug);
   const selectedRoom = candidateRoomSlugs.length ? (rooms ?? []).find((room) => candidateRoomSlugs.includes(room.slug)) as CommuneRoom | undefined : undefined;
-  let postQuery = supabase.from(canonicalCommuneTables.posts).select("id,user_id,author_username,post_type,title,body,excerpt,tags,links,repository_url,status,visibility,published_at,last_activity_at,created_at").eq("status", "published").eq("visibility", "public").order("last_activity_at", { ascending: false }).limit(50);
+  let postQuery = supabase.from(canonicalCommuneTables.posts).select("id,user_id,author_username,post_type,title,body,excerpt,tags,links,repository_url,status,visibility,visibility_state,hidden_at,removed_at,archived_at,published_at,last_activity_at,created_at").eq("status", "published").eq("visibility", "public").order("last_activity_at", { ascending: false }).limit(50);
   if (postId) postQuery = postQuery.eq("id", postId);
   if (selectedRoom) {
     const { data: roomThreads } = await supabase.from(canonicalCommuneTables.threads).select("post_id").eq("room_id", selectedRoom.id).eq("visibility", "public");
@@ -1081,7 +1093,8 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
   }
   const { data: posts, error: postError } = await postQuery;
   if (postError) warnings.push(postError.message);
-  const postIds = (posts ?? []).map((post) => post.id);
+  const activePosts = ((posts ?? []) as CommunePost[]).filter(isActivePublicCommunePost);
+  const postIds = activePosts.map((post) => post.id);
   let threadQuery = supabase.from(canonicalCommuneTables.threads).select("id,post_id,room_id,title,status,visibility,last_reply_at").eq("visibility", "public").order("last_reply_at", { ascending: false });
   if (postIds.length) threadQuery = threadQuery.in("post_id", postIds);
   const { data: threads, error: threadError } = await threadQuery;
@@ -1110,7 +1123,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
     savedPostIds = (saves ?? []).map((row) => row.post_id).filter(Boolean) as string[];
     followedThreadIds = (follows ?? []).map((row) => row.thread_id).filter(Boolean) as string[];
   }
-  return { rooms: (rooms ?? []) as CommuneRoom[], posts: (posts ?? []) as CommunePost[], comments: (comments ?? []) as CommuneComment[], threads: (threads ?? []) as CommuneThread[], media, troubleshootingPosts, jobPosts, researchNotes, repositoryShowcases, iterationShowcases, officialUpdates, officialCodeSnippets, votePosts, savedPostIds, followedThreadIds, account, warnings };
+  return { rooms: (rooms ?? []) as CommuneRoom[], posts: activePosts, comments: (comments ?? []) as CommuneComment[], threads: (threads ?? []) as CommuneThread[], media, troubleshootingPosts, jobPosts, researchNotes, repositoryShowcases, iterationShowcases, officialUpdates, officialCodeSnippets, votePosts, savedPostIds, followedThreadIds, account, warnings };
 }
 
 export async function ensureCommuneThreadForPost(post: CommunePost): Promise<{ ok: boolean; thread?: CommuneThread; message: string }> {

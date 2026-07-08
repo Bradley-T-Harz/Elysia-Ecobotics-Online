@@ -1146,7 +1146,7 @@ create policy "commune reviewers create review notifications" on public.user_not
 drop policy if exists "public reads public commune rooms" on public.commune_rooms;
 create policy "public reads public commune rooms" on public.commune_rooms for select using (is_public = true or public.current_user_can_review_domain('commune'::public.review_domain));
 drop policy if exists "public reads published commune posts" on public.commune_posts;
-create policy "public reads published commune posts" on public.commune_posts for select using ((status = 'published' and visibility = 'public') or user_id = auth.uid() or public.current_user_can_review_domain('commune'::public.review_domain));
+create policy "public reads published commune posts" on public.commune_posts for select using (((status = 'published' and visibility = 'public' and coalesce(visibility_state, 'published') not in ('flagged', 'hidden', 'removed', 'archived', 'revoked') and hidden_at is null and removed_at is null and archived_at is null)) or user_id = auth.uid() or public.current_user_can_review_domain('commune'::public.review_domain));
 drop policy if exists "users create own commune drafts" on public.commune_posts;
 create policy "users create own commune drafts" on public.commune_posts for insert to authenticated with check (user_id = auth.uid() and status in ('draft','pending_review') and post_type <> 'official_update');
 drop policy if exists "users update own unpublished commune posts" on public.commune_posts;
@@ -3585,7 +3585,7 @@ alter table public.commune_vote_events enable row level security;
 
 drop policy if exists "public reads published public vote metadata" on public.commune_vote_posts;
 create policy "public reads published public vote metadata" on public.commune_vote_posts for select to anon, authenticated using (
-  exists (select 1 from public.commune_posts p where p.id = post_id and p.post_type = 'community_vote' and p.status = 'published' and p.visibility = 'public')
+  exists (select 1 from public.commune_posts p where p.id = post_id and p.post_type = 'community_vote' and p.status = 'published' and p.visibility = 'public' and coalesce(p.visibility_state, 'published') not in ('flagged', 'hidden', 'removed', 'archived', 'revoked') and p.hidden_at is null and p.removed_at is null and p.archived_at is null)
   or created_by = auth.uid()
   or public.current_user_can_review_domain('commune'::public.review_domain)
 );
@@ -3598,7 +3598,7 @@ create policy "public reads published vote options" on public.commune_vote_optio
     select 1
     from public.commune_vote_posts v
     join public.commune_posts p on p.id = v.post_id
-    where v.post_id = vote_post_id and p.post_type = 'community_vote' and p.status = 'published' and p.visibility = 'public'
+    where v.post_id = vote_post_id and p.post_type = 'community_vote' and p.status = 'published' and p.visibility = 'public' and coalesce(p.visibility_state, 'published') not in ('flagged', 'hidden', 'removed', 'archived', 'revoked') and p.hidden_at is null and p.removed_at is null and p.archived_at is null
   )
   or public.current_user_can_review_domain('commune'::public.review_domain)
 );
@@ -3607,7 +3607,19 @@ create policy "admins manage vote options" on public.commune_vote_options for al
 
 drop policy if exists "users read own vote ballots" on public.commune_vote_ballots;
 create policy "users read own vote ballots" on public.commune_vote_ballots for select to authenticated using (
-  voter_user_id = auth.uid()
+  (voter_user_id = auth.uid() and exists (
+    select 1
+    from public.commune_vote_posts v
+    join public.commune_posts p on p.id = v.post_id
+    where v.post_id = commune_vote_ballots.vote_post_id
+      and p.post_type = 'community_vote'
+      and p.status = 'published'
+      and p.visibility = 'public'
+      and coalesce(p.visibility_state, 'published') not in ('flagged', 'hidden', 'removed', 'archived', 'revoked')
+      and p.hidden_at is null
+      and p.removed_at is null
+      and p.archived_at is null
+  ))
   or public.current_user_is_admin()
   or public.current_user_can_review_domain('commune'::public.review_domain)
 );
@@ -3626,6 +3638,10 @@ create policy "users insert own open vote ballots" on public.commune_vote_ballot
       and p.post_type = 'community_vote'
       and p.status = 'published'
       and p.visibility = 'public'
+      and coalesce(p.visibility_state, 'published') not in ('flagged', 'hidden', 'removed', 'archived', 'revoked')
+      and p.hidden_at is null
+      and p.removed_at is null
+      and p.archived_at is null
   )
 );
 drop policy if exists "users update own open vote ballots" on public.commune_vote_ballots;
@@ -3643,6 +3659,10 @@ create policy "users update own open vote ballots" on public.commune_vote_ballot
       and p.post_type = 'community_vote'
       and p.status = 'published'
       and p.visibility = 'public'
+      and coalesce(p.visibility_state, 'published') not in ('flagged', 'hidden', 'removed', 'archived', 'revoked')
+      and p.hidden_at is null
+      and p.removed_at is null
+      and p.archived_at is null
   )
 );
 drop policy if exists "admins manage vote ballots" on public.commune_vote_ballots;
@@ -3654,7 +3674,7 @@ create policy "public reads public vote events" on public.commune_vote_events fo
     select 1
     from public.commune_vote_posts v
     join public.commune_posts p on p.id = v.post_id
-    where v.post_id = vote_post_id and p.post_type = 'community_vote' and p.status = 'published' and p.visibility = 'public'
+    where v.post_id = vote_post_id and p.post_type = 'community_vote' and p.status = 'published' and p.visibility = 'public' and coalesce(p.visibility_state, 'published') not in ('flagged', 'hidden', 'removed', 'archived', 'revoked') and p.hidden_at is null and p.removed_at is null and p.archived_at is null
   ))
   or public.current_user_is_admin()
   or public.current_user_can_review_domain('commune'::public.review_domain)
@@ -3676,6 +3696,10 @@ language sql stable security definer set search_path = public, pg_temp as $$
       and p.post_type = 'community_vote'
       and p.status = 'published'
       and p.visibility = 'public'
+      and coalesce(p.visibility_state, 'published') not in ('flagged', 'hidden', 'removed', 'archived', 'revoked')
+      and p.hidden_at is null
+      and p.removed_at is null
+      and p.archived_at is null
       and (
         public.current_user_is_admin()
         or public.current_user_can_review_domain('commune'::public.review_domain)

@@ -81,6 +81,7 @@ if (failures.length) {
 
 const communityVoteMigration = await fs.readFile("supabase/migrations/2026_07_05_02_commune_community_voting_room.sql", "utf8");
 const softDeleteCleanupMigration = await fs.readFile("supabase/migrations/2026_07_07_commune_soft_delete_cleanup.sql", "utf8");
+const communityVoteDeleteFilterMigration = await fs.readFile("supabase/migrations/2026_07_08_commune_vote_delete_parent_filter.sql", "utf8");
 const commonsCircleApi = await fs.readFile("src/pages/The-Commons-Circle/commonsCircleApi.ts", "utf8");
 const communeAccountApi = await fs.readFile("src/pages/The-Elysia-Commune/communeAccountApi.ts", "utf8");
 const communePage = await fs.readFile("src/pages/The-Elysia-Commune/index.tsx", "utf8");
@@ -149,16 +150,24 @@ const softDeleteCleanupSecurity = [
   ["cleanup hides code proposals", /commune_code_revision_proposals[\s\S]*hidden_by_moderation/i],
   ["cleanup archives Community Voting Room sidecar", /commune_vote_posts[\s\S]*vote_status = 'archived'/i],
   ["cleanup preserves audit history", /audit_preserved[\s\S]*commune_reports[\s\S]*commune_moderation_events[\s\S]*review_items[\s\S]*review_events[\s\S]*commune_vote_ballots[\s\S]*commune_vote_events/i],
+  ["Community Vote parent filter migration exists", /Community Voting Room moderation-delete visibility hardening/i],
+  ["Community Vote metadata parent-filtered", /public reads published public vote metadata[\s\S]*p\.post_type = 'community_vote'[\s\S]*p\.removed_at is null[\s\S]*p\.archived_at is null/i],
+  ["Community Vote ballot reads are active-parent or audit-only", /users read own vote ballots[\s\S]*voter_user_id = auth\.uid\(\)[\s\S]*p\.removed_at is null[\s\S]*public\.current_user_can_review_domain\('commune'::public\.review_domain\)/i],
+  ["Community Vote public events parent-filtered", /public reads public vote events[\s\S]*event_visibility = 'public'[\s\S]*p\.removed_at is null/i],
+  ["Community Vote aggregate results parent-filtered", /commune_vote_result_summary[\s\S]*p\.post_type = 'community_vote'[\s\S]*p\.removed_at is null[\s\S]*p\.archived_at is null/i],
   ["cleanup grants execute only to authenticated", /revoke all on function public\.soft_delete_commune_post\(uuid, text\) from public;[\s\S]*grant execute on function public\.soft_delete_commune_post\(uuid, text\) to authenticated/i],
   ["saved rows require active parent on select", /users select own active saved commune posts[\s\S]*post\.status = 'published'[\s\S]*post\.visibility = 'public'[\s\S]*post\.removed_at is null/i],
   ["delete helper calls cleanup RPC", /rpc\("soft_delete_commune_post"/i],
   ["missing RPC has migration drift error", /Commune soft-delete cleanup is not available yet\. Apply the latest Commune cleanup migration before deleting posts\./i],
+  ["Commune loader filters active public parents", /isActivePublicCommunePost[\s\S]*activePosts[\s\S]*loadVotePostsForPosts\(postIds, account\)/i],
+  ["Vote sidecar loader only uses loaded parent ids", /activeParentPostIds[\s\S]*activeParentPostIds\.has\(row\.post_id\)/i],
+  ["Detail page locally suppresses deleted parent", /locallyDeletedPostId === postId \? null : state\.posts\[0\][\s\S]*onDeleted=\{setLocallyDeletedPostId\}/i],
   ["Commons loaders have active parent filter", /isActivePublicCommunePost[\s\S]*loadActivePublicCommunePostMap[\s\S]*filterNotificationsByActiveCommunePost/i],
   ["Signal Console sidecars use visible filtered rows", /visibleMyCommunityVoteRows[\s\S]*visibleReviewCommunityVoteRows[\s\S]*officialPostById/i],
   ["Public profile comments filtered by parent", /visiblePublicComments[\s\S]*activeCommentPostById/i]
 ];
 const softDeleteFailures = softDeleteCleanupSecurity
-  .filter(([, pattern]) => !pattern.test(softDeleteCleanupMigration + "\n" + communeAccountApi + "\n" + commonsCircleApi))
+  .filter(([, pattern]) => !pattern.test(softDeleteCleanupMigration + "\n" + communityVoteDeleteFilterMigration + "\n" + communeAccountApi + "\n" + communePage + "\n" + commonsCircleApi))
   .map(([name]) => name);
 if (softDeleteFailures.length) {
   console.error(`Commune soft-delete cleanup security checks failed:\n${softDeleteFailures.join("\n")}`);

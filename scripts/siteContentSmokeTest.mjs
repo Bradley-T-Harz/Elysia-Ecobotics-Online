@@ -41,6 +41,7 @@ const publicProfileFieldsMigration = await read("supabase/migrations/2026_06_22_
 const commonsBannerFramingMigration = await read("supabase/migrations/2026_07_02_commons_banner_framing.sql");
 const supabaseSchema = await read("supabase/schema.sql");
 const softDeleteCleanupMigration = await read("supabase/migrations/2026_07_07_commune_soft_delete_cleanup.sql");
+const communityVoteDeleteFilterMigration = await read("supabase/migrations/2026_07_08_commune_vote_delete_parent_filter.sql");
 const adminPage = await read("src/pages/Admin/index.tsx");
 const reviewClient = await read("src/shared/review/reviewClient.ts");
 const publicProfile = await read("src/pages/Public-Commons-Profile/index.tsx");
@@ -559,12 +560,14 @@ assert(sandboxHandoff.includes("private_reviewer_notes_included") && sandboxHand
 assert(commune.includes("Community Voting Room") && commune.includes("Community votes guide stewardship decisions"), "Commune should include Community Voting Room advisory copy.");
 assert(commune.includes("They do not automatically change site policy") && commune.includes("Marketplace behavior") && commune.includes("Developer Forge behavior") && commune.includes("Official Updates"), "Community Voting Room should state it is not automatic site/policy/legal/safety/Marketplace/Developer Forge/Official Update governance.");
 assert(commune.includes("Anonymous visitors can view Community Voting Room votes") && commune.includes("Signed-in members can cast one ballot") && commune.includes("Admins control lifecycle and outcomes"), "Community Voting Room should explain anonymous, member, and admin roles.");
+assert(commune.includes("Delete/remove this Commune content?") && commune.includes("This removes the item from public views") && commune.includes("Archive</button>"), "Commune copy should keep Admin Moderation Delete separate from Community Voting Room lifecycle Archive controls.");
 assert(signalConsole.includes("Community Voting Room activity") && signalConsole.includes("Community Voting Room attention") && signalConsole.includes("Official Update remains separate"), "Signal Console should include Community Voting Room category/copy.");
 assert(communityVotePolicyDoc.includes("advisory governance feature") && communityVotePolicyDoc.includes("Anonymous visitors cannot vote") && communityVotePolicyDoc.includes("Official Update remains separate"), "Community Voting Room policy doc missing purpose/anonymous/Official Update boundary.");
 assert(communityVoteBoundaryDoc.includes("Authenticated members can read their own ballot") && communityVoteBoundaryDoc.includes("aggregate counts only") && communityVoteBoundaryDoc.includes("does not automatically create Official Updates"), "Community Voting Room boundary doc missing ballot privacy/result/Official Update boundary.");
 assert(communityVoteContractDoc.includes("commune_vote_posts") && communityVoteContractDoc.includes("castCommunityVoteBallot") && communityVoteContractDoc.includes("Voting Room signals remain separate from Official Update signals"), "Community Vote API contract doc missing table/helper/signal separation contract.");
 assert(commonsApi.includes("visibleSavedCommuneRows") && commonsApi.includes("filterNotificationsByActiveCommunePost") && commonsApi.includes("visiblePublicComments"), "Deleted/removed Commune posts should not remain in Saved Shelves, Signal Console, Homebase notifications, or public profile contribution cards.");
 assert(softDeleteCleanupMigration.includes("soft_delete_commune_post") && softDeleteCleanupMigration.includes("audit_preserved") && softDeleteCleanupMigration.includes("delete from public.user_saved_commune_posts") && softDeleteCleanupMigration.includes("delete from public.user_notifications"), "Commune soft-delete cleanup migration should remove user-facing ghost references while preserving audit history.");
+assert(communityVoteDeleteFilterMigration.includes("Community Voting Room moderation-delete visibility hardening") && communityVoteDeleteFilterMigration.includes("commune_vote_result_summary") && communityVoteDeleteFilterMigration.includes("removed_at is null"), "Community Voting Room deleted-post sidecars should be parent-filtered for normal user-facing content.");
 assert(!commonsApi.includes("Deleted Commune post placeholder") && !signalConsole.includes("Deleted Commune post placeholder"), "User-facing deleted Commune placeholder cards should not be introduced.");
 
 console.log("Site content smoke test ok.");
