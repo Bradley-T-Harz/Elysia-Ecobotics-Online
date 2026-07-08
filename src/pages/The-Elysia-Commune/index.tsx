@@ -303,8 +303,8 @@ const postTypes: CommunePostTypeCard[] = [
     backendValue: "media_garden",
     name: "Media Garden",
     purpose: "Images, videos, demos, artwork, project updates, and public storytelling around Elysia.",
-    allowedContent: "Public images, videos, demos, artwork notes, project updates, and storytelling drafts.",
-    cautions: "Do not upload private documents, faces without consent, sensitive location data, copyrighted media without permission, credentials, or private screenshots.",
+    allowedContent: "Public images, videos, demos, artwork notes, visual/read-only code snippets, project updates, and storytelling drafts.",
+    cautions: "Code snippets may be visual/read-only material only; they are not executed by the website and are not a trust signal. Do not upload secrets, credentials, environment-variable files, private logs, vault material, private documents, faces without consent, sensitive location data, copyrighted media without permission, or private screenshots.",
     currentStatus: ["Local draft available", "Requires moderation", "Backend enhanced"],
     futureFeatures: "Moderated media posts, attribution prompts, file limits, storage policy, and abuse controls."
   },
@@ -770,6 +770,21 @@ const researchReviewStatusOptions: Array<{ value: ResearchReviewStatus; label: s
   { value: "corrected", label: "Corrected" },
   { value: "archived", label: "Archived" }
 ];
+const mediaGardenCodeSafetyCopy = "Code snippets in Media Garden are visual/read-only material. They are not executed by the website and are not a trust signal.";
+const mediaGardenCodePrivateDataCopy = "Use this only for discussion, design, structure, symbols, or aesthetic context. Do not upload secrets, credentials, environment-variable files, private logs, vault material, or sensitive private data.";
+
+function isMediaGardenVisualCodePost(postType: CommunePostType) {
+  return postType === "media_garden";
+}
+
+function isSandboxCapableCodePost(postType: CommunePostType) {
+  return postType === "code_sharing" || postType === "troubleshooting";
+}
+
+function supportsCommuneCodeSnippetFields(postType: CommunePostType) {
+  return isMediaGardenVisualCodePost(postType) || isSandboxCapableCodePost(postType);
+}
+
 const jobRoleTypeOptions: Array<{ value: JobPostMetadata["role_type"]; label: string }> = [
   { value: "paid_role", label: "Paid role" },
   { value: "volunteer_call", label: "Volunteer call" },
@@ -1947,7 +1962,9 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
   const selectedPostTypeLabel = postTypeOptions.find((type) => type.value === form.postType)?.label ?? form.postType;
   const normalizedTags = parseCommuneTags(form.tags);
   const showTroubleshootingFields = form.postType === "troubleshooting";
-  const showCodeFields = form.postType === "code_sharing" || form.postType === "troubleshooting";
+  const showCodeFields = supportsCommuneCodeSnippetFields(form.postType);
+  const showMediaGardenCodeFields = isMediaGardenVisualCodePost(form.postType);
+  const showSandboxCapableCodeFields = isSandboxCapableCodePost(form.postType);
   const showRepositoryField = form.postType === "code_sharing";
   const showAttachmentField = true;
   const showCommunityFields = form.postType === "community_network";
@@ -1955,11 +1972,13 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
   const showResearchFields = form.postType === "research_note";
   const showIterationFields = form.postType === "elysia_iteration_showcase";
   const showOfficialFields = form.postType === "official_update";
-  const codeSectionTitle = showTroubleshootingFields ? "Code / reproduction snippet optional" : "Inert code snippet";
-  const codePreviewTitle = showTroubleshootingFields ? "Reproduction snippet preview" : inertCodeSnippetLabel(form.codeLanguage);
+  const codeSectionTitle = showTroubleshootingFields ? "Code / reproduction snippet optional" : showMediaGardenCodeFields ? "Inert visual code snippet" : "Inert code snippet";
+  const codePreviewTitle = showTroubleshootingFields ? "Reproduction snippet preview" : showMediaGardenCodeFields ? "Visual code snippet preview" : inertCodeSnippetLabel(form.codeLanguage);
   const codeSafetyCopy = showTroubleshootingFields
     ? "Code is optional and should be a minimal redacted reproduction. Do not include tokens, API keys, .env files, passwords, private paths, private logs, local Elysia memory, vault data, credentials, account secrets, or private user data."
-    : "Code is shown for discussion only. Do not run code you do not trust. Visibility is not a trust signal.";
+    : showMediaGardenCodeFields
+      ? `${mediaGardenCodeSafetyCopy} ${mediaGardenCodePrivateDataCopy}`
+      : "Code is shown for discussion only. Do not run code you do not trust. Visibility is not a trust signal.";
 
   useEffect(() => {
     setForm((current) => current.postType === defaultType && current.roomId === (defaultRoomId || "") ? current : { ...current, postType: defaultType, roomId: defaultRoomId || "" });
@@ -2060,7 +2079,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
   }
 
   function build(status: CommuneStatus): PostDraft {
-    const codeBlock = form.codeText ? ["", `## Inert code snippet (${inertCodeSnippetLabel(form.codeLanguage)})`, "", "```" + inertCodeSnippetLabel(form.codeLanguage), form.codeText, "```", "", "Code is shown for discussion only. Do not run code you do not trust."].join("\n") : "";
+    const codeBlock = form.codeText ? ["", `## ${codeSectionTitle} (${inertCodeSnippetLabel(form.codeLanguage)})`, "", "```" + inertCodeSnippetLabel(form.codeLanguage), form.codeText, "```", "", codeSafetyCopy].join("\n") : "";
     const officialCodeBlock = showOfficialFields && form.officialCodeText ? ["", `## Official read-only code (${inertCodeSnippetLabel(form.officialCodeLanguage)})`, "", form.officialCodeContextNote, "", "```" + inertCodeSnippetLabel(form.officialCodeLanguage), form.officialCodeText, "```", "", "Official code is read-only/copy-only. No workbench, sandbox, proposal flow, public editing, or Local Elysia execution is enabled from Official Update."].filter((line) => line !== undefined).join("\n") : "";
     const bodyBase = composedBody();
     const body = `${bodyBase}${codeBlock}${officialCodeBlock}`;
@@ -2287,7 +2306,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       return;
     }
     if (form.codeText && !form.stepsCodeAck) {
-      setMessage("Acknowledge that code snippets are inert text and not execution permission before submitting code.");
+      setMessage("Acknowledge that code snippets are inert/read-only material and not execution permission before submitting code.");
       return;
     }
     const bodyBase = composedBody();
@@ -2614,7 +2633,12 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
         <label className="wide-field"><span>Audit-safe note / correction note</span><textarea rows={3} value={form.officialAuditNote} onChange={(event) => setForm({ ...form, officialAuditNote: event.target.value })} placeholder="Public correction/update context if relevant." /></label>
       </>}
       <label className="wide-field"><span>{form.postType === "code_sharing" ? "Discussion / explanation" : showResearchFields ? "Context / discussion" : showJobFields ? "Public details / questions" : "Body"}</span><textarea rows={8} value={form.body} onChange={(event) => setForm({ ...form, body: event.target.value })} /></label>
-      {showCodeFields && <><label><span>Code language</span><select value={normalizeCodingLanguage(form.codeLanguage)} onChange={(event) => setForm({ ...form, codeLanguage: event.target.value })}>{codingLanguageOptions().map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label><span>Code filename</span><input value={form.codeFileName} onChange={(event) => setForm({ ...form, codeFileName: event.target.value })} placeholder={showTroubleshootingFields ? "reproduction.js, failing-test.py" : "snippet.ts"} /></label><label className="wide-field"><span>{codeSectionTitle}</span><CodeWorkspaceEditor value={form.codeText} language={form.codeLanguage} onChange={(value) => setForm({ ...form, codeText: value })} minHeight="260px" /></label><p className="wide-field boundary-note">{codeSafetyCopy}</p></>}
+      {showCodeFields && <>
+        <label><span>Code language</span><select value={normalizeCodingLanguage(form.codeLanguage)} onChange={(event) => setForm({ ...form, codeLanguage: event.target.value })}>{codingLanguageOptions().map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+        <label><span>Code filename</span><input value={form.codeFileName} onChange={(event) => setForm({ ...form, codeFileName: event.target.value })} placeholder={showTroubleshootingFields ? "reproduction.js, failing-test.py" : showMediaGardenCodeFields ? "visual-snippet.css, shader.glsl" : "snippet.ts"} /></label>
+        <label className="wide-field"><span>{codeSectionTitle}</span><CodeWorkspaceEditor value={form.codeText} language={form.codeLanguage} onChange={(value) => setForm({ ...form, codeText: value })} minHeight="260px" /></label>
+        <p className="wide-field boundary-note">{codeSafetyCopy}</p>
+      </>}
       {showOfficialFields && <>
         <label><span>Official code language</span><select value={normalizeCodingLanguage(form.officialCodeLanguage)} onChange={(event) => setForm({ ...form, officialCodeLanguage: event.target.value })}>{codingLanguageOptions().map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
         <label><span>Official code filename</span><input value={form.officialCodeFileName} onChange={(event) => setForm({ ...form, officialCodeFileName: event.target.value })} placeholder="migration.sql, config.json, example.ts" /></label>
@@ -2643,9 +2667,9 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     <TagChips tags={normalizedTags} />
     {secretScan.warnings.length > 0 && <WarningCallout title="Secret warning"><p>{secretScan.blocked ? "Submission is blocked until private/secret material is removed." : "Review this content carefully before sharing."} Flags: {secretScan.warnings.join(", ")}.</p></WarningCallout>}
     {fileValidation && <p className={fileValidation.ok ? "boundary-note" : "message"}>{fileValidation.message}</p>}
-    {form.codeText && <section className="commune-code-preview"><div className="addon-card__topline"><strong>{codePreviewTitle}</strong><span>{form.codeFileName || "snippet"}</span></div><CodeWorkspaceEditor value={form.codeText} language={form.codeLanguage} readOnly minHeight="220px" /><p className="boundary-note">{codeSafetyCopy}</p><p className="boundary-note">Code is inert unless it is sent to the governed sandbox runner. Sandbox success is evidence only, not approval, trust, Marketplace readiness, or permission to run code elsewhere.</p><DiagnosticsList diagnostics={runStaticCodingDiagnostics({ language: form.codeLanguage, fileName: form.codeFileName, code: form.codeText })} /></section>}
+    {form.codeText && <section className="commune-code-preview"><div className="addon-card__topline"><strong>{codePreviewTitle}</strong><span>{form.codeFileName || "snippet"}</span></div><CodeWorkspaceEditor value={form.codeText} language={form.codeLanguage} readOnly minHeight="220px" /><p className="boundary-note">{codeSafetyCopy}</p>{showSandboxCapableCodeFields ? <><p className="boundary-note">Code is inert unless it is sent to the governed sandbox runner. Sandbox success is evidence only, not approval, trust, Marketplace readiness, or permission to run code elsewhere.</p><DiagnosticsList diagnostics={runStaticCodingDiagnostics({ language: form.codeLanguage, fileName: form.codeFileName, code: form.codeText })} /></> : <p className="boundary-note">This Media Garden preview is read-only visual material. No run button, sandbox diagnostics, execution status, proposal flow, or trust label is enabled.</p>}</section>}
     {showOfficialFields && form.officialCodeText && <section className="commune-code-preview commune-official-code-preview"><div className="addon-card__topline"><strong>Official code preview</strong><span>{form.officialCodeFileName || "official-snippet"}</span></div><CodeWorkspaceEditor value={form.officialCodeText} language={form.officialCodeLanguage} readOnly minHeight="220px" /><p className="boundary-note">Official code examples are public read-only/copy-only records. No workbench, sandbox run, proposal, install, deploy, or Local Elysia execution controls are exposed.</p></section>}
-    <div className="commune-checklist">{routeAcknowledgements.map((item) => <label className="checkbox-line" key={item}><input type="checkbox" checked={form.acknowledgement} onChange={(event) => setForm({ ...form, acknowledgement: event.target.checked })} /><span>{item}</span></label>)}{showCodeFields && <><label className="checkbox-line"><input type="checkbox" checked={form.stepsCodeAck} onChange={(event) => setForm({ ...form, stepsCodeAck: event.target.checked })} /><span>{showTroubleshootingFields ? "Any troubleshooting code/reproduction snippet is inert redacted text until an explicit sandbox run. It is not execution permission." : "Any code snippet is inert text for discussion only. It is not execution permission."}</span></label><label className="checkbox-line"><input type="checkbox" checked={form.sandboxRequested} onChange={(event) => setForm({ ...form, sandboxRequested: event.target.checked })} /><span>{showTroubleshootingFields ? "Request sandbox review metadata for this reproduction case. This is not execution permission and does not prove the fix is safe." : "Request sandbox review for repository/code metadata. This is not execution permission."}</span></label></>}</div>
+    <div className="commune-checklist">{routeAcknowledgements.map((item) => <label className="checkbox-line" key={item}><input type="checkbox" checked={form.acknowledgement} onChange={(event) => setForm({ ...form, acknowledgement: event.target.checked })} /><span>{item}</span></label>)}{showCodeFields && <><label className="checkbox-line"><input type="checkbox" checked={form.stepsCodeAck} onChange={(event) => setForm({ ...form, stepsCodeAck: event.target.checked })} /><span>{showTroubleshootingFields ? "Any troubleshooting code/reproduction snippet is inert redacted text until an explicit sandbox run. It is not execution permission." : showMediaGardenCodeFields ? "Any Media Garden code snippet is visual/read-only material. It is not executed by the website, a trust signal, or execution permission." : "Any code snippet is inert text for discussion only. It is not execution permission."}</span></label>{showSandboxCapableCodeFields && <label className="checkbox-line"><input type="checkbox" checked={form.sandboxRequested} onChange={(event) => setForm({ ...form, sandboxRequested: event.target.checked })} /><span>{showTroubleshootingFields ? "Request sandbox review metadata for this reproduction case. This is not execution permission and does not prove the fix is safe." : "Request sandbox review for repository/code metadata. This is not execution permission."}</span></label>}</>}</div>
     <div className="button-row"><button type="button" className="button-primary" onClick={() => void submit()}>{submitLabel}</button><button type="button" onClick={() => saveLocal("draft_local")}>Save local draft</button>{!showOfficialFields && <button type="button" onClick={() => saveLocal("pending_moderator_review_local")}>Save local request</button>}<button type="button" onClick={() => downloadText(`${slug(form.title)}.md`, postMarkdown(build("draft_local")), "text/markdown")}>Export Markdown</button>{showIterationFields && <button type="button" onClick={() => downloadText(`${slug(form.title)}-iteration-showcase.json`, iterationManifestJson(buildIterationDraft()), "application/json")}>Export JSON</button>}<button type="button" onClick={() => copyText(postMarkdown(build("draft_local")), setMessage)}>Copy Markdown</button><Link className="button-link" to="/commune">Back to Commune</Link></div>
     <p className="message">{message}</p>
   </section>;
@@ -3175,20 +3199,22 @@ function codeWorkbenchPath(postType: CommunePostType) {
 function AttachedCodeSnippets({ snippets, authorUsername, signedIn, postType, onMessage }: { snippets: CommuneCodeSnippet[]; authorUsername?: string | null; signedIn: boolean; postType: CommunePostType; onMessage: (message: string) => void }) {
   if (!snippets.length) return null;
   const isTroubleshooting = postType === "troubleshooting";
-  const workbenchPath = codeWorkbenchPath(postType);
+  const isMediaGarden = isMediaGardenVisualCodePost(postType);
+  const sandboxCapable = isSandboxCapableCodePost(postType);
+  const workbenchPath = sandboxCapable ? codeWorkbenchPath(postType) : "";
   return <div className="commune-code-section">
-    <p className="eyebrow">{isTroubleshooting ? "Code attached for troubleshooting" : "Code attached to this post"}</p>
-    <p className="commune-media-attribution">{isTroubleshooting ? "Reproduction snippet" : "Coding Cornucopia snippet"} attached by {authorLink(authorUsername)}.</p>
-    <p className="boundary-note">{isTroubleshooting ? "Troubleshooting code should be a minimal redacted reproduction. Proposed fixes do not overwrite this public snapshot unless the original post author accepts them." : "Code is inert public text. Proposed revisions do not overwrite this public snapshot unless the original post author accepts them."} Sandbox runs require explicit governed snapshots and do not create trust, approval, or Marketplace readiness.</p>
+    <p className="eyebrow">{isTroubleshooting ? "Code attached for troubleshooting" : isMediaGarden ? "Visual code attached to this Media Garden post" : "Code attached to this post"}</p>
+    <p className="commune-media-attribution">{isTroubleshooting ? "Reproduction snippet" : isMediaGarden ? "Visual/read-only code snippet" : "Coding Cornucopia snippet"} attached by {authorLink(authorUsername)}.</p>
+    <p className="boundary-note">{isTroubleshooting ? "Troubleshooting code should be a minimal redacted reproduction. Proposed fixes do not overwrite this public snapshot unless the original post author accepts them. Sandbox runs require explicit governed snapshots and do not create trust, approval, or Marketplace readiness." : isMediaGarden ? `${mediaGardenCodeSafetyCopy} ${mediaGardenCodePrivateDataCopy}` : "Code is inert public text. Proposed revisions do not overwrite this public snapshot unless the original post author accepts them. Sandbox runs require explicit governed snapshots and do not create trust, approval, or Marketplace readiness."}</p>
     <div className="commune-code-list">
       {snippets.map((snippet) => <article className="commune-code-preview" key={snippet.id}>
-        <div className="addon-card__topline"><strong>{inertCodeSnippetLabel(snippet.language ?? "")}</strong><span>{snippet.file_name ?? "snippet"} · current accepted snapshot v{snippet.accepted_version_number ?? 1}</span></div>
-        {snippet.accepted_revision_summary && <p className="boundary-note">Accepted revision: {snippet.accepted_revision_summary}</p>}
+        <div className="addon-card__topline"><strong>{inertCodeSnippetLabel(snippet.language ?? "")}</strong><span>{sandboxCapable ? `${snippet.file_name ?? "snippet"} · current accepted snapshot v${snippet.accepted_version_number ?? 1}` : snippet.file_name ?? "visual snippet"}</span></div>
+        {sandboxCapable && snippet.accepted_revision_summary && <p className="boundary-note">Accepted revision: {snippet.accepted_revision_summary}</p>}
         <CodeWorkspaceEditor value={snippet.code_text} language={snippet.language} readOnly minHeight="260px" />
-        <DiagnosticsList diagnostics={runStaticCodingDiagnostics({ language: snippet.language, fileName: snippet.file_name, code: snippet.code_text })} />
-        <div className="button-row"><button type="button" onClick={() => copyText(snippet.code_text, onMessage)}>Copy snippet</button><Link className="button-link" to={`${workbenchPath}?post=${snippet.post_id}&snippet=${snippet.id}`}>{isTroubleshooting ? "Open troubleshooting workbench" : "Open Coding Workbench"}</Link>{signedIn && <Link className="button-link" to={`${workbenchPath}?post=${snippet.post_id}&snippet=${snippet.id}&mode=propose`}>{isTroubleshooting ? "Propose fix" : "Propose edit"}</Link>}<Link className="button-link" to={`${workbenchPath}?post=${snippet.post_id}&snippet=${snippet.id}&mode=proposals`}>{isTroubleshooting ? "View proposed fixes" : "View proposals"}</Link></div>
-        <CodingSandboxRunPanel snapshotId={snippet.accepted_revision_id ?? snippet.id} sourceType="commune_post_snippet" sourceId={snippet.id} postId={snippet.post_id} language={snippet.language ?? "text"} fileName={snippet.file_name} code={snippet.code_text} signedIn={signedIn} runLabel="Run in sandbox" />
-        <p className="boundary-note">Code is shown for discussion only. The website did not execute this snippet. {isTroubleshooting ? "Accepted fixes" : "Accepted revisions"} preserve version history and proposer attribution; rejected proposals leave this public code unchanged.</p>
+        {sandboxCapable && <DiagnosticsList diagnostics={runStaticCodingDiagnostics({ language: snippet.language, fileName: snippet.file_name, code: snippet.code_text })} />}
+        <div className="button-row"><button type="button" onClick={() => copyText(snippet.code_text, onMessage)}>Copy snippet</button>{sandboxCapable && <><Link className="button-link" to={`${workbenchPath}?post=${snippet.post_id}&snippet=${snippet.id}`}>{isTroubleshooting ? "Open troubleshooting workbench" : "Open Coding Workbench"}</Link>{signedIn && <Link className="button-link" to={`${workbenchPath}?post=${snippet.post_id}&snippet=${snippet.id}&mode=propose`}>{isTroubleshooting ? "Propose fix" : "Propose edit"}</Link>}<Link className="button-link" to={`${workbenchPath}?post=${snippet.post_id}&snippet=${snippet.id}&mode=proposals`}>{isTroubleshooting ? "View proposed fixes" : "View proposals"}</Link></>}</div>
+        {sandboxCapable && <CodingSandboxRunPanel snapshotId={snippet.accepted_revision_id ?? snippet.id} sourceType="commune_post_snippet" sourceId={snippet.id} postId={snippet.post_id} language={snippet.language ?? "text"} fileName={snippet.file_name} code={snippet.code_text} signedIn={signedIn} runLabel="Run in sandbox" />}
+        <p className="boundary-note">{isMediaGarden ? "Media Garden code is shown as visual/read-only material. The website did not execute this snippet, and visibility is not a trust label." : <>Code is shown for discussion only. The website did not execute this snippet. {isTroubleshooting ? "Accepted fixes" : "Accepted revisions"} preserve version history and proposer attribution; rejected proposals leave this public code unchanged.</>}</p>
       </article>)}
     </div>
   </div>;

@@ -224,7 +224,7 @@ for (const officialField of ["Official status", "Severity", "Audience", "Effecti
 }
 assert(page.includes("Publish Official Update") && page.includes("Official Update composer") && page.includes("Community members can read and report Official Updates, but cannot submit, self-assign, or impersonate official authority"), "Official Update composer should be admin-only and brand-authoritative.");
 assert(page.includes("Official code preview") && page.includes("No workbench, sandbox run, proposal, install, deploy, or Local Elysia execution controls are exposed"), "Official Update composer should preview official code as read-only/copy-only.");
-assert(page.includes('form.postType === "code_sharing" || form.postType === "troubleshooting"'), "Troubleshooting Grove should reuse optional code/reproduction snippet composer support.");
+assert(page.includes("supportsCommuneCodeSnippetFields(form.postType)") && page.includes('postType === "code_sharing" || postType === "troubleshooting"'), "Troubleshooting Grove should reuse optional code/reproduction snippet composer support.");
 assert(page.includes("Code / reproduction snippet optional") && page.includes("minimal redacted reproduction"), "Troubleshooting Grove composer should include redacted optional reproduction snippet copy.");
 assert(page.includes("Environment notes") && page.includes("Error message") && page.includes("Redacted logs"), "Troubleshooting Grove composer should include environment notes, error message, and redacted logs fields.");
 assert(page.includes("submitTroubleshootingPost") && page.includes("stepsToReproduce: form.stepsTried") && page.includes("redactedLogs: form.redactedLogs"), "Troubleshooting Grove composer should submit through the structured troubleshooting helper.");
@@ -318,6 +318,14 @@ for (const category of ["general", "troubleshooting", "repositories", "living-li
 
 assert(page.includes("CodeWorkspaceEditor") && page.includes("Inert code snippet"), "Code snippets should render through the inert Coding Cornucopia editor/viewer.");
 assert(page.includes("The public website does not execute code."), "Code execution boundary copy missing.");
+assert(page.includes("supportsCommuneCodeSnippetFields(form.postType)") && page.includes('postType === "media_garden"'), "Media Garden should opt into the shared optional code snippet fields.");
+assert(page.includes("Code language") && page.includes("Code filename") && page.includes("Inert visual code snippet"), "Media Garden code snippet form should include language, filename, and inert visual snippet controls.");
+assert(page.includes("visual-snippet.css, shader.glsl"), "Media Garden code filename field should use Media Garden-specific visual-code placeholder copy.");
+assert(page.includes("Code snippets in Media Garden are visual/read-only material. They are not executed by the website and are not a trust signal."), "Media Garden visual code safety copy missing.");
+assert(page.includes("This Media Garden preview is read-only visual material. No run button, sandbox diagnostics, execution status, proposal flow, or trust label is enabled."), "Media Garden code preview should explicitly exclude sandbox/run controls.");
+assert(page.includes("showSandboxCapableCodeFields && <label") && page.includes("Request sandbox review for repository/code metadata"), "Sandbox request checkbox should remain limited to sandbox-capable code contexts.");
+assert(page.includes("sandboxCapable && <CodingSandboxRunPanel") && page.includes("isSandboxCapableCodePost(postType)"), "Attached snippets should only render sandbox controls for intended sandbox-capable contexts.");
+assert(page.includes("Open Coding Workbench") && page.includes("Run in sandbox"), "Coding Cornucopia should keep existing workbench and sandbox controls.");
 assert(page.includes("Governed live chat rooms"), "Governed realtime chat panel missing.");
 assert(page.includes("Realtime Commune messages are cloud-hosted public/community data."), "Realtime public/community data warning missing.");
 assert(page.includes("no private DMs"), "Realtime no-DM copy missing.");

@@ -412,6 +412,7 @@ assert(commonsAdminConsole.includes("Admin dashboard") && commonsAdminConsole.in
 assert(commonsAdminConsole.includes("Role required") && commonsAdminConsole.includes("Sign in required"), "Commons Circle Admin Console role/sign-in gate copy missing.");
 assert(commune.includes("Code executes nowhere by default") || commune.includes("execute nowhere"), "Commune code-execution safety copy missing.");
 assert(commune.includes("Do not upload .env files, API keys, tokens, credentials, private logs, or vault data."), "Commune public safety copy should preserve direct .env/API key/token/credential/private log/vault warning language.");
+assert(commune.includes("Code snippets in Media Garden are visual/read-only material. They are not executed by the website and are not a trust signal.") && commune.includes("discussion, design, structure, symbols, or aesthetic context"), "Media Garden public copy should distinguish visual code material from executable/trusted code.");
 assert(commune.includes("`/commons-circle/@${encodeURIComponent(username)}`"), "Commune author links should route to /commons-circle/@username.");
 assert(!commune.includes("to={`/commons/@${encodeURIComponent(username)}`"), "Commune author links should not use the old /commons/@username path.");
 assert(publicProfile.includes("publicUsernameFromHandle") && publicProfile.includes("publicHandle") && publicProfile.includes("Profile not found or not public"), "Public Commons profile should parse @handles and show a safe unavailable state.");

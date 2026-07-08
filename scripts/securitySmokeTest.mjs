@@ -83,6 +83,7 @@ const communityVoteMigration = await fs.readFile("supabase/migrations/2026_07_05
 const softDeleteCleanupMigration = await fs.readFile("supabase/migrations/2026_07_07_commune_soft_delete_cleanup.sql", "utf8");
 const commonsCircleApi = await fs.readFile("src/pages/The-Commons-Circle/commonsCircleApi.ts", "utf8");
 const communeAccountApi = await fs.readFile("src/pages/The-Elysia-Commune/communeAccountApi.ts", "utf8");
+const communePage = await fs.readFile("src/pages/The-Elysia-Commune/index.tsx", "utf8");
 const communeSafety = await fs.readFile("src/pages/The-Elysia-Commune/communeSafety.ts", "utf8");
 const secretSafetyWarningFixture = "Do not upload .env files, API keys, tokens, credentials, private logs, or vault data.";
 assert(secretSafetyWarningFixture.includes(".env") && secretSafetyWarningFixture.includes("API keys") && secretSafetyWarningFixture.includes("credentials"), "Security fixture should cover .env warning language without secret assignments.");
@@ -102,6 +103,11 @@ assert(communeSafety.includes("secretReferencePatterns") && communeSafety.includ
 assert(communeSafety.includes(".env file reference") && communeSafety.includes("sensitive key/value assignment") && communeSafety.includes("service-role secret assignment"), "Commune scanner should mention both .env warning references and real assignment blocks.");
 assert(!communeSafety.includes("isAdmin") && !communeSafety.includes("adminDirectPublish"), "Commune secret scanner must not contain a blanket admin bypass.");
 assert(communeAccountApi.includes("if (scan.blocked) return { ok: false, message: \"Official Update blocked") && communeAccountApi.includes("if (!account.userId || !account.isAdmin) return"), "Official Update should remain admin-only while still hard-blocking scanner failures.");
+assert(communePage.includes("Code snippets in Media Garden are visual/read-only material. They are not executed by the website and are not a trust signal."), "Media Garden code snippet copy should say read-only, not executed, and not a trust signal.");
+assert(communePage.includes("This Media Garden preview is read-only visual material. No run button, sandbox diagnostics, execution status, proposal flow, or trust label is enabled."), "Media Garden preview should explicitly exclude execution controls.");
+assert(communePage.includes("showSandboxCapableCodeFields && <label") && communePage.includes("sandboxCapable && <CodingSandboxRunPanel"), "Media Garden must not expose sandbox request or run controls outside sandbox-capable code contexts.");
+assert(communePage.includes("isSandboxCapableCodePost(postType)") && communePage.includes('postType === "media_garden"'), "Media Garden code snippets should be separated from sandbox-capable code post types.");
+assert(!/media[-_]garden\/sandbox/i.test(communePage) && !/media[-_]garden[\s\S]{0,240}(\/api\/sandbox|VITE_CODING_SANDBOX_ENDPOINT|requestSandboxRun|CodingSandboxRunPanel)/i.test(communePage), "Media Garden must not call sandbox routes, sandbox endpoint config, sandbox client runs, or SandboxRunPanel.");
 const communityVoteSecurity = [
   ["RLS enabled on vote posts", /alter table public\.commune_vote_posts enable row level security/i],
   ["RLS enabled on vote options", /alter table public\.commune_vote_options enable row level security/i],
