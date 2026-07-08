@@ -1393,10 +1393,13 @@ function ReactionBar({ targetType, targetId, signedIn, onMessage }: { targetType
 function AdminContentControls({ targetType, targetId, isModerator, onChanged, onDeleted, onMessage }: { targetType: CommuneReactionTargetType; targetId: string; isModerator: boolean; onChanged?: () => Promise<void>; onDeleted?: (targetId: string) => void; onMessage: (message: string) => void }) {
   const [reason, setReason] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [status, setStatus] = useState("");
   if (!isModerator) return null;
   async function act(action: "flag" | "hide" | "delete") {
     const result = await moderateCommuneContentTarget({ targetType, targetId, action, reason });
-    onMessage(cleanCommuneMessage(result.message, "Commune moderation controls are not active for this session yet."));
+    const visibleMessage = cleanCommuneMessage(result.message, "Commune moderation controls are not active for this session yet.");
+    setStatus(visibleMessage);
+    onMessage(visibleMessage);
     setConfirmDelete(false);
     if (result.ok && action === "delete") onDeleted?.(targetId);
     if (result.ok) await onChanged?.();
@@ -1406,6 +1409,7 @@ function AdminContentControls({ targetType, targetId, isModerator, onChanged, on
     <label><span>Moderation reason</span><input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Private admin history note" /></label>
     <div className="button-row"><button type="button" onClick={() => void act("flag")}>Flag for removal</button><button type="button" onClick={() => void act("hide")}>Hide from public</button><button type="button" onClick={() => setConfirmDelete(true)}>Delete</button></div>
     {confirmDelete && <div className="commune-delete-confirm"><h3>Delete/remove this Commune content?</h3><p>This removes the item from public views. No keeps it unchanged. Admin-only History records the action.</p><div className="button-row"><button type="button" onClick={() => void act("delete")}>Yes, delete/remove</button><button type="button" onClick={() => setConfirmDelete(false)}>No, keep it</button></div></div>}
+    {status && <p className="message">{status}</p>}
   </div>;
 }
 

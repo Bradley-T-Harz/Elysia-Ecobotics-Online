@@ -320,6 +320,7 @@ export type CommuneReactionSummary = { helpful: number; caution: number; viewerR
 export type CommuneReactionTarget = { targetType: CommuneReactionTargetType; targetId: string };
 export type SubmitCommentStatus = "published" | "pending_review" | "failed" | "missing_thread" | "backend_unavailable";
 export type SubmitCommentResult = { ok: boolean; status: SubmitCommentStatus; message: string; commentId?: string };
+type CommuneBackendError = { message: string; code?: string | null; details?: string | null; hint?: string | null };
 
 export const postTypeOptions: { value: CommunePostType; label: string }[] = [
   { value: "media_garden", label: "Media Garden" },
@@ -416,6 +417,47 @@ const communeSoftDeleteCleanupUnavailableMessage = "Commune soft-delete cleanup 
 
 function isMissingCommuneSoftDeleteCleanup(message: string) {
   return /soft_delete_commune_post|Could not find.*function|function .* does not exist|schema cache|PGRST202/i.test(message);
+}
+
+function backendErrorText(error: CommuneBackendError) {
+  return [error.message, error.details, error.hint, error.code].filter(Boolean).join(" ");
+}
+
+function conciseBackendErrorDetail(error: CommuneBackendError) {
+  const detail = [error.code, error.details, error.hint].filter(Boolean).join(" · ").trim();
+  return detail ? detail.slice(0, 280) : "";
+}
+
+function isSoftDeleteRpcSignatureError(error: CommuneBackendError) {
+  const raw = backendErrorText(error);
+  return /PGRST202|Could not find.*soft_delete_commune_post|soft_delete_commune_post.*schema cache|parameter.*(target_post_id|p_target_post_id|moderation_note|p_moderation_note)|argument.*(target_post_id|p_target_post_id|moderation_note|p_moderation_note)/i.test(raw);
+}
+
+function softDeleteRpcErrorMessage(error: CommuneBackendError) {
+  const raw = backendErrorText(error);
+  const base = isMissingCommuneSoftDeleteCleanup(raw)
+    ? communeSoftDeleteCleanupUnavailableMessage
+    : friendlyError(raw, "This Commune post could not be fully removed from user-facing surfaces yet.");
+  const detail = conciseBackendErrorDetail(error);
+  return detail && !base.includes(detail) ? `${base} Backend detail: ${detail}` : base;
+}
+
+async function callSoftDeleteCommunePostRpc(input: { targetId: string; reason?: string }) {
+  if (!supabase) return { error: { message: supabaseNotConfiguredMessage } as CommuneBackendError };
+  const attempts: Array<{ label: string; args: Record<string, string | null> }> = [
+    { label: "target_post_id/moderation_note", args: { target_post_id: input.targetId, moderation_note: input.reason || null } },
+    { label: "p_target_post_id/p_moderation_note", args: { p_target_post_id: input.targetId, p_moderation_note: input.reason || null } },
+    { label: "p_target_post_id", args: { p_target_post_id: input.targetId } }
+  ];
+  let lastSignatureError: CommuneBackendError | null = null;
+  for (const attempt of attempts) {
+    const { error } = await supabase.rpc("soft_delete_commune_post", attempt.args);
+    if (!error) return { error: null, attemptedSignature: attempt.label };
+    const backendError = error as CommuneBackendError;
+    if (!isSoftDeleteRpcSignatureError(backendError)) return { error: backendError, attemptedSignature: attempt.label };
+    lastSignatureError = backendError;
+  }
+  return { error: lastSignatureError, attemptedSignature: "target_post_id/moderation_note, p_target_post_id/p_moderation_note, p_target_post_id" };
 }
 
 export function communeReactionKey(targetType: CommuneReactionTargetType, targetId: string) {
@@ -2366,16 +2408,11 @@ export async function moderateCommuneContentTarget(input: { targetType: CommuneR
   const account = await accountState();
   if (!account.userId || !account.isModerator) return { ok: false, message: "Commune moderation controls require an assigned moderator/admin role." };
   if (input.targetType === "post" && input.action === "delete") {
-    const { error } = await supabase.rpc("soft_delete_commune_post", {
-      target_post_id: input.targetId,
-      moderation_note: input.reason || null
-    });
+    const { error } = await callSoftDeleteCommunePostRpc({ targetId: input.targetId, reason: input.reason });
     if (error) {
       return {
         ok: false,
-        message: isMissingCommuneSoftDeleteCleanup(error.message)
-          ? communeSoftDeleteCleanupUnavailableMessage
-          : friendlyError(error.message, "This Commune post could not be fully removed from user-facing surfaces yet.")
+        message: softDeleteRpcErrorMessage(error)
       };
     }
     return {

@@ -159,6 +159,8 @@ const softDeleteCleanupSecurity = [
   ["saved rows require active parent on select", /users select own active saved commune posts[\s\S]*post\.status = 'published'[\s\S]*post\.visibility = 'public'[\s\S]*post\.removed_at is null/i],
   ["delete helper calls cleanup RPC", /rpc\("soft_delete_commune_post"/i],
   ["missing RPC has migration drift error", /Commune soft-delete cleanup is not available yet\. Apply the latest Commune cleanup migration before deleting posts\./i],
+  ["delete helper tolerates RPC signature drift only", /isSoftDeleteRpcSignatureError[\s\S]*PGRST202[\s\S]*p_target_post_id[\s\S]*callSoftDeleteCommunePostRpc/i],
+  ["delete helper surfaces backend details", /softDeleteRpcErrorMessage[\s\S]*Backend detail/i],
   ["Commune loader filters active public parents", /isActivePublicCommunePost[\s\S]*activePosts[\s\S]*loadVotePostsForPosts\(postIds, account\)/i],
   ["Vote sidecar loader only uses loaded parent ids", /activeParentPostIds[\s\S]*activeParentPostIds\.has\(row\.post_id\)/i],
   ["Detail page locally suppresses deleted parent", /locallyDeletedPostId === postId \? null : state\.posts\[0\][\s\S]*onDeleted=\{setLocallyDeletedPostId\}/i],
