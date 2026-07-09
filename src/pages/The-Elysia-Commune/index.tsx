@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { cpp } from "@codemirror/lang-cpp";
 import { css } from "@codemirror/lang-css";
@@ -658,14 +658,322 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
   </section>;
 }
 
-function splitPostSections(body: string) {
-  const parts = body.split(/\n## /);
-  const intro = parts.shift()?.trim() ?? "";
-  const sections = parts.map((part) => {
-    const [heading = "", ...rest] = part.split("\n");
-    return { heading: heading.replace(/^##\s*/, "").trim(), body: rest.join("\n").trim() };
-  }).filter((section) => section.heading && section.body);
-  return { intro, sections };
+type RoomNativeField = { heading: string; body: string; tone?: "default" | "pre" };
+type ParsedPostSection = { heading: string; body: string };
+
+function normalizeRoomNativeHeading(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function splitPostSections(body: string): { intro: string; sections: ParsedPostSection[] } {
+  const lines = body.replace(/\r\n/g, "\n").split("\n");
+  const introLines: string[] = [];
+  const sections: ParsedPostSection[] = [];
+  let current: { heading: string; lines: string[] } | null = null;
+
+  for (const line of lines) {
+    const heading = line.match(/^##\s+(.+?)\s*$/);
+    if (heading) {
+      if (current) sections.push({ heading: current.heading, body: current.lines.join("\n").trim() });
+      current = { heading: heading[1].trim(), lines: [] };
+      continue;
+    }
+    if (current) current.lines.push(line);
+    else introLines.push(line);
+  }
+
+  if (current) sections.push({ heading: current.heading, body: current.lines.join("\n").trim() });
+  return { intro: introLines.join("\n").trim(), sections: sections.filter((section) => section.heading && section.body) };
+}
+
+function explicitFormSectionValue(parsed: ReturnType<typeof splitPostSections>, ...headings: string[]) {
+  const wanted = new Set(headings.map(normalizeRoomNativeHeading));
+  return parsed.sections.find((section) => wanted.has(normalizeRoomNativeHeading(section.heading)))?.body ?? "";
+}
+
+function stripExplicitFormSections(body: string, headings: string[]) {
+  const wanted = new Set(headings.map(normalizeRoomNativeHeading));
+  if (!wanted.size) return body.trim();
+  const parsed = splitPostSections(body);
+  const keptSections = parsed.sections.filter((section) => !wanted.has(normalizeRoomNativeHeading(section.heading)));
+  return [
+    parsed.intro,
+    ...keptSections.map((section) => `## ${section.heading}\n\n${section.body}`)
+  ].filter(Boolean).join("\n\n").trim();
+}
+
+function formLineValue(body: string, label: string) {
+  const prefix = `${label.toLowerCase()}:`;
+  const line = body.split("\n").map((item) => item.trim()).find((item) => item.toLowerCase().startsWith(prefix));
+  return line ? line.slice(line.indexOf(":") + 1).trim() : "";
+}
+
+function metadataText(value?: string | null) {
+  return String(value ?? "").trim();
+}
+
+const roomNativeFormHeadingsByPostType: Partial<Record<CommunePostType, string[]>> = {
+  community_network: [
+    "Introduction type",
+    "Collaboration interest",
+    "Role interest",
+    "Project circle or topic",
+    "Availability / involvement level",
+    "Public contact preference",
+    "Boundary note"
+  ],
+  troubleshooting: [
+    "Issue type",
+    "Affected area",
+    "Environment",
+    "Environment notes",
+    "Steps tried / reproduce",
+    "Steps to reproduce / tried",
+    "Expected behavior",
+    "Actual behavior",
+    "Error message",
+    "Redacted logs",
+    "Known workaround",
+    "Issue status"
+  ],
+  repository_showcase: [
+    "Repository URL",
+    "Provider",
+    "Branch",
+    "Commit",
+    "License notes",
+    "README preview",
+    "File tree summary",
+    "Screenshots / notes",
+    "Compatibility notes",
+    "Manifest status",
+    "Risk warnings",
+    "Repository safety boundary"
+  ],
+  job_post: [
+    "Role title",
+    "Organization / project",
+    "Role type",
+    "Paid / volunteer status",
+    "Compensation clarity",
+    "Location / remote / hybrid",
+    "Location details",
+    "Time commitment",
+    "Deadline",
+    "Contact path",
+    "Requirements / skills",
+    "Role summary",
+    "Application status",
+    "Anti-scam review",
+    "Work With private application path",
+    "Job safety notes",
+    "Public correction note"
+  ],
+  research_note: [
+    "Research question / topic",
+    "Source links",
+    "Citation notes",
+    "Evidence summary",
+    "Observation",
+    "Interpretation",
+    "Uncertainty",
+    "Evidence strength / confidence",
+    "Living Library source link",
+    "Domain",
+    "Geographic scope",
+    "Ecological subsystem",
+    "Method type",
+    "Data type",
+    "Ethics / sensitivity note"
+  ],
+  elysia_iteration_showcase: [
+    "Iteration type",
+    "Version / build label",
+    "What changed",
+    "Why it matters",
+    "Known limitations",
+    "Next step",
+    "Risk flags"
+  ],
+  official_update: [
+    "Official notice type",
+    "Official status",
+    "Severity",
+    "Audience",
+    "Effective date",
+    "Version / tag",
+    "Affected systems",
+    "Related room",
+    "Related repository",
+    "Related migration",
+    "Related links",
+    "Known limitations",
+    "Migration required",
+    "User action required",
+    "Priority",
+    "Correction note"
+  ]
+};
+
+function legacyCommunityNetworkDetails(parsed: ReturnType<typeof splitPostSections>): RoomNativeField[] {
+  return [
+    ["Introduction type", explicitFormSectionValue(parsed, "Introduction type")],
+    ["Role interest", explicitFormSectionValue(parsed, "Role interest")],
+    ["Project circle/topic", explicitFormSectionValue(parsed, "Project circle or topic", "Project circle/topic")],
+    ["Collaboration interest", explicitFormSectionValue(parsed, "Collaboration interest")],
+    ["Availability / involvement level", explicitFormSectionValue(parsed, "Availability / involvement level")],
+    ["Public contact preference", explicitFormSectionValue(parsed, "Public contact preference")],
+    ["Boundary note", explicitFormSectionValue(parsed, "Boundary note")]
+  ].map(([heading, body]) => ({ heading, body })).filter((field) => field.body);
+}
+
+function bodyMarkdownForPost(post: CommunePost) {
+  if (isRepositoryShowcaseGuidancePost(post)) return post.body.trim();
+  return stripExplicitFormSections(post.body, roomNativeFormHeadingsByPostType[post.post_type] ?? []);
+}
+
+function renderCommuneInlineMarkdown(text: string, keyPrefix: string): ReactNode {
+  const nodes: ReactNode[] = [];
+  const linkPattern = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
+  let lastIndex = 0;
+  for (const match of text.matchAll(linkPattern)) {
+    if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
+    nodes.push(<a href={match[2]} target="_blank" rel="noreferrer" key={`${keyPrefix}-${match.index}`}>{match[1]}</a>);
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
+  return nodes.length ? nodes : text;
+}
+
+type CommuneMarkdownBlock =
+  | { type: "heading"; level: 2 | 3 | 4; text: string }
+  | { type: "paragraph"; text: string }
+  | { type: "unordered"; items: string[] }
+  | { type: "ordered"; items: string[] }
+  | { type: "quote"; text: string }
+  | { type: "code"; text: string; language: string };
+
+function parseCommuneMarkdownBlocks(body: string): CommuneMarkdownBlock[] {
+  const blocks: CommuneMarkdownBlock[] = [];
+  const paragraph: string[] = [];
+  let list: { type: "unordered" | "ordered"; items: string[] } | null = null;
+  let quote: string[] = [];
+  let code: { language: string; lines: string[] } | null = null;
+
+  function flushParagraph() {
+    if (paragraph.length) {
+      blocks.push({ type: "paragraph", text: paragraph.join(" ").trim() });
+      paragraph.length = 0;
+    }
+  }
+  function flushList() {
+    if (list?.items.length) blocks.push({ type: list.type, items: list.items });
+    list = null;
+  }
+  function flushQuote() {
+    if (quote.length) blocks.push({ type: "quote", text: quote.join("\n").trim() });
+    quote = [];
+  }
+  function flushLooseBlocks() {
+    flushParagraph();
+    flushList();
+    flushQuote();
+  }
+
+  for (const rawLine of body.replace(/\r\n/g, "\n").split("\n")) {
+    const line = rawLine.trimEnd();
+    const fence = line.match(/^```\s*([A-Za-z0-9_-]*)\s*$/);
+    if (code) {
+      if (fence) {
+        blocks.push({ type: "code", text: code.lines.join("\n"), language: code.language });
+        code = null;
+      } else {
+        code.lines.push(rawLine);
+      }
+      continue;
+    }
+    if (fence) {
+      flushLooseBlocks();
+      code = { language: fence[1] || "text", lines: [] };
+      continue;
+    }
+    if (!line.trim()) {
+      flushLooseBlocks();
+      continue;
+    }
+    const heading = line.match(/^(#{1,4})\s+(.+?)\s*$/);
+    if (heading) {
+      flushLooseBlocks();
+      const level = heading[1].length <= 2 ? 2 : heading[1].length === 3 ? 3 : 4;
+      blocks.push({ type: "heading", level, text: heading[2].trim() });
+      continue;
+    }
+    const unordered = line.match(/^[-*]\s+(.+)$/);
+    if (unordered) {
+      flushParagraph();
+      flushQuote();
+      if (!list || list.type !== "unordered") flushList();
+      list = list ?? { type: "unordered", items: [] };
+      list.items.push(unordered[1].trim());
+      continue;
+    }
+    const ordered = line.match(/^\d+[.)]\s+(.+)$/);
+    if (ordered) {
+      flushParagraph();
+      flushQuote();
+      if (!list || list.type !== "ordered") flushList();
+      list = list ?? { type: "ordered", items: [] };
+      list.items.push(ordered[1].trim());
+      continue;
+    }
+    const blockquote = line.match(/^>\s?(.*)$/);
+    if (blockquote) {
+      flushParagraph();
+      flushList();
+      quote.push(blockquote[1]);
+      continue;
+    }
+    flushList();
+    flushQuote();
+    paragraph.push(line.trim());
+  }
+
+  if (code) blocks.push({ type: "code", text: code.lines.join("\n"), language: code.language });
+  flushLooseBlocks();
+  return blocks.filter((block) => block.type === "code" || (block.type === "heading" ? block.text : true));
+}
+
+function CommunePostBody({ body }: { body: string }) {
+  const blocks = parseCommuneMarkdownBlocks(body.trim());
+  if (!blocks.length) return null;
+  return <div className="commune-post-body commune-post-prose">
+    {blocks.map((block, index) => {
+      if (block.type === "heading") {
+        if (block.level === 2) return <h2 key={index}>{block.text}</h2>;
+        if (block.level === 3) return <h3 key={index}>{block.text}</h3>;
+        return <h4 key={index}>{block.text}</h4>;
+      }
+      if (block.type === "unordered") return <ul key={index}>{block.items.map((item, itemIndex) => <li key={itemIndex}>{renderCommuneInlineMarkdown(item, `${index}-${itemIndex}`)}</li>)}</ul>;
+      if (block.type === "ordered") return <ol key={index}>{block.items.map((item, itemIndex) => <li key={itemIndex}>{renderCommuneInlineMarkdown(item, `${index}-${itemIndex}`)}</li>)}</ol>;
+      if (block.type === "quote") return <blockquote key={index}>{renderCommuneInlineMarkdown(block.text, `${index}-quote`)}</blockquote>;
+      if (block.type === "code") return <pre key={index} className="commune-post-code-block"><code>{block.text}</code></pre>;
+      return <p key={index}>{renderCommuneInlineMarkdown(block.text, `${index}-paragraph`)}</p>;
+    })}
+  </div>;
+}
+
+function RoomNativeDetails({ label, fields, className = "" }: { label: string; fields: RoomNativeField[]; className?: string }) {
+  const visibleFields = fields.filter((field) => metadataText(field.body));
+  if (!visibleFields.length) return null;
+  return <div className={["commune-room-native-details", className].filter(Boolean).join(" ")}>
+    <p className="eyebrow">{label}</p>
+    <div className="commune-room-native-grid">
+      {visibleFields.map((field) => <article className="commune-room-native-field" key={field.heading}>
+        <h3>{field.heading}</h3>
+        {field.tone === "pre" ? <pre className="commune-repo-text-block">{field.body}</pre> : <p>{field.body}</p>}
+      </article>)}
+    </div>
+  </div>;
 }
 
 const repositoryShowcaseGuidanceBoundaryCopy = "This is admin-authored Repository Showcase guidance. It is not a repository approval, compatibility review, Marketplace listing, install recommendation, or trust signal.";
@@ -1062,7 +1370,7 @@ function asStringList(value: unknown) {
 }
 
 function repoSectionValue(parsed: ReturnType<typeof splitPostSections>, heading: string) {
-  return parsed.sections.find((section) => section.heading.toLowerCase() === heading.toLowerCase())?.body ?? "";
+  return explicitFormSectionValue(parsed, heading);
 }
 
 function truncateRepositoryText(value: string, limit = 12000) {
@@ -3295,23 +3603,26 @@ function TroubleshootingResolutionControls({ post, troubleshooting, comments, us
 }
 
 function TroubleshootingDetail({ post, troubleshooting, parsedBody, comments, userId, isModerator, onMessage, onChanged }: { post: CommunePost; troubleshooting?: TroubleshootingMetadata | null; parsedBody: ReturnType<typeof splitPostSections>; comments: CommuneComment[]; userId?: string | null; isModerator: boolean; onMessage: (message: string) => void; onChanged: () => Promise<void> }) {
-  const section = (heading: string) => repoSectionValue(parsedBody, heading);
-  const value = (metadataValue?: string | null, fallbackHeading?: string) => String(metadataValue ?? "").trim() || (fallbackHeading ? section(fallbackHeading) : "");
+  const section = (...headings: string[]) => explicitFormSectionValue(parsedBody, ...headings);
+  const environment = section("Environment");
+  const value = (metadataValue?: string | null, ...fallbackHeadings: string[]) => metadataText(metadataValue) || (fallbackHeadings.length ? section(...fallbackHeadings) : "");
   const issueType = value(troubleshooting?.issue_type, "Issue type") || "other";
   const status = value(troubleshooting?.troubleshooting_status, "Issue status") || "open";
-  const fields = [
+  const fields: RoomNativeField[] = [
+    ["Issue type", issueType.replace(/_/g, " ")],
+    ["Status", status.replace(/_/g, " ")],
     ["Affected area", value(troubleshooting?.affected_area, "Affected area")],
-    ["Operating system", value(troubleshooting?.environment_os, "OS")],
-    ["Browser / app", value(troubleshooting?.environment_browser, "Browser/app")],
-    ["Elysia version", value(troubleshooting?.app_version, "Elysia version optional") || section("Elysia version")],
+    ["Operating system", value(troubleshooting?.environment_os) || formLineValue(environment, "OS")],
+    ["Browser / app", value(troubleshooting?.environment_browser) || formLineValue(environment, "Browser/app")],
+    ["Elysia version", value(troubleshooting?.app_version) || formLineValue(environment, "Elysia version")],
     ["Environment notes", value(troubleshooting?.environment_notes, "Environment notes")],
-    ["Steps to reproduce / tried", value(troubleshooting?.steps_to_reproduce, "Steps to reproduce / tried")],
+    ["Steps to reproduce / tried", value(troubleshooting?.steps_to_reproduce, "Steps to reproduce / tried", "Steps tried / reproduce")],
     ["Expected result", value(troubleshooting?.expected_result, "Expected behavior")],
     ["Actual result", value(troubleshooting?.actual_result, "Actual behavior")],
     ["Error message", value(troubleshooting?.error_message, "Error message")],
     ["Redacted logs", value(troubleshooting?.redacted_logs, "Redacted logs")],
     ["Known workaround", value(troubleshooting?.workaround, "Known workaround")]
-  ].filter(([, body]) => body);
+  ].map(([heading, body]) => ({ heading, body })).filter((field) => field.body);
   return <div className="commune-troubleshooting-detail">
     <p className="eyebrow">Troubleshooting Grove detail</p>
     <div className="commune-info-grid">
@@ -3326,8 +3637,7 @@ function TroubleshootingDetail({ post, troubleshooting, parsedBody, comments, us
       </article>
       <WarningCallout title="Troubleshooting safety boundary"><p>Troubleshooting Grove is public diagnostic support. Logs, snippets, links, and screenshots must be redacted before sharing. Sandbox diagnostics are evidence only; they do not prove safety, trust, compatibility, or Marketplace readiness.</p></WarningCallout>
     </div>
-    {parsedBody.intro && <p className="commune-post-body">{parsedBody.intro}</p>}
-    {fields.length > 0 && <div className="commune-room-native-details"><p className="eyebrow">Structured issue report</p><div className="commune-room-native-grid">{fields.map(([heading, body]) => <article className="commune-room-native-field" key={heading}><h3>{heading}</h3><p>{body}</p></article>)}</div></div>}
+    <RoomNativeDetails label="Structured issue report" fields={fields} />
     {troubleshooting?.accepted_summary && <article className="commune-room-native-field commune-troubleshooting-resolution"><h3>Accepted fix / workaround</h3><p>{troubleshooting.accepted_summary}</p><p className="boundary-note">{troubleshooting.accepted_resolution_kind?.replace(/_/g, " ") ?? "resolution"} · recorded {troubleshooting.accepted_at ? new Date(troubleshooting.accepted_at).toLocaleString() : "time unavailable"}</p></article>}
     <TroubleshootingResolutionControls post={post} troubleshooting={troubleshooting} comments={comments} userId={userId} isModerator={isModerator} onMessage={onMessage} onChanged={onChanged} />
   </div>;
@@ -3368,11 +3678,11 @@ function JobPostReviewControls({ jobPost, postId, isModerator, onMessage, onChan
 }
 
 function JobPostDetail({ post, jobPost, parsedBody, isModerator, onMessage, onChanged }: { post: CommunePost; jobPost?: JobPostMetadata | null; parsedBody: ReturnType<typeof splitPostSections>; isModerator: boolean; onMessage: (message: string) => void; onChanged: () => Promise<void> }) {
-  const section = (heading: string) => repoSectionValue(parsedBody, heading);
-  const value = (metadataValue?: string | null, fallbackHeading?: string) => String(metadataValue ?? "").trim() || (fallbackHeading ? section(fallbackHeading) : "");
+  const section = (...headings: string[]) => explicitFormSectionValue(parsedBody, ...headings);
+  const value = (metadataValue?: string | null, ...fallbackHeadings: string[]) => metadataText(metadataValue) || (fallbackHeadings.length ? section(...fallbackHeadings) : "");
   const adminApplicationClarification = String(jobPost?.private_application_note ?? "").trim();
-  const fields = [
-    ["Role summary", value(jobPost?.role_summary, "Role summary") || parsedBody.intro],
+  const fields: RoomNativeField[] = [
+    ["Role summary", value(jobPost?.role_summary, "Role summary")],
     ["Compensation clarity", value(jobPost?.compensation_clarity, "Compensation clarity")],
     ["Location details", value(jobPost?.location_text, "Location details")],
     ["Time commitment", value(jobPost?.time_commitment, "Time commitment")],
@@ -3381,7 +3691,7 @@ function JobPostDetail({ post, jobPost, parsedBody, isModerator, onMessage, onCh
     ["Requirements / skills", value(jobPost?.requirements_skills, "Requirements / skills")],
     ["Safety notes", value(jobPost?.safety_notes, "Job safety notes")],
     ["Public correction / clarification", value(jobPost?.public_correction_note, "Public correction note")]
-  ].filter(([, body]) => body);
+  ].map(([heading, body]) => ({ heading, body })).filter((field) => field.body);
   return <div className="commune-job-detail">
     <p className="eyebrow">Job Post detail</p>
     <div className="commune-info-grid">
@@ -3398,7 +3708,7 @@ function JobPostDetail({ post, jobPost, parsedBody, isModerator, onMessage, onCh
       </article>
       <WarningCallout title="Public opportunity boundary"><p>Job Posts are public, admin-approved opportunity listings and public questions. They are not private applications, resume/CV intake, payroll, contracts, identity verification, or Work With private request storage.</p></WarningCallout>
     </div>
-    {fields.length > 0 && <div className="commune-room-native-details commune-job-native-details"><p className="eyebrow">Structured job listing</p><div className="commune-room-native-grid">{fields.map(([heading, body]) => <article className="commune-room-native-field" key={heading}><h3>{heading}</h3><p>{body}</p></article>)}</div></div>}
+    <RoomNativeDetails label="Structured job listing" fields={fields} className="commune-job-native-details" />
     <WarningCallout title="Anti-scam and privacy safety"><p>Do not share SSNs, bank details, identity documents, resumes/CVs, private addresses, private phone numbers, tax forms, contracts, private application packets, Work With uploads, or sensitive personal data in public Job Post comments. Use a safe public contact path or the private Work With intake when appropriate.</p></WarningCallout>
     <section className="commune-room-native-field commune-job-work-with"><h3>Private application path</h3><p>{jobPrivateApplicationSystemNotice}</p>{adminApplicationClarification && <p className="boundary-note">Admin clarification: {adminApplicationClarification}</p>}<div className="button-row"><Link className="button-link" to="/work-with-elysia-ecobotics">Open Work With Elysia Ecobotics</Link></div></section>
     <JobPostReviewControls jobPost={jobPost} postId={post.id} isModerator={isModerator} onMessage={onMessage} onChanged={onChanged} />
@@ -3440,23 +3750,23 @@ function safePublicHref(value?: string | null) {
 }
 
 function ResearchNotesDetail({ post, researchNote, parsedBody, isModerator, onMessage, onChanged }: { post: CommunePost; researchNote?: ResearchNotesMetadata | null; parsedBody: ReturnType<typeof splitPostSections>; isModerator: boolean; onMessage: (message: string) => void; onChanged: () => Promise<void> }) {
-  const section = (heading: string) => repoSectionValue(parsedBody, heading);
-  const value = (metadataValue?: string | null, fallbackHeading?: string) => String(metadataValue ?? "").trim() || (fallbackHeading ? section(fallbackHeading) : "");
+  const section = (...headings: string[]) => explicitFormSectionValue(parsedBody, ...headings);
+  const value = (metadataValue?: string | null, ...fallbackHeadings: string[]) => metadataText(metadataValue) || (fallbackHeadings.length ? section(...fallbackHeadings) : "");
   const sourceLinks = researchNote?.source_links?.length ? researchNote.source_links : section("Source links").split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
   const livingLibraryHref = safePublicHref(value(researchNote?.living_library_source_link, "Living Library source link"));
-  const fields = [
+  const fields: RoomNativeField[] = [
     ["Evidence summary", value(researchNote?.evidence_summary, "Evidence summary")],
     ["Observation", value(researchNote?.observation, "Observation")],
     ["Interpretation", value(researchNote?.interpretation, "Interpretation")],
     ["Uncertainty", value(researchNote?.uncertainty, "Uncertainty")],
     ["Citation notes", value(researchNote?.citation_notes, "Citation notes")],
-    ["Context / discussion", value(researchNote?.context_discussion) || parsedBody.intro],
+    ["Context / discussion", value(researchNote?.context_discussion)],
     ["Geographic scope", value(researchNote?.geographic_scope, "Geographic scope")],
     ["Method type", value(researchNote?.method_type, "Method type")],
     ["Data type", value(researchNote?.data_type, "Data type")],
     ["Ethics / sensitivity note", value(researchNote?.ethics_note, "Ethics / sensitivity note")],
     ["Correction / clarification note", value(researchNote?.correction_note)]
-  ].filter(([, body]) => body);
+  ].map(([heading, body]) => ({ heading, body })).filter((field) => field.body);
   return <div className="commune-research-detail">
     <p className="eyebrow">Research Notes detail</p>
     <div className="commune-info-grid">
@@ -3472,7 +3782,7 @@ function ResearchNotesDetail({ post, researchNote, parsedBody, isModerator, onMe
       </article>
       <WarningCallout title="Research Notes boundary"><p>Research Notes separate evidence, observation, interpretation, and uncertainty. They are public research discussion, not Official Updates, Living Library source records, certification, or private research storage.</p></WarningCallout>
     </div>
-    {fields.length > 0 && <div className="commune-room-native-details commune-research-native-details"><p className="eyebrow">Evidence-aware fields</p><div className="commune-room-native-grid">{fields.map(([heading, body]) => <article className="commune-room-native-field" key={heading}><h3>{heading}</h3><p>{body}</p></article>)}</div></div>}
+    <RoomNativeDetails label="Evidence-aware fields" fields={fields} className="commune-research-native-details" />
     {sourceLinks.length > 0 && <article className="commune-room-native-field commune-research-sources"><h3>Source links</h3><div className="button-row">{sourceLinks.map((link) => {
       const href = safePublicHref(link);
       return href ? <a className="button-link" href={href} target="_blank" rel="noreferrer" key={href}>{href}</a> : <span className="boundary-note" key={link}>{link}</span>;
@@ -3483,18 +3793,10 @@ function ResearchNotesDetail({ post, researchNote, parsedBody, isModerator, onMe
 }
 
 function RepositoryShowcaseDetail({ post, showcase, parsedBody }: { post: CommunePost; showcase?: RepositoryShowcaseMetadata | null; parsedBody: ReturnType<typeof splitPostSections> }) {
-  const section = (heading: string) => repoSectionValue(parsedBody, heading);
-  const value = (metadataValue?: string | null, fallbackHeading?: string) => String(metadataValue ?? "").trim() || (fallbackHeading ? section(fallbackHeading) : "");
+  const section = (...headings: string[]) => explicitFormSectionValue(parsedBody, ...headings);
+  const value = (metadataValue?: string | null, ...fallbackHeadings: string[]) => metadataText(metadataValue) || (fallbackHeadings.length ? section(...fallbackHeadings) : "");
   const adminGuidancePost = isRepositoryShowcaseGuidancePost(post) && !showcase;
   if (adminGuidancePost) {
-    const guidanceFields = [
-      ["Guidance", parsedBody.intro],
-      ["Admin guidance boundary", section("Admin guidance boundary") || repositoryShowcaseGuidanceBoundaryCopy],
-      ["Marketplace and sandbox boundary", section("Marketplace and sandbox boundary")],
-      ["Template notes", section("Template notes")],
-      ["Safe sharing checklist", section("Safe sharing checklist")],
-      ["Redaction notes", section("Redaction notes")]
-    ].filter(([, body]) => body);
     return <div className="commune-repository-detail commune-repository-guidance-detail">
       <p className="eyebrow">Repository Showcase guidance</p>
       <section className="commune-official-identity">
@@ -3503,7 +3805,6 @@ function RepositoryShowcaseDetail({ post, showcase, parsedBody }: { post: Commun
         <StatusBadges labels={["Repository Showcase guidance", "Admin guidance post", "Policy/template", "Not a trust signal"]} />
       </section>
       <WarningCallout title="Repository Showcase guidance boundary"><p>This post explains how to share repositories safely. It is not a repository approval, compatibility review, Marketplace listing, install recommendation, trust signal, signing/versioning decision, selected-artifact sandbox approval, or Developer Forge review.</p></WarningCallout>
-      {guidanceFields.length > 0 && <div className="commune-room-native-details"><p className="eyebrow">Guidance fields</p><div className="commune-room-native-grid">{guidanceFields.map(([heading, body]) => <article className="commune-room-native-field" key={heading}><h3>{heading}</h3><p>{body}</p></article>)}</div></div>}
       <p className="boundary-note">No repository metadata sidecar is attached to this guidance post. Repository listings still require a public HTTP(S) repository URL and separate review.</p>
     </div>;
   }
@@ -3529,7 +3830,7 @@ function RepositoryShowcaseDetail({ post, showcase, parsedBody }: { post: Commun
       </article>
       <WarningCallout title="Repository trust boundary"><p>This showcase is metadata and discussion only. The website did not clone, install, build, run, auto-train on, validate, license-check, or approve this repository. Developer Forge and Marketplace review remain separate.</p></WarningCallout>
     </div>
-    {(value(showcase?.short_description) || parsedBody.intro) && <article className="commune-room-native-field"><h3>Description</h3><p>{value(showcase?.short_description) || parsedBody.intro}</p></article>}
+    {value(showcase?.short_description) && <article className="commune-room-native-field"><h3>Description</h3><p>{value(showcase?.short_description)}</p></article>}
     {value(showcase?.readme_preview, "README preview") && <article className="commune-room-native-field"><h3>README preview</h3><pre className="commune-repo-text-block">{truncateRepositoryText(value(showcase?.readme_preview, "README preview"))}</pre></article>}
     {value(showcase?.file_tree_preview, "File tree summary") && <article className="commune-room-native-field"><h3>File tree preview</h3><pre className="commune-repo-text-block">{truncateRepositoryText(value(showcase?.file_tree_preview, "File tree summary"), 9000)}</pre></article>}
     {value(showcase?.screenshot_notes_or_urls, "Screenshots / notes") && <article className="commune-room-native-field"><h3>Screenshot notes / URLs</h3><p>{value(showcase?.screenshot_notes_or_urls, "Screenshots / notes")}</p></article>}
@@ -3546,8 +3847,8 @@ function RepositoryShowcaseDetail({ post, showcase, parsedBody }: { post: Commun
 }
 
 function ElysiaIterationShowcaseDetail({ post, iteration, parsedBody }: { post: CommunePost; iteration?: ElysiaIterationShowcaseMetadata | null; parsedBody: ReturnType<typeof splitPostSections> }) {
-  const section = (heading: string) => repoSectionValue(parsedBody, heading);
-  const value = (metadataValue?: string | null, fallbackHeading?: string) => String(metadataValue ?? "").trim() || (fallbackHeading ? section(fallbackHeading) : "");
+  const section = (...headings: string[]) => explicitFormSectionValue(parsedBody, ...headings);
+  const value = (metadataValue?: string | null, ...fallbackHeadings: string[]) => metadataText(metadataValue) || (fallbackHeadings.length ? section(...fallbackHeadings) : "");
   const importedString = (key: string) => {
     const raw = iteration?.imported_metadata?.[key];
     return typeof raw === "string" ? raw.trim() : "";
@@ -3581,7 +3882,7 @@ function ElysiaIterationShowcaseDetail({ post, iteration, parsedBody }: { post: 
       </article>
       <WarningCallout title="Progress showcase boundary"><p>Elysia Iteration Showcase is public progress, demo, screenshot, UI, add-on preview, and design-development context. It is not an Official Update, security advisory, release certification, compatibility proof, Developer Forge approval, Marketplace readiness, installability claim, or trust label.</p></WarningCallout>
     </div>
-    {(value(iteration?.what_changed, "What changed") || parsedBody.intro) && <article className="commune-room-native-field"><h3>What changed</h3><p>{value(iteration?.what_changed, "What changed") || parsedBody.intro}</p></article>}
+    {value(iteration?.what_changed, "What changed") && <article className="commune-room-native-field"><h3>What changed</h3><p>{value(iteration?.what_changed, "What changed")}</p></article>}
     {value(iteration?.why_it_matters, "Why it matters") && <article className="commune-room-native-field"><h3>Why it matters</h3><p>{value(iteration?.why_it_matters, "Why it matters")}</p></article>}
     {value(iteration?.known_limitations, "Known limitations") && <article className="commune-room-native-field"><h3>Known limitations</h3><p>{value(iteration?.known_limitations, "Known limitations")}</p></article>}
     {value(iteration?.next_step, "Next step") && <article className="commune-room-native-field"><h3>Next step</h3><p>{value(iteration?.next_step, "Next step")}</p></article>}
@@ -3685,13 +3986,27 @@ function OfficialUpdateAdminPanel({ officialUpdate, postId, onMessage, onChanged
 }
 
 function OfficialUpdateDetail({ post, officialUpdate, parsedBody }: { post: CommunePost; officialUpdate?: OfficialUpdateMetadata | null; parsedBody: ReturnType<typeof splitPostSections> }) {
-  const summary = officialUpdate?.summary || post.excerpt || parsedBody.intro;
+  const summary = metadataText(officialUpdate?.summary);
   const labels = officialUpdate ? ["Official", officialTypeLabel(officialUpdate.update_type), officialUpdate.official_status, officialUpdate.severity, officialUpdate.pinned ? "Pinned" : "", officialUpdate.important ? "Important" : "", officialUpdate.migration_required ? "Migration required" : ""].filter(Boolean) : ["Official", "legacy official update"];
+  const legacyFields = roomNativeFormHeadingsByPostType.official_update?.map((heading) => ({ heading, body: explicitFormSectionValue(parsedBody, heading) })) ?? [];
+  const officialFields: RoomNativeField[] = officialUpdate ? [
+    { heading: "Notice type", body: officialTypeLabel(officialUpdate.update_type) },
+    { heading: "Status", body: officialUpdate.official_status.replace(/_/g, " ") },
+    { heading: "Severity", body: officialUpdate.severity },
+    { heading: "Audience", body: officialUpdate.audience || "public" },
+    { heading: "Effective date", body: officialUpdate.effective_date || "Not specified" },
+    { heading: "Version / release tag", body: officialUpdate.release_version || "Not specified" },
+    { heading: "Affected systems / rooms", body: officialUpdate.affected_systems?.length ? officialUpdate.affected_systems.join(", ") : "Not specified" },
+    { heading: "Related room / migration", body: [officialUpdate.related_room_slug, officialUpdate.related_migration].filter(Boolean).join(" · ") || "Not specified" },
+    { heading: "Known limitations", body: officialUpdate.known_limitations || "" },
+    { heading: "User action required", body: officialUpdate.user_action_required || "" },
+    { heading: "Correction / revision note", body: officialUpdate.correction_note || "" }
+  ] : legacyFields;
   return <div className="commune-official-detail">
     <section className="commune-official-identity"><p className="eyebrow">Official notice</p><h3>{officialUpdate?.brand_author_name || "Elysia Ecobotics Official"}</h3><p>Brand-authoritative public record from Elysia Ecobotics / EcoSyneva Commons. Community users cannot submit, self-assign, impersonate, or edit Official Updates.</p><StatusBadges labels={labels} /></section>
     {summary && <article className="commune-room-native-field"><h3>Summary</h3><p>{summary}</p></article>}
-    {post.body && <article className="commune-room-native-field"><h3>Main announcement</h3><p>{post.body}</p></article>}
-    {officialUpdate ? <div className="commune-room-native-details commune-official-metadata"><p className="eyebrow">Structured official metadata</p><div className="commune-room-native-grid"><article className="commune-room-native-field"><h3>Category</h3><p>{officialTypeLabel(officialUpdate.update_type)}</p></article><article className="commune-room-native-field"><h3>Status / severity</h3><p>{officialUpdate.official_status.replace(/_/g, " ")} · {officialUpdate.severity}</p></article><article className="commune-room-native-field"><h3>Effective date</h3><p>{officialUpdate.effective_date || "Not specified"}</p></article><article className="commune-room-native-field"><h3>Version / tag</h3><p>{officialUpdate.release_version || "Not specified"}</p></article><article className="commune-room-native-field"><h3>Affected systems</h3><p>{officialUpdate.affected_systems?.length ? officialUpdate.affected_systems.join(", ") : "Not specified"}</p></article><article className="commune-room-native-field"><h3>Related room / migration</h3><p>{[officialUpdate.related_room_slug, officialUpdate.related_migration].filter(Boolean).join(" · ") || "Not specified"}</p></article>{officialUpdate.known_limitations && <article className="commune-room-native-field"><h3>Known limitations</h3><p>{officialUpdate.known_limitations}</p></article>}{officialUpdate.user_action_required && <article className="commune-room-native-field"><h3>User action required</h3><p>{officialUpdate.user_action_required}</p></article>}{officialUpdate.correction_note && <article className="commune-room-native-field"><h3>Correction / revision note</h3><p>{officialUpdate.correction_note}</p></article>}</div>{officialLinkButtons(officialUpdate).length > 0 && <div className="button-row">{officialLinkButtons(officialUpdate)}</div>}</div> : parsedBody.sections.length > 0 && <div className="commune-room-native-details"><p className="eyebrow">Legacy official update fields</p><div className="commune-room-native-grid">{parsedBody.sections.map((section) => <article className="commune-room-native-field" key={section.heading}><h3>{section.heading}</h3><p>{section.body}</p></article>)}</div></div>}
+    <RoomNativeDetails label={officialUpdate ? "Structured official metadata" : "Legacy official update fields"} fields={officialFields} className={officialUpdate ? "commune-official-metadata" : ""} />
+    {officialUpdate && officialLinkButtons(officialUpdate).length > 0 && <div className="button-row">{officialLinkButtons(officialUpdate)}</div>}
     <WarningCallout title="Official Update boundary"><p>Official Update is separate from Elysia Iteration Showcase, Repository Showcase, Coding Cornucopia, Developer Forge, and Marketplace approval. Roadmap notes are intentions, not promises. Official code examples are read-only public text, not execution permission.</p></WarningCallout>
   </div>;
 }
@@ -3812,11 +4127,34 @@ function PostDetail({ postId }: { postId: string }) {
   const isResearchNotes = post.post_type === "research_note";
   const isJobPost = post.post_type === "job_post";
   const commentsLocked = (isOfficialUpdate && officialUpdate?.comments_enabled === false) || (isCommunityVote && communityVote?.vote.allow_comments === false);
+  const bodyMarkdown = bodyMarkdownForPost(post);
+  const genericRoomNativeDetails = post.post_type === "community_network" ? legacyCommunityNetworkDetails(parsedBody) : [];
   return <>
-    <section className={isOfficialUpdate ? "section-card commune-post-detail commune-official-post-detail" : isCommunityVote ? "section-card commune-post-detail commune-vote-post-detail" : "section-card commune-post-detail"}><p className="eyebrow">{post.post_type === "research_note" ? "Research Notes" : post.post_type === "community_vote" ? "Community Voting Room" : post.post_type.replace(/_/g, " ")}</p><h2>{post.title}</h2><p>{isOfficialUpdate ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>}</p><StatusBadges labels={[post.status, post.visibility]} />{!isRepositoryShowcase && !isIterationShowcase && !isOfficialUpdate && !isCommunityVote && !isTroubleshooting && !isResearchNotes && !isJobPost && parsedBody.intro && <p className="commune-post-body">{parsedBody.intro}</p>}{!isRepositoryShowcase && !isIterationShowcase && !isOfficialUpdate && !isCommunityVote && !isTroubleshooting && !isResearchNotes && !isJobPost && parsedBody.sections.length > 0 && <div className="commune-room-native-details"><p className="eyebrow">Room-native details</p><div className="commune-room-native-grid">{parsedBody.sections.map((section) => <article className="commune-room-native-field" key={section.heading}><h3>{section.heading}</h3><p>{section.body}</p></article>)}</div></div>}{isRepositoryShowcase && <RepositoryShowcaseDetail post={post} showcase={repositoryShowcase} parsedBody={parsedBody} />}{isIterationShowcase && <ElysiaIterationShowcaseDetail post={post} iteration={iterationShowcase} parsedBody={parsedBody} />}{isOfficialUpdate && <OfficialUpdateDetail post={post} officialUpdate={officialUpdate} parsedBody={parsedBody} />}{isCommunityVote && <CommunityVoteDetail communityVote={communityVote} signedIn={state.signedIn} isAdmin={state.isAdmin} onMessage={setMessage} onChanged={refresh} />}{isTroubleshooting && <TroubleshootingDetail post={post} troubleshooting={troubleshooting} parsedBody={parsedBody} comments={state.comments} userId={state.userId} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}{isResearchNotes && <ResearchNotesDetail post={post} researchNote={researchNote} parsedBody={parsedBody} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}{isJobPost && <JobPostDetail post={post} jobPost={jobPost} parsedBody={parsedBody} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}<TagChips tags={post.tags} />{attachments.length > 0 && <div className="commune-media-section"><p className="eyebrow">Attached media</p><p className="commune-media-attribution">Attached to this post by {isOfficialUpdate ? "Elysia Ecobotics Official" : authorLink(post.author_username)}.</p><p className="boundary-note">Published attachments are read-only and remain governed by Commune moderation and safety policies.</p><div className="commune-media-grid">{attachments.map((item) => <article className="commune-media-card" key={item.id}>{item.media_kind === "image" && item.signed_url ? <button className="commune-media-image-button" type="button" onClick={() => setActiveMedia(item)}><img src={item.signed_url} alt={`Attached media: ${item.file_name}`} loading="lazy" /></button> : <div className="commune-media-unavailable"><strong>{item.file_name}</strong><p>{item.signed_url ? "This attachment can be opened from its signed public review URL." : "Attachment unavailable or still under review."}</p></div>}<div className="commune-media-meta"><strong>{item.file_name}</strong><span>{item.mime_type ?? item.media_kind}{item.file_size ? ` · ${item.file_size} bytes` : ""}</span></div></article>)}</div></div>}{isOfficialUpdate ? <OfficialCodeSnippets officialUpdate={officialUpdate} officialCodeSnippets={officialCodeSnippets} fallbackSnippets={snippets} isAdmin={state.isAdmin} onMessage={setMessage} onChanged={refresh} /> : !isCommunityVote && <AttachedCodeSnippets snippets={snippets} authorUsername={post.author_username} postType={post.post_type} signedIn={state.signedIn} onMessage={setMessage} />}{isOfficialUpdate && state.isAdmin && <OfficialUpdateAdminPanel officialUpdate={officialUpdate} postId={post.id} onMessage={setMessage} onChanged={refresh} />}<ReactionBar targetType="post" targetId={post.id} signedIn={state.signedIn} onMessage={setMessage} /><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div><AdminContentControls targetType="post" targetId={post.id} isModerator={state.isModerator} onChanged={refresh} onDeleted={setLocallyDeletedPostId} onMessage={setMessage} /></section>
+    <section className={isOfficialUpdate ? "section-card commune-post-detail commune-official-post-detail" : isCommunityVote ? "section-card commune-post-detail commune-vote-post-detail" : "section-card commune-post-detail"}>
+      <p className="eyebrow">{post.post_type === "research_note" ? "Research Notes" : post.post_type === "community_vote" ? "Community Voting Room" : post.post_type.replace(/_/g, " ")}</p>
+      <h2>{post.title}</h2>
+      <p>{isOfficialUpdate ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>}</p>
+      <StatusBadges labels={[post.status, post.visibility]} />
+      <RoomNativeDetails label="Room-native details" fields={genericRoomNativeDetails} />
+      {isRepositoryShowcase && <RepositoryShowcaseDetail post={post} showcase={repositoryShowcase} parsedBody={parsedBody} />}
+      {isIterationShowcase && <ElysiaIterationShowcaseDetail post={post} iteration={iterationShowcase} parsedBody={parsedBody} />}
+      {isOfficialUpdate && <OfficialUpdateDetail post={post} officialUpdate={officialUpdate} parsedBody={parsedBody} />}
+      {isCommunityVote && <CommunityVoteDetail communityVote={communityVote} signedIn={state.signedIn} isAdmin={state.isAdmin} onMessage={setMessage} onChanged={refresh} />}
+      {isTroubleshooting && <TroubleshootingDetail post={post} troubleshooting={troubleshooting} parsedBody={parsedBody} comments={state.comments} userId={state.userId} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}
+      {isResearchNotes && <ResearchNotesDetail post={post} researchNote={researchNote} parsedBody={parsedBody} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}
+      {isJobPost && <JobPostDetail post={post} jobPost={jobPost} parsedBody={parsedBody} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}
+      <CommunePostBody body={bodyMarkdown} />
+      {attachments.length > 0 && <div className="commune-media-section"><p className="eyebrow">Attached media</p><p className="commune-media-attribution">Attached to this post by {isOfficialUpdate ? "Elysia Ecobotics Official" : authorLink(post.author_username)}.</p><p className="boundary-note">Published attachments are read-only and remain governed by Commune moderation and safety policies.</p><div className="commune-media-grid">{attachments.map((item) => <article className="commune-media-card" key={item.id}>{item.media_kind === "image" && item.signed_url ? <button className="commune-media-image-button" type="button" onClick={() => setActiveMedia(item)}><img src={item.signed_url} alt={`Attached media: ${item.file_name}`} loading="lazy" /></button> : <div className="commune-media-unavailable"><strong>{item.file_name}</strong><p>{item.signed_url ? "This attachment can be opened from its signed public review URL." : "Attachment unavailable or still under review."}</p></div>}<div className="commune-media-meta"><strong>{item.file_name}</strong><span>{item.mime_type ?? item.media_kind}{item.file_size ? ` · ${item.file_size} bytes` : ""}</span></div></article>)}</div></div>}
+      {isOfficialUpdate ? <OfficialCodeSnippets officialUpdate={officialUpdate} officialCodeSnippets={officialCodeSnippets} fallbackSnippets={snippets} isAdmin={state.isAdmin} onMessage={setMessage} onChanged={refresh} /> : !isCommunityVote && <AttachedCodeSnippets snippets={snippets} authorUsername={post.author_username} postType={post.post_type} signedIn={state.signedIn} onMessage={setMessage} />}
+      <TagChips tags={post.tags} />
+      <ReactionBar targetType="post" targetId={post.id} signedIn={state.signedIn} onMessage={setMessage} />
+      <div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div>
+    </section>
     {activeMedia?.signed_url && <div className="commune-media-lightbox" role="dialog" aria-modal="true" aria-label={`Attachment preview: ${activeMedia.file_name}`} onClick={() => setActiveMedia(null)}><div className="commune-media-lightbox-panel" onClick={(event) => event.stopPropagation()}><button className="commune-media-lightbox-close" type="button" onClick={() => setActiveMedia(null)}>Close</button><img src={activeMedia.signed_url} alt={`Attached media: ${activeMedia.file_name}`} /></div></div>}
     <section className="section-card"><p className="eyebrow">Comments</p><h2>Comments and replies</h2><p className="boundary-note">{commentsLocked ? isCommunityVote ? "Comments are disabled for this Community Voting Room vote. Existing public comments remain visible unless moderated, but new public comments are disabled by an administrator." : "Comments are locked for this Official Update. Existing public comments remain visible unless moderated, but new public comments are disabled by an administrator." : state.isAdmin ? "Admin comments publish directly and remain auditable." : "First participation in a post/thread is reviewed. After approval in that thread, later comments and replies can publish directly while remaining reportable and removable."}</p>{!thread && <p className="boundary-note">This published post is missing its discussion thread. Submitting a comment will try to repair the thread with normal account permissions before saving.</p>}{topLevelComments.map((item) => renderComment(item))}{!topLevelComments.length && <p>Moderated comments will appear here once the backend tables are active and replies are approved.</p>}{commentsLocked ? <p className="message">{isCommunityVote ? "Comments are disabled for this Community Voting Room vote." : "Comments are locked for this official update."}</p> : <><label><span>Comment on this post</span><textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><div className="button-row"><button type="button" disabled={commentSubmitting} onClick={() => void submitThreadComment()}>{commentSubmitting ? "Submitting comment..." : "Submit comment"}</button></div></>}<p className="message">{commentStatus}</p></section>
     <section className="section-card"><p className="eyebrow">Report</p><h2>Report this post</h2><p>Reports are reviewed by moderators/administrators. Reporting does not automatically remove content unless urgent automated controls are later added. Ratings do not replace reports or moderation.</p><label><span>Report type</span><select value={report.type} onChange={(event) => setReport({ ...report, type: event.target.value })}>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span>Reason</span><textarea rows={3} value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value })} /></label><button type="button" onClick={() => void reportPost()}>Send report</button><p className="message">{message}</p></section>
+    {isOfficialUpdate && state.isAdmin && <OfficialUpdateAdminPanel officialUpdate={officialUpdate} postId={post.id} onMessage={setMessage} onChanged={refresh} />}
+    <AdminContentControls targetType="post" targetId={post.id} isModerator={state.isModerator} onChanged={refresh} onDeleted={setLocallyDeletedPostId} onMessage={setMessage} />
   </>;
 }
 

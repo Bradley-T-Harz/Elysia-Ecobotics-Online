@@ -114,6 +114,9 @@ assert(communeAccountApi.includes("adminGuidancePost?: boolean") && communeAccou
 assert(communeAccountApi.includes("Admin guidance posts cannot request selected-artifact sandbox review") && communePage.includes("Guidance posts cannot request selected-artifact sandbox review."), "Repository Showcase guidance posts must not introduce selected-artifact sandbox review behavior.");
 assert(communePage.includes("Admin room guidance / template post") && communePage.includes("Publish as Repository Showcase guidance, not a repository listing"), "Repository Showcase guidance mode should be visible and deliberate in the admin UI.");
 assert(communePage.includes("It is not a repository approval, compatibility review, Marketplace listing, install recommendation, or trust signal") && communePage.includes("signing/versioning decision") && communePage.includes("Developer Forge review"), "Repository Showcase guidance posts must not imply trust, approval, compatibility review, Marketplace eligibility, or Developer Forge authority.");
+assert(communePage.includes("Troubleshooting safety boundary") && communePage.includes("Official Update boundary") && communePage.includes("Repository trust boundary"), "Commune post detail layout must preserve room safety and trust-boundary callouts.");
+assert(communePage.includes("function AdminContentControls") && communePage.includes("if (!isModerator) return null"), "Commune admin moderation controls should remain role-gated.");
+assert(communePage.indexOf("Comments and replies") < communePage.indexOf("<AdminContentControls targetType=\"post\""), "Post admin moderation controls should remain below comments in the detail render order.");
 const communityVoteSecurity = [
   ["RLS enabled on vote posts", /alter table public\.commune_vote_posts enable row level security/i],
   ["RLS enabled on vote options", /alter table public\.commune_vote_options enable row level security/i],

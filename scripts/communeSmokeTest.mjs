@@ -241,9 +241,31 @@ for (const troubleshootingCodeWarning of [".env files", "private logs", "local E
 for (const troubleshootingStatus of ["Needs information", "In progress", "Workaround found", "Fix proposed", "Resolved", "Closed", "Archived"]) {
   assert(page.includes(troubleshootingStatus), `Troubleshooting Grove status option missing: ${troubleshootingStatus}`);
 }
-assert(page.includes("function splitPostSections"), "Post detail should parse room-native structured body sections.");
-assert(page.includes("commune-room-native-details"), "Post detail should render room-native sections instead of flattening all fields into the body.");
+assert(page.includes("function splitPostSections") && page.includes("function explicitFormSectionValue") && page.includes("roomNativeFormHeadingsByPostType"), "Post detail should keep legacy form-generated structured fields explicit instead of treating all Markdown headings as metadata.");
+assert(page.includes("function CommunePostBody") && page.includes("parseCommuneMarkdownBlocks") && page.includes("commune-post-prose"), "Post detail should render body Markdown through a distinct prose renderer.");
+assert(page.includes("function RoomNativeDetails") && page.includes("commune-room-native-details"), "Post detail should render room-native metadata through a distinct native details renderer.");
+assert(!page.includes("parsedBody.sections.map"), "Post detail must not map arbitrary body Markdown headings into room-native metadata cards.");
+for (const proseHeading of ["A simple introduction template", "The vibe", "What this room is for"]) {
+  assert(!page.includes(`["${proseHeading}", explicitFormSectionValue`), `Markdown prose heading should not be whitelisted as room-native metadata: ${proseHeading}`);
+}
+assert(page.includes("legacyCommunityNetworkDetails") && page.includes("Project circle/topic") && page.includes("Public contact preference") && page.includes("Boundary note"), "Community Network detail should include only explicit form-generated metadata fields.");
+assert(page.includes("Structured issue report") && page.includes("Operating system") && page.includes("Expected result") && page.includes("Known workaround"), "Troubleshooting Grove detail should keep explicit support metadata near the top.");
+assert(page.includes("Structured official metadata") && page.includes("Notice type") && page.includes("Audience") && page.includes("User action required"), "Official Update detail should keep explicit official metadata near the top.");
+const postDetailStart = page.indexOf("function PostDetail");
+const detailStatusIndex = page.indexOf("<StatusBadges labels={[post.status, post.visibility]}", postDetailStart);
+const detailNativeIndex = page.indexOf("<RoomNativeDetails label=\"Room-native details\"", postDetailStart);
+const detailBodyIndex = page.indexOf("<CommunePostBody body={bodyMarkdown}", postDetailStart);
+const detailMediaIndex = page.indexOf("commune-media-section", detailBodyIndex);
+const detailCodeIndex = page.indexOf("<AttachedCodeSnippets", detailBodyIndex);
+const detailTagsIndex = page.indexOf("<TagChips tags={post.tags}", detailBodyIndex);
+const detailReactionIndex = page.indexOf("<ReactionBar targetType=\"post\"", detailBodyIndex);
+const detailCommentsIndex = page.indexOf("Comments and replies", detailBodyIndex);
+const detailAdminIndex = page.indexOf("<AdminContentControls targetType=\"post\"", detailBodyIndex);
+assert(detailStatusIndex > postDetailStart && detailNativeIndex > detailStatusIndex && detailNativeIndex < detailBodyIndex, "Post detail render order should place room-native details after status badges and before body Markdown.");
+assert(detailBodyIndex > detailNativeIndex && detailMediaIndex > detailBodyIndex && detailCodeIndex > detailMediaIndex && detailTagsIndex > detailCodeIndex && detailReactionIndex > detailTagsIndex, "Post detail body, media, code, tags, and reaction controls should render in the requested order.");
+assert(detailCommentsIndex > detailReactionIndex && detailAdminIndex > detailCommentsIndex, "Comments should remain below post content and post admin moderation should remain at the bottom.");
 assert(styles.includes(".commune-room-native-details"), "Room-native post detail styling missing.");
+assert(styles.includes(".commune-post-prose") && styles.includes(".commune-post-prose h2"), "Commune post prose styling should keep Markdown headings inside body content.");
 assert(!page.includes("defaultRoomId={undefined}"), "Room post composer should not drop the backend room id.");
 assert(!page.includes("<label><span>Post type</span><select"), "Room composer should not show the generic Post type dropdown.");
 assert(!page.includes("<label><span>Category</span><select"), "Room composer should not show the generic Category dropdown.");
@@ -490,10 +512,11 @@ assert(reviewClient.includes("publishCommunePostMedia") && reviewClient.includes
 assert(page.includes("commune-media-section") && page.includes("Attached media"), "Commune post detail should render attached media inside the post flow.");
 assert(page.includes("Attached to this post by {isOfficialUpdate ? \"Elysia Ecobotics Official\" : authorLink(post.author_username)}"), "Commune post media should attribute attachments to the public post author handle or official brand account.");
 const postTagIndex = page.indexOf("<TagChips tags={post.tags}");
-const postMediaIndex = page.indexOf("commune-media-section", postTagIndex);
-const postReactionIndex = page.indexOf("<ReactionBar targetType=\"post\"", postTagIndex);
-const postAdminIndex = page.indexOf("<AdminContentControls targetType=\"post\"", postTagIndex);
-assert(postTagIndex > -1 && postMediaIndex > postTagIndex && postMediaIndex < postReactionIndex && postMediaIndex < postAdminIndex, "Commune post media should render after post body/tags and before reactions/admin moderation.");
+const postBodyIndex = page.indexOf("<CommunePostBody body={bodyMarkdown}");
+const postMediaIndex = page.indexOf("commune-media-section", postBodyIndex);
+const postReactionIndex = page.indexOf("<ReactionBar targetType=\"post\"", postBodyIndex);
+const postAdminIndex = page.indexOf("<AdminContentControls targetType=\"post\"", postBodyIndex);
+assert(postBodyIndex > -1 && postMediaIndex > postBodyIndex && postMediaIndex < postTagIndex && postTagIndex < postReactionIndex && postReactionIndex < postAdminIndex, "Commune post media should render after body and before tags/reactions/admin moderation.");
 assert(page.includes("commune-media-lightbox") && page.includes("Attachment unavailable or still under review."), "Commune post media display should include read-only preview and unavailable copy.");
 assert(styles.includes(".commune-media-section") && styles.includes("object-fit: contain"), "Commune media display styling should keep images contained, not cropped.");
 assert(page.includes("commune-code-section") && page.includes("Code attached to this post"), "Coding Cornucopia snippets should render as attached post content.");
@@ -527,8 +550,8 @@ assert(codeProposalMigration.includes("proposal_status in ('draft','submitted','
 assert(codeProposalMigration.includes("accepted_revision_id") && codeProposalMigration.includes("accepted_version_number"), "Accepted revisions should update the public snippet version metadata.");
 assert(codeProposalMigration.includes("commune_code_revision_proposed"), "Proposal submission should create a private signal for the original poster.");
 assert(codeProposalMigration.includes("public attached code remains unchanged") || codeProposalMigration.includes("public attached code now points"), "Proposal decisions should notify without implying sandbox trust.");
-const postCodeIndex = page.indexOf("<AttachedCodeSnippets", postTagIndex);
-assert(postCodeIndex > postTagIndex && postCodeIndex < postReactionIndex && postCodeIndex < postAdminIndex, "Coding Cornucopia snippets should render after post body/tags and before reactions/admin moderation.");
+const postCodeIndex = page.indexOf("<AttachedCodeSnippets", postBodyIndex);
+assert(postCodeIndex > postMediaIndex && postCodeIndex < postTagIndex && postCodeIndex < postReactionIndex && postCodeIndex < postAdminIndex, "Coding Cornucopia snippets should render after media/body and before tags/reactions/admin moderation.");
 assert(!page.includes("Inert public code display"), "Coding Cornucopia snippets should not render in a detached lower post-detail section.");
 assert(styles.includes(".commune-code-section") && styles.includes(".commune-code-list"), "Coding Cornucopia attached snippet styling missing.");
 assert(accountApi.includes("loadCommuneReactionSummary"), "Commune reaction-count loader missing.");
