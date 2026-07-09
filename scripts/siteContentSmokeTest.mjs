@@ -413,6 +413,10 @@ assert(commonsAdminConsole.includes("Admin dashboard") && commonsAdminConsole.in
 assert(commonsAdminConsole.includes("Role required") && commonsAdminConsole.includes("Sign in required"), "Commons Circle Admin Console role/sign-in gate copy missing.");
 assert(commune.includes("Code executes nowhere by default") || commune.includes("execute nowhere"), "Commune code-execution safety copy missing.");
 assert(commune.includes("Do not upload .env files, API keys, tokens, credentials, private logs, or vault data."), "Commune public safety copy should preserve direct .env/API key/token/credential/private log/vault warning language.");
+assert(commune.includes("Choose a moderated community room"), "Commune room-card section heading missing.");
+assert(commune.includes("function RoomCardEnterAction") && commune.includes("commune-room-card-actions") && commune.includes("commune-room-enter-button"), "Commune room cards should preserve the shared Enter room CTA path.");
+assert(commune.includes("Enter room"), "Commune room-card CTA copy should remain Enter room.");
+assert(styles.includes(".commune-room-card-actions") && styles.includes(".commune-room-enter-button"), "Commune room-card CTA styles should remain scoped to room cards.");
 assert(commune.includes("Code snippets in Media Garden are visual/read-only material. They are not executed by the website and are not a trust signal.") && commune.includes("discussion, design, structure, symbols, or aesthetic context"), "Media Garden public copy should distinguish visual code material from executable/trusted code.");
 assert(commune.includes("`/commons-circle/@${encodeURIComponent(username)}`"), "Commune author links should route to /commons-circle/@username.");
 assert(!commune.includes("to={`/commons/@${encodeURIComponent(username)}`"), "Commune author links should not use the old /commons/@username path.");

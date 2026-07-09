@@ -263,6 +263,17 @@ assert(migration.includes("tags text[]"), "Commune Supabase schema should suppor
 assert(page.includes("function RoomCards()"), "Commune lobby room cards should render the complete room list.");
 assert(page.includes("postTypes.map((type)"), "Commune lobby room cards should include every post type doorway.");
 assert(page.includes("Enter room"), "Commune room entry copy missing.");
+assert(page.includes("function RoomCardEnterAction"), "Commune room cards should use a shared Enter room CTA component.");
+assert(page.includes('className="commune-room-card-actions"'), "Commune room cards should render a shared CTA/action area.");
+assert(page.includes('className="button-link commune-room-enter-button"'), "Commune room Enter room links should use the shared room-card button class.");
+const roomCardEnterActionUses = page.match(/<RoomCardEnterAction type=\{type\} \/>/g) ?? [];
+assert(roomCardEnterActionUses.length === 2, "Commune lobby and room picker cards should both use the shared Enter room CTA path.");
+for (const roomName of requiredLobbyRooms) {
+  assert(page.includes(`name: "${roomName}"`), `Commune room should remain on the shared room-card CTA path: ${roomName}`);
+}
+assert(styles.includes(".commune-room-card-actions") && styles.includes(".commune-room-enter-button"), "Commune room-card CTA action/button styles missing.");
+assert(styles.includes(".commune-room-card {\n  display: flex;\n  flex-direction: column;"), "Commune room cards should use a column layout for bottom-pinned CTAs.");
+assert(styles.includes("margin-top: auto;") && styles.includes("width: 100%;") && styles.includes("min-height: 2.65rem;"), "Commune room Enter room buttons should have consistent bottom placement, width, and height.");
 assert(page.includes("Shared code is public knowledge, not automatic trust."), "Coding Cornucopia caution copy missing.");
 assert(page.includes("function RoomPickerPanel()"), "Commune /new room picker compatibility panel missing.");
 assert(page.includes("Choose a room before posting"), "Commune /new room picker title missing.");

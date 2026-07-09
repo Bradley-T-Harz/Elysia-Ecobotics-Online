@@ -1217,6 +1217,26 @@ code { color: var(--teal); overflow-wrap: anywhere; }
   border-color: var(--commune-panel-border-strong);
 }
 
+.commune-room-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.commune-room-card-actions {
+  display: flex;
+  margin-top: auto;
+  padding-top: 0.35rem;
+}
+
+.commune-room-enter-button {
+  width: 100%;
+  min-height: 2.65rem;
+  box-sizing: border-box;
+  justify-content: flex-start;
+  border-radius: 12px;
+  padding: 0.66rem 0.85rem;
+}
+
 .commune-anchor-button {
   justify-self: start;
 }

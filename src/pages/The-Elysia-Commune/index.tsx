@@ -1343,7 +1343,11 @@ function ZoneCatalog({ filters }: { filters: CommuneFilters }) {
 }
 
 function RoomCards() {
-  return <section className="section-card" id="commune-rooms"><p className="eyebrow">Rooms</p><h2>Choose a moderated community room</h2><div className="commune-zone-grid">{postTypes.map((type) => <article className="commune-zone-card commune-room-card" key={type.id}><span className="commune-card-sigil" aria-hidden="true">{type.name.slice(0, 1)}</span><h3>{type.name}</h3><p>{type.purpose}</p><p><strong>Allowed:</strong> {type.allowedContent}</p><p><strong>Caution:</strong> {type.cautions}</p><StatusBadges labels={type.currentStatus} /><Link className="button-link" to={roomPathForType(type)}>Enter room</Link></article>)}</div></section>;
+  return <section className="section-card" id="commune-rooms"><p className="eyebrow">Rooms</p><h2>Choose a moderated community room</h2><div className="commune-zone-grid">{postTypes.map((type) => <article className="commune-zone-card commune-room-card" key={type.id}><span className="commune-card-sigil" aria-hidden="true">{type.name.slice(0, 1)}</span><h3>{type.name}</h3><p>{type.purpose}</p><p><strong>Allowed:</strong> {type.allowedContent}</p><p><strong>Caution:</strong> {type.cautions}</p><StatusBadges labels={type.currentStatus} /><RoomCardEnterAction type={type} /></article>)}</div></section>;
+}
+
+function RoomCardEnterAction({ type }: { type: CommunePostTypeCard }) {
+  return <div className="commune-room-card-actions"><Link className="button-link commune-room-enter-button" to={roomPathForType(type)}>Enter room</Link></div>;
 }
 
 function RoomPickerPanel() {
@@ -1351,7 +1355,7 @@ function RoomPickerPanel() {
     <p className="eyebrow">Start a thread</p>
     <h2>Choose a room before posting</h2>
     <p className="boundary-note">Posts are created from inside their room so the format, safety notes, and context match what you are sharing.</p>
-    <div className="commune-zone-grid">{postTypes.map((type) => <article className="commune-zone-card commune-room-card" key={type.id}><span className="commune-card-sigil" aria-hidden="true">{type.name.slice(0, 1)}</span><h3>{type.name}</h3><p>{type.purpose}</p><StatusBadges labels={type.currentStatus} /><Link className="button-link" to={roomPathForType(type)}>Enter room</Link></article>)}</div>
+    <div className="commune-zone-grid">{postTypes.map((type) => <article className="commune-zone-card commune-room-card" key={type.id}><span className="commune-card-sigil" aria-hidden="true">{type.name.slice(0, 1)}</span><h3>{type.name}</h3><p>{type.purpose}</p><StatusBadges labels={type.currentStatus} /><RoomCardEnterAction type={type} /></article>)}</div>
   </section>;
 }
 
