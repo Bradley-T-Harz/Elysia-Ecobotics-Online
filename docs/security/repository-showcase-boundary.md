@@ -2,6 +2,8 @@
 
 Repository Showcase is metadata-first. The public website may display reviewed metadata connected to a normal Commune post/thread, but it must not treat a repository URL as executable or trustworthy.
 
+Admin-authored Repository Showcase guidance/template posts are allowed without a repository URL only when explicitly labeled as guidance. They are not repository listings and do not create repository trust, compatibility review, Marketplace approval, Developer Forge approval, signing, versioning, install safety, selected-artifact sandbox approval, or sandbox execution.
+
 Required boundaries:
 
 - no whole-repository clone

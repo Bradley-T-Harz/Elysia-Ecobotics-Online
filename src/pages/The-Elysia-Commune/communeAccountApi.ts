@@ -378,6 +378,28 @@ function publicHttpUrlOrNull(value?: string | null) {
     return null;
   }
 }
+function publicRepositoryUrlOrNull(value?: string | null) {
+  const href = publicHttpUrlOrNull(value);
+  if (!href) return null;
+  try {
+    const url = new URL(href);
+    const host = url.hostname.toLowerCase();
+    const bareHost = host.replace(/^\[|\]$/g, "");
+    const internalHost =
+      host.endsWith(".internal")
+      || host.endsWith(".localhost")
+      || host.endsWith(".lan")
+      || host.endsWith(".home")
+      || (!host.includes(".") && !/^\d+\.\d+\.\d+\.\d+$/.test(host))
+      || bareHost === "::1"
+      || bareHost === "0:0:0:0:0:0:0:1"
+      || /^f[cd][0-9a-f]{2}:/i.test(bareHost)
+      || /^fe80:/i.test(bareHost);
+    return internalHost ? null : url.href;
+  } catch {
+    return null;
+  }
+}
 function isModerator(roles: AppRole[], isAdmin: boolean) { return isAdmin || roles.some((role) => ["administrator", "moderator", "commune_moderator", "guardian_reviewer"].includes(role)); }
 function roomSlugCandidates(roomSlug?: string) {
   if (!roomSlug) return [];
@@ -2259,12 +2281,17 @@ export async function submitCommunePost(input: { postType: CommunePostType; room
   }
   if (input.postType === "official_update" && !account.isAdmin) return { ok: false, message: "Official Updates are restricted to authorized administrators. Community users cannot self-assign official publishing authority." };
   if (input.postType === "community_vote") return { ok: false, message: "Community Voting Room votes must be created through the admin vote form so options, lifecycle status, ballot privacy, and advisory-governance boundaries are saved together." };
+  const genericRepositoryUrl = input.postType === "repository_showcase" ? publicRepositoryUrlOrNull(input.repositoryUrl) : null;
+  if (input.postType === "repository_showcase" && !genericRepositoryUrl) return { ok: false, message: "Repository Showcase posts must use a public HTTP(S) repository URL. Localhost/private repository URLs are not accepted; admin guidance posts must use explicit admin guidance mode." };
   const tags = parseCommuneTags(input.tags);
-  const links = splitList(input.links);
+  const rawLinks = splitList(input.links);
+  const links = input.postType === "repository_showcase"
+    ? Array.from(new Set((rawLinks.length ? rawLinks : genericRepositoryUrl ? [genericRepositoryUrl] : []).map(publicRepositoryUrlOrNull).filter(Boolean) as string[]))
+    : rawLinks;
   const postId = crypto.randomUUID();
   const adminDirectPublish = account.isAdmin;
   const now = new Date().toISOString();
-  const { error: postError } = await supabase.from(canonicalCommuneTables.posts).insert({ id: postId, user_id: account.userId, author_username: account.username, post_type: input.postType, title: input.title.trim(), body: input.body.trim(), excerpt: excerpt(input.body), tags, links, repository_url: input.repositoryUrl?.trim() || null, status: adminDirectPublish ? "published" : "pending_review", moderation_status: adminDirectPublish ? "approved" : "pending_review", published_at: adminDirectPublish ? now : null, safety_acknowledgements: { public_boundary: true, no_secrets: true, no_execution: true } });
+  const { error: postError } = await supabase.from(canonicalCommuneTables.posts).insert({ id: postId, user_id: account.userId, author_username: account.username, post_type: input.postType, title: input.title.trim(), body: input.body.trim(), excerpt: excerpt(input.body), tags, links, repository_url: genericRepositoryUrl ?? input.repositoryUrl?.trim() ?? null, status: adminDirectPublish ? "published" : "pending_review", moderation_status: adminDirectPublish ? "approved" : "pending_review", published_at: adminDirectPublish ? now : null, safety_acknowledgements: { public_boundary: true, no_secrets: true, no_execution: true } });
   if (postError) return { ok: false, message: friendlyError(postError.message, "This room post is blocked by the current database policy. If you are signed in, the Commune room post/admin publishing policy may need to be applied.") };
   let threadId: string | null = null;
   const { data: thread, error: threadError } = await supabase.from(canonicalCommuneTables.threads).insert({ post_id: postId, room_id: input.roomId || null, title: input.title.trim(), created_by: account.userId, visibility: "public" }).select("id").single();
@@ -2278,8 +2305,8 @@ export async function submitCommunePost(input: { postType: CommunePostType; room
     if (!upload.ok) return { ok: false, message: `${adminDirectPublish ? "Post published directly" : "Post saved for review"}, but upload failed: ${upload.message}` };
   }
   if (adminDirectPublish) await publishPostAttachments(postId);
-  if (input.postType === "repository_showcase" && input.repositoryUrl) {
-    const repo = await submitRepositoryShowcase({ repositoryUrl: input.repositoryUrl, projectName: input.title, projectSummary: excerpt(input.body), postId, sandboxRequested: Boolean(input.sandboxRequested) });
+  if (input.postType === "repository_showcase" && genericRepositoryUrl) {
+    const repo = await submitRepositoryShowcase({ repositoryUrl: genericRepositoryUrl, projectName: input.title, projectSummary: excerpt(input.body), postId, sandboxRequested: Boolean(input.sandboxRequested) });
     if (!repo.ok) return { ok: false, message: `Post saved, but repository showcase failed: ${repo.message}` };
   }
   if (adminDirectPublish) {
@@ -2482,20 +2509,35 @@ export async function moderateCommuneContentTarget(input: { targetType: CommuneR
   };
 }
 
-export async function submitRepositoryShowcase(input: { repositoryUrl: string; projectName: string; projectSummary: string; postId?: string; roomId?: string; body?: string; tags?: string; links?: string; provider?: string; branch?: string; commit?: string; license?: string; readmePreview?: string; fileTreePreview?: string; screenshotNotes?: string; manifestStatus?: string; compatibility?: string; warnings?: string[]; sandboxRequested?: boolean; importSource?: string; importedMetadata?: Record<string, unknown>; importedAt?: string | null; redactionNotes?: string }): Promise<{ ok: boolean; message: string; id?: string; postId?: string; sandboxReviewRequestId?: string }> {
+const repositoryShowcaseGuidanceBoundary = "This is admin-authored Repository Showcase guidance. It is not a repository approval, compatibility review, Marketplace listing, install recommendation, or trust signal.";
+
+export async function submitRepositoryShowcase(input: { repositoryUrl: string; projectName: string; projectSummary: string; postId?: string; roomId?: string; body?: string; tags?: string; links?: string; provider?: string; branch?: string; commit?: string; license?: string; readmePreview?: string; fileTreePreview?: string; screenshotNotes?: string; manifestStatus?: string; compatibility?: string; warnings?: string[]; sandboxRequested?: boolean; importSource?: string; importedMetadata?: Record<string, unknown>; importedAt?: string | null; redactionNotes?: string; adminGuidancePost?: boolean }): Promise<{ ok: boolean; message: string; id?: string; postId?: string; sandboxReviewRequestId?: string }> {
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
   if (!account.userId) return { ok: false, message: "Sign in to submit repository showcases." };
   if (!input.projectName.trim()) return { ok: false, message: "Add a repository showcase title before submitting." };
-  const host = (() => { try { const url = new URL(input.repositoryUrl); return ["http:", "https:"].includes(url.protocol) && !/^(localhost|127\.0\.0\.1|0\.0\.0\.0)$/i.test(url.hostname) ? url.hostname : null; } catch { return null; } })();
-  if (!host) return { ok: false, message: "Use a public HTTP(S) repository URL. Localhost/private repository URLs are not accepted for public Commune metadata." };
+  const adminGuidancePost = Boolean(input.adminGuidancePost);
+  if (adminGuidancePost && !account.isAdmin) return { ok: false, message: "Repository Showcase guidance/template posts are admin-only. Normal users must submit a public repository URL." };
+  if (adminGuidancePost && input.sandboxRequested) return { ok: false, message: "Admin guidance posts cannot request selected-artifact sandbox review. Sandbox review remains tied to explicit repository artifacts." };
+  const guidanceSuppliedRepositoryUrl = adminGuidancePost && Boolean(input.repositoryUrl.trim());
+  if (guidanceSuppliedRepositoryUrl && !publicRepositoryUrlOrNull(input.repositoryUrl)) return { ok: false, message: "Admin guidance posts may omit the repository URL, but any supplied repository URL must still be public HTTP(S). Localhost/private repository URLs are not accepted." };
+  const repositoryUrl = adminGuidancePost ? null : publicRepositoryUrlOrNull(input.repositoryUrl);
+  if (!adminGuidancePost && !repositoryUrl) return { ok: false, message: "Use a public HTTP(S) repository URL. Localhost/private repository URLs are not accepted for public Commune metadata." };
+  const host = repositoryUrl ? new URL(repositoryUrl).hostname : null;
   const riskFlags = Array.from(new Set((input.warnings ?? []).map((item) => item.trim()).filter(Boolean)));
-  const secretScan = scanCommuneTextForSecrets([input.repositoryUrl, input.projectName, input.projectSummary, input.body ?? "", input.provider ?? "", input.branch ?? "", input.commit ?? "", input.license ?? "", input.readmePreview ?? "", input.fileTreePreview ?? "", input.screenshotNotes ?? "", input.manifestStatus ?? "", input.compatibility ?? "", riskFlags.join("\n"), input.redactionNotes ?? "", JSON.stringify(input.importedMetadata ?? {})].join("\n"));
+  const secretScan = scanCommuneTextForSecrets([repositoryUrl ?? input.repositoryUrl, input.projectName, input.projectSummary, input.body ?? "", input.provider ?? "", input.branch ?? "", input.commit ?? "", input.license ?? "", input.readmePreview ?? "", input.fileTreePreview ?? "", input.screenshotNotes ?? "", input.manifestStatus ?? "", input.compatibility ?? "", riskFlags.join("\n"), input.redactionNotes ?? "", JSON.stringify(input.importedMetadata ?? {})].join("\n"));
   if (secretScan.blocked) return { ok: false, message: "Repository showcase blocked because it appears to contain private or secret material: " + secretScan.warnings.join(", ") + ". Remove it before submitting." };
   let postId = input.postId || null;
   const now = new Date().toISOString();
   const adminDirectPublish = account.isAdmin;
-  const body = input.body?.trim() || input.projectSummary.trim();
+  const baseBody = input.body?.trim() || input.projectSummary.trim();
+  if (adminGuidancePost && !baseBody) return { ok: false, message: "Write Repository Showcase guidance before publishing an admin guidance/template post." };
+  const body = adminGuidancePost && !baseBody.includes(repositoryShowcaseGuidanceBoundary)
+    ? `${baseBody}\n\n## Admin guidance boundary\n${repositoryShowcaseGuidanceBoundary}\n\n## Marketplace and sandbox boundary\nThis post explains how to share repositories safely. It does not approve, trust, sign, version, sandbox-approve, or make any repository install-safe.`
+    : baseBody;
+  const suppliedLinks = splitList(input.links ?? "");
+  const postLinks = Array.from(new Set((suppliedLinks.length ? suppliedLinks : repositoryUrl ? [repositoryUrl] : []).map(publicRepositoryUrlOrNull).filter(Boolean) as string[]));
+  let threadId: string | null = null;
   if (!postId) {
     postId = crypto.randomUUID();
     const { error: postError } = await supabase.from(canonicalCommuneTables.posts).insert({
@@ -2506,22 +2548,28 @@ export async function submitRepositoryShowcase(input: { repositoryUrl: string; p
       title: input.projectName.trim(),
       body,
       excerpt: excerpt(body),
-      tags: parseCommuneTags(input.tags ?? "repository showcase"),
-      links: splitList(input.links ?? input.repositoryUrl),
-      repository_url: input.repositoryUrl,
+      tags: parseCommuneTags(input.tags ?? (adminGuidancePost ? "repository showcase admin guidance template policy" : "repository showcase")),
+      links: postLinks,
+      repository_url: adminGuidancePost ? null : repositoryUrl,
       status: adminDirectPublish ? "published" : "pending_review",
       moderation_status: adminDirectPublish ? "approved" : "pending_review",
       published_at: adminDirectPublish ? now : null,
-      safety_acknowledgements: { public_boundary: true, no_secrets: true, no_execution: true, repository_metadata_only: true }
+      safety_acknowledgements: { public_boundary: true, no_secrets: true, no_execution: true, repository_metadata_only: true, admin_guidance_post: adminGuidancePost, not_trust_signal: true, marketplace_approval_separate: true }
     });
     if (postError) return { ok: false, message: friendlyError(postError.message, "This repository showcase post is blocked by the current database policy. If you are signed in, the Commune room post/admin publishing policy may need to be applied.") };
     const { data: thread } = await supabase.from(canonicalCommuneTables.threads).insert({ post_id: postId, room_id: input.roomId || null, title: input.projectName.trim(), created_by: account.userId, visibility: "public" }).select("id").single();
-    const threadId = (thread as { id?: string } | null)?.id ?? null;
+    threadId = (thread as { id?: string } | null)?.id ?? null;
     if (adminDirectPublish) {
       await grantThreadParticipationApproval({ threadId, postId, userId: account.userId, approvedBy: account.userId, source: "admin_direct_repository_showcase" });
       await recordCommuneGovernanceEvent({ actorId: account.userId, targetType: "post", targetId: postId, action: "admin_post_published", fromStatus: "draft", toStatus: "published", metadata: { post_type: "repository_showcase", review_item_created: false } });
     }
   }
+  if (adminGuidancePost) {
+    const history = await createReviewHistoryItem({ domain: "commune", sourceTable: "commune_posts", sourceId: postId, submittedBy: account.userId, title: input.projectName, summary: "Admin-published Repository Showcase guidance/template post. No repository sidecar was created and no trust, compatibility, Marketplace, install, or sandbox approval is implied.", status: "approved", eventType: "admin_repository_showcase_guidance_published", metadata: { admin_guidance_post: true, repository_sidecar_created: false, thread_id: threadId } });
+    const historyWarning = history.ok ? "" : ` History record needs attention: ${history.warning ?? "review history unavailable"}.`;
+    return { ok: true, message: `Repository Showcase guidance post published as admin-authored guidance. It is not a repository approval, compatibility review, Marketplace listing, install recommendation, trust signal, or sandbox approval.${historyWarning}`, postId };
+  }
+  if (!repositoryUrl || !host) return { ok: false, message: "Use a public HTTP(S) repository URL. Localhost/private repository URLs are not accepted for public Commune metadata." };
   const summary = [
     input.projectSummary,
     input.branch ? "Branch: " + input.branch : "",
@@ -2534,7 +2582,7 @@ export async function submitRepositoryShowcase(input: { repositoryUrl: string; p
   const structuredPayload = {
     user_id: account.userId,
     post_id: postId,
-    repository_url: input.repositoryUrl,
+    repository_url: repositoryUrl,
     repository_host: host,
     project_name: input.projectName,
     project_summary: summary || input.projectSummary,
@@ -2561,7 +2609,7 @@ export async function submitRepositoryShowcase(input: { repositoryUrl: string; p
   let data = insertAttempt.data as { id: string } | null;
   if (insertAttempt.error) {
     if (!/schema cache|Could not find|does not exist|column/i.test(insertAttempt.error.message)) return { ok: false, message: friendlyError(insertAttempt.error.message, "Repository showcase review queue is not active yet.") };
-    const fallback = await supabase.from(canonicalCommuneTables.repositoryShowcases).insert({ user_id: account.userId, post_id: postId, repository_url: input.repositoryUrl, repository_host: host, project_name: input.projectName, project_summary: summary || input.projectSummary, license: input.license || null, safety_notes: riskFlags.join(", ") || null, sandbox_review_requested: Boolean(input.sandboxRequested), status: adminDirectPublish ? "approved" : "pending_review" }).select("id").single();
+    const fallback = await supabase.from(canonicalCommuneTables.repositoryShowcases).insert({ user_id: account.userId, post_id: postId, repository_url: repositoryUrl, repository_host: host, project_name: input.projectName, project_summary: summary || input.projectSummary, license: input.license || null, safety_notes: riskFlags.join(", ") || null, sandbox_review_requested: Boolean(input.sandboxRequested), status: adminDirectPublish ? "approved" : "pending_review" }).select("id").single();
     if (fallback.error) return { ok: false, message: friendlyError(fallback.error.message, "Repository showcase review queue is not active yet.") };
     data = fallback.data as { id: string };
   }

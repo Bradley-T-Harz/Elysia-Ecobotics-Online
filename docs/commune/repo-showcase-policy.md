@@ -2,6 +2,8 @@
 
 Repository Showcase is a distinct Commune room for presenting public repository metadata and discussion. It is not Coding Cornucopia, Developer Forge, Marketplace approval, or a repository execution service.
 
+Administrators may also publish explicit Repository Showcase guidance/template posts for this room. Admin guidance posts may omit a repository URL, must be labeled as guidance/policy/template content, and must not be presented as repository listings, trust signals, compatibility reviews, Marketplace approval, Developer Forge approval, install recommendations, signing/versioning decisions, or sandbox approvals.
+
 What the website may store and show:
 
 - public repository URL and provider

@@ -230,6 +230,7 @@ type RepoShowcaseDraft = {
   importedAt?: string | null;
   importedMetadata?: Record<string, unknown>;
   redactionNotes?: string;
+  adminGuidancePost?: boolean;
   createdAt: string;
 };
 
@@ -667,6 +668,15 @@ function splitPostSections(body: string) {
   return { intro, sections };
 }
 
+const repositoryShowcaseGuidanceBoundaryCopy = "This is admin-authored Repository Showcase guidance. It is not a repository approval, compatibility review, Marketplace listing, install recommendation, or trust signal.";
+
+function isRepositoryShowcaseGuidancePost(post: CommunePost) {
+  if (post.post_type !== "repository_showcase" || post.repository_url) return false;
+  const tags = new Set((post.tags ?? []).map((tag) => tag.toLowerCase()));
+  return (tags.has("admin") && (tags.has("guidance") || tags.has("template") || tags.has("policy")))
+    || /admin-authored repository showcase guidance/i.test(post.body);
+}
+
 const redactionChecklist = [
   "I removed secrets, tokens, API keys, and passwords.",
   "I removed private Elysia memory, private logs, and local vault content.",
@@ -934,11 +944,13 @@ function postMarkdown(draft: PostDraft) {
 }
 
 function repoMarkdown(draft: RepoShowcaseDraft) {
+  const adminGuidancePost = Boolean(draft.adminGuidancePost);
   return [
-    `# ${draft.title || "Untitled repository showcase"}`,
+    `# ${draft.title || (adminGuidancePost ? "Untitled Repository Showcase guidance" : "Untitled repository showcase")}`,
     "",
+    `Post kind: ${adminGuidancePost ? "Admin guidance post" : "Repository listing"}`,
     `Provider: ${draft.provider}`,
-    `Repository URL: ${draft.repoUrl}`,
+    `Repository URL: ${adminGuidancePost && !draft.repoUrl ? "Not required for admin guidance" : draft.repoUrl}`,
     `Branch: ${draft.branch}`,
     `Commit: ${draft.commit}`,
     `License: ${draft.license}`,
@@ -956,7 +968,7 @@ function repoMarkdown(draft: RepoShowcaseDraft) {
     "",
     `Screenshot notes or URLs: ${draft.screenshotNotes}`,
     "",
-    "Draft only. This page does not fetch, clone, or validate the repository."
+    adminGuidancePost ? repositoryShowcaseGuidanceBoundaryCopy : "Draft only. This page does not fetch, clone, or validate the repository."
   ].join("\n");
 }
 
@@ -979,6 +991,7 @@ function repoShowcaseManifest(draft: RepoShowcaseDraft) {
     import_source: draft.importSource ?? "manual",
     imported_at: draft.importedAt ?? null,
     imported_metadata: draft.importedMetadata ?? {},
+    admin_guidance_post: Boolean(draft.adminGuidancePost),
     generated_by: "Elysia Ecobotics Online Repository Showcase",
     generated_at: new Date().toISOString(),
     redaction_notes: draft.redactionNotes ?? ""
@@ -1667,7 +1680,8 @@ function PostCard({ post, saved, onSave, signedIn, officialUpdate, troubleshooti
   const troubleshootingLabels = troubleshooting ? ["Troubleshooting Grove", troubleshooting.issue_type, troubleshooting.troubleshooting_status, troubleshooting.affected_area ?? ""].filter(Boolean) : [];
   const researchLabels = researchNote ? ["Research Notes", researchEvidenceLabel(researchNote.evidence_strength), researchReviewStatusLabel(researchNote.review_status), researchNote.domain ?? ""].filter(Boolean) : [];
   const jobLabels = jobPost ? ["Job Post", jobRoleLabel(jobPost.role_type), jobPaidStatusLabel(jobPost.paid_volunteer_status), jobApplicationStatusLabel(jobPost.application_status), jobAntiScamStatusLabel(jobPost.anti_scam_review_status)].filter(Boolean) : [];
-  return <article className={post.post_type === "official_update" ? "commune-post-card commune-official-card" : post.post_type === "community_vote" ? "commune-post-card commune-vote-post-card" : "commune-post-card"}><div className="addon-card__topline"><StatusBadges labels={officialLabels.length ? officialLabels : voteLabels.length ? voteLabels : troubleshootingLabels.length ? troubleshootingLabels : researchLabels.length ? researchLabels : jobLabels.length ? jobLabels : [post.post_type, post.status]} /></div><h3><Link to={`/commune/posts/${post.id}`}>{post.title}</Link></h3><p>{officialUpdate?.summary || communityVote?.vote.context || researchNote?.evidence_summary || jobPost?.role_summary || post.excerpt || post.body.slice(0, 180)}</p>{communityVote && <CommunityVoteMiniPanel communityVote={communityVote} />}{troubleshooting?.accepted_summary && <p className="boundary-note">Accepted {troubleshooting.accepted_resolution_kind?.replace(/_/g, " ") ?? "resolution"}: {troubleshooting.accepted_summary}</p>}{researchNote?.uncertainty && <p className="boundary-note">Uncertainty: {researchNote.uncertainty.slice(0, 180)}</p>}{jobPost && <p className="boundary-note">{jobPaidStatusLabel(jobPost.paid_volunteer_status)} · {jobLocationModeLabel(jobPost.location_mode)} · {jobApplicationStatusLabel(jobPost.application_status)}</p>}<p>{post.post_type === "official_update" ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>} · {post.published_at ? new Date(post.published_at).toLocaleDateString() : "public date unavailable"}</p><TagChips tags={(post.tags ?? []).slice(0, 5)} /><ReactionBar targetType="post" targetId={post.id} signedIn={signedIn} /><div className="button-row"><Link className="button-link" to={`/commune/posts/${post.id}`}>Read</Link><button type="button" onClick={() => onSave(post.id)}>{saved ? "Saved" : "Save post"}</button></div></article>;
+  const repositoryGuidanceLabels = isRepositoryShowcaseGuidancePost(post) ? ["Repository Showcase guidance", "Admin guidance post", "Not a trust signal"] : [];
+  return <article className={post.post_type === "official_update" ? "commune-post-card commune-official-card" : post.post_type === "community_vote" ? "commune-post-card commune-vote-post-card" : "commune-post-card"}><div className="addon-card__topline"><StatusBadges labels={officialLabels.length ? officialLabels : voteLabels.length ? voteLabels : troubleshootingLabels.length ? troubleshootingLabels : researchLabels.length ? researchLabels : jobLabels.length ? jobLabels : repositoryGuidanceLabels.length ? repositoryGuidanceLabels : [post.post_type, post.status]} /></div><h3><Link to={`/commune/posts/${post.id}`}>{post.title}</Link></h3><p>{officialUpdate?.summary || communityVote?.vote.context || researchNote?.evidence_summary || jobPost?.role_summary || post.excerpt || post.body.slice(0, 180)}</p>{repositoryGuidanceLabels.length > 0 && <p className="boundary-note">Repository Showcase guidance is not a repository approval, compatibility review, Marketplace listing, install recommendation, or trust signal.</p>}{communityVote && <CommunityVoteMiniPanel communityVote={communityVote} />}{troubleshooting?.accepted_summary && <p className="boundary-note">Accepted {troubleshooting.accepted_resolution_kind?.replace(/_/g, " ") ?? "resolution"}: {troubleshooting.accepted_summary}</p>}{researchNote?.uncertainty && <p className="boundary-note">Uncertainty: {researchNote.uncertainty.slice(0, 180)}</p>}{jobPost && <p className="boundary-note">{jobPaidStatusLabel(jobPost.paid_volunteer_status)} · {jobLocationModeLabel(jobPost.location_mode)} · {jobApplicationStatusLabel(jobPost.application_status)}</p>}<p>{post.post_type === "official_update" ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>} · {post.published_at ? new Date(post.published_at).toLocaleDateString() : "public date unavailable"}</p><TagChips tags={(post.tags ?? []).slice(0, 5)} /><ReactionBar targetType="post" targetId={post.id} signedIn={signedIn} /><div className="button-row"><Link className="button-link" to={`/commune/posts/${post.id}`}>Read</Link><button type="button" onClick={() => onSave(post.id)}>{saved ? "Saved" : "Save post"}</button></div></article>;
 }
 
 function CommunityFeed({ posts, savedPostIds, onSave, filters, signedIn, troubleshootingPosts, jobPosts, researchNotes, votePosts }: { posts: CommunePost[]; savedPostIds: string[]; onSave: (id: string) => void; filters: CommuneFilters; signedIn: boolean; troubleshootingPosts?: TroubleshootingMetadata[]; jobPosts?: JobPostMetadata[]; researchNotes?: ResearchNotesMetadata[]; votePosts?: CommunityVoteView[] }) {
@@ -2685,10 +2699,11 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
 }
 
 function RepositoryShowcaseForm({ localDrafts, roomId, onRefresh, isAdmin = false }: { localDrafts: ReturnType<typeof useLocalDraftState>; roomId?: string; onRefresh?: () => Promise<void>; isAdmin?: boolean }) {
-  const [form, setForm] = useState({ title: "", repoUrl: "", provider: "GitHub", branch: "", commit: "", license: "", description: "", readmePreview: "", fileTreePreview: "", screenshotNotes: "", manifestStatus: "No manifest checked", compatibility: "Unknown", warnings: [] as string[], sandboxRequested: false, importSource: "manual", importedAt: null as string | null, importedMetadata: {} as Record<string, unknown>, redactionNotes: "" });
+  const [form, setForm] = useState({ title: "", repoUrl: "", provider: "GitHub", branch: "", commit: "", license: "", description: "", readmePreview: "", fileTreePreview: "", screenshotNotes: "", manifestStatus: "No manifest checked", compatibility: "Unknown", warnings: [] as string[], sandboxRequested: false, adminGuidancePost: false, importSource: "manual", importedAt: null as string | null, importedMetadata: {} as Record<string, unknown>, redactionNotes: "" });
   const [message, setMessage] = useState("Repository showcases are metadata only. The website does not fetch private repos, clone, build, run, install, or execute repository code.");
   const [manifestInput, setManifestInput] = useState("");
   const [importing, setImporting] = useState(false);
+  const adminGuidancePost = isAdmin && form.adminGuidancePost;
 
   function draft(): RepoShowcaseDraft {
     return { ...form, id: "repo-" + Date.now(), schemaVersion: "repository_showcase_manifest.v1", createdAt: new Date().toISOString() };
@@ -2701,6 +2716,16 @@ function RepositoryShowcaseForm({ localDrafts, roomId, onRefresh, isAdmin = fals
   }
 
   function repoBody() {
+    if (adminGuidancePost) {
+      return [
+        form.description.trim(),
+        sectionBlock("Admin guidance boundary", repositoryShowcaseGuidanceBoundaryCopy),
+        sectionBlock("Marketplace and sandbox boundary", "This post explains how to share repositories safely. It does not approve, trust, sign, version, sandbox-approve, or make any repository install-safe."),
+        sectionBlock("Template notes", form.readmePreview),
+        sectionBlock("Safe sharing checklist", form.fileTreePreview),
+        sectionBlock("Redaction notes", form.redactionNotes)
+      ].filter(Boolean).join("\n\n");
+    }
     return [
       form.description.trim(),
       sectionBlock("Repository URL", form.repoUrl),
@@ -2719,7 +2744,7 @@ function RepositoryShowcaseForm({ localDrafts, roomId, onRefresh, isAdmin = fals
   }
 
   async function submit() {
-    const result = await submitRepositoryShowcase({ repositoryUrl: form.repoUrl, projectName: form.title, projectSummary: form.description || form.readmePreview, roomId, body: repoBody(), tags: "repository showcase", links: form.repoUrl, provider: form.provider, branch: form.branch, commit: form.commit, license: form.license, readmePreview: form.readmePreview, fileTreePreview: form.fileTreePreview, screenshotNotes: form.screenshotNotes, manifestStatus: form.manifestStatus, compatibility: form.compatibility, warnings: form.warnings, sandboxRequested: form.sandboxRequested, importSource: form.importSource, importedMetadata: form.importedMetadata, importedAt: form.importedAt, redactionNotes: form.redactionNotes });
+    const result = await submitRepositoryShowcase({ repositoryUrl: form.repoUrl, projectName: form.title, projectSummary: form.description || form.readmePreview, roomId, body: repoBody(), tags: adminGuidancePost ? "repository showcase admin guidance template policy" : "repository showcase", links: adminGuidancePost ? "" : form.repoUrl, provider: form.provider, branch: form.branch, commit: form.commit, license: form.license, readmePreview: form.readmePreview, fileTreePreview: form.fileTreePreview, screenshotNotes: form.screenshotNotes, manifestStatus: form.manifestStatus, compatibility: form.compatibility, warnings: form.warnings, sandboxRequested: adminGuidancePost ? false : form.sandboxRequested, importSource: form.importSource, importedMetadata: form.importedMetadata, importedAt: form.importedAt, redactionNotes: form.redactionNotes, adminGuidancePost });
     if (result.ok) {
       setMessage(result.message);
       await onRefresh?.();
@@ -2848,38 +2873,41 @@ function RepositoryShowcaseForm({ localDrafts, roomId, onRefresh, isAdmin = fals
 
   return <section className="section-card commune-repo-card" id="commune-repository-showcase">
     <p className="eyebrow">Repository Showcase</p>
-    <h2>Show a repository without running it</h2>
+    <h2>{adminGuidancePost ? "Publish Repository Showcase guidance" : "Show a repository without running it"}</h2>
     <p>No repo APIs are called unless you explicitly import public metadata. Nothing is cloned, installed, built, remotely validated, or executed.</p>
     {isAdmin && <p className="boundary-note">Admin mode: this repository showcase can publish directly as a normal Commune post. It still does not imply installability, compatibility, license safety, or trust.</p>}
+    {adminGuidancePost && <WarningCallout title="Admin guidance post"><p>{repositoryShowcaseGuidanceBoundaryCopy} This post explains how to share repositories safely, and it does not approve, trust, sign, version, sandbox-approve, or make any repository install-safe.</p></WarningCallout>}
     <section className="commune-repo-import-panel">
       <p className="eyebrow">Import source</p>
       <h3>Import public metadata or a local showcase manifest</h3>
       <p className="boundary-note">Local showcase manifest import/export is for reviewed metadata only; it does not inspect, clone, install, or run local repository files.</p>
       <p className="boundary-note">GitHub import uses public unauthenticated metadata only. There is no GitHub account connection, no private repo import, no clone, no build, and no execution.</p>
-      <div className="button-row"><button type="button" disabled={importing || !form.repoUrl.trim()} onClick={() => void importGitHubMetadata()}>{importing ? "Importing public metadata..." : "Import public GitHub metadata"}</button><button type="button" onClick={() => setManifestInput(repoManifestJson(draft()))}>Preview export JSON in import box</button></div>
+      {adminGuidancePost && <p className="boundary-note">Admin guidance mode is not a repository listing, so repository import is not used for publishing this guidance post.</p>}
+      <div className="button-row"><button type="button" disabled={adminGuidancePost || importing || !form.repoUrl.trim()} onClick={() => void importGitHubMetadata()}>{importing ? "Importing public metadata..." : "Import public GitHub metadata"}</button><button type="button" onClick={() => setManifestInput(repoManifestJson(draft()))}>Preview export JSON in import box</button></div>
       <label><span>Paste local showcase manifest JSON</span><textarea rows={5} value={manifestInput} onChange={(event) => setManifestInput(event.target.value)} placeholder="Paste elysia-repo-showcase.json or exported Repository Showcase JSON here." /></label>
-      <div className="button-row"><button type="button" onClick={() => importManifestText()}>Import pasted manifest</button><label className="button-link"><span>Upload JSON manifest</span><input className="sr-only" type="file" accept="application/json,.json" onChange={(event) => importManifestFile(event.target.files?.[0])} /></label></div>
+      <div className="button-row"><button type="button" disabled={adminGuidancePost} onClick={() => importManifestText()}>Import pasted manifest</button><label className={adminGuidancePost ? "button-link is-disabled" : "button-link"}><span>Upload JSON manifest</span><input className="sr-only" type="file" accept="application/json,.json" disabled={adminGuidancePost} onChange={(event) => importManifestFile(event.target.files?.[0])} /></label></div>
       <p className="boundary-note">Local manifest import never inspects your local repository. It only reads the JSON file you choose or paste and requires review before publishing.</p>
     </section>
-    <div className="commune-form-grid">
-      <label><span>Showcase title</span><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
-      <label><span>Repo URL</span><input value={form.repoUrl} onChange={(event) => setForm({ ...form, repoUrl: event.target.value })} /></label>
+    <div className={adminGuidancePost ? "commune-form-grid commune-repo-guidance-mode" : "commune-form-grid"}>
+      <label className="commune-guidance-essential"><span>{adminGuidancePost ? "Guidance title" : "Showcase title"}</span><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
+      <label><span>{adminGuidancePost ? "Repo URL optional for admin guidance" : "Repo URL"}</span><input value={form.repoUrl} onChange={(event) => setForm({ ...form, repoUrl: event.target.value })} placeholder={adminGuidancePost ? "Leave blank for guidance/template posts" : "https://github.com/owner/repo"} /></label>
+      {isAdmin && <label className="checkbox-line wide-field commune-guidance-essential"><input type="checkbox" checked={form.adminGuidancePost} onChange={(event) => setForm({ ...form, adminGuidancePost: event.target.checked, sandboxRequested: event.target.checked ? false : form.sandboxRequested })} /><span>Admin room guidance / template post. Publish as Repository Showcase guidance, not a repository listing.</span></label>}
       <label><span>Provider</span><select value={form.provider} onChange={(event) => setForm({ ...form, provider: event.target.value })}>{["GitHub", "GitLab", "Codeberg", "Forgejo", "Uploaded zip later", "Other"].map((value) => <option key={value}>{value}</option>)}</select></label>
       <label><span>Branch</span><input value={form.branch} onChange={(event) => setForm({ ...form, branch: event.target.value })} /></label>
       <label><span>Commit</span><input value={form.commit} onChange={(event) => setForm({ ...form, commit: event.target.value })} /></label>
       <label><span>License</span><input value={form.license} onChange={(event) => setForm({ ...form, license: event.target.value })} /></label>
       <label><span>Manifest status</span><select value={form.manifestStatus} onChange={(event) => setForm({ ...form, manifestStatus: event.target.value })}>{["No manifest checked", "Manifest missing", "Manifest present", "Manifest validates locally", "Manifest needs review", "Manifest unsafe/blocklisted"].map((value) => <option key={value}>{value}</option>)}</select></label>
       <label><span>Elysia compatibility</span><select value={form.compatibility} onChange={(event) => setForm({ ...form, compatibility: event.target.value })}>{["Unknown", "Concept only", "Website/resource only", "Add-on candidate", "Local Elysia compatible, unverified", "Local Elysia compatible, reviewed later", "Not compatible"].map((value) => <option key={value}>{value}</option>)}</select></label>
-      <label className="wide-field"><span>Short description</span><textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={4} /></label>
-      <label className="wide-field"><span>README preview pasted by user or imported publicly</span><textarea value={form.readmePreview} onChange={(event) => setForm({ ...form, readmePreview: event.target.value })} rows={5} /></label>
-      <label className="wide-field"><span>File tree preview pasted by user or imported publicly</span><textarea value={form.fileTreePreview} onChange={(event) => setForm({ ...form, fileTreePreview: event.target.value })} rows={5} /></label>
+      <label className="wide-field commune-guidance-essential"><span>{adminGuidancePost ? "Guidance body" : "Short description"}</span><textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} rows={4} /></label>
+      <label className="wide-field"><span>{adminGuidancePost ? "Template notes optional" : "README preview pasted by user or imported publicly"}</span><textarea value={form.readmePreview} onChange={(event) => setForm({ ...form, readmePreview: event.target.value })} rows={5} /></label>
+      <label className="wide-field"><span>{adminGuidancePost ? "Safe sharing checklist optional" : "File tree preview pasted by user or imported publicly"}</span><textarea value={form.fileTreePreview} onChange={(event) => setForm({ ...form, fileTreePreview: event.target.value })} rows={5} /></label>
       <label className="wide-field"><span>Screenshot notes or URLs</span><textarea value={form.screenshotNotes} onChange={(event) => setForm({ ...form, screenshotNotes: event.target.value })} rows={3} /></label>
       <label className="wide-field"><span>Redaction notes</span><textarea value={form.redactionNotes} onChange={(event) => setForm({ ...form, redactionNotes: event.target.value })} rows={3} placeholder="Describe what you reviewed or removed before publishing." /></label>
-      <label className="checkbox-line wide-field"><input type="checkbox" checked={form.sandboxRequested} onChange={(event) => setForm({ ...form, sandboxRequested: event.target.checked })} /><span>Also request Repository Showcase selected-artifact sandbox review. This does not run or trust the whole repository.</span></label>
+      <label className="checkbox-line wide-field"><input type="checkbox" disabled={adminGuidancePost} checked={!adminGuidancePost && form.sandboxRequested} onChange={(event) => setForm({ ...form, sandboxRequested: event.target.checked })} /><span>{adminGuidancePost ? "Guidance posts cannot request selected-artifact sandbox review." : "Also request Repository Showcase selected-artifact sandbox review. This does not run or trust the whole repository."}</span></label>
     </div>
     <div className="commune-checklist commune-warning-checks">{repoWarnings.map((item) => <label className="checkbox-line" key={item}><input type="checkbox" checked={form.warnings.includes(item)} onChange={() => toggleWarning(item)} /><span>{item}</span></label>)}</div>
     <WarningCallout title="Developer Forge / Marketplace boundary"><p>Repository Showcase is a public presentation and discussion layer. Developer Forge and Marketplace approval remain separate security, compatibility, licensing, manifest, signing, versioning, and review processes.</p></WarningCallout>
-    <div className="button-row"><button className="button-primary" type="button" onClick={() => void submit()}>Submit showcase for review</button><button type="button" onClick={saveLocal}>Save showcase draft locally</button><button type="button" onClick={() => downloadText(slug(form.title) + "-repo-showcase.md", repoMarkdown(draft()), "text/markdown")}>Export Markdown</button><button type="button" onClick={() => downloadText(slug(form.title) + "-repo-showcase.json", repoManifestJson(draft()), "application/json")}>Export JSON</button><button type="button" onClick={() => copyText(repoMarkdown(draft()), setMessage)}>Copy showcase Markdown</button><Link className="button-link" to="/commune">Back</Link></div>
+    <div className="button-row"><button className="button-primary" type="button" onClick={() => void submit()}>{adminGuidancePost ? "Publish Repository Showcase guidance" : "Submit showcase for review"}</button><button type="button" onClick={saveLocal}>Save showcase draft locally</button><button type="button" onClick={() => downloadText(slug(form.title) + "-repo-showcase.md", repoMarkdown(draft()), "text/markdown")}>Export Markdown</button><button type="button" onClick={() => downloadText(slug(form.title) + "-repo-showcase.json", repoManifestJson(draft()), "application/json")}>Export JSON</button><button type="button" onClick={() => copyText(repoMarkdown(draft()), setMessage)}>Copy showcase Markdown</button><Link className="button-link" to="/commune">Back</Link></div>
     <p className="message">{message}</p>
   </section>;
 }
@@ -3457,6 +3485,28 @@ function ResearchNotesDetail({ post, researchNote, parsedBody, isModerator, onMe
 function RepositoryShowcaseDetail({ post, showcase, parsedBody }: { post: CommunePost; showcase?: RepositoryShowcaseMetadata | null; parsedBody: ReturnType<typeof splitPostSections> }) {
   const section = (heading: string) => repoSectionValue(parsedBody, heading);
   const value = (metadataValue?: string | null, fallbackHeading?: string) => String(metadataValue ?? "").trim() || (fallbackHeading ? section(fallbackHeading) : "");
+  const adminGuidancePost = isRepositoryShowcaseGuidancePost(post) && !showcase;
+  if (adminGuidancePost) {
+    const guidanceFields = [
+      ["Guidance", parsedBody.intro],
+      ["Admin guidance boundary", section("Admin guidance boundary") || repositoryShowcaseGuidanceBoundaryCopy],
+      ["Marketplace and sandbox boundary", section("Marketplace and sandbox boundary")],
+      ["Template notes", section("Template notes")],
+      ["Safe sharing checklist", section("Safe sharing checklist")],
+      ["Redaction notes", section("Redaction notes")]
+    ].filter(([, body]) => body);
+    return <div className="commune-repository-detail commune-repository-guidance-detail">
+      <p className="eyebrow">Repository Showcase guidance</p>
+      <section className="commune-official-identity">
+        <h3>Admin guidance post</h3>
+        <p>{repositoryShowcaseGuidanceBoundaryCopy}</p>
+        <StatusBadges labels={["Repository Showcase guidance", "Admin guidance post", "Policy/template", "Not a trust signal"]} />
+      </section>
+      <WarningCallout title="Repository Showcase guidance boundary"><p>This post explains how to share repositories safely. It is not a repository approval, compatibility review, Marketplace listing, install recommendation, trust signal, signing/versioning decision, selected-artifact sandbox approval, or Developer Forge review.</p></WarningCallout>
+      {guidanceFields.length > 0 && <div className="commune-room-native-details"><p className="eyebrow">Guidance fields</p><div className="commune-room-native-grid">{guidanceFields.map(([heading, body]) => <article className="commune-room-native-field" key={heading}><h3>{heading}</h3><p>{body}</p></article>)}</div></div>}
+      <p className="boundary-note">No repository metadata sidecar is attached to this guidance post. Repository listings still require a public HTTP(S) repository URL and separate review.</p>
+    </div>;
+  }
   const repositoryUrl = value(showcase?.repository_url, "Repository URL") || post.repository_url || "";
   const safeHref = (() => { try { const url = new URL(repositoryUrl); return ["https:", "http:"].includes(url.protocol) ? url.href : null; } catch { return null; } })();
   const riskFlags = showcase?.risk_flags?.length ? showcase.risk_flags : section("Risk warnings").split(/[,\n]/).map((item) => item.trim()).filter(Boolean);

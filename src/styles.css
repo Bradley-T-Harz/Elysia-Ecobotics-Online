@@ -4449,6 +4449,19 @@ button.commune-vote-option-card:disabled {
   background: linear-gradient(180deg, rgba(13, 23, 31, 0.78), rgba(7, 13, 20, 0.74));
 }
 
+.button-link.is-disabled {
+  opacity: 0.48;
+  pointer-events: none;
+}
+
+.commune-repo-guidance-mode label:not(.commune-guidance-essential) {
+  opacity: 0.72;
+}
+
+.commune-repository-guidance-detail .commune-official-identity {
+  border-color: rgba(142, 232, 220, 0.28);
+}
+
 .commune-repo-identity-card,
 .commune-repo-sandbox-summary {
   border-color: rgba(216, 182, 111, 0.26);
