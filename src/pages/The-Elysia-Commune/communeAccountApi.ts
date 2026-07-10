@@ -1139,7 +1139,7 @@ export async function loadCategories(): Promise<{ categories: CommuneCategory[];
   return { categories: (data ?? []) as CommuneCategory[], warnings: [] };
 }
 
-export async function loadCommuneData(roomSlug?: string, postId?: string): Promise<LoadCommuneData> {
+export async function loadCommuneData(roomSlug?: string, postId?: string, postType?: CommunePostType): Promise<LoadCommuneData> {
   const account = await accountState();
   if (!hasSupabaseConfig || !supabase) return { rooms: [], posts: [], comments: [], threads: [], media: [], troubleshootingPosts: [], jobPosts: [], researchNotes: [], repositoryShowcases: [], iterationShowcases: [], officialUpdates: [], officialCodeSnippets: [], votePosts: [], savedPostIds: [], followedThreadIds: [], account, warnings: [supabaseNotConfiguredMessage] };
   const warnings = [...account.warnings];
@@ -1148,9 +1148,11 @@ export async function loadCommuneData(roomSlug?: string, postId?: string): Promi
   if (roomError) warnings.push(roomError.message);
   const candidateRoomSlugs = roomSlugCandidates(roomSlug);
   const selectedRoom = candidateRoomSlugs.length ? (rooms ?? []).find((room) => candidateRoomSlugs.includes(room.slug)) as CommuneRoom | undefined : undefined;
-  let postQuery = supabase.from(canonicalCommuneTables.posts).select("id,user_id,author_username,post_type,title,body,excerpt,tags,links,repository_url,status,visibility,visibility_state,hidden_at,removed_at,archived_at,published_at,last_activity_at,created_at").eq("status", "published").eq("visibility", "public").order("last_activity_at", { ascending: false }).limit(50);
+  let postQuery = supabase.from(canonicalCommuneTables.posts).select("id,user_id,author_username,post_type,title,body,excerpt,tags,links,repository_url,status,visibility,visibility_state,hidden_at,removed_at,archived_at,published_at,last_activity_at,created_at").eq("status", "published").eq("visibility", "public").order("last_activity_at", { ascending: false });
   if (postId) postQuery = postQuery.eq("id", postId);
-  if (selectedRoom) {
+  if (postType) postQuery = postQuery.eq("post_type", postType);
+  if (!postId && !postType) postQuery = postQuery.limit(50);
+  if (selectedRoom && !postType) {
     const { data: roomThreads } = await supabase.from(canonicalCommuneTables.threads).select("post_id").eq("room_id", selectedRoom.id).eq("visibility", "public");
     const ids = (roomThreads ?? []).map((row) => row.post_id).filter(Boolean) as string[];
     postQuery = ids.length ? postQuery.in("id", ids) : postQuery.eq("id", "00000000-0000-0000-0000-000000000000");
@@ -1255,7 +1257,7 @@ async function notifyOfficialUpdateSelf(input: { userId?: string | null; title: 
     source_id: input.sourceId || input.postId || null,
     title: input.title,
     body: input.body,
-    action_url: input.postId ? "/commune/posts/" + input.postId : "/commune/official-updates"
+    action_url: input.postId ? "/commune/posts/" + input.postId : "/commune/rooms/official-updates"
   });
   if (error && import.meta.env.DEV) console.warn("[Official Update notification]", error.message);
 }

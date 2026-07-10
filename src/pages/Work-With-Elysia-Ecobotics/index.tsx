@@ -329,7 +329,7 @@ export default function WorkWithPage() {
         <h2>Job Posts are the public board; Work With is the private intake path.</h2>
         <p>Browse public, admin-approved Job Posts in the Commune for open opportunities and public questions. Use this Work With page for private applications, resumes/CVs, and administrator-review requests.</p>
         <p className="boundary-note">Do not post resumes, CVs, SSNs, identity documents, bank details, private addresses, private phone numbers, contracts, or private application packets in public Job Post comments.</p>
-        <div className="button-row"><Link className="button-link" to="/commune/rooms/job-post">Browse public Job Posts</Link><Link className="button-link" to="/commune/job-post/new">Submit public Job Post for admin approval</Link></div>
+        <div className="button-row"><Link className="button-link" to="/commune/rooms/job-post/posts">Browse public Job Posts</Link><Link className="button-link" to="/commune/rooms/job-post/new">Submit public Job Post for admin approval</Link></div>
       </section>
 
       <section className="feature-grid feature-grid--three">

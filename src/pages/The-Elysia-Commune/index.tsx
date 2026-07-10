@@ -438,6 +438,14 @@ function roomPathForType(type: CommunePostTypeCard) {
   return `/commune/rooms/${roomSlugByPostType[type.backendValue]}`;
 }
 
+function roomNewPathForType(type: CommunePostTypeCard) {
+  return `${roomPathForType(type)}/new`;
+}
+
+function roomPostsPathForType(type: CommunePostTypeCard) {
+  return `${roomPathForType(type)}/posts`;
+}
+
 function sectionBlock(title: string, value?: string | null) {
   const text = String(value ?? "").trim();
   return text ? `## ${title}\n${text}` : "";
@@ -1617,7 +1625,7 @@ function CommuneSearchPanel({ filters, setFilters }: { filters: CommuneFilters; 
       <div>
         <p className="eyebrow">Search and filters</p>
         <h2>Find the right room before the page gets long.</h2>
-        <p>Filters apply to the community feed and local drafts. The room list stays complete so every doorway remains visible.</p>
+        <p>Filters apply to the community feed and local drafts. The full room directory stays available from the Rooms gateway.</p>
       </div>
       <button type="button" onClick={() => setFilters({ search: "", category: "All", status: "All", safety: "All" })}>Clear filters</button>
     </div>
@@ -1669,6 +1677,33 @@ function RoomCards() {
 
 function RoomCardEnterAction({ type }: { type: CommunePostTypeCard }) {
   return <div className="commune-room-card-actions"><Link className="button-link commune-room-enter-button" to={roomPathForType(type)}>Enter room</Link></div>;
+}
+
+function CommuneRoomsGateway() {
+  return <section className="section-card commune-rooms-gateway" id="commune-rooms">
+    <div>
+      <p className="eyebrow">Commune Rooms</p>
+      <h2>Explore moderated community rooms.</h2>
+      <p>Choose the right doorway for media, troubleshooting, code, repositories, community coordination, public opportunities, research, iteration showcases, community voting, or official notices.</p>
+    </div>
+    <div className="commune-room-gateway-actions">
+      <span>10 moderated rooms</span>
+      <Link className="button-link button-link--primary" to="/commune/rooms">Browse Commune Rooms</Link>
+    </div>
+  </section>;
+}
+
+function CommuneRoomsIndexPage() {
+  return <>
+    <CommuneFocusedToolbar />
+    <section className="section-card commune-rooms-index-intro">
+      <p className="eyebrow">Rooms directory</p>
+      <h2>Find the right Commune room before you post.</h2>
+      <p className="boundary-note">Each room keeps its own safety boundary, post type, and moderation flow. Enter a room to see its front desk, create a post, or browse its posts.</p>
+      <Link className="button-link" to="/commune">Back to Commune</Link>
+    </section>
+    <RoomCards />
+  </>;
 }
 
 function RoomPickerPanel() {
@@ -2015,7 +2050,36 @@ function CommunityFeed({ posts, savedPostIds, onSave, filters, signedIn, trouble
   </section>;
 }
 
-function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPosts, jobPosts, researchNotes, votePosts, savedPostIds, onSave, localDrafts, categories, onRefresh, signedIn, isAdmin, focusComposer = false }: { roomSlug: string; roomId?: string; posts: CommunePost[]; officialUpdates: OfficialUpdateMetadata[]; troubleshootingPosts: TroubleshootingMetadata[]; jobPosts: JobPostMetadata[]; researchNotes: ResearchNotesMetadata[]; votePosts: CommunityVoteView[]; savedPostIds: string[]; onSave: (id: string) => void; localDrafts: ReturnType<typeof useLocalDraftState>; categories: CommuneCategory[]; onRefresh: () => Promise<void>; signedIn: boolean; isAdmin: boolean; focusComposer?: boolean }) {
+type RoomPageMode = "hub" | "posts" | "composer";
+
+function roomCreateLabel(type: CommunePostTypeCard) {
+  if (type.backendValue === "troubleshooting") return "Create Troubleshooting Post";
+  if (type.backendValue === "job_post") return "Create Job Post";
+  if (type.backendValue === "repository_showcase") return "Create Repository Showcase";
+  if (type.backendValue === "community_vote") return "Create community vote";
+  if (type.backendValue === "official_update") return "Publish Official Update";
+  return `Create ${type.name} Post`;
+}
+
+function RoomPermissionBoundary({ type }: { type: CommunePostTypeCard }) {
+  return <section className="section-card commune-room-permission-boundary">
+    <p className="eyebrow">Permission boundary</p>
+    <h2>{type.name} authoring is restricted.</h2>
+    <p>{type.backendValue === "community_vote" ? "Community Voting Room votes are created by administrators so options, lifecycle status, ballot privacy, and advisory-governance boundaries are saved together." : "Official Updates are restricted to authorized Elysia Ecobotics administrators. Community users cannot self-assign official publishing authority."}</p>
+    <div className="button-row"><Link className="button-link" to={roomPathForType(type)}>Back to {type.name}</Link><Link className="button-link" to={roomPostsPathForType(type)}>Browse {type.name} posts</Link></div>
+  </section>;
+}
+
+function RoomPostsGateway({ type, count }: { type: CommunePostTypeCard; count: number }) {
+  return <section className="section-card commune-room-posts-gateway" id="commune-room-posts-gateway">
+    <p className="eyebrow">{type.name} Posts</p>
+    <h2>{count ? `${count} published item${count === 1 ? "" : "s"}` : `No published ${type.name} posts yet`}</h2>
+    <p className="boundary-note">This room follows the Commune model: room posts become threads, and replies appear after moderation.</p>
+    <div className="button-row"><Link className="button-link button-link--primary" to={roomPostsPathForType(type)}>Browse all {type.name} posts</Link></div>
+  </section>;
+}
+
+function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPosts, jobPosts, researchNotes, votePosts, savedPostIds, onSave, localDrafts, categories, onRefresh, signedIn, isAdmin, mode = "hub" }: { roomSlug: string; roomId?: string; posts: CommunePost[]; officialUpdates: OfficialUpdateMetadata[]; troubleshootingPosts: TroubleshootingMetadata[]; jobPosts: JobPostMetadata[]; researchNotes: ResearchNotesMetadata[]; votePosts: CommunityVoteView[]; savedPostIds: string[]; onSave: (id: string) => void; localDrafts: ReturnType<typeof useLocalDraftState>; categories: CommuneCategory[]; onRefresh: () => Promise<void>; signedIn: boolean; isAdmin: boolean; mode?: RoomPageMode }) {
   const normalizedRoomSlug = normalizeCommuneRoomSlug(roomSlug) ?? roomSlug;
   const type = postTypeByRoomSlug.get(normalizedRoomSlug);
   const officialByPostId = new Map(officialUpdates.map((item) => [item.post_id, item]));
@@ -2036,6 +2100,18 @@ function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPos
   }
   const canDraft = type.backendValue !== "official_update" || isAdmin;
   const roomPostComposer = canDraft && !["repository_showcase", "community_vote"].includes(type.backendValue);
+  const canOpenComposer = type.backendValue === "community_vote" || type.backendValue === "official_update" ? isAdmin : true;
+  const createPath = roomNewPathForType(type);
+  const postsPath = roomPostsPathForType(type);
+  const hubPath = roomPathForType(type);
+  const createLabel = roomCreateLabel(type);
+  const composer = () => {
+    if (type.backendValue === "community_vote") return isAdmin ? <CommunityVoteComposer roomId={roomId} onRefresh={onRefresh} isAdmin={isAdmin} /> : <RoomPermissionBoundary type={type} />;
+    if (type.backendValue === "repository_showcase") return <RepositoryShowcaseForm localDrafts={localDrafts} roomId={roomId} onRefresh={onRefresh} isAdmin={isAdmin} />;
+    if (type.backendValue === "official_update" && !isAdmin) return <RoomPermissionBoundary type={type} />;
+    if (roomPostComposer) return <PostComposer defaultType={type.backendValue} defaultRoomId={roomId} troubleshooting={type.backendValue === "troubleshooting"} localDrafts={localDrafts} categories={categories} onRefresh={onRefresh} isAdmin={isAdmin} />;
+    return <RoomPermissionBoundary type={type} />;
+  };
   return <>
     <CommuneFocusedToolbar />
     <section className="section-card commune-lobby">
@@ -2048,37 +2124,56 @@ function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPos
       <p><strong>Caution:</strong> {type.cautions}</p>
       <StatusBadges labels={type.currentStatus} />
       <div className="commune-action-row">
-        {roomPostComposer && <Link className="button-link button-link--primary" to={`/commune/${roomSlug}/new`}>{type.backendValue === "troubleshooting" ? "Create Troubleshooting Post" : type.backendValue === "job_post" ? "Create Job Post" : `Create ${type.name} Post`}</Link>}
-        {type.backendValue === "repository_showcase" && <Link className="button-link button-link--primary" to="/commune/repository-showcase/new">Create Repository Showcase</Link>}
+        {roomPostComposer && <Link className="button-link button-link--primary" to={createPath}>{createLabel}</Link>}
+        {type.backendValue === "repository_showcase" && <Link className="button-link button-link--primary" to={createPath}>Create Repository Showcase</Link>}
         {type.backendValue === "elysia_iteration_showcase" && <Link className="button-link" to="/commune/elysia-iteration-showcase/sandbox-request">Review selected iteration artifact</Link>}
-        {type.backendValue === "code_sharing" && <><Link className="button-link button-link--primary" to="/commune/coding-cornucopia/new">Draft Coding Cornucopia Post</Link><Link className="button-link" to="/commune/coding-cornucopia/review">Open Coding Workbench</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Prepare Sandbox Review Request</Link></>}
-        {type.backendValue === "community_vote" && (isAdmin ? <a className="button-link button-link--primary" href="#commune-vote-composer">Create community vote</a> : <a className="button-link button-link--primary" href="#commune-room-feed">Browse guidance votes</a>)}
-        {type.backendValue === "official_update" && (isAdmin ? <Link className="button-link button-link--primary" to="/commune/official-updates/new">Publish Official Update</Link> : <a className="button-link button-link--primary" href="#commune-room-feed">Read official updates</a>)}
+        {type.backendValue === "code_sharing" && <><Link className="button-link button-link--primary" to={createPath}>Draft Coding Cornucopia Post</Link><Link className="button-link" to="/commune/coding-cornucopia/review">Open Coding Workbench</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Prepare Sandbox Review Request</Link></>}
+        {type.backendValue === "community_vote" && (isAdmin ? <Link className="button-link button-link--primary" to={createPath}>Create community vote</Link> : <Link className="button-link button-link--primary" to={postsPath}>Browse guidance votes</Link>)}
+        {type.backendValue === "official_update" && (isAdmin ? <Link className="button-link button-link--primary" to={createPath}>Publish Official Update</Link> : <Link className="button-link button-link--primary" to={postsPath}>Read official updates</Link>)}
+        {mode !== "posts" && <Link className="button-link" to={postsPath}>View all posts</Link>}
+        <Link className="button-link" to="/commune/rooms">Rooms directory</Link>
       </div>
     </section>
-    {type.backendValue === "community_vote" && <section className="section-card commune-vote-detail"><p className="eyebrow">Stewardship guidance, not automatic governance</p><h2>Community votes guide decisions; admins control lifecycle and outcomes.</h2><p className="commune-vote-boundary-note">Community votes guide stewardship decisions. They do not automatically change site policy, safety rules, legal terms, Marketplace behavior, Developer Forge behavior, Elysia behavior, or Official Updates.</p><p>{signedIn ? "Signed-in members can cast one ballot and change it while a vote is open." : "Anonymous visitors can read public votes and allowed aggregate results, but voting requires a signed-in member account."}</p></section>}
-    {type.backendValue === "job_post" && <section className="section-card commune-job-bridge"><p className="eyebrow">Public board, private applications separate</p><h2>Job Posts are public listings; Work With is the private intake path.</h2><p>Community members may submit public opportunities, but normal-user Job Posts require admin approval before publication. Do not ask for resumes, CVs, SSNs, bank details, IDs, private addresses, private phone numbers, or private applicant packets in public comments.</p><div className="button-row"><Link className="button-link" to="/work-with-elysia-ecobotics">Open Work With private intake</Link><Link className="button-link" to="/commune/rooms/job-post">Browse public Job Posts</Link></div></section>}
-    <section className="section-card commune-feed" id="commune-room-feed">
-      <p className="eyebrow">{type.name} Posts</p>
-      <h2>{roomPosts.length ? `${roomPosts.length} published item${roomPosts.length === 1 ? "" : "s"}` : `No published ${type.name} posts yet`}</h2>
-      <p className="boundary-note">This room follows the Commune model: room posts become threads, and replies appear after moderation.</p>
+    {mode === "hub" && <RoomPostsGateway type={type} count={roomPosts.length} />}
+    {mode === "hub" && type.backendValue === "community_vote" && <section className="section-card commune-vote-detail"><p className="eyebrow">Stewardship guidance, not automatic governance</p><h2>Community votes guide decisions; admins control lifecycle and outcomes.</h2><p className="commune-vote-boundary-note">Community votes guide stewardship decisions. They do not automatically change site policy, safety rules, legal terms, Marketplace behavior, Developer Forge behavior, Elysia behavior, or Official Updates.</p><p>{signedIn ? "Signed-in members can cast one ballot and change it while a vote is open." : "Anonymous visitors can read public votes and allowed aggregate results, but voting requires a signed-in member account."}</p></section>}
+    {mode === "hub" && type.backendValue === "job_post" && <section className="section-card commune-job-bridge"><p className="eyebrow">Public board, private applications separate</p><h2>Job Posts are public listings; Work With is the private intake path.</h2><p>Community members may submit public opportunities, but normal-user Job Posts require admin approval before publication. Do not ask for resumes, CVs, SSNs, bank details, IDs, private addresses, private phone numbers, or private applicant packets in public comments.</p><div className="button-row"><Link className="button-link" to="/work-with-elysia-ecobotics">Open Work With private intake</Link><Link className="button-link" to={postsPath}>Browse public Job Posts</Link></div></section>}
+    {mode === "posts" && <section className="section-card commune-feed" id="commune-room-feed">
+      <div className="section-heading section-heading--inline">
+        <div>
+          <p className="eyebrow">{type.name} Posts</p>
+          <h2>{roomPosts.length ? `${roomPosts.length} published item${roomPosts.length === 1 ? "" : "s"}` : `No published ${type.name} posts yet`}</h2>
+          <p className="boundary-note">This room follows the Commune model: room posts become threads, and replies appear after moderation.</p>
+        </div>
+        <div className="button-row"><Link className="button-link" to={hubPath}>Back to {type.name}</Link>{canOpenComposer && <Link className="button-link button-link--primary" to={createPath}>{createLabel}</Link>}</div>
+      </div>
       {roomPosts.length ? <div className="commune-feed-grid">{roomPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} signedIn={signedIn} officialUpdate={officialByPostId.get(post.id)} troubleshooting={troubleshootingByPostId.get(post.id)} jobPost={jobByPostId.get(post.id)} researchNote={researchByPostId.get(post.id)} communityVote={voteByPostId.get(post.id)} />)}</div> : <p className="commune-empty-state">Published posts will appear here after moderation. Start with a careful draft when you are ready.</p>}
-    </section>
-    {type.backendValue === "repository_showcase" && (focusComposer ? <RepositoryShowcaseForm localDrafts={localDrafts} roomId={roomId} onRefresh={onRefresh} isAdmin={isAdmin} /> : <section className="section-card commune-repo-card"><p className="eyebrow">Repository Showcase</p><h2>Metadata only, never execution</h2><p>A public repo is not automatically safe, compatible, licensed, or free of secrets. The website does not fetch, clone, build, run, or validate repositories from this room.</p><Link className="button-link button-link--primary" to="/commune/repository-showcase/new">Open repository showcase form</Link></section>)}
-    {type.backendValue === "code_sharing" && <section className="section-card commune-sandbox-card coding-cornucopia-tools"><p className="eyebrow">Coding Cornucopia Tools</p><h2>Collaborative code review, snapshots, diagnostics, and sandbox-gated runs.</h2><p>Shared code is public knowledge, not automatic trust. The browser page never executes snippets; configured sandbox runs use explicit snapshots, network-disabled containers, resource limits, and audit records.</p><StatusBadges labels={["CodeMirror editor", "Static diagnostics", "Snapshot runs", "No terminal", "No package install", "Marketplace separate"]} /><div className="button-row"><Link className="button-link" to="/commune/coding-cornucopia/review">Open Coding Workbench</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Prepare Sandbox Review Request</Link></div></section>}
-    {type.backendValue === "official_update" && <section className="section-card"><p className="eyebrow">Official Updates</p><h2>{isAdmin ? "Administrator authoring enabled" : "Read-only for community members"}</h2><p>Official release, security, roadmap, and governance notices are restricted to authorized Elysia Ecobotics administrators. Community users cannot self-assign official publishing authority.</p></section>}
-    {type.backendValue === "community_vote" && <CommunityVoteComposer roomId={roomId} onRefresh={onRefresh} isAdmin={isAdmin} />}
-    {roomPostComposer && <div id="commune-room-composer"><PostComposer defaultType={type.backendValue} defaultRoomId={roomId} troubleshooting={type.backendValue === "troubleshooting"} localDrafts={localDrafts} categories={categories} onRefresh={onRefresh} isAdmin={isAdmin} /></div>}
+    </section>}
+    {type.backendValue === "repository_showcase" && mode === "hub" && <section className="section-card commune-repo-card"><p className="eyebrow">Repository Showcase</p><h2>Metadata only, never execution</h2><p>A public repo is not automatically safe, compatible, licensed, or free of secrets. The website does not fetch, clone, build, run, or validate repositories from this room. Developer Forge and Marketplace approval remain separate from showcase posts.</p><div className="button-row"><Link className="button-link button-link--primary" to={createPath}>Open repository showcase form</Link><Link className="button-link" to="/commune/repository-showcase/sandbox-request">Review selected repository artifact</Link></div></section>}
+    {mode === "hub" && type.backendValue === "code_sharing" && <section className="section-card commune-sandbox-card coding-cornucopia-tools"><p className="eyebrow">Coding Cornucopia Tools</p><h2>Collaborative code review, snapshots, diagnostics, and sandbox-gated runs.</h2><p>Shared code is public knowledge, not automatic trust. The browser page never executes snippets; configured sandbox runs use explicit snapshots, network-disabled containers, resource limits, and audit records.</p><StatusBadges labels={["CodeMirror editor", "Static diagnostics", "Snapshot runs", "No terminal", "No package install", "Marketplace separate"]} /><div className="button-row"><Link className="button-link" to="/commune/coding-cornucopia/review">Open Coding Workbench</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Prepare Sandbox Review Request</Link></div></section>}
+    {mode === "hub" && type.backendValue === "official_update" && <section className="section-card"><p className="eyebrow">Official Updates</p><h2>{isAdmin ? "Administrator authoring enabled" : "Read-only for community members"}</h2><p>Official release, security, roadmap, and governance notices are restricted to authorized Elysia Ecobotics administrators. Community users cannot self-assign official publishing authority.</p></section>}
+    {mode === "composer" && <div id="commune-room-composer">
+      <section className="section-card commune-room-composer-shell">
+        <div className="section-heading section-heading--inline">
+          <div>
+            <p className="eyebrow">{type.name} composer</p>
+            <h2>{createLabel}</h2>
+            <p className="boundary-note">This page keeps the complete current room-specific composer, draft controls, exports, validation, moderation behavior, and role gates for {type.name}.</p>
+          </div>
+          <div className="button-row"><Link className="button-link" to={hubPath}>Back to {type.name}</Link><Link className="button-link" to={postsPath}>Browse posts</Link></div>
+        </div>
+      </section>
+      {composer()}
+    </div>}
   </>;
 }
 
-function useCommuneLoad(roomSlug?: string, postId?: string) {
+function useCommuneLoad(roomSlug?: string, postId?: string, postType?: CommunePostType) {
   const [state, setState] = useState({ rooms: [] as CommuneRoom[], posts: [] as CommunePost[], comments: [] as CommuneComment[], threads: [] as CommuneThread[], media: [] as CommuneMediaAttachment[], troubleshootingPosts: [] as TroubleshootingMetadata[], jobPosts: [] as JobPostMetadata[], researchNotes: [] as ResearchNotesMetadata[], repositoryShowcases: [] as RepositoryShowcaseMetadata[], iterationShowcases: [] as ElysiaIterationShowcaseMetadata[], officialUpdates: [] as OfficialUpdateMetadata[], officialCodeSnippets: [] as OfficialUpdateCodeSnippet[], votePosts: [] as CommunityVoteView[], savedPostIds: [] as string[], followedThreadIds: [] as string[], signedIn: false, userId: null as string | null, isAdmin: false, isModerator: false, accountReady: false });
   const refresh = useCallback(async () => {
-    const result = await loadCommuneData(roomSlug, postId);
+    const result = await loadCommuneData(roomSlug, postId, postType);
     logCommuneDiagnostics("load", [...result.account.warnings, ...result.warnings]);
     setState({ rooms: result.rooms, posts: result.posts, comments: result.comments, threads: result.threads, media: result.media, troubleshootingPosts: result.troubleshootingPosts, jobPosts: result.jobPosts, researchNotes: result.researchNotes, repositoryShowcases: result.repositoryShowcases, iterationShowcases: result.iterationShowcases, officialUpdates: result.officialUpdates, officialCodeSnippets: result.officialCodeSnippets, votePosts: result.votePosts, savedPostIds: result.savedPostIds, followedThreadIds: result.followedThreadIds, signedIn: result.account.signedIn, userId: result.account.userId, isAdmin: result.account.isAdmin, isModerator: result.account.isModerator, accountReady: !result.warnings.some(isBackendDiagnostic) });
-  }, [roomSlug, postId]);
+  }, [roomSlug, postId, postType]);
   useEffect(() => { void refresh(); }, [refresh]);
   return { state, refresh };
 }
@@ -4504,7 +4599,7 @@ function CollaborativeCodeReviewPanel() {
         <div className="button-row"><button className="button-primary" type="button" disabled={!account.signedIn} onClick={() => void saveDocument()}>{selected ? "Save document" : "Create document"}</button><button type="button" disabled={!selected} onClick={() => void submitReview()}>Submit for review</button><button type="button" disabled={!selected} onClick={() => void snapshot()}>Create version snapshot</button><button type="button" disabled={!selected} onClick={() => void lock("acquire")}>Acquire edit lock</button><button type="button" disabled={!selected} onClick={() => void lock("release")}>Release edit lock</button></div>
         <label><span>Snapshot summary</span><input value={snapshotSummary} onChange={(event) => setSnapshotSummary(event.target.value)} /></label>
         {account.isModerator && <div className="commune-moderator-controls"><label><span>Moderation reason</span><input value={moderationReason} onChange={(event) => setModerationReason(event.target.value)} /></label><button type="button" disabled={!selected} onClick={() => void publishOrModerate("publish")}>Publish</button><button type="button" disabled={!selected} onClick={() => void publishOrModerate("archive")}>Archive</button><button type="button" disabled={!selected} onClick={() => void publishOrModerate("hide")}>Hide</button><button type="button" disabled={!selected} onClick={() => void publishOrModerate("remove")}>Remove</button></div>}
-        <section className="commune-code-preview"><div className="addon-card__topline"><strong>{getCodingLanguagePolicy(form.language).label}</strong><span>{form.fileName || "untitled"}</span></div><CodeWorkspaceEditor value={form.text} language={form.language} readOnly minHeight="280px" /><DiagnosticsList diagnostics={currentDiagnostics} /><div className="button-row"><button type="button" onClick={() => void copyText(form.text, setMessage)}>Copy code text</button><button type="button" onClick={() => downloadText(`${slug(form.title || "code-review")}.txt`, form.text, "text/plain")}>Export text</button><Link className="button-link" to="/commune/rooms/coding-cornucopia">Create Commune code post from this document</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request" onClick={prepareSandboxFromSelected}>Prepare sandbox review request</Link></div><p className="boundary-note">Static diagnostics are local text checks. Create a manual snapshot before asking the configured sandbox to execute anything.</p></section>
+        <section className="commune-code-preview"><div className="addon-card__topline"><strong>{getCodingLanguagePolicy(form.language).label}</strong><span>{form.fileName || "untitled"}</span></div><CodeWorkspaceEditor value={form.text} language={form.language} readOnly minHeight="280px" /><DiagnosticsList diagnostics={currentDiagnostics} /><div className="button-row"><button type="button" onClick={() => void copyText(form.text, setMessage)}>Copy code text</button><button type="button" onClick={() => downloadText(`${slug(form.title || "code-review")}.txt`, form.text, "text/plain")}>Export text</button><Link className="button-link" to="/commune/rooms/coding-cornucopia/new">Create Commune code post from this document</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request" onClick={prepareSandboxFromSelected}>Prepare sandbox review request</Link></div><p className="boundary-note">Static diagnostics are local text checks. Create a manual snapshot before asking the configured sandbox to execute anything.</p></section>
         <section className="commune-info-grid"><article><h3>Manual snapshots</h3>{!versions.length && <p>No snapshots yet. Sandbox runs require a saved manual snapshot.</p>}{versions.map((version) => <details key={version.id}><summary>v{version.version_number}: {version.change_summary ?? "Snapshot"}</summary><p>{new Date(version.created_at).toLocaleString()}</p><CodeWorkspaceEditor value={version.snapshot_text} language={form.language} readOnly minHeight="220px" /><div className="button-row"><button type="button" onClick={() => void copyText(version.snapshot_text, setMessage)}>Copy snapshot</button></div><CodingSandboxRunPanel snapshotId={version.id} sourceType="commune_code_version" sourceId={selected?.id ?? null} codeDocumentId={selected?.id ?? null} codeVersionId={version.id} language={form.language} fileName={form.fileName} code={version.snapshot_text} signedIn={account.signedIn} /></details>)}</article><article><h3>Line annotations</h3><div className="commune-form-grid"><label><span>Line start</span><input type="number" min="1" value={annotation.lineStart} onChange={(event) => setAnnotation({ ...annotation, lineStart: Number(event.target.value) })} /></label><label><span>Line end</span><input type="number" min="1" value={annotation.lineEnd} onChange={(event) => setAnnotation({ ...annotation, lineEnd: Number(event.target.value) })} /></label><label className="wide-field"><span>Comment</span><input value={annotation.comment} onChange={(event) => setAnnotation({ ...annotation, comment: event.target.value })} /></label></div><button type="button" disabled={!selected || !account.signedIn} onClick={() => void addAnnotation()}>Add annotation</button>{annotations.map((item) => <article className="review-list-item" key={item.id}><strong>Lines {item.line_start}-{item.line_end}</strong><StatusBadges labels={[item.annotation_status, item.visibility_state]} /><p>{item.comment}</p><div className="button-row"><button type="button" onClick={() => void annotationAction(item, "resolve")}>Resolve</button><button type="button" onClick={() => void annotationAction(item, "report")}>Report annotation</button>{account.isModerator && <><button type="button" onClick={() => void annotationAction(item, "hide")}>Hide</button><button type="button" onClick={() => void annotationAction(item, "remove")}>Remove</button></>}</div></article>)}</article></section>
         <section className="commune-report-panel"><h3>Report document</h3><p>Reports are private to moderators/admins. Reporting does not automatically remove content.</p><label><span>Reason</span><select value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value as typeof codeReviewReportReasons[number] })}>{codeReviewReportReasons.map((reason) => <option key={reason} value={reason}>{reason.replace(/_/g, " ")}</option>)}</select></label><label><span>Detail</span><input value={report.detail} onChange={(event) => setReport({ ...report, detail: event.target.value })} /></label><button type="button" disabled={!selected || !account.signedIn} onClick={() => void reportDocument()}>Report code document</button></section>
       </div>
@@ -4643,12 +4738,22 @@ export default function CommunePage() {
   const { roomSlug, postId } = useParams();
   const location = useLocation();
   const pathParts = useMemo(() => location.pathname.split("/").filter(Boolean), [location.pathname]);
-  const effectiveRoomSlug = normalizeCommuneRoomSlug(roomSlug ?? (pathParts[0] === "commune" && pathParts[2] === "new" ? pathParts[1] : undefined));
   const mode = useMemo(() => {
     const parts = location.pathname.split("/").filter(Boolean);
     return parts[parts.length - 1];
   }, [location.pathname]);
-  const { state, refresh } = useCommuneLoad(effectiveRoomSlug, postId);
+  const isRoomsIndex = pathParts[0] === "commune" && pathParts[1] === "rooms" && pathParts.length === 2;
+  const routeRoomSlug = roomSlug ?? (pathParts[0] === "commune" && pathParts[1] === "rooms" && pathParts[2] && !["new", "posts"].includes(pathParts[2])
+    ? pathParts[2]
+    : pathParts[0] === "commune" && pathParts[2] === "new"
+    ? pathParts[1]
+    : undefined);
+  const effectiveRoomSlug = normalizeCommuneRoomSlug(routeRoomSlug);
+  const isRoomNew = Boolean(effectiveRoomSlug) && mode === "new";
+  const isRoomPosts = Boolean(effectiveRoomSlug) && mode === "posts" && pathParts[1] === "rooms";
+  const routeRoomType = effectiveRoomSlug ? postTypeByRoomSlug.get(effectiveRoomSlug) : undefined;
+  const roomPostTypeForLoad = !postId && routeRoomType && (isRoomNew || isRoomPosts || Boolean(effectiveRoomSlug)) ? routeRoomType.backendValue : undefined;
+  const { state, refresh } = useCommuneLoad(undefined, postId, roomPostTypeForLoad);
   const localDrafts = useLocalDraftState();
   const [filters, setFilters] = useState<CommuneFilters>({ search: "", category: "All", status: "All", safety: "All" });
   const [categories, setCategories] = useState<CommuneCategory[]>(() => communeFallbackCategories.map((item, index) => ({ ...item, id: item.slug, sort_order: index, is_active: true })));
@@ -4660,8 +4765,9 @@ export default function CommunePage() {
     await refresh();
   }
 
-  const isRoomNew = Boolean(effectiveRoomSlug) && mode === "new";
-  const routeMode = /\/commune\/elysia-iteration-showcase\/sandbox-request$/.test(location.pathname)
+  const routeMode = isRoomsIndex
+    ? "rooms-index"
+    : /\/commune\/elysia-iteration-showcase\/sandbox-request$/.test(location.pathname)
     ? "iteration-sandbox-review"
     : /\/commune\/repository-showcase\/sandbox-request$/.test(location.pathname)
     ? "repository-sandbox-review"
@@ -4671,8 +4777,9 @@ export default function CommunePage() {
         ? "sandbox-review"
         : !isRoomNew && ["new", "repository-showcase", "troubleshooting", "sandbox-review", "moderation", "realtime"].includes(mode || "") ? mode : "";
   const activeActionKind = mode === "troubleshooting" ? "troubleshooting" : mode === "repository-showcase" || routeMode === "repository-sandbox-review" ? "repository" : routeMode === "iteration-sandbox-review" ? "sandbox" : routeMode === "sandbox-review" || mode === "sandbox-review" ? "sandbox" : mode === "moderation" ? "moderation" : "";
-  const isLobby = !postId && !routeMode && !roomSlug;
+  const isLobby = !postId && !routeMode && !roomSlug && !effectiveRoomSlug;
   const isRoom = !postId && !routeMode && Boolean(effectiveRoomSlug);
+  const roomPageMode: RoomPageMode = isRoomPosts ? "posts" : isRoomNew ? "composer" : "hub";
 
   return <div className="page-stack commune-page">
     <PageHero eyebrow="Public community" title="The Elysia Commune" brandMark="standard">
@@ -4682,9 +4789,10 @@ export default function CommunePage() {
     <Doctrine />
     {isLobby && <CommuneLobby />}
     {isLobby && <CommuneSearchPanel filters={filters} setFilters={setFilters} />}
-    {!isLobby && <AccountModePanel signedIn={state.signedIn} isModerator={state.isModerator} accountReady={state.accountReady} activeKind={activeActionKind} />}
+    {!isLobby && routeMode !== "rooms-index" && <AccountModePanel signedIn={state.signedIn} isModerator={state.isModerator} accountReady={state.accountReady} activeKind={activeActionKind} />}
     {["new", "troubleshooting", "repository-showcase", "repository-sandbox-review", "iteration-sandbox-review", "sandbox-review", "code-review", "realtime", "moderation"].includes(routeMode) && <CommuneFocusedToolbar />}
 
+    {routeMode === "rooms-index" && <CommuneRoomsIndexPage />}
     {routeMode === "new" && <RoomPickerPanel />}
     {routeMode === "repository-showcase" && <RepositoryShowcaseForm localDrafts={localDrafts} roomId={state.rooms.find((room) => room.slug === "repository-showcase")?.id} onRefresh={refresh} isAdmin={state.isAdmin} />}
     {routeMode === "repository-sandbox-review" && <RepositoryShowcaseSandboxRequestPanel signedIn={state.signedIn} />}
@@ -4695,11 +4803,11 @@ export default function CommunePage() {
     {mode === "realtime" && <RealtimeFoundationPanel />}
     {routeMode === "code-review" && <CollaborativeCodeReviewPanel />}
     {postId && <PostDetail postId={postId} />}
-    {isRoom && effectiveRoomSlug && <RoomPage roomSlug={effectiveRoomSlug} roomId={selectedRoom?.id} posts={state.posts} officialUpdates={state.officialUpdates} troubleshootingPosts={state.troubleshootingPosts} jobPosts={state.jobPosts} researchNotes={state.researchNotes} votePosts={state.votePosts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} localDrafts={localDrafts} categories={categories} onRefresh={refresh} signedIn={state.signedIn} isAdmin={state.isAdmin} focusComposer={isRoomNew} />}
+    {isRoom && effectiveRoomSlug && <RoomPage roomSlug={effectiveRoomSlug} roomId={selectedRoom?.id} posts={state.posts} officialUpdates={state.officialUpdates} troubleshootingPosts={state.troubleshootingPosts} jobPosts={state.jobPosts} researchNotes={state.researchNotes} votePosts={state.votePosts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} localDrafts={localDrafts} categories={categories} onRefresh={refresh} signedIn={state.signedIn} isAdmin={state.isAdmin} mode={roomPageMode} />}
 
     {isLobby && <>
       <RedactionPanel />
-      <RoomCards />
+      <CommuneRoomsGateway />
       <CommunityFeed posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} filters={filters} signedIn={state.signedIn} troubleshootingPosts={state.troubleshootingPosts} jobPosts={state.jobPosts} researchNotes={state.researchNotes} votePosts={state.votePosts} />
       <CommuneSideChannelPanel />
       <LocalDraftStudio localDrafts={localDrafts} filters={filters} />

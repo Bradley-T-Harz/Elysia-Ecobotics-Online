@@ -101,9 +101,10 @@ export default function App() {
             <Route path="developer-forge/docs/compatibility" element={<DeveloperForgePage />} />
             <Route path="living-library" element={<LivingLibraryPage />} />
             <Route path="commune" element={<CommunePage />} />
+            <Route path="commune/rooms" element={<CommunePage />} />
+            <Route path="commune/rooms/:roomSlug/new" element={<CommunePage />} />
+            <Route path="commune/rooms/:roomSlug/posts" element={<CommunePage />} />
             <Route path="commune/rooms/:roomSlug" element={<CommunePage />} />
-            <Route path="commune/:roomSlug" element={<CommunePage />} />
-            <Route path="commune/:roomSlug/new" element={<CommunePage />} />
             <Route path="commune/posts/:postId" element={<CommunePage />} />
             <Route path="commune/new" element={<CommunePage />} />
             <Route path="commune/repository-showcase" element={<CommunePage />} />
@@ -120,6 +121,8 @@ export default function App() {
             <Route path="commune/code-sharing/sandbox-request" element={<CommunePage />} />
             <Route path="commune/realtime" element={<CommunePage />} />
             <Route path="commune/moderation" element={<CommunePage />} />
+            <Route path="commune/:roomSlug/new" element={<CommunePage />} />
+            <Route path="commune/:roomSlug" element={<CommunePage />} />
             <Route path="work-with-elysia-ecobotics" element={<WorkWithPage />} />
             <Route path="commons-circle" element={<CommonsCirclePage />} />
             <Route path="commons-circle/admin-console" element={<CommonsCircleAdminConsolePage />} />

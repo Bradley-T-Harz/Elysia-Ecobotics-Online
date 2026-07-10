@@ -890,7 +890,7 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const researchPostById = await loadActivePublicCommunePostMap(researchPostIds, warnings);
   const visibleMyResearchRows = myResearchRows.filter((row) => row.post_id && researchPostById.has(row.post_id));
   const visibleReviewResearchRows = reviewResearchRows.filter((row) => row.post_id && researchPostById.has(row.post_id));
-  const mapResearch = (row: ResearchNotesSignalRow, role: ResearchNotesSignalPreview["role_context"]): ResearchNotesSignalPreview => ({ ...row, post_title: row.post_id ? researchPostById.get(row.post_id)?.title ?? null : null, action_url: row.post_id ? "/commune/posts/" + row.post_id : "/commune/research-notes", role_context: role });
+  const mapResearch = (row: ResearchNotesSignalRow, role: ResearchNotesSignalPreview["role_context"]): ResearchNotesSignalPreview => ({ ...row, post_title: row.post_id ? researchPostById.get(row.post_id)?.title ?? null : null, action_url: row.post_id ? "/commune/posts/" + row.post_id : "/commune/rooms/research-notes", role_context: role });
   const myResearchNotes = visibleMyResearchRows.map((row) => mapResearch(row, ["needs_citation", "needs_clarification", "source_issue", "overclaiming_evidence"].includes(row.review_status ?? "") ? "clarification" : "owner"));
   const researchNotesNeedingReview = visibleReviewResearchRows.map((row) => mapResearch(row, "reviewer"));
   const researchClarificationActivity = [...myResearchNotes, ...researchNotesNeedingReview]
@@ -955,7 +955,7 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const jobPostById = await loadActivePublicCommunePostMap([...myJobRows, ...reviewJobRows].map((row) => row.post_id), warnings);
   const visibleMyJobRows = myJobRows.filter((row) => row.post_id && jobPostById.has(row.post_id));
   const visibleReviewJobRows = reviewJobRows.filter((row) => row.post_id && jobPostById.has(row.post_id));
-  const mapJob = (row: JobPostSignalRow, role: JobPostSignalPreview["role_context"]): JobPostSignalPreview => ({ ...row, action_url: row.post_id ? "/commune/posts/" + row.post_id : "/commune/rooms/job-post", role_context: role });
+  const mapJob = (row: JobPostSignalRow, role: JobPostSignalPreview["role_context"]): JobPostSignalPreview => ({ ...row, action_url: row.post_id ? "/commune/posts/" + row.post_id : "/commune/rooms/job-post/posts", role_context: role });
   const myJobPosts = visibleMyJobRows.map((row) => mapJob(row, ["filled", "closed", "archived", "needs_clarification"].includes(row.application_status ?? "") ? "status" : "owner"));
   const jobPostsNeedingReview = visibleReviewJobRows.map((row) => mapJob(row, "reviewer"));
   const jobPostStatusActivity = [...myJobPosts, ...jobPostsNeedingReview]
@@ -971,7 +971,7 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const votePostById = await loadActivePublicCommunePostMap([...myCommunityVoteRows, ...reviewCommunityVoteRows].map((row) => row.post_id), warnings);
   const visibleMyCommunityVoteRows = myCommunityVoteRows.filter((row) => votePostById.has(row.post_id));
   const visibleReviewCommunityVoteRows = reviewCommunityVoteRows.filter((row) => votePostById.has(row.post_id));
-  const mapCommunityVote = (row: CommunityVoteSignalRow, role: CommunityVoteSignalPreview["role_context"]): CommunityVoteSignalPreview => ({ ...row, action_url: row.post_id ? "/commune/posts/" + row.post_id : "/commune/community-vote", role_context: role });
+  const mapCommunityVote = (row: CommunityVoteSignalRow, role: CommunityVoteSignalPreview["role_context"]): CommunityVoteSignalPreview => ({ ...row, action_url: row.post_id ? "/commune/posts/" + row.post_id : "/commune/rooms/community-vote", role_context: role });
   const voteClosingSoon = (row: CommunityVoteSignalRow) => {
     if (!row.closes_at || row.vote_status !== "open") return false;
     const closesAt = new Date(row.closes_at).getTime();
@@ -996,7 +996,7 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const officialPostById = await loadActivePublicCommunePostMap([...myOfficialRows, ...reviewOfficialRows].map((row) => row.post_id), warnings);
   const visibleMyOfficialRows = myOfficialRows.filter((row) => row.post_id && officialPostById.has(row.post_id));
   const visibleReviewOfficialRows = reviewOfficialRows.filter((row) => row.post_id && officialPostById.has(row.post_id));
-  const mapOfficial = (row: OfficialUpdateSignalRow, role: OfficialUpdateSignalPreview["role_context"]): OfficialUpdateSignalPreview => ({ ...row, action_url: row.post_id ? "/commune/posts/" + row.post_id : "/commune/official-updates", role_context: role });
+  const mapOfficial = (row: OfficialUpdateSignalRow, role: OfficialUpdateSignalPreview["role_context"]): OfficialUpdateSignalPreview => ({ ...row, action_url: row.post_id ? "/commune/posts/" + row.post_id : "/commune/rooms/official-updates", role_context: role });
   const myOfficialUpdates = visibleMyOfficialRows.map((row) => mapOfficial(row, "author"));
   const officialUpdatesNeedingAttention = visibleReviewOfficialRows.filter((row) => ["critical", "urgent"].includes(row.severity ?? "") || ["retracted", "corrected", "monitoring"].includes(row.official_status ?? "")).map((row) => mapOfficial(row, "reviewer"));
   const officialUpdateActivity = Array.from(new Map([...myOfficialUpdates, ...officialUpdatesNeedingAttention].map((row) => [row.role_context + ":" + row.id, row])).values());

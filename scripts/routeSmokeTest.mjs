@@ -4,7 +4,7 @@ const requiredRoutes = [
   "/", "/archive", "/marketplace", "/marketplace/browse", "/marketplace/addons/:id",
   "/marketplace/action-preview", "/marketplace/account", "/marketplace/submit", "/marketplace/trust",
   "/marketplace/manifest-api", "/marketplace/admin", "/products", "/lab", "/developer-forge", "/developer-forge/profile", "/developer-forge/dashboard", "/developer-forge/drafts", "/developer-forge/drafts/new", "/developer-forge/drafts/:id", "/developer-forge/drafts/:id/manifest", "/developer-forge/drafts/:id/permissions", "/developer-forge/drafts/:id/package", "/developer-forge/drafts/:id/validate", "/developer-forge/drafts/:id/preview", "/developer-forge/drafts/:id/submit", "/developer-forge/submissions", "/developer-forge/submissions/:id", "/developer-forge/docs", "/developer-forge/docs/workbench", "/developer-forge/docs/manifest", "/developer-forge/docs/permissions", "/developer-forge/docs/security", "/developer-forge/docs/templates", "/developer-forge/docs/compatibility",
-  "/living-library", "/commune", "/commune/rooms/:roomSlug", "/commune/:roomSlug", "/commune/:roomSlug/new", "/commune/posts/:postId", "/commune/new", "/commune/repository-showcase", "/commune/repository-showcase/new", "/commune/repository-showcase/sandbox-request", "/commune/elysia-iteration-showcase/sandbox-request", "/commune/troubleshooting", "/commune/troubleshooting-grove/review", "/commune/troubleshooting-grove/sandbox-request", "/commune/sandbox-review", "/commune/coding-cornucopia/review", "/commune/coding-cornucopia/sandbox-request", "/commune/code-sharing/review", "/commune/code-sharing/sandbox-request", "/commune/realtime", "/commune/moderation", "/work-with-elysia-ecobotics", "/commons-circle", "/commons-circle/admin-console", "/commons-circle/saved-shelves", "/commons-circle/signals",
+  "/living-library", "/commune", "/commune/rooms", "/commune/rooms/:roomSlug/new", "/commune/rooms/:roomSlug/posts", "/commune/rooms/:roomSlug", "/commune/:roomSlug", "/commune/:roomSlug/new", "/commune/posts/:postId", "/commune/new", "/commune/repository-showcase", "/commune/repository-showcase/new", "/commune/repository-showcase/sandbox-request", "/commune/elysia-iteration-showcase/sandbox-request", "/commune/troubleshooting", "/commune/troubleshooting-grove/review", "/commune/troubleshooting-grove/sandbox-request", "/commune/sandbox-review", "/commune/coding-cornucopia/review", "/commune/coding-cornucopia/sandbox-request", "/commune/code-sharing/review", "/commune/code-sharing/sandbox-request", "/commune/realtime", "/commune/moderation", "/work-with-elysia-ecobotics", "/commons-circle", "/commons-circle/admin-console", "/commons-circle/saved-shelves", "/commons-circle/signals",
   "/commons-circle/onboarding", "/commons-circle/setup/profile", "/commons-circle/setup/stewardship",
   "/commons-circle/setup/work-with", "/commons-circle/setup/confirm", "/commons-circle/:publicHandle", "/commons/:publicHandle", "/story",
   "/about", "/mission", "/legal", "/legal/privacy-policy", "/legal/terms-of-use",
@@ -50,8 +50,24 @@ if (!matchPath({ path: "commune/rooms/:roomSlug" }, "/commune/rooms/community-vo
   console.error("Generic Commune rooms route does not match /commune/rooms/community-vote.");
   process.exit(1);
 }
+if (!matchPath({ path: "commune/rooms", end: true }, "/commune/rooms")) {
+  console.error("Commune rooms directory route does not match /commune/rooms.");
+  process.exit(1);
+}
+if (!matchPath({ path: "commune/rooms/:roomSlug/posts" }, "/commune/rooms/community-vote/posts")) {
+  console.error("Commune room posts route does not match /commune/rooms/community-vote/posts.");
+  process.exit(1);
+}
+if (!matchPath({ path: "commune/rooms/:roomSlug/new" }, "/commune/rooms/community-vote/new")) {
+  console.error("Commune room composer route does not match /commune/rooms/community-vote/new.");
+  process.exit(1);
+}
 if (!communePage.includes("community_vote: \"community-vote\"")) {
   console.error("Community Voting Room should be mapped through roomSlugByPostType instead of requiring an explicit App route.");
+  process.exit(1);
+}
+if (!communePage.includes('routeMode === "rooms-index"') || !communePage.includes("isRoomPosts") || !communePage.includes("roomPageMode")) {
+  console.error("Commune page should explicitly distinguish rooms index, room posts, and room composer modes.");
   process.exit(1);
 }
 if (matchPath({ path: "commons-circle/@:username" }, "/commons-circle/@bradley-harz")) {

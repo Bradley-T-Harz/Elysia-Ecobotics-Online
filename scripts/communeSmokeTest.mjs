@@ -92,7 +92,7 @@ assert(commonsApi.includes("repositoryShowcasesNeedingReview") && commonsApi.inc
 assert(commonsApi.includes("ElysiaIterationShowcaseSignalPreview") && commonsApi.includes("commune_iteration_showcases") && commonsApi.includes("iterationShowcaseActivity"), "Signal Console should load direct Elysia Iteration Showcase activity records.");
 assert(commonsApi.includes("iterationShowcasesNeedingReview") && commonsApi.includes("iterationSandboxActivity") && commonsApi.includes("/commune/elysia-iteration-showcase/sandbox-request?"), "Signal Console should split Elysia Iteration Showcase review and selected-artifact sandbox activity.");
 assert(commonsApi.includes("OfficialUpdateSignalPreview") && commonsApi.includes("commune_official_updates") && commonsApi.includes("officialUpdateActivity"), "Signal Console should load direct Official Update lifecycle records.");
-assert(commonsApi.includes("officialUpdatesNeedingAttention") && commonsApi.includes("officialUpdateCount") && commonsApi.includes("/commune/official-updates"), "Signal Console should split Official Update admin/reviewer attention activity.");
+assert(commonsApi.includes("officialUpdatesNeedingAttention") && commonsApi.includes("officialUpdateCount") && commonsApi.includes("/commune/rooms/official-updates"), "Signal Console should split Official Update admin/reviewer attention activity.");
 assert(commonsApi.includes("TroubleshootingSignalPreview") && commonsApi.includes("commune_troubleshooting_posts") && commonsApi.includes("troubleshootingActivity"), "Signal Console should load direct Troubleshooting Grove issue activity records.");
 assert(commonsApi.includes("myTroubleshootingIssues") && commonsApi.includes("troubleshootingNeedingReview") && commonsApi.includes("troubleshootingResolutionActivity"), "Signal Console should split Troubleshooting Grove owner, reviewer, and accepted resolution activity.");
 assert(commonsApi.includes("troubleshootingCount") && commonsApi.includes("/commune/posts/"), "Signal Console should count and link direct Troubleshooting Grove issue activity.");
@@ -172,16 +172,22 @@ for (const heavyPanel of ["<PostComposer", "<RepositoryShowcaseForm", "<SandboxD
   assert(!lobbyBranch.includes(heavyPanel), `Commune lobby still renders heavy panel: ${heavyPanel}`);
 }
 assert(!lobbyBranch.includes("<AccountModePanel"), "Commune lobby still renders the account-backed mode panel.");
-for (const lobbyPanel of ["<CommuneLobby", "<CommuneSearchPanel", "<RoomCards", "<CommunityFeed", "<CommuneSideChannelPanel", "<LocalDraftStudio"]) {
+for (const lobbyPanel of ["<CommuneLobby", "<CommuneSearchPanel", "<CommuneRoomsGateway", "<CommunityFeed", "<CommuneSideChannelPanel", "<LocalDraftStudio"]) {
   assert(page.includes(lobbyPanel), `Commune lobby panel missing: ${lobbyPanel}`);
 }
-assert(page.includes("!isLobby && <AccountModePanel"), "Account-backed Commune functionality should remain available outside the public lobby.");
+assert(!lobbyBranch.includes("<RoomCards"), "Commune lobby should link to the Rooms directory instead of rendering the full room-card grid.");
+assert(page.includes('routeMode === "rooms-index" && <CommuneRoomsIndexPage />'), "Commune /rooms should render the room directory index page.");
+assert(page.includes("function CommuneRoomsGateway()") && page.includes("Browse Commune Rooms"), "Commune lobby should render a compact Rooms gateway.");
+assert(page.includes("function CommuneRoomsIndexPage()") && page.includes("<RoomCards />"), "Commune /rooms should render the extracted full room-card directory.");
+assert(page.includes('!isLobby && routeMode !== "rooms-index" && <AccountModePanel'), "Account-backed Commune functionality should remain available outside the public lobby and rooms directory.");
 assert(page.includes("function RoomPage"), "Focused Commune room page component missing.");
 assert(page.includes("postTypeByRoomSlug"), "Commune room slug to post type mapping missing.");
 assert(page.includes("Posting in: {selectedPostTypeLabel}"), "Room composer should show a simple read-only room context line.");
 assert(page.includes("postType: defaultType"), "Room composer should preserve the locked room post type internally.");
 assert(page.includes("current.postType === defaultType"), "Room composer should relock post type when navigating between rooms.");
-assert(page.includes("focusComposer={isRoomNew}"), "Room-specific /new routes should focus the selected room composer instead of reopening the lobby picker.");
+assert(page.includes('type RoomPageMode = "hub" | "posts" | "composer"') && page.includes("mode={roomPageMode}"), "Room-specific routes should render hub, posts, or composer modes instead of reopening the lobby picker.");
+assert(page.includes("roomPostTypeForLoad") && page.includes("loadCommuneData(roomSlug, postId, postType)") && accountApi.includes('postQuery.eq("post_type", postType)'), "Room post pages should load active public posts by post type instead of relying on thread room ids.");
+assert(page.includes("function RoomPostsGateway") && page.includes("Browse all {type.name} posts"), "Room hubs should show a compact posts gateway.");
 assert(page.includes("roomId={selectedRoom?.id}"), "Room composer should receive the selected backend room id.");
 assert(page.includes("defaultRoomId={roomId}"), "Room page should pass the backend room id into the post composer.");
 assert(page.includes("isAdmin={state.isAdmin}"), "Room composer should receive admin state for direct-publish labeling.");
@@ -202,7 +208,7 @@ assert(accountApi.includes("work_with_link_enabled: true") && accountApi.include
 assert(page.includes("Create Job Post") && !page.includes("Create Job Post Post"), "Job Post room action should avoid duplicate Post wording.");
 assert(page.includes("Normal users submit for mandatory admin approval before publication"), "Job Post composer should explain mandatory admin approval.");
 assert(page.includes("Job Posts are public listings; Work With is the private intake path"), "Job Post room should link public listings to private Work With intake.");
-assert(workWithPage.includes("Job Posts are the public board; Work With is the private intake path") && workWithPage.includes("/commune/rooms/job-post") && workWithPage.includes("/commune/job-post/new"), "Work With page should link back to public Job Posts without merging private intake.");
+assert(workWithPage.includes("Job Posts are the public board; Work With is the private intake path") && workWithPage.includes("/commune/rooms/job-post/posts") && workWithPage.includes("/commune/rooms/job-post/new"), "Work With page should link back to public Job Posts without merging private intake.");
 assert(accountApi.includes("export async function submitJobPost") && accountApi.includes("commune_job_posts") && accountApi.includes('post_type: "job_post"'), "Job Post API should create normal Commune posts plus structured sidecar metadata.");
 assert(accountApi.includes('status: adminDirectPublish ? "published" : "pending_review"') && accountApi.includes("mandatory admin approval"), "Job Post API should keep normal-user submissions pending until admin approval.");
 assert(accountApi.includes("updateJobPostApplicationStatus") && accountApi.includes("updateJobPostReviewStatus"), "Job Post API should support listing status and anti-scam review updates.");
@@ -282,8 +288,8 @@ assert(page.includes("Use hashtags, commas, or simple words. Tags help people fi
 assert(page.includes("replace(/#/g, \"\")"), "Commune search should normalize hashtag searches.");
 assert(accountApi.includes("parseCommuneTags(input.tags)"), "Commune Supabase submission should normalize tags before insert.");
 assert(migration.includes("tags text[]"), "Commune Supabase schema should support post tags.");
-assert(page.includes("function RoomCards()"), "Commune lobby room cards should render the complete room list.");
-assert(page.includes("postTypes.map((type)"), "Commune lobby room cards should include every post type doorway.");
+assert(page.includes("function RoomCards()"), "Commune rooms directory should render the complete room list.");
+assert(page.includes("postTypes.map((type)"), "Commune rooms directory cards should include every post type doorway.");
 assert(page.includes("Enter room"), "Commune room entry copy missing.");
 assert(page.includes("function RoomCardEnterAction"), "Commune room cards should use a shared Enter room CTA component.");
 assert(page.includes('className="commune-room-card-actions"'), "Commune room cards should render a shared CTA/action area.");

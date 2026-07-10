@@ -1222,6 +1222,32 @@ code { color: var(--teal); overflow-wrap: anywhere; }
   flex-direction: column;
 }
 
+.commune-rooms-gateway,
+.commune-rooms-index-intro,
+.commune-room-posts-gateway,
+.commune-room-composer-shell,
+.commune-room-permission-boundary {
+  border-color: var(--commune-panel-border-strong);
+}
+
+.commune-rooms-gateway {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: end;
+}
+
+.commune-room-gateway-actions {
+  display: grid;
+  gap: 0.65rem;
+  justify-items: end;
+}
+
+.commune-room-gateway-actions span {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .commune-room-card-actions {
   display: flex;
   margin-top: auto;
@@ -1248,6 +1274,16 @@ code { color: var(--teal); overflow-wrap: anywhere; }
 
 .commune-page .section-card[id] {
   scroll-margin-top: 7rem;
+}
+
+@media (max-width: 760px) {
+  .commune-rooms-gateway {
+    grid-template-columns: 1fr;
+  }
+
+  .commune-room-gateway-actions {
+    justify-items: stretch;
+  }
 }
 
 .commune-zone-card details {
