@@ -3590,6 +3590,36 @@ button.commune-vote-option-card:disabled {
   white-space: pre-wrap;
 }
 
+.commune-research-native-details .commune-room-native-grid {
+  align-items: start;
+}
+
+.commune-research-native-details .commune-room-native-field {
+  align-self: start;
+}
+
+.commune-research-discussion {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.8rem;
+  width: 100%;
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid rgba(142, 232, 220, 0.2);
+  border-radius: 14px;
+  background: rgba(3, 8, 13, 0.28);
+}
+
+.commune-research-discussion > h2 {
+  margin: 0;
+}
+
+.commune-research-discussion .commune-post-prose {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
 .commune-media-section {
   margin: 1rem 0;
   padding: 0.9rem;

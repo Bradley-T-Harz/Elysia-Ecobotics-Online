@@ -720,6 +720,15 @@ function metadataText(value?: string | null) {
   return String(value ?? "").trim();
 }
 
+function normalizeResearchDiscussionForComparison(value?: string | null) {
+  return metadataText(value).replace(/\r\n?/g, "\n").replace(/\s+/g, " ").trim();
+}
+
+function isRepeatedResearchDiscussion(contextDiscussion: string, ...bodyCandidates: string[]) {
+  const normalizedContext = normalizeResearchDiscussionForComparison(contextDiscussion);
+  return Boolean(normalizedContext) && bodyCandidates.some((candidate) => normalizeResearchDiscussionForComparison(candidate) === normalizedContext);
+}
+
 const roomNativeFormHeadingsByPostType: Partial<Record<CommunePostType, string[]>> = {
   community_network: [
     "Introduction type",
@@ -842,11 +851,12 @@ function bodyMarkdownForPost(post: CommunePost) {
 
 function renderCommuneInlineMarkdown(text: string, keyPrefix: string): ReactNode {
   const nodes: ReactNode[] = [];
-  const linkPattern = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g;
+  const inlinePattern = /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)|\*\*([^*\n]+)\*\*/g;
   let lastIndex = 0;
-  for (const match of text.matchAll(linkPattern)) {
+  for (const match of text.matchAll(inlinePattern)) {
     if (match.index > lastIndex) nodes.push(text.slice(lastIndex, match.index));
-    nodes.push(<a href={match[2]} target="_blank" rel="noreferrer" key={`${keyPrefix}-${match.index}`}>{match[1]}</a>);
+    if (match[1] && match[2]) nodes.push(<a href={match[2]} target="_blank" rel="noreferrer" key={`${keyPrefix}-${match.index}`}>{match[1]}</a>);
+    else nodes.push(<strong key={`${keyPrefix}-${match.index}`}>{match[3]}</strong>);
     lastIndex = match.index + match[0].length;
   }
   if (lastIndex < text.length) nodes.push(text.slice(lastIndex));
@@ -3851,13 +3861,14 @@ function ResearchNotesDetail({ post, researchNote, parsedBody, isModerator, onMe
   const value = (metadataValue?: string | null, ...fallbackHeadings: string[]) => metadataText(metadataValue) || (fallbackHeadings.length ? section(...fallbackHeadings) : "");
   const sourceLinks = researchNote?.source_links?.length ? researchNote.source_links : section("Source links").split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
   const livingLibraryHref = safePublicHref(value(researchNote?.living_library_source_link, "Living Library source link"));
+  const contextDiscussion = value(researchNote?.context_discussion);
+  const distinctContextDiscussion = isRepeatedResearchDiscussion(contextDiscussion, post.body, bodyMarkdownForPost(post)) ? "" : contextDiscussion;
   const fields: RoomNativeField[] = [
     ["Evidence summary", value(researchNote?.evidence_summary, "Evidence summary")],
     ["Observation", value(researchNote?.observation, "Observation")],
     ["Interpretation", value(researchNote?.interpretation, "Interpretation")],
     ["Uncertainty", value(researchNote?.uncertainty, "Uncertainty")],
     ["Citation notes", value(researchNote?.citation_notes, "Citation notes")],
-    ["Context / discussion", value(researchNote?.context_discussion)],
     ["Geographic scope", value(researchNote?.geographic_scope, "Geographic scope")],
     ["Method type", value(researchNote?.method_type, "Method type")],
     ["Data type", value(researchNote?.data_type, "Data type")],
@@ -3880,6 +3891,11 @@ function ResearchNotesDetail({ post, researchNote, parsedBody, isModerator, onMe
       <WarningCallout title="Research Notes boundary"><p>Research Notes separate evidence, observation, interpretation, and uncertainty. They are public research discussion, not Official Updates, Living Library source records, certification, or private research storage.</p></WarningCallout>
     </div>
     <RoomNativeDetails label="Evidence-aware fields" fields={fields} className="commune-research-native-details" />
+    {distinctContextDiscussion && <section className="commune-research-discussion" aria-labelledby="commune-research-discussion-heading">
+      <p className="eyebrow">Research discussion</p>
+      <h2 id="commune-research-discussion-heading">Context / discussion</h2>
+      <CommunePostBody body={distinctContextDiscussion} />
+    </section>}
     {sourceLinks.length > 0 && <article className="commune-room-native-field commune-research-sources"><h3>Source links</h3><div className="button-row">{sourceLinks.map((link) => {
       const href = safePublicHref(link);
       return href ? <a className="button-link" href={href} target="_blank" rel="noreferrer" key={href}>{href}</a> : <span className="boundary-note" key={link}>{link}</span>;
