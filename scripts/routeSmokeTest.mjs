@@ -62,6 +62,28 @@ if (!matchPath({ path: "commune/rooms/:roomSlug/new" }, "/commune/rooms/communit
   console.error("Commune room composer route does not match /commune/rooms/community-vote/new.");
   process.exit(1);
 }
+for (const [pattern, path, label] of [
+  ["commune/rooms/:roomSlug", "/commune/rooms/repository-showcase", "hub"],
+  ["commune/rooms/:roomSlug/new", "/commune/rooms/repository-showcase/new", "composer"],
+  ["commune/rooms/:roomSlug/posts", "/commune/rooms/repository-showcase/posts", "posts feed"]
+]) {
+  if (!matchPath({ path: pattern }, path)) {
+    console.error(`Repository Showcase ${label} route does not match ${path}.`);
+    process.exit(1);
+  }
+}
+if (!app.includes('path="commune/repository-showcase" element={<Navigate replace to="/commune/rooms/repository-showcase/new" />}')) {
+  console.error("Legacy Repository Showcase composer route should redirect safely to the canonical /new route.");
+  process.exit(1);
+}
+if (communePage.includes('routeMode === "repository-showcase" && <RepositoryShowcaseForm') || communePage.includes('"new", "repository-showcase", "troubleshooting"')) {
+  console.error("Repository Showcase hub is still swallowed by the legacy specialized composer route mode.");
+  process.exit(1);
+}
+if ((communePage.match(/<RepositoryShowcaseForm/g) ?? []).length !== 1 || !communePage.includes('if (type.backendValue === "repository_showcase") return <RepositoryShowcaseForm')) {
+  console.error("Repository Showcase should reuse exactly one existing form instance through the shared room composer mode.");
+  process.exit(1);
+}
 if (!communePage.includes("community_vote: \"community-vote\"")) {
   console.error("Community Voting Room should be mapped through roomSlugByPostType instead of requiring an explicit App route.");
   process.exit(1);

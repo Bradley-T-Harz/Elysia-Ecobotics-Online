@@ -1190,7 +1190,7 @@ const statusFilters = ["All", "Published", "Local drafts", "Pending review", "Re
 const safetyFilters = ["All", "No code execution", "Requires moderation", "Requires backend", "Requires sandbox", "Admin-only enforced"];
 const communeActions = [
   { label: "Troubleshooting", href: "/commune/troubleshooting", kind: "troubleshooting" },
-  { label: "Repository showcase", href: "/commune/repository-showcase", kind: "repository" },
+  { label: "Repository showcase", href: "/commune/rooms/repository-showcase", kind: "repository" },
   { label: "Sandbox review request", href: "/commune/sandbox-review", kind: "sandbox" }
 ] as const;
 
@@ -2057,7 +2057,7 @@ type RoomPageMode = "hub" | "posts" | "composer";
 function roomCreateLabel(type: CommunePostTypeCard) {
   if (type.backendValue === "troubleshooting") return "Create Troubleshooting Post";
   if (type.backendValue === "job_post") return "Create Job Post";
-  if (type.backendValue === "repository_showcase") return "Create Repository Showcase";
+  if (type.backendValue === "repository_showcase") return "Create Repository Showcase Post";
   if (type.backendValue === "community_vote") return "Create community vote";
   if (type.backendValue === "official_update") return "Publish Official Update";
   return `Create ${type.name} Post`;
@@ -2127,7 +2127,7 @@ function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPos
       <StatusBadges labels={type.currentStatus} />
       <div className="commune-action-row">
         {roomPostComposer && <Link className="button-link button-link--primary" to={createPath}>{createLabel}</Link>}
-        {type.backendValue === "repository_showcase" && <Link className="button-link button-link--primary" to={createPath}>Create Repository Showcase</Link>}
+        {type.backendValue === "repository_showcase" && <Link className="button-link button-link--primary" to={createPath}>{createLabel}</Link>}
         {type.backendValue === "elysia_iteration_showcase" && <Link className="button-link" to="/commune/elysia-iteration-showcase/sandbox-request">Review selected iteration artifact</Link>}
         {type.backendValue === "code_sharing" && <><Link className="button-link button-link--primary" to={createPath}>Draft Coding Cornucopia Post</Link><Link className="button-link" to="/commune/coding-cornucopia/review">Open Coding Workbench</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Prepare Sandbox Review Request</Link></>}
         {type.backendValue === "community_vote" && (isAdmin ? <Link className="button-link button-link--primary" to={createPath}>Create community vote</Link> : <Link className="button-link button-link--primary" to={postsPath}>Browse guidance votes</Link>)}
@@ -2150,7 +2150,7 @@ function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPos
       </div>
       {roomPosts.length ? <div className="commune-feed-grid">{roomPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} signedIn={signedIn} officialUpdate={officialByPostId.get(post.id)} troubleshooting={troubleshootingByPostId.get(post.id)} jobPost={jobByPostId.get(post.id)} researchNote={researchByPostId.get(post.id)} communityVote={voteByPostId.get(post.id)} />)}</div> : <p className="commune-empty-state">Published posts will appear here after moderation. Start with a careful draft when you are ready.</p>}
     </section>}
-    {type.backendValue === "repository_showcase" && mode === "hub" && <section className="section-card commune-repo-card"><p className="eyebrow">Repository Showcase</p><h2>Metadata only, never execution</h2><p>A public repo is not automatically safe, compatible, licensed, or free of secrets. The website does not fetch, clone, build, run, or validate repositories from this room. Developer Forge and Marketplace approval remain separate from showcase posts.</p><div className="button-row"><Link className="button-link button-link--primary" to={createPath}>Open repository showcase form</Link><Link className="button-link" to="/commune/repository-showcase/sandbox-request">Review selected repository artifact</Link></div></section>}
+    {type.backendValue === "repository_showcase" && mode === "hub" && <section className="section-card commune-repo-card"><p className="eyebrow">Repository Showcase boundaries</p><h2>Metadata and presentation only, never execution</h2><p>A public repository is not automatically safe, compatible, licensed, or free of secrets. This room does not access private repositories or fetch, clone, install, build, run, execute, or validate repository code.</p><StatusBadges labels={["Public metadata only", "No private repository access", "Selected-artifact review separate", "Developer Forge separate", "Marketplace separate"]} /><p className="boundary-note">Selected-artifact sandbox review is a separate governed request for a bounded artifact. It does not approve, trust, or execute the whole repository.</p><p className="boundary-note">Admin guidance/template posts explain safe room use. They remain guidance, not repository listings, compatibility guarantees, Developer Forge approval, Marketplace approval, install recommendations, or trust signals.</p><div className="button-row"><Link className="button-link button-link--primary" to={createPath}>Open repository showcase form</Link><Link className="button-link" to="/commune/repository-showcase/sandbox-request">Review selected repository artifact</Link></div></section>}
     {mode === "hub" && type.backendValue === "code_sharing" && <section className="section-card commune-sandbox-card coding-cornucopia-tools"><p className="eyebrow">Coding Cornucopia Tools</p><h2>Collaborative code review, snapshots, diagnostics, and sandbox-gated runs.</h2><p>Shared code is public knowledge, not automatic trust. The browser page never executes snippets; configured sandbox runs use explicit snapshots, network-disabled containers, resource limits, and audit records.</p><StatusBadges labels={["CodeMirror editor", "Static diagnostics", "Snapshot runs", "No terminal", "No package install", "Marketplace separate"]} /><div className="button-row"><Link className="button-link" to="/commune/coding-cornucopia/review">Open Coding Workbench</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Prepare Sandbox Review Request</Link></div></section>}
     {mode === "hub" && type.backendValue === "official_update" && <section className="section-card"><p className="eyebrow">Official Updates</p><h2>{isAdmin ? "Administrator authoring enabled" : "Read-only for community members"}</h2><p>Official release, security, roadmap, and governance notices are restricted to authorized Elysia Ecobotics administrators. Community users cannot self-assign official publishing authority.</p></section>}
     {mode === "composer" && <div id="commune-room-composer">
@@ -4782,7 +4782,7 @@ export default function CommunePage() {
       ? "code-review"
       : /\/commune\/(coding-cornucopia|code-sharing|troubleshooting-grove)\/sandbox-request$/.test(location.pathname)
         ? "sandbox-review"
-        : !isRoomNew && ["new", "repository-showcase", "troubleshooting", "sandbox-review", "moderation", "realtime"].includes(mode || "") ? mode : "";
+        : !isRoomNew && ["new", "troubleshooting", "sandbox-review", "moderation", "realtime"].includes(mode || "") ? mode : "";
   const activeActionKind = mode === "troubleshooting" ? "troubleshooting" : mode === "repository-showcase" || routeMode === "repository-sandbox-review" ? "repository" : routeMode === "iteration-sandbox-review" ? "sandbox" : routeMode === "sandbox-review" || mode === "sandbox-review" ? "sandbox" : mode === "moderation" ? "moderation" : "";
   const isLobby = !postId && !routeMode && !roomSlug && !effectiveRoomSlug;
   const isRoom = !postId && !routeMode && Boolean(effectiveRoomSlug);
@@ -4797,11 +4797,10 @@ export default function CommunePage() {
     {isLobby && <CommuneLobby />}
     {isLobby && <CommuneSearchPanel filters={filters} setFilters={setFilters} />}
     {!isLobby && routeMode !== "rooms-index" && <AccountModePanel signedIn={state.signedIn} isModerator={state.isModerator} accountReady={state.accountReady} activeKind={activeActionKind} />}
-    {["new", "troubleshooting", "repository-showcase", "repository-sandbox-review", "iteration-sandbox-review", "sandbox-review", "code-review", "realtime", "moderation"].includes(routeMode) && <CommuneFocusedToolbar />}
+    {["new", "troubleshooting", "repository-sandbox-review", "iteration-sandbox-review", "sandbox-review", "code-review", "realtime", "moderation"].includes(routeMode) && <CommuneFocusedToolbar />}
 
     {routeMode === "rooms-index" && <CommuneRoomsIndexPage />}
     {routeMode === "new" && <RoomPickerPanel />}
-    {routeMode === "repository-showcase" && <RepositoryShowcaseForm localDrafts={localDrafts} roomId={state.rooms.find((room) => room.slug === "repository-showcase")?.id} onRefresh={refresh} isAdmin={state.isAdmin} />}
     {routeMode === "repository-sandbox-review" && <RepositoryShowcaseSandboxRequestPanel signedIn={state.signedIn} />}
     {routeMode === "iteration-sandbox-review" && <ElysiaIterationSandboxRequestPanel signedIn={state.signedIn} />}
     {mode === "troubleshooting" && <PostComposer defaultType="troubleshooting" defaultRoomId={state.rooms.find((room) => room.slug === "troubleshooting-grove")?.id} troubleshooting localDrafts={localDrafts} categories={categories} onRefresh={refresh} isAdmin={state.isAdmin} />}

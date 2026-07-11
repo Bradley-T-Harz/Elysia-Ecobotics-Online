@@ -107,7 +107,7 @@ export default function App() {
             <Route path="commune/rooms/:roomSlug" element={<CommunePage />} />
             <Route path="commune/posts/:postId" element={<CommunePage />} />
             <Route path="commune/new" element={<CommunePage />} />
-            <Route path="commune/repository-showcase" element={<CommunePage />} />
+            <Route path="commune/repository-showcase" element={<Navigate replace to="/commune/rooms/repository-showcase/new" />} />
             <Route path="commune/repository-showcase/new" element={<CommunePage />} />
             <Route path="commune/repository-showcase/sandbox-request" element={<CommunePage />} />
             <Route path="commune/elysia-iteration-showcase/sandbox-request" element={<CommunePage />} />
