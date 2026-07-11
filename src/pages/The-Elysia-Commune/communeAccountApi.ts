@@ -436,50 +436,32 @@ function friendlyError(message: string, fallbackMessage: string) {
 }
 
 const communeSoftDeleteCleanupUnavailableMessage = "Commune soft-delete cleanup is not available yet. Apply the latest Commune cleanup migration before deleting posts.";
+const communeSoftDeleteUndefinedColumnMessage = "Database cleanup failed because the deployed cleanup function references an unavailable column. Apply the latest cleanup migration.";
 
 function isMissingCommuneSoftDeleteCleanup(message: string) {
-  return /soft_delete_commune_post|Could not find.*function|function .* does not exist|schema cache|PGRST202/i.test(message);
+  return /PGRST202|Could not find.*soft_delete_commune_post|function (?:public\.)?soft_delete_commune_post.*does not exist|schema cache.*soft_delete_commune_post/i.test(message);
 }
 
 function backendErrorText(error: CommuneBackendError) {
   return [error.message, error.details, error.hint, error.code].filter(Boolean).join(" ");
 }
 
-function conciseBackendErrorDetail(error: CommuneBackendError) {
-  const detail = [error.code, error.details, error.hint].filter(Boolean).join(" · ").trim();
-  return detail ? detail.slice(0, 280) : "";
-}
-
-function isSoftDeleteRpcSignatureError(error: CommuneBackendError) {
-  const raw = backendErrorText(error);
-  return /PGRST202|Could not find.*soft_delete_commune_post|soft_delete_commune_post.*schema cache|parameter.*(target_post_id|p_target_post_id|moderation_note|p_moderation_note)|argument.*(target_post_id|p_target_post_id|moderation_note|p_moderation_note)/i.test(raw);
-}
-
 function softDeleteRpcErrorMessage(error: CommuneBackendError) {
   const raw = backendErrorText(error);
-  const base = isMissingCommuneSoftDeleteCleanup(raw)
-    ? communeSoftDeleteCleanupUnavailableMessage
-    : friendlyError(raw, "This Commune post could not be fully removed from user-facing surfaces yet.");
-  const detail = conciseBackendErrorDetail(error);
-  return detail && !base.includes(detail) ? `${base} Backend detail: ${detail}` : base;
+  if (error.code === "42703" || /\b42703\b|undefined column/i.test(raw)) return communeSoftDeleteUndefinedColumnMessage;
+  if (isMissingCommuneSoftDeleteCleanup(raw)) return communeSoftDeleteCleanupUnavailableMessage;
+  if (error.code === "42501" || /permission denied|moderator\/admin role/i.test(raw)) return "Commune post deletion requires an authorized moderator or administrator role.";
+  if (error.code === "P0002" || /was not found for soft-delete cleanup/i.test(raw)) return "This Commune post was not found. It may already have been removed.";
+  return "Database cleanup failed. The post remains unchanged because the cleanup transaction did not complete.";
 }
 
 async function callSoftDeleteCommunePostRpc(input: { targetId: string; reason?: string }) {
   if (!supabase) return { error: { message: supabaseNotConfiguredMessage } as CommuneBackendError };
-  const attempts: Array<{ label: string; args: Record<string, string | null> }> = [
-    { label: "target_post_id/moderation_note", args: { target_post_id: input.targetId, moderation_note: input.reason || null } },
-    { label: "p_target_post_id/p_moderation_note", args: { p_target_post_id: input.targetId, p_moderation_note: input.reason || null } },
-    { label: "p_target_post_id", args: { p_target_post_id: input.targetId } }
-  ];
-  let lastSignatureError: CommuneBackendError | null = null;
-  for (const attempt of attempts) {
-    const { error } = await supabase.rpc("soft_delete_commune_post", attempt.args);
-    if (!error) return { error: null, attemptedSignature: attempt.label };
-    const backendError = error as CommuneBackendError;
-    if (!isSoftDeleteRpcSignatureError(backendError)) return { error: backendError, attemptedSignature: attempt.label };
-    lastSignatureError = backendError;
-  }
-  return { error: lastSignatureError, attemptedSignature: "target_post_id/moderation_note, p_target_post_id/p_moderation_note, p_target_post_id" };
+  const { error } = await supabase.rpc("soft_delete_commune_post", {
+    target_post_id: input.targetId,
+    moderation_note: input.reason || null
+  });
+  return { error: error as CommuneBackendError | null };
 }
 
 export function communeReactionKey(targetType: CommuneReactionTargetType, targetId: string) {

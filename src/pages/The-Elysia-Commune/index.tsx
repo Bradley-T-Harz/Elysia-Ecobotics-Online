@@ -13,7 +13,7 @@ import { rust } from "@codemirror/lang-rust";
 import { yaml } from "@codemirror/lang-yaml";
 import { EditorView } from "@codemirror/view";
 import type { Extension } from "@codemirror/state";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
 import {
@@ -1761,8 +1761,10 @@ function AdminContentControls({ targetType, targetId, isModerator, onChanged, on
     setStatus(visibleMessage);
     onMessage(visibleMessage);
     setConfirmDelete(false);
-    if (result.ok && action === "delete") onDeleted?.(targetId);
-    if (result.ok) await onChanged?.();
+    if (result.ok) {
+      await onChanged?.();
+      if (action === "delete") onDeleted?.(targetId);
+    }
   }
   return <div className="commune-admin-controls">
     <p className="eyebrow">Admin moderation</p>
@@ -4107,6 +4109,7 @@ function OfficialUpdateDetail({ post, officialUpdate, parsedBody }: { post: Comm
 }
 
 function PostDetail({ postId }: { postId: string }) {
+  const navigate = useNavigate();
   const { state, refresh } = useCommuneLoad(undefined, postId);
   const [snippets, setSnippets] = useState<CommuneCodeSnippet[]>([]);
   const [comment, setComment] = useState("");
@@ -4121,6 +4124,10 @@ function PostDetail({ postId }: { postId: string }) {
   const [message, setMessage] = useState("");
   const [locallyDeletedPostId, setLocallyDeletedPostId] = useState<string | null>(null);
   useEffect(() => { setLocallyDeletedPostId(null); }, [postId]);
+  const handlePostDeleted = useCallback((deletedPostId: string) => {
+    setLocallyDeletedPostId(deletedPostId);
+    navigate("/commune", { replace: true });
+  }, [navigate]);
   const post = locallyDeletedPostId === postId ? null : state.posts[0];
   const thread = state.threads.find((item) => item.post_id === postId) ?? state.threads[0];
   const attachments = state.media.filter((item) => item.post_id === postId && item.visibility_state === "published");
@@ -4249,7 +4256,7 @@ function PostDetail({ postId }: { postId: string }) {
     <section className="section-card"><p className="eyebrow">Comments</p><h2>Comments and replies</h2><p className="boundary-note">{commentsLocked ? isCommunityVote ? "Comments are disabled for this Community Voting Room vote. Existing public comments remain visible unless moderated, but new public comments are disabled by an administrator." : "Comments are locked for this Official Update. Existing public comments remain visible unless moderated, but new public comments are disabled by an administrator." : state.isAdmin ? "Admin comments publish directly and remain auditable." : "First participation in a post/thread is reviewed. After approval in that thread, later comments and replies can publish directly while remaining reportable and removable."}</p>{!thread && <p className="boundary-note">This published post is missing its discussion thread. Submitting a comment will try to repair the thread with normal account permissions before saving.</p>}{topLevelComments.map((item) => renderComment(item))}{!topLevelComments.length && <p>Moderated comments will appear here once the backend tables are active and replies are approved.</p>}{commentsLocked ? <p className="message">{isCommunityVote ? "Comments are disabled for this Community Voting Room vote." : "Comments are locked for this official update."}</p> : <><label><span>Comment on this post</span><textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><div className="button-row"><button type="button" disabled={commentSubmitting} onClick={() => void submitThreadComment()}>{commentSubmitting ? "Submitting comment..." : "Submit comment"}</button></div></>}<p className="message">{commentStatus}</p></section>
     <section className="section-card"><p className="eyebrow">Report</p><h2>Report this post</h2><p>Reports are reviewed by moderators/administrators. Reporting does not automatically remove content unless urgent automated controls are later added. Ratings do not replace reports or moderation.</p><label><span>Report type</span><select value={report.type} onChange={(event) => setReport({ ...report, type: event.target.value })}>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span>Reason</span><textarea rows={3} value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value })} /></label><button type="button" onClick={() => void reportPost()}>Send report</button><p className="message">{message}</p></section>
     {isOfficialUpdate && state.isAdmin && <OfficialUpdateAdminPanel officialUpdate={officialUpdate} postId={post.id} onMessage={setMessage} onChanged={refresh} />}
-    <AdminContentControls targetType="post" targetId={post.id} isModerator={state.isModerator} onChanged={refresh} onDeleted={setLocallyDeletedPostId} onMessage={setMessage} />
+    <AdminContentControls targetType="post" targetId={post.id} isModerator={state.isModerator} onChanged={refresh} onDeleted={handlePostDeleted} onMessage={setMessage} />
   </>;
 }
 

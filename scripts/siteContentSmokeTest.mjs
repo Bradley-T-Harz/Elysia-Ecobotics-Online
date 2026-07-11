@@ -46,6 +46,7 @@ const adminPage = await read("src/pages/Admin/index.tsx");
 const reviewClient = await read("src/shared/review/reviewClient.ts");
 const publicProfile = await read("src/pages/Public-Commons-Profile/index.tsx");
 const commune = await read("src/pages/The-Elysia-Commune/index.tsx");
+const communeAccountApi = await read("src/pages/The-Elysia-Commune/communeAccountApi.ts");
 const signalConsole = await read("src/pages/The-Commons-Circle/SignalConsolePage.tsx");
 const communityVotePolicyDoc = await read("docs/commune/community-voting-room-policy.md");
 const communityVoteBoundaryDoc = await read("docs/security/community-voting-room-boundary.md");
@@ -568,6 +569,7 @@ assert(commune.includes("roomNativeFormHeadingsByPostType") && commune.includes(
 assert(commune.includes("They do not automatically change site policy") && commune.includes("Marketplace behavior") && commune.includes("Developer Forge behavior") && commune.includes("Official Updates"), "Community Voting Room should state it is not automatic site/policy/legal/safety/Marketplace/Developer Forge/Official Update governance.");
 assert(commune.includes("Anonymous visitors can view Community Voting Room votes") && commune.includes("Signed-in members can cast one ballot") && commune.includes("Admins control lifecycle and outcomes"), "Community Voting Room should explain anonymous, member, and admin roles.");
 assert(commune.includes("Delete/remove this Commune content?") && commune.includes("This removes the item from public views") && commune.includes("Archive</button>"), "Commune copy should keep Admin Moderation Delete separate from Community Voting Room lifecycle Archive controls.");
+assert(communeAccountApi.includes("Database cleanup failed because the deployed cleanup function references an unavailable column. Apply the latest cleanup migration."), "Commune admin deletion should provide safe actionable copy for deployed cleanup-column drift.");
 assert(signalConsole.includes("Community Voting Room activity") && signalConsole.includes("Community Voting Room attention") && signalConsole.includes("Official Update remains separate"), "Signal Console should include Community Voting Room category/copy.");
 assert(communityVotePolicyDoc.includes("advisory governance feature") && communityVotePolicyDoc.includes("Anonymous visitors cannot vote") && communityVotePolicyDoc.includes("Official Update remains separate"), "Community Voting Room policy doc missing purpose/anonymous/Official Update boundary.");
 assert(communityVoteBoundaryDoc.includes("Authenticated members can read their own ballot") && communityVoteBoundaryDoc.includes("aggregate counts only") && communityVoteBoundaryDoc.includes("does not automatically create Official Updates"), "Community Voting Room boundary doc missing ballot privacy/result/Official Update boundary.");

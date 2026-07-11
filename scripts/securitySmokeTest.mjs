@@ -82,6 +82,15 @@ if (failures.length) {
 const communityVoteMigration = await fs.readFile("supabase/migrations/2026_07_05_02_commune_community_voting_room.sql", "utf8");
 const softDeleteCleanupMigration = await fs.readFile("supabase/migrations/2026_07_07_commune_soft_delete_cleanup.sql", "utf8");
 const communityVoteDeleteFilterMigration = await fs.readFile("supabase/migrations/2026_07_08_commune_vote_delete_parent_filter.sql", "utf8");
+const communityVoteSoftDeleteRepairMigration = await fs.readFile("supabase/migrations/2026_07_11_fix_commune_vote_soft_delete_rpc.sql", "utf8");
+const supabaseSchema = await fs.readFile("supabase/schema.sql", "utf8");
+const reactionMigration = await fs.readFile("supabase/migrations/2026_06_21_commune_content_reactions.sql", "utf8");
+const codeProposalMigration = await fs.readFile("supabase/migrations/2026_06_25_coding_cornucopia_author_revision_proposals.sql", "utf8");
+const troubleshootingMigration = await fs.readFile("supabase/migrations/2026_06_26_troubleshooting_grove_structured_workflow.sql", "utf8");
+const researchMigration = await fs.readFile("supabase/migrations/2026_06_26_research_notes_structured_workflow.sql", "utf8");
+const jobMigration = await fs.readFile("supabase/migrations/2026_06_26_job_post_structured_workflow.sql", "utf8");
+const iterationMigration = await fs.readFile("supabase/migrations/2026_06_26_elysia_iteration_showcase_structured_metadata.sql", "utf8");
+const officialUpdateMigration = await fs.readFile("supabase/migrations/2026_06_26_official_update_structured_workflow.sql", "utf8");
 const commonsCircleApi = await fs.readFile("src/pages/The-Commons-Circle/commonsCircleApi.ts", "utf8");
 const communeAccountApi = await fs.readFile("src/pages/The-Elysia-Commune/communeAccountApi.ts", "utf8");
 const communePage = await fs.readFile("src/pages/The-Elysia-Commune/index.tsx", "utf8");
@@ -146,10 +155,10 @@ if (communityVoteFailures.length) {
 }
 
 const softDeleteCleanupSecurity = [
-  ["cleanup RPC exists", /create or replace function public\.soft_delete_commune_post/i],
+  ["cleanup RPC exists", /create or replace function public\.soft_delete_commune_post\(target_post_id uuid, moderation_note text default null\)/i],
   ["cleanup RPC is security definer", /security definer/i],
-  ["cleanup RPC has safe search path", /set search_path = public, auth/i],
-  ["cleanup RPC requires Commune reviewer", /current_user_can_review_domain\('commune'::public\.review_domain\)/i],
+  ["cleanup RPC has safe search path", /set search_path = public, auth, pg_temp/i],
+  ["cleanup RPC requires Commune reviewer", /current_user_can_review_domain\('commune'::public\.review_domain\)[\s\S]*errcode = '42501'/i],
   ["cleanup removes saved shelf rows", /delete from public\.user_saved_commune_posts/i],
   ["cleanup removes legacy saved rows", /delete from public\.commune_saved_posts/i],
   ["cleanup removes notifications", /delete from public\.user_notifications/i],
@@ -163,25 +172,74 @@ const softDeleteCleanupSecurity = [
   ["Community Vote ballot reads are active-parent or audit-only", /users read own vote ballots[\s\S]*voter_user_id = auth\.uid\(\)[\s\S]*p\.removed_at is null[\s\S]*public\.current_user_can_review_domain\('commune'::public\.review_domain\)/i],
   ["Community Vote public events parent-filtered", /public reads public vote events[\s\S]*event_visibility = 'public'[\s\S]*p\.removed_at is null/i],
   ["Community Vote aggregate results parent-filtered", /commune_vote_result_summary[\s\S]*p\.post_type = 'community_vote'[\s\S]*p\.removed_at is null[\s\S]*p\.archived_at is null/i],
-  ["cleanup grants execute only to authenticated", /revoke all on function public\.soft_delete_commune_post\(uuid, text\) from public;[\s\S]*grant execute on function public\.soft_delete_commune_post\(uuid, text\) to authenticated/i],
+  ["cleanup grants execute only to authenticated", /revoke all on function public\.soft_delete_commune_post\(uuid, text\) from public;[\s\S]*revoke all on function public\.soft_delete_commune_post\(uuid, text\) from anon;[\s\S]*grant execute on function public\.soft_delete_commune_post\(uuid, text\) to authenticated/i],
   ["saved rows require active parent on select", /users select own active saved commune posts[\s\S]*post\.status = 'published'[\s\S]*post\.visibility = 'public'[\s\S]*post\.removed_at is null/i],
   ["delete helper calls cleanup RPC", /rpc\("soft_delete_commune_post"/i],
   ["missing RPC has migration drift error", /Commune soft-delete cleanup is not available yet\. Apply the latest Commune cleanup migration before deleting posts\./i],
-  ["delete helper tolerates RPC signature drift only", /isSoftDeleteRpcSignatureError[\s\S]*PGRST202[\s\S]*p_target_post_id[\s\S]*callSoftDeleteCommunePostRpc/i],
-  ["delete helper surfaces backend details", /softDeleteRpcErrorMessage[\s\S]*Backend detail/i],
+  ["delete helper uses exact repaired arguments", /rpc\("soft_delete_commune_post", \{[\s\S]*target_post_id: input\.targetId,[\s\S]*moderation_note: input\.reason \|\| null/i],
+  ["delete helper safely maps undefined-column deployment drift", /error\.code === "42703"[\s\S]*communeSoftDeleteUndefinedColumnMessage/i],
   ["Commune loader filters active public parents", /isActivePublicCommunePost[\s\S]*activePosts[\s\S]*loadVotePostsForPosts\(postIds, account\)/i],
   ["Vote sidecar loader only uses loaded parent ids", /activeParentPostIds[\s\S]*activeParentPostIds\.has\(row\.post_id\)/i],
-  ["Detail page locally suppresses deleted parent", /locallyDeletedPostId === postId \? null : state\.posts\[0\][\s\S]*onDeleted=\{setLocallyDeletedPostId\}/i],
+  ["Detail page suppresses deleted parent and navigates", /handlePostDeleted[\s\S]*navigate\("\/commune", \{ replace: true \}\)[\s\S]*locallyDeletedPostId === postId \? null : state\.posts\[0\][\s\S]*onDeleted=\{handlePostDeleted\}/i],
   ["Commons loaders have active parent filter", /isActivePublicCommunePost[\s\S]*loadActivePublicCommunePostMap[\s\S]*filterNotificationsByActiveCommunePost/i],
   ["Signal Console sidecars use visible filtered rows", /visibleMyCommunityVoteRows[\s\S]*visibleReviewCommunityVoteRows[\s\S]*officialPostById/i],
   ["Public profile comments filtered by parent", /visiblePublicComments[\s\S]*activeCommentPostById/i]
 ];
 const softDeleteFailures = softDeleteCleanupSecurity
-  .filter(([, pattern]) => !pattern.test(softDeleteCleanupMigration + "\n" + communityVoteDeleteFilterMigration + "\n" + communeAccountApi + "\n" + communePage + "\n" + commonsCircleApi))
+  .filter(([, pattern]) => !pattern.test(softDeleteCleanupMigration + "\n" + communityVoteSoftDeleteRepairMigration + "\n" + communityVoteDeleteFilterMigration + "\n" + communeAccountApi + "\n" + communePage + "\n" + commonsCircleApi))
   .map(([name]) => name);
 if (softDeleteFailures.length) {
   console.error(`Commune soft-delete cleanup security checks failed:\n${softDeleteFailures.join("\n")}`);
   process.exit(1);
+}
+
+const canonicalRepositoryColumns = supabaseSchema.match(/create table if not exists public\.commune_repository_showcases \(([\s\S]*?)\n\);/)?.[1] ?? "";
+const brokenRepositoryCleanup = softDeleteCleanupMigration.match(/update public\.commune_repository_showcases([\s\S]*?)get diagnostics v_repository_rows/)?.[1] ?? "";
+const repairedRepositoryCleanup = communityVoteSoftDeleteRepairMigration.match(/update public\.commune_repository_showcases([\s\S]*?)get diagnostics v_repository_rows/)?.[1] ?? "";
+assert(!canonicalRepositoryColumns.includes("sandbox_review_status") && brokenRepositoryCleanup.includes("sandbox_review_status"), "Old cleanup RPC should retain a regression fixture proving the undefined repository-sidecar column mismatch.");
+assert(!repairedRepositoryCleanup.includes("sandbox_review_status") && /status = 'rejected'[\s\S]*updated_at = v_now/.test(repairedRepositoryCleanup), "Repaired cleanup RPC must use only canonical commune_repository_showcases columns.");
+assert(communeAccountApi.includes("Database cleanup failed because the deployed cleanup function references an unavailable column. Apply the latest cleanup migration."), "Undefined-column cleanup errors must remain safe and actionable without raw SQL details.");
+assert(/if v_post_type = 'community_vote'[\s\S]*update public\.commune_vote_posts[\s\S]*vote_status = 'archived'[\s\S]*updated_at = v_now/.test(communityVoteSoftDeleteRepairMigration), "Community vote cleanup must be scoped and use real vote_status/updated_at columns.");
+for (const voteColumn of ["post_id", "vote_status", "updated_at"]) {
+  assert(new RegExp(`\\b${voteColumn}\\b`).test(communityVoteMigration), `Community vote cleanup column ${voteColumn} must exist in the vote schema migration.`);
+}
+for (const preservedTable of ["commune_vote_options", "commune_vote_ballots", "commune_vote_events"]) {
+  assert(communityVoteSoftDeleteRepairMigration.includes(`'${preservedTable}'`) && !new RegExp(`delete from public\\.${preservedTable}|update public\\.${preservedTable}`, "i").test(communityVoteSoftDeleteRepairMigration), `${preservedTable} must remain preserved and audit-only after parent moderation deletion.`);
+}
+
+function tableDefinitionShape(source, table) {
+  const escapedTable = table.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const createBlock = source.match(new RegExp(`create table if not exists public\\.${escapedTable}\\s*\\(([\\s\\S]*?)\\n\\);`, "i"))?.[1] ?? "";
+  const alterBlocks = [...source.matchAll(new RegExp(`alter table public\\.${escapedTable}([\\s\\S]*?);`, "gi"))].map((match) => match[1]).join("\n");
+  return `${createBlock}\n${alterBlocks}`;
+}
+
+const cleanupColumnAudit = [
+  ["commune_posts", ["id", "status", "post_type", "visibility", "visibility_state", "moderation_status", "moderation_reason", "hidden_at", "hidden_by", "removed_at", "updated_at", "last_activity_at"], supabaseSchema],
+  ["user_saved_commune_posts", ["post_id"], supabaseSchema],
+  ["commune_saved_posts", ["post_id"], supabaseSchema],
+  ["user_followed_commune_threads", ["thread_id"], supabaseSchema],
+  ["commune_threads", ["id", "post_id"], supabaseSchema],
+  ["commune_content_reactions", ["target_type", "target_id"], reactionMigration],
+  ["commune_comments", ["id", "post_id", "status", "visibility_state", "hidden_at", "hidden_by", "removed_at", "updated_at", "moderation_reason"], supabaseSchema],
+  ["commune_media", ["post_id", "visibility_state", "updated_at"], supabaseSchema],
+  ["commune_uploads", ["post_id", "status", "hidden_at", "hidden_by", "moderation_reason"], supabaseSchema],
+  ["commune_code_revision_proposals", ["id", "post_id", "proposal_status", "hidden_at", "updated_at"], codeProposalMigration],
+  ["commune_troubleshooting_posts", ["id", "post_id", "troubleshooting_status", "archived_at", "updated_at"], troubleshootingMigration],
+  ["commune_research_notes", ["id", "post_id", "review_status", "archived_at", "updated_at"], researchMigration],
+  ["commune_job_posts", ["id", "post_id", "application_status", "anti_scam_review_status", "archived_at", "updated_at"], jobMigration],
+  ["commune_repository_showcases", ["id", "post_id", "status", "updated_at"], supabaseSchema],
+  ["commune_iteration_showcases", ["id", "post_id", "status", "sandbox_review_status", "updated_at"], iterationMigration],
+  ["commune_official_updates", ["id", "post_id", "official_status", "correction_status", "archived_at", "retracted_at", "updated_at"], officialUpdateMigration],
+  ["commune_official_update_code_snippets", ["post_id", "public_visible", "edited_by", "edited_at", "updated_at"], officialUpdateMigration],
+  ["commune_vote_posts", ["post_id", "vote_status", "updated_at"], communityVoteMigration],
+  ["user_notifications", ["action_url", "source_id", "source_type"], supabaseSchema],
+  ["commune_moderation_events", ["actor_id", "target_type", "target_id", "action", "from_status", "to_status", "reason", "metadata"], supabaseSchema]
+];
+for (const [table, columns, source] of cleanupColumnAudit) {
+  const shape = tableDefinitionShape(source, table);
+  assert(shape, `Cleanup column audit could not find the table definition for ${table}.`);
+  for (const column of columns) assert(new RegExp(`\\b${column}\\b`).test(shape), `Cleanup RPC column ${table}.${column} is missing from its canonical schema/migration definition.`);
 }
 
 console.log("Security smoke test ok.");
