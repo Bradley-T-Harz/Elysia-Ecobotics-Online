@@ -1,0 +1,34 @@
+[Unit]
+Description=Elysia governed sandbox runner
+Documentation=file:///opt/elysia-sandbox-runner/current/services/sandbox-runner/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/elysia-sandbox-runner/current
+EnvironmentFile=%h/.config/elysia-sandbox-runner/runner.env
+ExecStart=/usr/bin/node services/sandbox-runner/server.mjs
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=30s
+TimeoutStopSec=30s
+KillMode=control-group
+UMask=0077
+LimitCORE=0
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.local/state/elysia-sandbox-runner %h/.local/share/containers
+Delegate=yes
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectClock=true
+ProtectHostname=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+LockPersonality=true
+
+[Install]
+WantedBy=default.target

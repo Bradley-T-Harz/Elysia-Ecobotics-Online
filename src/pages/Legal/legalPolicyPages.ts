@@ -122,6 +122,25 @@ export const legalPolicyPages: LegalPolicyPage[] = [
   }
 ];
 
+const governedSandboxLegalNotices: Record<string, string> = {
+  "privacy-policy": "## Governed code sandbox processing\n\nWhen a signed-in user deliberately requests a Coding Cornucopia sandbox run, the submitted code is transmitted through Cloudflare Pages Functions and Cloudflare Access to an isolated runner hosted on a Hetzner server. The code is used only for the requested execution or static diagnostics. The browser does not receive the private runner credential, and the runner does not receive the user's Supabase token, email, roles, private notes, secrets, or private Elysia context.\n\nSupabase may retain bounded metadata such as the requesting account identifier, idempotency key, source reference, code hash, language, status, timing, limited output previews, and diagnostics. Raw runner input and output are deleted promptly after processing; short-lived failure cleanup and bounded security audit records may remain for operational recovery and abuse prevention. Do not submit secrets, personal data, confidential code, or material you do not have authority to process.",
+  "terms-of-use": "## Governed code sandbox\n\nCoding Cornucopia sandbox execution is optional, authenticated, rate-limited, resource-limited, and intended only as evidence about one submitted snapshot. Submitted code crosses Cloudflare and an isolated Hetzner-hosted runner, and bounded run metadata may be recorded privately in Supabase. Network access, package installation, shell access, host repositories, private paths, credentials, and private Elysia context are not provided to the execution container.\n\nA successful execution is not security review, trust, compatibility, licensing clearance, Marketplace approval, moderation approval, or a promise that the code is safe in another environment. You are responsible for the code you submit and must not attempt to escape limits, access secrets or private systems, overload the service, or use the sandbox to facilitate prohibited conduct."
+};
+
+for (const page of legalPolicyPages) {
+  const notice = governedSandboxLegalNotices[page.slug];
+  if (notice) {
+    page.lastUpdated = "2026-07-13";
+    page.body = page.body
+      .replace(/\*\*Last updated:\*\* \d{4}-\d{2}-\d{2}/, "**Last updated:** 2026-07-13")
+      .replace(
+        "Community code must not run directly on Supabase, Cloudflare backend, Elysia core, Bradley’s machine, or shared website servers. Future execution must be sandboxed, optional, explicit, resource-limited, secret-free, private-network-free, host-mount-free, loggable, and killable.",
+        "Community code must not run directly in the browser, Supabase/Postgres, Cloudflare Function runtime, Elysia core, an administrator machine, or the runner host. Governed execution may occur only through the optional authenticated sandbox path with explicit snapshots, fixed resource limits, no network, no secrets, no host/repository/socket mounts, bounded logs, and operator kill switches."
+      );
+    page.body = `${page.body.trim()}\n\n${notice}\n`;
+  }
+}
+
 export type LegalPolicyMetadata = {
   category: string;
   description: string;

@@ -1,7 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
-const roots = ["src", "supabase", "public", "docs", "packages", "scripts", "services"];
+const roots = ["src", "functions", "supabase", "public", "docs", "packages", "scripts", "services"];
 const includeExtensions = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".sql", ".md", ".json", ".txt"]);
 
 function assert(condition, message) {
@@ -26,6 +26,17 @@ const checks = [
 
 function allowHit(file, line, checkName) {
   const normalized = file.replaceAll(path.sep, "/");
+  const controlledSpawnScripts = new Set([
+    "scripts/packageSandboxRelease.mjs",
+    "scripts/sandboxDeploymentSmokeTest.mjs",
+    "scripts/sandboxIntegrationSmokeTest.mjs",
+    "scripts/verifySandboxRelease.mjs"
+  ]);
+  if (
+    controlledSpawnScripts.has(normalized)
+    && ["Node child process", "process spawn"].includes(checkName)
+    && (/node:child_process/.test(line) || /shell:\s*false/.test(line))
+  ) return true;
   if (normalized.endsWith("scripts/securitySmokeTest.mjs")) return true;
   if ((normalized.endsWith("scripts/communeSmokeTest.mjs") || normalized.endsWith("scripts/siteContentSmokeTest.mjs")) && /scanner|fixture|assert|secret|SUPABASE_SERVICE_ROLE|service_role|BEGIN \[A-Z \]\*PRIVATE KEY|AWS_ACCESS_KEY_ID/i.test(line)) return true;
   if (normalized.endsWith("scripts/addonSdkSmokeTest.mjs") && /scanner|fixture|assert|inspect|archive|service-role|private key|package install hook|postinstall|preinstall|SUPABASE_SERVICE_ROLE|BEGIN PRIVATE KEY/i.test(line)) return true;
@@ -77,6 +88,11 @@ for (const root of roots) {
 if (failures.length) {
   console.error(`Security smoke test failed:\n${failures.join("\n")}`);
   process.exit(1);
+}
+
+const browserSource = (await Promise.all((await listFiles("src")).map((file) => fs.readFile(file, "utf8")))).join("\n");
+for (const forbiddenBrowserBinding of ["VITE_CODING_SANDBOX_ENDPOINT", "VITE_SANDBOX_SERVICE_TOKEN", "VITE_SUPABASE_SERVICE_ROLE_KEY"]) {
+  assert(!browserSource.includes(forbiddenBrowserBinding), `${forbiddenBrowserBinding} must not exist in browser source.`);
 }
 
 const communityVoteMigration = await fs.readFile("supabase/migrations/2026_07_05_02_commune_community_voting_room.sql", "utf8");

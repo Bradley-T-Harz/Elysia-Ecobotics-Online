@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { dangerousCommandPatterns, defaultLimits, runtimeForLanguage, secretPatterns } from "./policy.mjs";
+import { dangerousCommandPatterns, defaultLimits, maxCodeBytes, runtimeForLanguage, secretPatterns } from "./policy.mjs";
 
 function issue(level, code, message, path = "bundle") { return { level, code, message, path }; }
 function list(value) { return Array.isArray(value) ? value.map((item) => String(item).trim()).filter(Boolean) : []; }
@@ -42,13 +42,14 @@ export function validateHandoffBundle(bundle) {
   if (!runtime) errors.push(issue("error", "unsupported_language", "Only python and javascript snippet runtimes are supported in V1.", "execution_intent.language"));
   else if (expectedCommand && expectedCommand !== runtime.allowedCommand.join(" ")) errors.push(issue("error", "command_not_allowlisted", `Allowed command for this runtime is exactly: ${runtime.allowedCommand.join(" ")}.`, "execution_intent.expected_command"));
   if (!String(payload.code_text ?? "").trim()) errors.push(issue("error", "missing_code_text", "V1 runner supports code_text payloads only.", "payload.code_text"));
+  if (Buffer.byteLength(String(payload.code_text ?? ""), "utf8") > maxCodeBytes) errors.push(issue("error", "code_too_large", "Code payload exceeds the governed runner limit.", "payload.code_text"));
   if (payload.package_reference) errors.push(issue("error", "package_reference_unsupported", "Package references are not executable in this runner pass.", "payload.package_reference"));
   if (intent.declared_network_policy !== "disabled" || list(intent.declared_network_domains).length) errors.push(issue("error", "network_not_disabled", "V1 runner requires network disabled and no declared runtime domains.", "execution_intent.declared_network_policy"));
   for (const domain of list(intent.declared_network_domains)) if (privateDomain(domain)) errors.push(issue("error", "private_domain", "Local/private domains are blocked.", "execution_intent.declared_network_domains"));
   if (!["none", "temporary_workspace_only"].includes(intent.declared_filesystem_policy)) errors.push(issue("error", "filesystem_policy", "Filesystem access must be none or temporary_workspace_only.", "execution_intent.declared_filesystem_policy"));
   for (const scope of list(intent.declared_file_scopes)) if (unsafePath(scope)) errors.push(issue("error", "unsafe_file_scope", "Unsafe file scope detected.", "execution_intent.declared_file_scopes"));
   const timeout = Number(intent.requested_limits?.timeout_seconds ?? defaultLimits.timeoutSeconds);
-  if (!Number.isFinite(timeout) || timeout < 1 || timeout > 60) errors.push(issue("error", "timeout_limit", "Timeout must be between 1 and 60 seconds for V1 local runner.", "execution_intent.requested_limits.timeout_seconds"));
+  if (!Number.isFinite(timeout) || timeout < 1 || timeout > defaultLimits.timeoutSeconds) errors.push(issue("error", "timeout_limit", `Timeout must be between 1 and ${defaultLimits.timeoutSeconds} seconds for V1.`, "execution_intent.requested_limits.timeout_seconds"));
   if (/high|unlimited|large|gpu/i.test(`${intent.requested_limits?.cpu ?? ""} ${intent.requested_limits?.memory ?? ""}`)) errors.push(issue("error", "resource_limit", "High/unlimited resource requests are blocked.", "execution_intent.requested_limits"));
   if (bundle?.integrity?.bundle_sha256) info.push(issue("info", "bundle_checksum_present", "Bundle contains a checksum; runner records its own local hash before execution.", "integrity.bundle_sha256"));
   info.push(issue("info", "local_only", "Validation did not execute code. Runner remains local-only and fails closed."));

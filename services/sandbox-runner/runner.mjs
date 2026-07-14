@@ -1,196 +1,277 @@
 import fs from "node:fs/promises";
-import { fileURLToPath } from "node:url";
+import { basename } from "node:path";
 import { diagnosticsBlockExecution, diagnostic, staticDiagnostics } from "./diagnostics.mjs";
 import { validateHandoffBundle } from "./handoffValidator.mjs";
-import { defaultLimits, languagePolicyStatus, maxOutputBytes, normalizeLanguage, runtimeForLanguage, staticDiagnosticLanguages } from "./policy.mjs";
-import { createJobId, ensureRuntime, inputDir, readJob, stderrPath, stdoutPath, writeInputFile, writeJob } from "./jobStore.mjs";
-import { writeAuditEvent } from "./auditLog.mjs";
-import { findContainerEngine, findContainerEngines, imageAvailable, runContainerJob, killJob } from "./dockerRunner.mjs";
+import {
+  defaultLimits,
+  languagePolicyStatus,
+  maxCodeBytes,
+  normalizeLanguage,
+  runtimeForLanguage,
+  sanitizeOutput,
+  staticDiagnosticLanguages
+} from "./policy.mjs";
+import {
+  cleanupExpiredJobs,
+  createJobId,
+  ensureRuntime,
+  inputDir,
+  readJob,
+  removeJob,
+  stderrPath,
+  stdoutPath,
+  writeInputFile,
+  writeJob
+} from "./jobStore.mjs";
+import { cleanupExpiredAuditLogs, writeAuditEvent } from "./auditLog.mjs";
+import {
+  findContainerEngine,
+  imageAvailable,
+  killJob,
+  cleanupOrphanContainers,
+  runContainerJob,
+  terminateAllActiveContainers,
+  verifyRootlessEngine
+} from "./dockerRunner.mjs";
+import { loadRunnerConfig, publicConfigReady } from "./serviceConfig.mjs";
+
+const SNAPSHOT_KEYS = new Set(["snapshot_id", "language", "file_name", "code", "network_policy", "filesystem_policy"]);
+let executionActive = false;
+let acceptingRuns = true;
+
+export function runnerState() {
+  return Object.freeze({ acceptingRuns, executionActive });
+}
+
+export function beginRunnerShutdown() {
+  acceptingRuns = false;
+}
+
+export async function shutdownRunner() {
+  beginRunnerShutdown();
+  return terminateAllActiveContainers();
+}
 
 export async function readBundle(filePath) {
+  const stat = await fs.stat(filePath);
+  if (stat.size > 70_000) throw new Error("bundle_too_large");
   return JSON.parse(await fs.readFile(filePath, "utf8"));
 }
 
 export async function readSnapshotPayload(filePath) {
-  return JSON.parse(await fs.readFile(filePath, "utf8"));
+  return readBundle(filePath);
 }
 
-export async function doctor() {
-  await ensureRuntime();
-  const engine = await findContainerEngine();
-  const engines = await findContainerEngines();
+export async function doctor(config = loadRunnerConfig(), options = {}) {
+  await ensureRuntime(config);
+  const engine = await findContainerEngine(config, options);
+  const rootless = Boolean(engine) && await verifyRootlessEngine(config, options);
   const images = {};
-  for (const foundEngine of engines) {
-    images[foundEngine.bin] = {};
-    for (const image of ["python:3.12-alpine", "node:22-alpine"]) images[foundEngine.bin][image] = await imageAvailable(foundEngine.bin, image);
+  for (const [name, image] of Object.entries(config.images)) {
+    images[name] = Boolean(engine) && await imageAvailable(config.engine, image, config, options);
   }
   return {
-    local_only: true,
-    engine,
-    engines,
+    ready: publicConfigReady(config) && rootless && Object.values(images).every(Boolean),
+    enabled: config.enabled,
+    confirmed: config.confirmServiceExecution,
+    accepting_runs: acceptingRuns,
+    execution_active: executionActive,
+    configured_engine: config.engine,
+    engine_available: Boolean(engine),
+    rootless,
     images,
     runtime_directory_ready: true,
     network_default: "disabled",
     host_execution_fallback: false,
-    image_pull_automatic: false,
-    note: "The sandbox runner is local-only. Missing Docker/Podman or images fails closed. It never pulls images automatically."
+    automatic_engine_fallback: false,
+    automatic_image_pull: false
   };
 }
 
 export function inspectBundle(bundle) {
   const validation = validateHandoffBundle(bundle);
   return {
-    source: bundle.source,
     language: bundle.execution_intent?.language ?? null,
     expected_command: bundle.execution_intent?.expected_command ?? null,
     network_policy: bundle.execution_intent?.declared_network_policy ?? null,
     filesystem_policy: bundle.execution_intent?.declared_filesystem_policy ?? null,
-    requested_limits: bundle.execution_intent?.requested_limits ?? null,
     payload_bytes: Buffer.byteLength(String(bundle.payload?.code_text ?? ""), "utf8"),
     runnable_after_confirmation: validation.ok,
     validation
   };
 }
 
-export async function createAndRunJob(bundle, { confirmLocalExecution = false } = {}) {
-  if (!confirmLocalExecution) return { ok: false, message: "Refused. Re-run with --confirm-local-execution after local review." };
+export async function createAndRunJob(bundle, { confirmLocalExecution = false, config = loadRunnerConfig() } = {}) {
+  if (!confirmLocalExecution) return { ok: false, message: "Refused. Explicit local execution confirmation is required." };
   const validation = validateHandoffBundle(bundle);
   if (!validation.ok) return { ok: false, message: "Bundle validation failed.", validation };
-  const runtime = runtimeForLanguage(bundle.execution_intent.language);
-  const jobId = createJobId();
-  const timeoutSeconds = Number(bundle.execution_intent.requested_limits?.timeout_seconds ?? defaultLimits.timeoutSeconds);
-  const job = {
-    job_id: jobId,
-    request_id: bundle.request_id,
-    source_type: bundle.source?.source_type,
+  return createAndRunSnapshotRun({
+    snapshot_id: String(bundle.request_id || "local-handoff").slice(0, 160),
     language: bundle.execution_intent.language,
-    status: "created",
-    created_at: new Date().toISOString(),
-    exit_code: null,
-    timed_out: false,
-    killed: false,
-    policy_summary: "Docker/Podman container, network none, read-only root, cap-drop all, no-new-privileges, temporary workspace only.",
-    resource_limits: { cpus: defaultLimits.cpus, memory: defaultLimits.memory, timeout_seconds: Math.min(timeoutSeconds, 60) },
-    bundle_sha256: validation.bundleSha256
-  };
-  await writeJob(job);
-  await writeAuditEvent(jobId, "job_created", "Local user confirmed execution after handoff validation.", { request_id: bundle.request_id, bundle_sha256: validation.bundleSha256 });
-  await writeInputFile(jobId, runtime.fileName, bundle.payload.code_text);
-  const inputDirectory = fileURLToPath(inputDir(jobId));
-  const finalJob = await runContainerJob(job, runtime, inputDirectory);
-  return { ok: ["succeeded", "failed", "timed_out", "validation_failed"].includes(finalJob.status), job: finalJob };
+    file_name: validation.runtime?.fileName ?? null,
+    code: bundle.payload.code_text,
+    network_policy: "disabled",
+    filesystem_policy: "temporary_workspace_only"
+  }, { confirmLocalExecution: true, config });
 }
 
-function outputTruncated(text) {
-  return Buffer.byteLength(String(text || ""), "utf8") >= maxOutputBytes;
+function validateFileName(fileName, language) {
+  if (!fileName) return null;
+  if (basename(fileName) !== fileName || fileName.length > 160 || !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(fileName)) return null;
+  const extensions = {
+    python: [".py"],
+    javascript: [".js", ".mjs", ".cjs"],
+    typescript: [".ts"],
+    json: [".json"],
+    yaml: [".yaml", ".yml"],
+    markdown: [".md"],
+    html: [".html", ".htm"],
+    css: [".css"]
+  };
+  const allowed = extensions[language] || [];
+  return allowed.some((extension) => fileName.toLowerCase().endsWith(extension)) ? fileName : null;
+}
+
+export function validateSnapshotRunPayload(payload) {
+  const object = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
+  const language = normalizeLanguage(object.language);
+  const rawFileName = String(object.file_name ?? "").trim() || null;
+  const fileName = validateFileName(rawFileName, language);
+  const code = typeof object.code === "string" ? object.code : "";
+  const diagnostics = staticDiagnostics({ language, fileName: rawFileName, code });
+  const errors = [];
+  if (Object.keys(object).some((key) => !SNAPSHOT_KEYS.has(key))) errors.push(diagnostic({ severity: "error", phase: "policy", category: "policy_info", language, file: null, message: "Request contains unsupported fields.", source: "Request schema" }));
+  const snapshotId = String(object.snapshot_id ?? "");
+  if (!snapshotId || snapshotId.length > 160 || /[\u0000-\u001f\u007f]/.test(snapshotId)) errors.push(diagnostic({ severity: "error", phase: "policy", category: "policy_info", language, file: null, message: "Snapshot id is invalid.", source: "Snapshot policy" }));
+  if (!code.trim()) errors.push(diagnostic({ severity: "error", phase: "policy", category: "policy_info", language, file: rawFileName, message: "Code payload is required.", source: "Snapshot policy" }));
+  if (code.includes("\u0000")) errors.push(diagnostic({ severity: "error", phase: "security", category: "forbidden_operation", language, file: rawFileName, message: "Code payload contains a forbidden null byte.", source: "Request schema" }));
+  if (Buffer.byteLength(code, "utf8") > maxCodeBytes) errors.push(diagnostic({ severity: "error", phase: "policy", category: "policy_info", language, file: rawFileName, message: "Code payload exceeds the governed limit.", source: "Snapshot policy" }));
+  if (rawFileName && !fileName) errors.push(diagnostic({ severity: "error", phase: "policy", category: "policy_info", language, file: null, message: "File name is invalid for the selected language.", source: "File policy" }));
+  if (object.network_policy !== "disabled") errors.push(diagnostic({ severity: "error", phase: "policy", category: "network_denied", language, file: fileName, message: "network_policy must be disabled.", source: "Sandbox policy" }));
+  if (object.filesystem_policy !== "temporary_workspace_only") errors.push(diagnostic({ severity: "error", phase: "policy", category: "filesystem_denied", language, file: fileName, message: "Only a temporary workspace is allowed.", source: "Sandbox policy" }));
+  return {
+    ok: !diagnosticsBlockExecution(diagnostics) && !errors.length,
+    diagnostics: [...diagnostics, ...errors].slice(0, 40),
+    language,
+    fileName,
+    code,
+    snapshotId
+  };
 }
 
 function durationMs(job) {
-  const started = job.started_at ? new Date(job.started_at).getTime() : 0;
-  const finished = job.finished_at ? new Date(job.finished_at).getTime() : 0;
-  return started && finished ? Math.max(0, finished - started) : null;
+  const started = Date.parse(job.started_at || "");
+  const finished = Date.parse(job.finished_at || "");
+  return Number.isFinite(started) && Number.isFinite(finished) ? Math.max(0, finished - started) : null;
 }
 
 function mapJobStatus(job) {
   if (job.status === "succeeded") return "completed";
-  if (job.status === "failed") return "failed";
-  if (job.status === "timed_out") return "failed";
-  if (job.status === "validation_failed") return "sandbox_unavailable";
+  if (job.status === "validation_failed" || job.status === "cleanup_failed") return "sandbox_unavailable";
   return "failed";
 }
 
-async function readOutput(jobId) {
+async function readOutput(jobId, config) {
   const [stdout, stderr] = await Promise.all([
-    fs.readFile(stdoutPath(jobId), "utf8").catch(() => ""),
-    fs.readFile(stderrPath(jobId), "utf8").catch(() => "")
+    fs.readFile(stdoutPath(jobId, config), "utf8").catch(() => ""),
+    fs.readFile(stderrPath(jobId, config), "utf8").catch(() => "")
   ]);
-  return { stdout, stderr };
+  return { stdout: sanitizeOutput(stdout), stderr: sanitizeOutput(stderr) };
 }
 
-function runtimeDiagnostics(finalJob, { language, fileName, stdout, stderr }) {
+function runtimeDiagnostics(job, context) {
   const diagnostics = [];
-  if (finalJob.status === "validation_failed") {
-    diagnostics.push(diagnostic({ severity: "error", phase: "sandbox", category: "sandbox_internal_failure", language, file: fileName, message: finalJob.result || "Sandbox runtime validation failed before execution.", source: "Sandbox runner" }));
-    return diagnostics;
-  }
-  if (finalJob.timed_out) diagnostics.push(diagnostic({ severity: "error", phase: "sandbox", category: "timeout", language, file: fileName, message: "Sandbox run exceeded the wall-clock timeout and was killed.", source: "Sandbox runner" }));
-  if (finalJob.exit_code && finalJob.exit_code !== 0) diagnostics.push(diagnostic({ severity: "error", phase: "runtime", category: "runtime_error", language, file: fileName, message: stderr.trim().slice(0, 1200) || `Process exited with code ${finalJob.exit_code}.`, source: "Container runtime" }));
-  if (outputTruncated(stdout) || outputTruncated(stderr)) diagnostics.push(diagnostic({ severity: "warning", phase: "sandbox", category: "output_truncated", language, file: fileName, message: "Sandbox output reached the configured output limit and was truncated.", source: "Sandbox runner" }));
-  if (!diagnostics.length) diagnostics.push(diagnostic({ phase: "runtime", category: "policy_info", language, file: fileName, message: "Sandbox run completed without runtime errors. This is evidence only, not trust or approval.", source: "Sandbox runner" }));
+  if (job.status === "validation_failed" || job.status === "cleanup_failed") diagnostics.push(diagnostic({ severity: "error", phase: "sandbox", category: "sandbox_internal_failure", ...context, message: "Sandbox runtime was unavailable or cleanup could not be verified.", source: "Sandbox runner" }));
+  if (job.timed_out) diagnostics.push(diagnostic({ severity: "error", phase: "sandbox", category: "timeout", ...context, message: "The wall-clock timeout was enforced and the container was removed.", source: "Sandbox runner" }));
+  if (job.output_overflow) diagnostics.push(diagnostic({ severity: "error", phase: "sandbox", category: "output_truncated", ...context, message: "The hard output limit was enforced and the container was removed.", source: "Sandbox runner" }));
+  if (job.status === "failed" && job.exit_code !== 0) diagnostics.push(diagnostic({ severity: "error", phase: "runtime", category: "runtime_error", ...context, message: context.stderr.trim().slice(0, 1000) || "The program exited with a non-zero status.", source: "Container runtime" }));
+  if (job.output_truncated && !job.output_overflow) diagnostics.push(diagnostic({ severity: "warning", phase: "sandbox", category: "output_truncated", ...context, message: "Output reached the response limit and was truncated.", source: "Sandbox runner" }));
+  if (!diagnostics.length) diagnostics.push(diagnostic({ phase: "runtime", category: "policy_info", ...context, message: "Execution completed. This is evidence only, never trust or approval.", source: "Sandbox runner" }));
   return diagnostics;
 }
 
-export function validateSnapshotRunPayload(payload) {
-  const language = normalizeLanguage(payload?.language);
-  const fileName = String(payload?.file_name ?? payload?.fileName ?? "").trim() || null;
-  const code = String(payload?.code ?? "");
-  const diagnostics = staticDiagnostics({ language, fileName, code });
-  const errors = [];
-  if (!String(payload?.snapshot_id ?? payload?.snapshotId ?? "").trim()) errors.push(diagnostic({ severity: "error", phase: "policy", category: "policy_info", language, file: fileName, message: "Snapshot id is required. Sandbox runs must target explicit snapshots.", source: "Snapshot policy" }));
-  if (!code.trim()) errors.push(diagnostic({ severity: "error", phase: "policy", category: "policy_info", language, file: fileName, message: "Code payload is required.", source: "Snapshot policy" }));
-  if (Buffer.byteLength(code, "utf8") > 100000) errors.push(diagnostic({ severity: "error", phase: "policy", category: "policy_info", language, file: fileName, message: "Code payload exceeds the 100,000 byte V1 limit.", source: "Snapshot policy" }));
-  if (payload?.network_policy && payload.network_policy !== "disabled") errors.push(diagnostic({ severity: "error", phase: "policy", category: "network_denied", language, file: fileName, message: "V1 snapshot runs require network_policy=disabled.", source: "Sandbox policy" }));
-  if (payload?.filesystem_policy && !["none", "temporary_workspace_only"].includes(payload.filesystem_policy)) errors.push(diagnostic({ severity: "error", phase: "policy", category: "filesystem_denied", language, file: fileName, message: "V1 snapshot runs allow only none or temporary_workspace_only filesystem policy.", source: "Sandbox policy" }));
-  return { ok: !diagnosticsBlockExecution(diagnostics) && !errors.length, diagnostics: [...diagnostics, ...errors], language, fileName, code };
-}
-
-export async function createAndRunSnapshotRun(payload, { confirmLocalExecution = false } = {}) {
+export async function createAndRunSnapshotRun(payload, { confirmLocalExecution = false, config = loadRunnerConfig(), runContainer = runContainerJob } = {}) {
   const validation = validateSnapshotRunPayload(payload);
-  const snapshotId = String(payload?.snapshot_id ?? payload?.snapshotId ?? "");
-  const sourceType = String(payload?.source_type ?? payload?.sourceType ?? "manual");
-  const sourceId = payload?.source_id ?? payload?.sourceId ?? null;
-  if (!confirmLocalExecution) {
-    return { ok: false, status: "denied", language: validation.language, file: validation.fileName, snapshotId, diagnostics: validation.diagnostics, message: "Refused. Start the service/CLI with explicit local execution confirmation." };
+  if (!confirmLocalExecution || !config.enabled || !config.confirmServiceExecution || !acceptingRuns) {
+    return { ok: false, status: "denied", language: validation.language, file: validation.fileName, snapshotId: validation.snapshotId, stdout: "", stderr: "", exitCode: null, durationMs: null, outputTruncated: false, diagnostics: validation.diagnostics, message: "Sandbox execution is disabled." };
   }
   if (!validation.ok) {
-    return { ok: false, status: "policy_blocked", language: validation.language, file: validation.fileName, snapshotId, diagnostics: validation.diagnostics, message: "Snapshot run blocked by language or safety policy." };
+    return { ok: false, status: "policy_blocked", language: validation.language, file: validation.fileName, snapshotId: validation.snapshotId, stdout: "", stderr: "", exitCode: null, durationMs: null, outputTruncated: false, diagnostics: validation.diagnostics, message: "Sandbox request was blocked by policy." };
   }
   if (staticDiagnosticLanguages.includes(validation.language)) {
-    return { ok: true, runId: null, status: "completed", language: validation.language, file: validation.fileName, snapshotId, stdout: "", stderr: "", exitCode: 0, durationMs: 0, diagnostics: validation.diagnostics, message: "Static diagnostics completed. No code execution was needed." };
+    const hasError = validation.diagnostics.some((item) => item.severity === "error");
+    return {
+      ok: !hasError,
+      runId: null,
+      status: hasError ? "failed" : "completed",
+      language: validation.language,
+      file: validation.fileName,
+      snapshotId: validation.snapshotId,
+      stdout: "",
+      stderr: "",
+      exitCode: hasError ? null : 0,
+      durationMs: 0,
+      outputTruncated: false,
+      diagnostics: validation.diagnostics,
+      message: hasError
+        ? "Static diagnostics found errors; no code was executed."
+        : "Static diagnostics completed without code execution."
+    };
   }
   if (languagePolicyStatus(validation.language) !== "active_sandbox") {
-    return { ok: false, status: "policy_blocked", language: validation.language, file: validation.fileName, snapshotId, diagnostics: validation.diagnostics, message: "Language is not enabled for V1 sandbox execution." };
+    return { ok: false, status: "policy_blocked", language: validation.language, file: validation.fileName, snapshotId: validation.snapshotId, stdout: "", stderr: "", exitCode: null, durationMs: null, outputTruncated: false, diagnostics: validation.diagnostics, message: "Language is not enabled for execution." };
   }
+  if (executionActive) return { ok: false, busy: true, status: "sandbox_unavailable", retryAfter: config.retryAfterSeconds, diagnostics: [], message: "Sandbox is busy." };
+
   const runtime = runtimeForLanguage(validation.language);
-  if (!runtime) {
-    return { ok: false, status: "policy_blocked", language: validation.language, file: validation.fileName, snapshotId, diagnostics: validation.diagnostics, message: "No runtime is configured for this language." };
-  }
   const jobId = createJobId();
-  const job = {
-    job_id: jobId,
-    request_id: snapshotId,
-    source_type: sourceType,
-    source_id: sourceId,
-    language: validation.language,
-    file_name: validation.fileName,
-    status: "created",
-    created_at: new Date().toISOString(),
-    exit_code: null,
-    timed_out: false,
-    killed: false,
-    policy_summary: "Snapshot run, Docker/Podman container, network none, read-only root, cap-drop all, no-new-privileges, temporary workspace only.",
-    resource_limits: { cpus: defaultLimits.cpus, memory: defaultLimits.memory, timeout_seconds: defaultLimits.timeoutSeconds }
-  };
-  await writeJob(job);
-  await writeAuditEvent(jobId, "snapshot_run_created", "Snapshot run created after policy validation.", { snapshot_id: snapshotId, source_type: sourceType, source_id: sourceId });
-  await writeInputFile(jobId, runtime.fileName, validation.code);
-  const finalJob = await runContainerJob(job, runtime, fileURLToPath(inputDir(jobId)));
-  const { stdout, stderr } = await readOutput(jobId);
-  const diagnostics = [...validation.diagnostics, ...runtimeDiagnostics(finalJob, { language: validation.language, fileName: validation.fileName, stdout, stderr })];
-  return {
-    ok: finalJob.status === "succeeded",
-    runId: jobId,
-    status: mapJobStatus(finalJob),
-    language: validation.language,
-    file: validation.fileName,
-    snapshotId,
-    stdout,
-    stderr,
-    exitCode: finalJob.exit_code ?? null,
-    durationMs: durationMs(finalJob),
-    diagnostics,
-    message: finalJob.status === "succeeded" ? "Sandbox run completed. This is not a trust or Marketplace approval signal." : finalJob.status === "timed_out" ? "Sandbox run timed out and was killed." : finalJob.result || "Sandbox run failed."
-  };
+  executionActive = true;
+  try {
+    await ensureRuntime(config);
+    const job = {
+      job_id: jobId,
+      request_id: validation.snapshotId,
+      language: validation.language,
+      file_name: validation.fileName,
+      status: "created",
+      created_at: new Date().toISOString(),
+      exit_code: null,
+      timed_out: false,
+      killed: false,
+      resource_limits: defaultLimits
+    };
+    await writeJob(job, config);
+    await writeAuditEvent(jobId, "job_created", "Request passed runner policy validation.", {}, config);
+    await writeInputFile(jobId, runtime.fileName, validation.code, config);
+    const finalJob = await runContainer(job, runtime, inputDir(jobId, config), { config });
+    const { stdout, stderr } = await readOutput(jobId, config);
+    const diagnostics = [...validation.diagnostics, ...runtimeDiagnostics(finalJob, { language: validation.language, file: validation.fileName, stdout, stderr })].slice(0, 40);
+    const status = mapJobStatus(finalJob);
+    return {
+      ok: finalJob.status === "succeeded",
+      runId: jobId,
+      status,
+      language: validation.language,
+      file: validation.fileName,
+      snapshotId: validation.snapshotId,
+      stdout,
+      stderr,
+      exitCode: finalJob.exit_code ?? null,
+      durationMs: durationMs(finalJob),
+      outputTruncated: finalJob.output_truncated === true || finalJob.output_overflow === true,
+      diagnostics,
+      message: finalJob.status === "succeeded" ? "Sandbox execution completed. This is evidence only, never trust or approval." : finalJob.timed_out ? "Sandbox execution timed out and cleanup was verified." : finalJob.output_overflow ? "Sandbox output limit was enforced and cleanup was verified." : "Sandbox execution failed safely."
+    };
+  } finally {
+    try { await removeJob(jobId, config); }
+    finally { executionActive = false; }
+  }
+}
+
+export async function cleanupRunnerState(config = loadRunnerConfig(), options = {}) {
+  const [jobs, audit] = await Promise.all([cleanupExpiredJobs(config), cleanupExpiredAuditLogs(config)]);
+  const containers = await cleanupOrphanContainers(config, { preserveRecent: options.removeAllOrphans !== true });
+  return { jobs, audit, containers };
 }
 
 export { validateHandoffBundle, readJob, killJob };

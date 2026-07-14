@@ -1,0 +1,8 @@
+{
+  "snapshot_id": "fixture-python-safe-snapshot",
+  "language": "python",
+  "file_name": "main.py",
+  "code": "print('Coding Cornucopia Python sandbox fixture ok')\n",
+  "network_policy": "disabled",
+  "filesystem_policy": "temporary_workspace_only"
+}

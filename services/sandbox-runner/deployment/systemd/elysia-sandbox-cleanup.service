@@ -1,0 +1,17 @@
+[Unit]
+Description=Remove expired Elysia sandbox raw job data and bounded audit logs
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/elysia-sandbox-runner/current
+EnvironmentFile=%h/.config/elysia-sandbox-runner/runner.env
+ExecStart=/usr/bin/node services/sandbox-runner/cleanup.mjs
+UMask=0077
+LimitCORE=0
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.local/state/elysia-sandbox-runner %h/.local/share/containers
+Delegate=yes
+ProtectKernelModules=true
+ProtectKernelTunables=true

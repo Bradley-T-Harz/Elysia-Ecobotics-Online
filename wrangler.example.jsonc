@@ -1,0 +1,18 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "REPLACE_WITH_VERIFIED_EXISTING_PAGES_PROJECT_NAME",
+  "pages_build_output_dir": "./dist",
+  "compatibility_date": "2026-07-13",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "SANDBOX_ENABLED": "false",
+    "SANDBOX_DEPLOYMENT_ENV": "preview",
+    "SANDBOX_PUBLIC_ORIGIN": "https://elysiaecobotics.com",
+    "SANDBOX_SERVICE_URL": "https://sandbox.elysiaecobotics.com",
+    "SUPABASE_URL": "REPLACE_IN_CLOUDFLARE_DASHBOARD",
+    "SUPABASE_PUBLISHABLE_KEY": "REPLACE_IN_CLOUDFLARE_DASHBOARD"
+  }
+}

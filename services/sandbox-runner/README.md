@@ -1,38 +1,63 @@
-# Elysia Local Sandbox Runner
+# Elysia governed sandbox runner
 
-This service is a local-only sandbox runner foundation for reviewed `.elysia-sandbox-request.json` handoff bundles. It is separate from the public website and must not be deployed as a public execution endpoint.
+This package is the private Hetzner execution boundary for Coding Cornucopia. It listens only on `127.0.0.1:8788`, accepts authenticated requests from the Cloudflare Pages proxy through Cloudflare Tunnel and Access, and executes at most one run at a time in a locked-down rootless container. It is never a browser-facing API.
 
-It uses Docker or Podman with controlled argument arrays, never `shell: true`, and fails closed if no container engine or local runtime image is available.
+Production uses rootless Podman only. Rootless Docker is a separately selected, manually tested cold standby; the runner never chooses or falls back to another engine automatically.
 
-Commands:
+## Security invariants
 
-```bash
-npm run sandbox:doctor
-npm run sandbox:validate -- services/sandbox-runner/fixtures/hello-python.elysia-sandbox-request.json
-npm run sandbox:run -- services/sandbox-runner/fixtures/hello-python.elysia-sandbox-request.json --confirm-local-execution
-npm run sandbox:validate-snapshot -- services/sandbox-runner/fixtures/snapshot-javascript-run.json
-npm run sandbox:run-snapshot -- services/sandbox-runner/fixtures/snapshot-javascript-run.json --confirm-local-execution
-npm run sandbox:serve -- --confirm-service-execution
-npm run sandbox:status -- <job-id>
-npm run sandbox:kill -- <job-id>
+- `ELYSIA_SANDBOX_SERVICE_TOKEN` is required and compared in constant time after hashing.
+- Production images must be fully qualified immutable `name@sha256:<digest>` references and already exist locally. Pulling is disabled.
+- Each run has no network, a read-only root, dropped capabilities, `no-new-privileges`, a non-root container user, a private PID/IPC namespace, fixed CPU/memory/PID/time/output limits, and a temporary workspace only.
+- The runner passes fixed argument arrays with `shell: false`; it provides no package manager, shell, host-execution fallback, repository mount, home mount, vault mount, engine-socket mount, or credential mount.
+- One run owns the execution slot. A second request immediately receives `429 Busy` with `Retry-After`; there is no in-process queue.
+- Timeout and output-overflow paths kill and forcibly remove the container before releasing the slot.
+- Successful run input and raw output are deleted immediately. Failed/interrupted run data is bounded and cleaned at startup and by the periodic timer.
+- Health details require the private service token. The public Pages health endpoint returns only `available` or `unavailable`.
+
+## Service contract
+
+Every request requires `Authorization: Bearer <ELYSIA_SANDBOX_SERVICE_TOKEN>` and must not include an `Origin` header.
+
+- `GET /health` — private engine/image/readiness detail for the Pages proxy and operator.
+- `POST /v1/runs` — a strict, bounded snapshot selected and authorized by the Pages proxy.
+
+The runner receives only an opaque reservation ID plus language, file name, selected code, and fixed policies. It must never receive a Supabase access token, user ID, email, role, source ownership data, private notes, Cloudflare Access secret, database finalizer token, or private Elysia context.
+
+## Configuration
+
+Copy `.env.example` to `/home/elysia-sandbox/.config/elysia-sandbox-runner/runner.env`, make it mode `0600`, and enter production values directly on the server. Do not commit or transmit that file. Both kill switches must be true before execution is possible:
+
+```text
+ELYSIA_SANDBOX_ENABLED=true
+ELYSIA_SANDBOX_CONFIRM_SERVICE_EXECUTION=true
 ```
 
-Manual image setup is required. The runner will not pull images automatically:
+Set `ELYSIA_SANDBOX_ENGINE=podman` for production. Changing it to `docker` is an explicit standby activation and must only happen after the full cold-standby acceptance suite passes. Image values must be the exact digests produced and verified by the image release process described in `images/README.md`.
+
+## Local verification
+
+Static and mocked checks do not execute untrusted code:
 
 ```bash
-docker pull python:3.12-alpine
-docker pull node:22-alpine
+npm run test:sandbox-runner
+npm run test:sandbox-deployment
 ```
 
-The runner never mounts the host home directory, repo root, Docker socket, vaults, `.env`, credentials, or private Local Elysia data. It writes runtime job data under `services/sandbox-runner/runtime/` by default, which is ignored by git. Set `ELYSIA_SANDBOX_RUNTIME_ROOT=/path/to/writable/runtime` to use a dedicated service volume or `/tmp` during local smoke tests.
+The live integration suite requires a prepared rootless engine and immutable test images, and is deliberately opt-in:
 
-## Coding Cornucopia service mode
+```bash
+ELYSIA_SANDBOX_INTEGRATION=1 npm run test:sandbox-integration
+```
 
-`server.mjs` exposes the repo-side service contract used by Coding Cornucopia:
+Run that suite as `elysia-sandbox`, first with Podman. A Docker certification additionally requires `ELYSIA_SANDBOX_DOCKER_STANDBY_TEST=1`; it is a deliberate cold-standby check, not fallback. Never use either suite as root or point it at production state.
 
-- `GET /health`
-- `POST /v1/runs`
+## Release and operation
 
-The server is fail-closed unless started with `--confirm-service-execution` or `ELYSIA_SANDBOX_CONFIRM_SERVICE_EXECUTION=true`. The frontend only calls it when `VITE_CODING_SANDBOX_ENDPOINT` is configured.
+`npm run sandbox:release` refuses a dirty tree and packages only the explicit runner release allowlist. `npm run sandbox:verify-release -- <archive>` independently checks the archive checksum, paths, complete file/directory manifest coverage, modes, dependency version, and JavaScript syntax. Releases are installed root-owned under `/opt/elysia-sandbox-runner/releases/<release-id>` and activated through `/opt/elysia-sandbox-runner/current`.
 
-The service still runs outside the website/browser/Supabase process. Production exposure must add a reviewed origin allowlist, authentication/rate limiting, process supervision, TLS, and abuse monitoring. A successful sandbox run is evidence only; it is not trust, Marketplace approval, Developer Forge approval, or Local Elysia authority.
+User-level service definitions live in `deployment/systemd/`. The timer provides defense-in-depth cleanup even though successful runs are already scrubbed synchronously. Full provisioning, release, Cloudflare, database, rollback, and acceptance instructions are in `docs/deployment/governed-sandbox-deployment.md`.
+
+The outer runner and cleanup units deliberately do not set systemd `NoNewPrivileges` or `ProtectControlGroups`: rootless Podman needs the setuid `newuidmap`/`newgidmap` helpers and delegated cgroup v2 management, including during timed orphan cleanup. Those permissions remain confined to the unprivileged `elysia-sandbox` account. Every execution container independently receives `--security-opt=no-new-privileges`, and the units expose only runtime state plus rootless Podman storage as writable.
+
+A successful execution is evidence only. It never proves safety, trust, authorship, compatibility, approval, or permission to install or run code elsewhere.

@@ -16,6 +16,7 @@ import type { Extension } from "@codemirror/state";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
+import { useAuth } from "../../shared/auth/useAuth";
 import {
   clearCommuneReaction,
   castCommunityVoteBallot,
@@ -35,7 +36,6 @@ import {
   moderateCommuneContentTarget,
   moderateCommuneItem,
   postTypeOptions,
-  recordCodingSandboxRunResult,
   reportCommuneContent,
   requestIterationShowcaseSandboxReview,
   reportTypes,
@@ -160,7 +160,7 @@ import {
 import { type SandboxRequestInput, type SandboxRequestRecord } from "../../shared/sandbox/sandboxHandoffTypes";
 import { codingLanguageOptions, codingLanguageStatusLabel, getCodingLanguagePolicy, normalizeCodingLanguage } from "./codeLanguagePolicies";
 import { runStaticCodingDiagnostics, type CodingDiagnostic, type SandboxRunResult } from "./codeDiagnosticTypes";
-import { requestSandboxRun, sandboxEndpointState } from "./codingSandboxClient";
+import { requestSandboxRun, sandboxEndpointState, type SandboxSourceType } from "./codingSandboxClient";
 
 type CommuneStatus =
   | "draft_local"
@@ -543,7 +543,7 @@ function proposalDraftSnapshotId(snippetId: string, input: { codeText: string; l
 
 function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeDocumentId, codeVersionId, language, fileName, code, signedIn = true, runLabel = "Run snapshot in sandbox" }: {
   snapshotId: string;
-  sourceType: "commune_post_snippet" | "commune_code_document" | "commune_code_version" | "repository_showcase_artifact" | "iteration_showcase_artifact";
+  sourceType: SandboxSourceType;
   sourceId?: string | null;
   postId?: string | null;
   codeDocumentId?: string | null;
@@ -554,6 +554,7 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
   signedIn?: boolean;
   runLabel?: string;
 }) {
+  const { accessToken } = useAuth();
   const normalizedLanguage = normalizeCodingLanguage(language);
   const policy = getCodingLanguagePolicy(normalizedLanguage);
   const endpoint = sandboxEndpointState();
@@ -570,11 +571,9 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
   const hasSnapshot = Boolean(snapshotId.trim());
   const hasCode = Boolean(code.trim());
   const policyEligible = policy.status === "active_sandbox" || policy.status === "static_diagnostics";
-  const disabledReason = !signedIn
+  const disabledReason = !signedIn || !accessToken
     ? "Sign in to request and record governed sandbox diagnostics."
-    : !endpoint.configured
-      ? "Sandbox endpoint not configured. Set VITE_CODING_SANDBOX_ENDPOINT to the isolated runner service before requesting a run."
-      : !hasSnapshot
+    : !hasSnapshot
         ? "Create or choose an explicit snapshot before running."
         : !hasCode
           ? "Add code before requesting sandbox diagnostics."
@@ -590,31 +589,15 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
     setRecordMessage("");
     try {
       setRunState("running");
-      const runResult = await requestSandboxRun({ snapshotId, sourceType, sourceId, language: normalizedLanguage, fileName, code });
+      const runResult = await requestSandboxRun({ snapshotId, sourceType, sourceId, language: normalizedLanguage, fileName, code }, accessToken);
       setResult(runResult);
       setRunState(runResult.status);
-      const record = await recordCodingSandboxRunResult({
-        snapshotId,
-        sourceType,
-        sourceId,
-        postId,
-        codeDocumentId,
-        codeVersionId,
-        language: normalizedLanguage,
-        fileName,
-        requestPayload: {
-          source_type: sourceType,
-          source_id: sourceId ?? null,
-          snapshot_id: snapshotId,
-          language: normalizedLanguage,
-          file_name: fileName ?? null,
-          network_policy: "disabled",
-          filesystem_policy: "temporary_workspace_only"
-        },
-        result: runResult
-      });
-      setRecordMessage(record.ok ? record.message : record.message);
-    } catch (error) {
+      setRecordMessage(runResult.recordingStatus === "failed"
+        ? "Execution evidence was returned, but Supabase finalization failed. The execution result is not recorded yet."
+        : runResult.recordingStatus === "recorded"
+          ? "Run evidence was recorded privately through the governed proxy."
+          : "");
+    } catch {
       const failedResult: SandboxRunResult = {
         ok: false,
         status: "failed",
@@ -630,7 +613,7 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
           line: null,
           column: null,
           source: "Coding Cornucopia sandbox client",
-          message: error instanceof Error ? error.message : "Sandbox request failed."
+          message: "The governed sandbox request failed safely."
         }],
         message: "Sandbox request failed before a run result was returned."
       };
@@ -644,12 +627,11 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
   return <section className="coding-sandbox-panel">
     <div className="addon-card__topline"><strong>Sandbox diagnostics</strong><span>{codingLanguageStatusLabel(policy.status)}</span></div>
     <p className="boundary-note">{endpoint.message}</p>
-    <p className="boundary-note">Runs are snapshot-based. No browser execution, no terminal, no package install, no repo clone, no Local Elysia handoff, and no trust label is created by a successful run.</p>
+    <p className="boundary-note">Submitted code crosses Cloudflare and the Hetzner sandbox host. Bounded run metadata and output previews may be stored privately in Supabase. No browser execution, terminal, package install, repo clone, Local Elysia handoff, trust label, or approval is created by a successful run.</p>
     <StatusBadges labels={[`state: ${runState.replace(/_/g, " ")}`, policy.sandboxRuntime ? `runtime: ${policy.sandboxRuntime}` : "no active runtime", "network disabled", "ephemeral workspace"]} />
     <DiagnosticsList diagnostics={staticDiagnostics} />
     <div className="button-row">
       <button type="button" disabled={!canRun || running} onClick={() => void runSnapshot()}>{running ? "Running in sandbox..." : runLabel}</button>
-      {!endpoint.configured && <Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Prepare governed sandbox request</Link>}
     </div>
     {disabledReason && <p className="boundary-note">{disabledReason}</p>}
     {recordMessage && <p className="boundary-note">{recordMessage}</p>}
@@ -4440,7 +4422,7 @@ function CodeRevisionProposalWorkspace({ account, onMessage }: { account: { sign
         <CodeWorkspaceEditor value={proposalForm.codeText} language={proposalForm.language} onChange={(value) => setProposalForm({ ...proposalForm, codeText: value })} minHeight="320px" />
         {draftDiff && <StatusBadges labels={[draftDiff.changed ? "changed" : "unchanged", `${draftDiff.oldLineCount} -> ${draftDiff.newLineCount} lines`, `${draftDiff.sizeDelta >= 0 ? "+" : ""}${draftDiff.sizeDelta} chars`]} />}
         <DiagnosticsList diagnostics={proposalDiagnostics} />
-        <CodingSandboxRunPanel snapshotId={proposalDraftSnapshotId(activeSnippet.id, proposalForm)} sourceType="commune_post_snippet" sourceId={activeSnippet.id} postId={activeSnippet.post_id} language={proposalForm.language} fileName={proposalForm.fileName} code={proposalForm.codeText} signedIn={account.signedIn} runLabel={isTroubleshootingWorkbench ? "Run proposed fix in sandbox" : "Run proposed revision in sandbox"} />
+        <CodingSandboxRunPanel snapshotId={proposalDraftSnapshotId(activeSnippet.id, proposalForm)} sourceType="manual_snapshot" sourceId={null} postId={activeSnippet.post_id} language={proposalForm.language} fileName={proposalForm.fileName} code={proposalForm.codeText} signedIn={account.signedIn} runLabel={isTroubleshootingWorkbench ? "Run proposed fix in sandbox" : "Run proposed revision in sandbox"} />
         <div className="button-row"><button className="button-primary" type="button" disabled={!account.signedIn || !draftDiff?.changed} onClick={() => void submitProposal()}>{isTroubleshootingWorkbench ? "Submit proposed fix" : "Submit proposed revision"}</button><button type="button" onClick={() => setProposalForm({ sourceSnippetId: activeSnippet.id, codeText: activeSnippet.code_text, language: activeSnippet.language ?? "text", fileName: activeSnippet.file_name ?? "snippet.txt", changeSummary: "", explanation: "" })}>Reset to current snapshot</button></div>
         <p className="boundary-note">Run the proposed {proposalNoun} before submitting if you want sandbox evidence. Running does not submit the proposal, update public code, install anything, or mark this code safe.</p>
         <p className="boundary-note">Submitting sends a private signal to the original poster. It does not publish, install, execute, or mark this code safe.</p>
@@ -4461,7 +4443,7 @@ function CodeRevisionProposalWorkspace({ account, onMessage }: { account: { sign
           <article><h4>Proposed code</h4><CodeWorkspaceEditor value={selectedProposal.proposed_code_text} language={selectedProposal.language} readOnly minHeight="260px" /></article>
         </div>
         <DiagnosticsList diagnostics={runStaticCodingDiagnostics({ language: selectedProposal.language, fileName: selectedProposal.file_name, code: selectedProposal.proposed_code_text })} />
-        <CodingSandboxRunPanel snapshotId={`proposal-${selectedProposal.id}`} sourceType="commune_post_snippet" sourceId={selectedProposal.code_snippet_id} postId={selectedProposal.post_id} language={selectedProposal.language ?? "text"} fileName={selectedProposal.file_name} code={selectedProposal.proposed_code_text} signedIn={account.signedIn} runLabel="Run proposed revision in sandbox" />
+        <CodingSandboxRunPanel snapshotId={selectedProposal.id} sourceType="commune_code_revision_proposal" sourceId={selectedProposal.id} postId={selectedProposal.post_id} language={selectedProposal.language ?? "text"} fileName={selectedProposal.file_name} code={selectedProposal.proposed_code_text} signedIn={account.signedIn} runLabel="Run proposed revision in sandbox" />
         <label><span>Decision note</span><input value={decisionNote} onChange={(event) => setDecisionNote(event.target.value)} placeholder="Optional note for proposer/history" /></label>
         <div className="button-row">{canDecide && <><button className="button-primary" type="button" onClick={() => void decideProposal("accepted")}>{isTroubleshootingWorkbench ? "Accept fix" : "Accept revision"}</button><button type="button" onClick={() => void decideProposal("needs_changes")}>Ask for changes</button><button type="button" onClick={() => void decideProposal("rejected")}>{isTroubleshootingWorkbench ? "Reject fix" : "Reject revision"}</button></>}{canWithdraw && <button type="button" onClick={() => void withdrawProposal()}>Withdraw my proposal</button>}{account.isModerator && ["submitted", "needs_changes"].includes(selectedProposal.proposal_status) && <button type="button" onClick={() => void decideProposal("hidden_by_moderation")}>Hide unsafe proposal</button>}</div>
         <p className="boundary-note">Author approval is separate from moderator safety enforcement. Sandbox success is evidence, not trust, Marketplace readiness, or approval.</p>
@@ -4623,7 +4605,7 @@ function CollaborativeCodeReviewPanel() {
         <label><span>Snapshot summary</span><input value={snapshotSummary} onChange={(event) => setSnapshotSummary(event.target.value)} /></label>
         {account.isModerator && <div className="commune-moderator-controls"><label><span>Moderation reason</span><input value={moderationReason} onChange={(event) => setModerationReason(event.target.value)} /></label><button type="button" disabled={!selected} onClick={() => void publishOrModerate("publish")}>Publish</button><button type="button" disabled={!selected} onClick={() => void publishOrModerate("archive")}>Archive</button><button type="button" disabled={!selected} onClick={() => void publishOrModerate("hide")}>Hide</button><button type="button" disabled={!selected} onClick={() => void publishOrModerate("remove")}>Remove</button></div>}
         <section className="commune-code-preview"><div className="addon-card__topline"><strong>{getCodingLanguagePolicy(form.language).label}</strong><span>{form.fileName || "untitled"}</span></div><CodeWorkspaceEditor value={form.text} language={form.language} readOnly minHeight="280px" /><DiagnosticsList diagnostics={currentDiagnostics} /><div className="button-row"><button type="button" onClick={() => void copyText(form.text, setMessage)}>Copy code text</button><button type="button" onClick={() => downloadText(`${slug(form.title || "code-review")}.txt`, form.text, "text/plain")}>Export text</button><Link className="button-link" to="/commune/rooms/coding-cornucopia/new">Create Commune code post from this document</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request" onClick={prepareSandboxFromSelected}>Prepare sandbox review request</Link></div><p className="boundary-note">Static diagnostics are local text checks. Create a manual snapshot before asking the configured sandbox to execute anything.</p></section>
-        <section className="commune-info-grid"><article><h3>Manual snapshots</h3>{!versions.length && <p>No snapshots yet. Sandbox runs require a saved manual snapshot.</p>}{versions.map((version) => <details key={version.id}><summary>v{version.version_number}: {version.change_summary ?? "Snapshot"}</summary><p>{new Date(version.created_at).toLocaleString()}</p><CodeWorkspaceEditor value={version.snapshot_text} language={form.language} readOnly minHeight="220px" /><div className="button-row"><button type="button" onClick={() => void copyText(version.snapshot_text, setMessage)}>Copy snapshot</button></div><CodingSandboxRunPanel snapshotId={version.id} sourceType="commune_code_version" sourceId={selected?.id ?? null} codeDocumentId={selected?.id ?? null} codeVersionId={version.id} language={form.language} fileName={form.fileName} code={version.snapshot_text} signedIn={account.signedIn} /></details>)}</article><article><h3>Line annotations</h3><div className="commune-form-grid"><label><span>Line start</span><input type="number" min="1" value={annotation.lineStart} onChange={(event) => setAnnotation({ ...annotation, lineStart: Number(event.target.value) })} /></label><label><span>Line end</span><input type="number" min="1" value={annotation.lineEnd} onChange={(event) => setAnnotation({ ...annotation, lineEnd: Number(event.target.value) })} /></label><label className="wide-field"><span>Comment</span><input value={annotation.comment} onChange={(event) => setAnnotation({ ...annotation, comment: event.target.value })} /></label></div><button type="button" disabled={!selected || !account.signedIn} onClick={() => void addAnnotation()}>Add annotation</button>{annotations.map((item) => <article className="review-list-item" key={item.id}><strong>Lines {item.line_start}-{item.line_end}</strong><StatusBadges labels={[item.annotation_status, item.visibility_state]} /><p>{item.comment}</p><div className="button-row"><button type="button" onClick={() => void annotationAction(item, "resolve")}>Resolve</button><button type="button" onClick={() => void annotationAction(item, "report")}>Report annotation</button>{account.isModerator && <><button type="button" onClick={() => void annotationAction(item, "hide")}>Hide</button><button type="button" onClick={() => void annotationAction(item, "remove")}>Remove</button></>}</div></article>)}</article></section>
+        <section className="commune-info-grid"><article><h3>Manual snapshots</h3>{!versions.length && <p>No snapshots yet. Sandbox runs require a saved manual snapshot.</p>}{versions.map((version) => <details key={version.id}><summary>v{version.version_number}: {version.change_summary ?? "Snapshot"}</summary><p>{new Date(version.created_at).toLocaleString()}</p><CodeWorkspaceEditor value={version.snapshot_text} language={form.language} readOnly minHeight="220px" /><div className="button-row"><button type="button" onClick={() => void copyText(version.snapshot_text, setMessage)}>Copy snapshot</button></div><CodingSandboxRunPanel snapshotId={version.id} sourceType="commune_code_version" sourceId={version.id} codeDocumentId={selected?.id ?? null} codeVersionId={version.id} language={form.language} fileName={form.fileName} code={version.snapshot_text} signedIn={account.signedIn} /></details>)}</article><article><h3>Line annotations</h3><div className="commune-form-grid"><label><span>Line start</span><input type="number" min="1" value={annotation.lineStart} onChange={(event) => setAnnotation({ ...annotation, lineStart: Number(event.target.value) })} /></label><label><span>Line end</span><input type="number" min="1" value={annotation.lineEnd} onChange={(event) => setAnnotation({ ...annotation, lineEnd: Number(event.target.value) })} /></label><label className="wide-field"><span>Comment</span><input value={annotation.comment} onChange={(event) => setAnnotation({ ...annotation, comment: event.target.value })} /></label></div><button type="button" disabled={!selected || !account.signedIn} onClick={() => void addAnnotation()}>Add annotation</button>{annotations.map((item) => <article className="review-list-item" key={item.id}><strong>Lines {item.line_start}-{item.line_end}</strong><StatusBadges labels={[item.annotation_status, item.visibility_state]} /><p>{item.comment}</p><div className="button-row"><button type="button" onClick={() => void annotationAction(item, "resolve")}>Resolve</button><button type="button" onClick={() => void annotationAction(item, "report")}>Report annotation</button>{account.isModerator && <><button type="button" onClick={() => void annotationAction(item, "hide")}>Hide</button><button type="button" onClick={() => void annotationAction(item, "remove")}>Remove</button></>}</div></article>)}</article></section>
         <section className="commune-report-panel"><h3>Report document</h3><p>Reports are private to moderators/admins. Reporting does not automatically remove content.</p><label><span>Reason</span><select value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value as typeof codeReviewReportReasons[number] })}>{codeReviewReportReasons.map((reason) => <option key={reason} value={reason}>{reason.replace(/_/g, " ")}</option>)}</select></label><label><span>Detail</span><input value={report.detail} onChange={(event) => setReport({ ...report, detail: event.target.value })} /></label><button type="button" disabled={!selected || !account.signedIn} onClick={() => void reportDocument()}>Report code document</button></section>
       </div>
     </div>}

@@ -1,0 +1,8 @@
+{
+  "snapshot_id": "fixture-python-timeout-snapshot",
+  "language": "python",
+  "file_name": "main.py",
+  "code": "while True:\n    pass\n",
+  "network_policy": "disabled",
+  "filesystem_policy": "temporary_workspace_only"
+}

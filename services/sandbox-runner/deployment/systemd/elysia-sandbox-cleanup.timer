@@ -1,0 +1,12 @@
+[Unit]
+Description=Periodic Elysia sandbox raw-data cleanup
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=15min
+RandomizedDelaySec=2min
+Persistent=true
+Unit=elysia-sandbox-cleanup.service
+
+[Install]
+WantedBy=timers.target

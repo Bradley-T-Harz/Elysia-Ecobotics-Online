@@ -1,49 +1,33 @@
-# Coding Cornucopia Threat Model
+# Coding Cornucopia threat model
 
-## Primary Threats
+## Primary threats
 
-- malicious code execution
-- secret exfiltration
-- attempts to access Supabase service-role keys
-- attempts to access local Elysia memory/files/logs/vaults/credentials
-- crypto mining or resource abuse
-- fork bombs or process flooding
-- infinite loops
-- output flooding
-- network scanning
-- dependency supply-chain abuse
-- filesystem probing
-- social engineering through pasted code
-- fake safe/trusted labels
-- public users self-assigning trust
-- DDoS through sandbox runs
-- using the sandbox to attack third-party services
+- malicious code, shell, package-manager, native-process, or host-execution attempts;
+- secret, user-token, Cloudflare credential, Supabase credential, private-path, or Local Elysia data exfiltration;
+- container escape, engine/socket access, mount abuse, filesystem probing, or orphan containers;
+- network scanning, third-party attacks, dependency supply-chain activity, or repository clone/run;
+- CPU/memory/PID exhaustion, infinite loops, crypto mining, output floods, request floods, and queue growth;
+- forged execution results, quota races, duplicate retries, stale reservations, invalid lifecycle changes, and public evidence leakage;
+- bypass of user authentication, source RLS, account authorization, Cloudflare Access, or runner authentication;
+- preview deployments acquiring production reachability or secrets;
+- social engineering and false “safe,” “trusted,” “approved,” or “verified” claims.
 
-## Current Protections
+## Layered controls
 
-- public snippets render as inert text
-- CodeMirror editor does not execute code
-- static secret/private-data diagnostics run before save/run paths
-- sandbox endpoint is opt-in and fail-closed when not configured
-- local runner uses Docker/Podman with `--network none`
-- local runner uses non-root `65534:65534`
-- local runner uses read-only root, cap-drop all, no-new-privileges
-- local runner uses CPU, memory, pids, timeout, and output limits
-- runner never pulls images automatically
-- runner never falls back to host execution
+The browser uses only same-origin `/api/sandbox/*`, sends the current short-lived Supabase access token, and cannot choose a service URL. Cloudflare verifies the user with Supabase, derives authorization server-side, reloads canonical sources through RLS, rejects stale snapshot IDs, bounds schemas and responses, reserves quota/idempotency/leases atomically, and attaches Access plus runner credentials. Preview is disabled.
 
-## Required Production Controls
+The Access-protected Tunnel is outbound-only and terminates at a loopback runner. The VPS exposes no runner, HTTP, or HTTPS application port. The runner independently authenticates, rejects browser origins and unknown fields, selects one configured rootless engine, requires immutable preloaded image digests, and has two execution kill switches.
 
-Before exposing the runner beyond localhost, Bradley/operator must configure:
+Only one rootless Podman container runs at a time; there is no queue or automatic Docker fallback. It has no network, shell, package manager/install, writable root, capabilities, privilege escalation, root user, host/repository/home/vault/socket mount, or secret-bearing environment. CPU, memory, swap, PID, file-descriptor, temporary-space, wall-clock, request, and output limits are fixed. Timeout/output termination forcibly removes and then verifies absence of the container before releasing the slot.
 
-- TLS and a reviewed public endpoint
-- origin allowlist
-- authentication or trusted backend proxy
-- per-user and per-IP rate limits
-- process supervision
-- log retention policy
-- abuse monitoring
-- image update/rebuild workflow
-- manual Supabase migration for run/diagnostic records if account-backed run history is needed
+Supabase prevents ordinary users from directly creating/updating results or diagnostics. The old result-recording RPC is revoked. Governed start/finalize requires the authenticated user, matching run, matching non-null idempotency key, valid lifecycle, and private finalizer token; only its hash is stored privately. Stale leases are recovered during reservation or by an administrator-only reconciliation RPC.
 
-Shell, C/C++, native binaries, Docker-in-Docker, repo clone/run, package install, and arbitrary network access remain disabled unless a future policy pass explicitly enables them.
+Responses and logs are bounded and sanitized. User JWTs, emails, roles, private notes, source context, internal paths, engine details, and private credentials do not go to Hetzner or back to the browser. Successful raw code/output is deleted synchronously; interrupted data and bounded audit metadata are subject to startup/timer retention cleanup.
+
+## Residual risk and operating controls
+
+Containers reduce risk but are not a proof against kernel/runtime vulnerabilities. Image builds, Podman/Node/OS patches, Access/Tunnel policy, Supabase grants, Cloudflare variables, service logs, quotas, and cgroup behavior require continuing review. The full live acceptance suite must run after runtime/image/system changes. Docker remains stopped cold standby until separately tested.
+
+Operators must use the kill switches and incident runbook at the first sign of isolation, cleanup, credential, or result-integrity failure. Shell, native binaries, package installation, repository execution, and network access remain disabled.
+
+Execution is evidence only, never trust or approval.

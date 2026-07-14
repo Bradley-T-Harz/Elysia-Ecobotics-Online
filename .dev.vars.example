@@ -1,0 +1,11 @@
+# Copy to .dev.vars only for local Pages Functions testing. Never commit the copy.
+SANDBOX_ENABLED="false"
+SANDBOX_DEPLOYMENT_ENV="development"
+SANDBOX_PUBLIC_ORIGIN="http://localhost:8787"
+SANDBOX_SERVICE_URL="https://sandbox.example.invalid"
+SANDBOX_SERVICE_TOKEN="replace-directly-in-local-file"
+SANDBOX_DB_FINALIZER_TOKEN="replace-directly-in-local-file"
+CLOUDFLARE_ACCESS_CLIENT_ID="replace-directly-in-local-file"
+CLOUDFLARE_ACCESS_CLIENT_SECRET="replace-directly-in-local-file"
+SUPABASE_URL="https://project-ref.supabase.co"
+SUPABASE_PUBLISHABLE_KEY="replace-with-publishable-key"

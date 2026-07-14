@@ -10,7 +10,7 @@
   },
   "execution_intent": {
     "language": "python",
-    "expected_command": "python main.py",
+    "expected_command": "python -I -B main.py",
     "declared_dependencies": [],
     "declared_network_policy": "disabled",
     "declared_network_domains": [],

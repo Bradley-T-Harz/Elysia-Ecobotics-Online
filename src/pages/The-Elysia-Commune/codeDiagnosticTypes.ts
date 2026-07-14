@@ -57,6 +57,9 @@ export type SandboxRunResult = {
   stderr?: string;
   exitCode?: number | null;
   durationMs?: number | null;
+  outputTruncated?: boolean;
+  recordingStatus?: "recorded" | "failed";
+  idempotentReplay?: boolean;
   diagnostics: CodingDiagnostic[];
   message: string;
 };

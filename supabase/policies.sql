@@ -3753,3 +3753,99 @@ grant select, insert, update on table public.commune_vote_options to authenticat
 grant select, insert, update on table public.commune_vote_ballots to authenticated;
 grant select, insert, update on table public.commune_vote_events to authenticated;
 grant execute on function public.commune_vote_result_summary(uuid[]) to anon, authenticated;
+
+-- Governed sandbox policy snapshot. Canonical additive migration:
+-- migrations/2026_07_13_sandbox_proxy_access_and_reservation.sql
+
+alter table public.commune_sandbox_runs enable row level security;
+alter table public.commune_code_diagnostics enable row level security;
+alter table public.commune_language_policies enable row level security;
+alter table public.commune_sandbox_policies enable row level security;
+
+drop policy if exists "users read own coding cornucopia sandbox runs" on public.commune_sandbox_runs;
+create policy "users read own coding cornucopia sandbox runs"
+  on public.commune_sandbox_runs for select to authenticated
+  using (
+    requester_user_id = auth.uid()
+    or public.current_user_is_admin()
+    or public.current_user_can_review_domain('commune'::public.review_domain)
+  );
+
+drop policy if exists "users create own coding cornucopia sandbox run requests" on public.commune_sandbox_runs;
+drop policy if exists "reviewers update coding cornucopia sandbox runs" on public.commune_sandbox_runs;
+
+drop policy if exists "users read own coding cornucopia diagnostics" on public.commune_code_diagnostics;
+create policy "users read own coding cornucopia diagnostics"
+  on public.commune_code_diagnostics for select to authenticated
+  using (
+    public_visibility = 'public_summary'
+    or public.current_user_is_admin()
+    or public.current_user_can_review_domain('commune'::public.review_domain)
+    or exists (
+      select 1 from public.commune_sandbox_runs run
+      where run.id = commune_code_diagnostics.run_id
+        and run.requester_user_id = auth.uid()
+    )
+  );
+
+drop policy if exists "reviewers write coding cornucopia diagnostics" on public.commune_code_diagnostics;
+
+drop policy if exists "public reads coding cornucopia language policies" on public.commune_language_policies;
+create policy "public reads coding cornucopia language policies"
+  on public.commune_language_policies for select to anon, authenticated
+  using (true);
+
+drop policy if exists "public reads coding cornucopia sandbox policies" on public.commune_sandbox_policies;
+create policy "public reads coding cornucopia sandbox policies"
+  on public.commune_sandbox_policies for select to anon, authenticated
+  using (true);
+
+revoke all on schema private from public, anon, authenticated;
+revoke all on table private.sandbox_proxy_secrets from public, anon, authenticated;
+
+revoke insert, update, delete on table public.commune_sandbox_runs from public, anon, authenticated;
+revoke insert, update, delete on table public.commune_code_diagnostics from public, anon, authenticated;
+grant select on table public.commune_sandbox_runs to authenticated;
+grant select on table public.commune_code_diagnostics to authenticated;
+grant select on table public.commune_language_policies to anon, authenticated;
+grant select on table public.commune_sandbox_policies to anon, authenticated;
+
+revoke execute on function public.record_commune_sandbox_run_result(
+  text, text, text, uuid, uuid, uuid, text, text, text, jsonb, jsonb,
+  text, text, integer, integer, jsonb
+) from public, anon, authenticated;
+
+revoke execute on function public.current_user_sandbox_access()
+  from public, anon, authenticated;
+grant execute on function public.current_user_sandbox_access() to authenticated;
+
+revoke execute on function public.reserve_commune_sandbox_run(
+  uuid, text, text, text, uuid, uuid, uuid, text, text, text, integer
+) from public, anon, authenticated;
+grant execute on function public.reserve_commune_sandbox_run(
+  uuid, text, text, text, uuid, uuid, uuid, text, text, text, integer
+) to authenticated;
+
+revoke execute on function public.start_commune_sandbox_run(uuid, uuid, text)
+  from public, anon, authenticated;
+grant execute on function public.start_commune_sandbox_run(uuid, uuid, text)
+  to authenticated;
+
+revoke execute on function public.finalize_commune_sandbox_run(
+  uuid, uuid, text, text, boolean, text, text, text, integer, integer, boolean, jsonb
+) from public, anon, authenticated;
+grant execute on function public.finalize_commune_sandbox_run(
+  uuid, uuid, text, text, boolean, text, text, text, integer, integer, boolean, jsonb
+) to authenticated;
+
+revoke execute on function public.reconcile_stale_commune_sandbox_runs()
+  from public, anon, authenticated;
+grant execute on function public.reconcile_stale_commune_sandbox_runs()
+  to authenticated;
+
+revoke execute on function private.sandbox_finalizer_token_is_valid(text)
+  from public, anon, authenticated;
+revoke execute on function private.sandbox_source_is_authorized(uuid, text, text, uuid, uuid, uuid)
+  from public, anon, authenticated;
+revoke execute on function private.enforce_sandbox_run_status_transition()
+  from public, anon, authenticated;
