@@ -1,5 +1,6 @@
-import { PublicHttpError } from "../functions/api/sandbox/_shared/http.ts";
+import { PublicHttpError, fetchWithTimeout } from "../functions/api/sandbox/_shared/http.ts";
 import { authenticateRequest } from "../functions/api/sandbox/_shared/auth.ts";
+import { startRun } from "../functions/api/sandbox/_shared/database.ts";
 import { executeRunner } from "../functions/api/sandbox/_shared/runner.ts";
 import { parseSandboxRunRequest } from "../functions/api/sandbox/_shared/schema.ts";
 import { resolveAuthorizedSource } from "../functions/api/sandbox/_shared/source.ts";
@@ -78,7 +79,7 @@ function dependencies(overrides = {}) {
     authenticate: async () => auth,
     resolveSource: async () => source,
     reserve: async () => ({ accepted: true, idempotentReplay: false, runId: "00000000-0000-4000-8000-000000000010", status: "queued", leaseExpiresAt: new Date(Date.now() + 60_000).toISOString(), reason: null, retryAfter: null, result: null }),
-    start: async () => {},
+    start: async (_auth, runId, clientRequestId) => ({ runId, clientRequestId, status: "running", leaseExpiresAt: new Date(Date.now() + 60_000).toISOString() }),
     execute: async () => runnerResult,
     finalize: async () => true,
     ...overrides
@@ -131,7 +132,29 @@ assert(changedSnapshotRejected, "A stale browser snapshot identifier must be rej
 
 const previewEnv = { ...env, SANDBOX_DEPLOYMENT_ENV: "preview", SANDBOX_ENABLED: "false" };
 assert((await handleSandboxRun(request({}, previewEnv), previewEnv, dependencies())).status === 503, "Preview deployments must remain disabled.");
+assert((await handleSandboxRun(request({}, { ...env, SANDBOX_ENABLED: "TRUE" }), { ...env, SANDBOX_ENABLED: "TRUE" }, dependencies())).status === 503, "Malformed enabled values must fail closed.");
+assert((await handleSandboxRun(request({ method: "GET" }), env, dependencies())).status === 405, "Unsupported proxy methods must fail closed.");
+assert((await handleSandboxRun(request({ contentType: "text/plain" }), env, dependencies())).status === 415, "Non-JSON execution requests must fail closed.");
 assert((await handleSandboxRun(request({ origin: "https://attacker.example" }), env, dependencies())).status === 403, "Cross-origin sandbox requests must fail closed.");
+
+for (const [name, misconfigured] of [
+  ["runner endpoint", { SANDBOX_SERVICE_URL: "" }],
+  ["runner token", { SANDBOX_SERVICE_TOKEN: "" }],
+  ["Access client id", { CLOUDFLARE_ACCESS_CLIENT_ID: "" }],
+  ["Access client secret", { CLOUDFLARE_ACCESS_CLIENT_SECRET: "" }],
+  ["database finalizer token", { SANDBOX_DB_FINALIZER_TOKEN: "" }],
+  ["placeholder runner token", { SANDBOX_SERVICE_TOKEN: "replace-with-a-placeholder-runner-token-value" }],
+  ["placeholder Access secret", { CLOUDFLARE_ACCESS_CLIENT_SECRET: "REPLACE_WITH_ACCESS_CLIENT_SECRET" }],
+  ["placeholder finalizer", { SANDBOX_DB_FINALIZER_TOKEN: "REPLACE_WITH_SANDBOX_FINALIZER_TOKEN" }]
+]) {
+  let dependencyTouched = false;
+  const brokenEnv = { ...env, ...misconfigured };
+  const response = await handleSandboxRun(request({}, brokenEnv), brokenEnv, dependencies({
+    authenticate: async () => { dependencyTouched = true; return auth; },
+    reserve: async () => { dependencyTouched = true; throw new Error("must not reserve"); }
+  }));
+  assert(response.status === 503 && !dependencyTouched, `Missing ${name} must fail before authentication or reservation.`);
+}
 let anonymousRejected = false;
 try {
   await authenticateRequest(new Request(`${env.SANDBOX_PUBLIC_ORIGIN}/api/sandbox/health`), env);
@@ -140,6 +163,13 @@ try {
 }
 assert(anonymousRejected, "An anonymous request must fail before any Supabase or runner call.");
 assert((await handleSandboxRun(request(), env, dependencies({ authenticate: async () => { throw new PublicHttpError(401, "authentication_invalid"); } }))).status === 401, "Invalid Supabase tokens must fail closed.");
+let untrustedSupabaseOriginRejected = false;
+try {
+  await authenticateRequest(new Request(`${env.SANDBOX_PUBLIC_ORIGIN}/api/sandbox/health`, { headers: { authorization: "Bearer synthetic-user-token" } }), { ...env, SUPABASE_URL: "https://attacker.example" });
+} catch (error) {
+  untrustedSupabaseOriginRejected = error instanceof PublicHttpError && error.status === 503 && error.code === "sandbox_misconfigured";
+}
+assert(untrustedSupabaseOriginRejected, "Supabase user JWTs must never be forwarded to an untrusted configured origin.");
 assert((await handleSandboxRun(request(), env, dependencies({ resolveSource: async () => { throw new PublicHttpError(403, "source_unauthorized"); } }))).status === 403, "Unauthorized sources must fail closed.");
 const quotaResponse = await handleSandboxRun(request(), env, dependencies({ reserve: async () => ({ accepted: false, idempotentReplay: false, runId: null, status: null, leaseExpiresAt: null, reason: "quota_exceeded", retryAfter: 3600, result: null }) }));
 assert(quotaResponse.status === 429 && quotaResponse.headers.get("retry-after") === "3600", "Quota rejection must return 429 and Retry-After.");
@@ -178,27 +208,51 @@ assert(recordingFailure.status === 200 && recordingPayload.ok === true && record
 let startKey = null;
 let finalizeKey = null;
 const keyedResult = await handleSandboxRun(request(), env, dependencies({
-  start: async (_auth, _runId, clientRequestId) => { startKey = clientRequestId; },
+  start: async (_auth, runId, clientRequestId) => {
+    startKey = clientRequestId;
+    return { runId, clientRequestId, status: "running", leaseExpiresAt: new Date(Date.now() + 60_000).toISOString() };
+  },
   finalize: async (_auth, _runId, clientRequestId) => { finalizeKey = clientRequestId; return true; }
 }));
 assert(keyedResult.status === 200 && startKey === body.clientRequestId && finalizeKey === body.clientRequestId, "Start and finalization must bind the exact reservation idempotency key.");
 
+const startLease = new Date(Date.now() + 60_000).toISOString();
+const startReceipt = await startRun({
+  rpc: async () => ({ data: { runId: "00000000-0000-4000-8000-000000000010", status: "running", leaseExpiresAt: startLease }, error: null })
+}, "00000000-0000-4000-8000-000000000010", body.clientRequestId, env.SANDBOX_DB_FINALIZER_TOKEN);
+assert(startReceipt.status === "running" && startReceipt.leaseExpiresAt === startLease, "The proxy must preserve the database-issued start receipt.");
+let invalidStartReceiptRejected = false;
+try {
+  await startRun({
+    rpc: async () => ({ data: { runId: "00000000-0000-4000-8000-000000000099", status: "running", leaseExpiresAt: startLease }, error: null })
+  }, "00000000-0000-4000-8000-000000000010", body.clientRequestId, env.SANDBOX_DB_FINALIZER_TOKEN);
+} catch (error) {
+  invalidStartReceiptRejected = error instanceof PublicHttpError && error.code === "reservation_start_invalid";
+}
+assert(invalidStartReceiptRejected, "A mismatched database start receipt must fail closed before runner execution.");
+
 let forwardedHeaders;
 let forwardedBody;
-const actualRunnerResult = await executeRunner(env, "00000000-0000-4000-8000-000000000010", source, async (_url, init) => {
+const startedReservation = {
+  runId: "00000000-0000-4000-8000-000000000010",
+  clientRequestId: body.clientRequestId,
+  status: "running",
+  leaseExpiresAt: new Date(Date.now() + 60_000).toISOString()
+};
+const actualRunnerResult = await executeRunner(env, startedReservation, source, async (_url, init) => {
   forwardedHeaders = new Headers(init.headers);
   forwardedBody = JSON.parse(String(init.body));
   return new Response(JSON.stringify({
     ok: true,
     status: "completed",
     language: "javascript",
-    stdout: "safe\n",
+    stdout: `safe ${env.SANDBOX_SERVICE_TOKEN} ${env.CLOUDFLARE_ACCESS_CLIENT_SECRET}\n`,
     stderr: "",
     exitCode: 0,
     durationMs: 4,
     outputTruncated: false,
     diagnostics: [{ severity: "error", phase: "sandbox", category: "podman_internal", message: "token=private /opt/internal", source: "Podman engine" }],
-    message: "Podman raw exception at /opt/private token=hidden",
+    message: `Podman raw exception at /opt/private token=hidden ${env.SANDBOX_DB_FINALIZER_TOKEN}`,
     engine: "must-not-reach-browser",
     internalPath: "/private/path"
   }), { status: 200, headers: { "content-type": "application/json" } });
@@ -207,10 +261,14 @@ assert(forwardedHeaders.get("authorization") === `Bearer ${env.SANDBOX_SERVICE_T
 assert(forwardedHeaders.get("cf-access-client-id") === env.CLOUDFLARE_ACCESS_CLIENT_ID && forwardedHeaders.get("cf-access-client-secret") === env.CLOUDFLARE_ACCESS_CLIENT_SECRET, "Proxy must attach both Cloudflare Access service-auth headers.");
 assert(!JSON.stringify(forwardedHeaders).includes(auth.accessToken) && !JSON.stringify(forwardedBody).includes(auth.accessToken), "User JWT must never reach Hetzner.");
 assert(!("sourceType" in forwardedBody) && !("sourceId" in forwardedBody) && !("userId" in forwardedBody), "Private source/account context must not reach Hetzner.");
+assert(!JSON.stringify(forwardedBody).includes(env.SANDBOX_DB_FINALIZER_TOKEN) && !JSON.stringify(forwardedBody).includes(env.CLOUDFLARE_ACCESS_CLIENT_SECRET), "Finalizer and Access credentials must never enter the runner request body.");
+assert(forwardedBody.reservation_id === startedReservation.runId && forwardedBody.client_request_id === body.clientRequestId && forwardedBody.lease_expires_at === startedReservation.leaseExpiresAt, "Runner requests must bind the exact started reservation and lease.");
+assert(forwardedBody.code_bytes === new TextEncoder().encode(source.code).byteLength && /^[0-9a-f]{64}$/.test(forwardedBody.code_sha256), "Runner requests must carry verified code byte count and SHA-256 association metadata.");
 assert(!("engine" in actualRunnerResult) && !JSON.stringify(actualRunnerResult).includes("/private/path") && !JSON.stringify(actualRunnerResult).includes("Podman") && !JSON.stringify(actualRunnerResult).includes("/opt/"), "Runner internals must be stripped from the public result.");
+assert(!JSON.stringify(actualRunnerResult).includes(env.SANDBOX_SERVICE_TOKEN) && !JSON.stringify(actualRunnerResult).includes(env.CLOUDFLARE_ACCESS_CLIENT_SECRET) && !JSON.stringify(actualRunnerResult).includes(env.SANDBOX_DB_FINALIZER_TOKEN), "Configured credentials must be redacted even if a compromised upstream reflects them.");
 assert(actualRunnerResult.diagnostics[0]?.category === "sandbox_internal_failure" && actualRunnerResult.diagnostics[0]?.source === "Coding Cornucopia sandbox", "Runner-chosen diagnostic metadata must be replaced by proxy allowlists.");
 
-const utf8RunnerResult = await executeRunner(env, "00000000-0000-4000-8000-000000000010", source, async () => new Response(JSON.stringify({
+const utf8RunnerResult = await executeRunner(env, startedReservation, source, async () => new Response(JSON.stringify({
   ok: true,
   status: "completed",
   stdout: "🙂".repeat(20_000),
@@ -222,9 +280,27 @@ const utf8RunnerResult = await executeRunner(env, "00000000-0000-4000-8000-00000
 }), { status: 200, headers: { "content-type": "application/json" } }));
 assert(new TextEncoder().encode(utf8RunnerResult.stdout).byteLength <= 32_768 && !utf8RunnerResult.stdout.includes("\uFFFD"), "Proxy output caps must be UTF-8 byte-safe.");
 
+let oversizedRunnerResponseRejected = false;
+try {
+  await executeRunner(env, startedReservation, source, async () => new Response(JSON.stringify({ ok: false, padding: "x".repeat(120_000) }), { status: 200 }));
+} catch (error) {
+  oversizedRunnerResponseRejected = error instanceof PublicHttpError && error.code === "upstream_response_invalid";
+}
+assert(oversizedRunnerResponseRejected, "Oversized runner responses must be rejected without reaching the browser.");
+
+let timeoutRejected = false;
+try {
+  await fetchWithTimeout("https://sandbox.elysiaecobotics.com/health", {}, 1, async (_input, init) => new Promise((_resolve, reject) => {
+    init.signal?.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
+  }));
+} catch (error) {
+  timeoutRejected = error instanceof PublicHttpError && error.code === "upstream_timeout";
+}
+assert(timeoutRejected, "Upstream timeouts must abort and return a stable sanitized error.");
+
 let alternateRunnerHostRejected = false;
 try {
-  await executeRunner({ ...env, SANDBOX_SERVICE_URL: "https://attacker.example" }, "00000000-0000-4000-8000-000000000010", source, async () => {
+  await executeRunner({ ...env, SANDBOX_SERVICE_URL: "https://attacker.example" }, startedReservation, source, async () => {
     throw new Error("untrusted runner fetch must not occur");
   });
 } catch (error) {
@@ -234,14 +310,18 @@ assert(alternateRunnerHostRejected, "The private runner token must be bound to t
 
 let accessRejected = false;
 try {
-  await executeRunner(env, "00000000-0000-4000-8000-000000000010", source, async () => new Response("Access denied", { status: 403 }));
+  await executeRunner(env, startedReservation, source, async () => new Response("Access denied", { status: 403 }));
 } catch (error) {
   accessRejected = error instanceof PublicHttpError && error.code === "sandbox_upstream_failed";
 }
 assert(accessRejected, "Wrong Cloudflare Access service credentials must fail closed.");
 
 const healthRequest = new Request(`${env.SANDBOX_PUBLIC_ORIGIN}/api/sandbox/health`, { method: "GET", headers: { authorization: "Bearer verified-user-jwt" } });
-assert((await handleSandboxHealth(healthRequest, env, { authenticate: async () => auth, health: async () => true })).status === 200, "Authenticated health should return only sanitized availability.");
+const healthResponse = await handleSandboxHealth(healthRequest, env, { authenticate: async () => auth, health: async () => true });
+assert(healthResponse.status === 200 && healthResponse.headers.get("cache-control") === "no-store", "Authenticated health should return only non-cacheable sanitized availability.");
 assert((await handleSandboxHealth(healthRequest, env, { authenticate: async () => { throw new PublicHttpError(401, "authentication_invalid"); }, health: async () => true })).status === 401, "Anonymous or invalid-token health checks must fail closed.");
+
+const oversizedCodeResponse = await handleSandboxRun(request({ body: { code: "x".repeat(65_537) } }), env, dependencies());
+assert(oversizedCodeResponse.status === 413, "Oversized submitted code must fail before reservation or runner execution.");
 
 console.log("Sandbox proxy smoke test ok.");

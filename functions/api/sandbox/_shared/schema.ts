@@ -68,7 +68,7 @@ export function parseSandboxRunRequest(value: unknown): SandboxRunRequest {
 
 export async function parseSandboxRequestBody(request: Request): Promise<SandboxRunRequest> {
   const { readBoundedText } = await import("./http.ts");
-  const text = await readBoundedText(request, 70_000);
+  const text = await readBoundedText(request, 400_000);
   let value: unknown;
   try {
     value = JSON.parse(text) as unknown;

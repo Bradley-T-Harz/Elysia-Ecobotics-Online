@@ -17,4 +17,4 @@ RUN rm -rf \
 USER 65534:65534
 WORKDIR /workspace
 ENTRYPOINT []
-CMD ["python", "-I", "-B", "main.py"]
+CMD ["python", "-I", "-B", "-"]

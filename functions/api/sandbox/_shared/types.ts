@@ -115,4 +115,11 @@ export type Reservation = {
   result: Omit<PublicSandboxResult, "recordingStatus" | "idempotentReplay" | "runId"> | null;
 };
 
+export type StartedReservation = {
+  runId: string;
+  clientRequestId: string;
+  status: "running";
+  leaseExpiresAt: string;
+};
+
 export type RunnerResult = Omit<PublicSandboxResult, "recordingStatus" | "idempotentReplay" | "runId">;

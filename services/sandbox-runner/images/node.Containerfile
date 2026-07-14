@@ -16,4 +16,4 @@ RUN rm -rf \
 USER 65534:65534
 WORKDIR /workspace
 ENTRYPOINT []
-CMD ["node", "--disable-proto=delete", "main.js"]
+CMD ["node", "--permission", "--disable-proto=delete", "--allow-fs-read=/tmp", "--allow-fs-write=/tmp", "-"]

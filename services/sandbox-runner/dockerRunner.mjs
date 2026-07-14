@@ -1,5 +1,4 @@
 import { spawn } from "node:child_process";
-import { basename } from "node:path";
 import { writeAuditEvent } from "./auditLog.mjs";
 import { readJob, stderrPath, stdoutPath, writeJob, writeOutputFile } from "./jobStore.mjs";
 import { decodeUtf8Prefix, hardOutputBytes, maxOutputBytes, sanitizeOutput } from "./policy.mjs";
@@ -86,14 +85,14 @@ export async function verifyRootlessEngine(config = loadRunnerConfig(), options 
   } catch { return false; }
 }
 
-export function buildContainerArgs({ job, runtime, inputDirectory, config = loadRunnerConfig() }) {
-  if (basename(inputDirectory) !== "input") throw new Error("input_directory_invalid");
+export function buildContainerArgs({ job, runtime, config = loadRunnerConfig() }) {
   const containerName = `elysia-sandbox-${job.job_id}`;
   const image = config.images[runtime.imageKey];
   if (!image) throw new Error("runtime_image_missing");
   const args = [
     "run",
     "--rm",
+    "--interactive",
     "--name", containerName,
     "--label", "io.elysia.sandbox=true",
     "--label", `io.elysia.sandbox.job-id=${job.job_id}`,
@@ -110,14 +109,15 @@ export function buildContainerArgs({ job, runtime, inputDirectory, config = load
     "--ulimit", "core=0:0",
     "--ulimit", `nofile=${config.limits.fileDescriptors}:${config.limits.fileDescriptors}`,
     "--ulimit", `nproc=${config.limits.pidsLimit}:${config.limits.pidsLimit}`,
+    "--ulimit", `fsize=${config.limits.fileSizeBytes}:${config.limits.fileSizeBytes}`,
     "--user", "65534:65534",
+    "--pid=private",
     "--ipc=none",
-    "--shm-size", config.limits.tmpfsSize,
     "--tmpfs", `/tmp:rw,nosuid,nodev,noexec,size=${config.limits.tmpfsSize},mode=1777`,
+    "--tmpfs", `/workspace:rw,nosuid,nodev,noexec,size=${config.limits.tmpfsSize},mode=1777`,
     "--env", "HOME=/tmp",
     "--env", "PATH=/usr/local/bin:/usr/bin:/bin",
     "--workdir", "/workspace",
-    "--mount", `type=bind,src=${inputDirectory},dst=/workspace,ro=true`,
     image,
     ...runtime.allowedCommand
   ];
@@ -125,7 +125,9 @@ export function buildContainerArgs({ job, runtime, inputDirectory, config = load
 }
 
 async function forceRemoveContainer(config, containerName, options = {}) {
-  const result = await runProcess(config.engine, ["rm", "--force", containerName], { ...options, env: config.engineEnv });
+  const result = await runProcess(config.engine, [
+    "rm", "--force", ...(config.engine === "podman" ? ["--time", "0"] : []), containerName
+  ], { ...options, env: config.engineEnv });
   const inspect = await runProcess(config.engine, ["container", "inspect", containerName], { ...options, env: config.engineEnv });
   const absenceConfirmed = (check) => !check.ok
     && check.code !== null
@@ -181,10 +183,16 @@ function appendBounded(state, channel, chunk, terminate) {
   }
 }
 
-export async function runContainerJob(job, runtime, inputDirectory, options = {}) {
+export async function runContainerJob(job, runtime, sourceCode, options = {}) {
   const config = options.config || loadRunnerConfig();
   const spawnImpl = options.spawnImpl || spawn;
   const processOptions = { spawnImpl };
+  if (typeof sourceCode !== "string" || Buffer.byteLength(sourceCode, "utf8") > 65_536) {
+    throw new Error("source_code_invalid");
+  }
+  if (options.signal?.aborted) {
+    return { ...job, status: "cancelled", killed: true, cleanup_ok: true, result: "Sandbox request was cancelled before execution." };
+  }
   const engine = await findContainerEngine(config, processOptions);
   if (!engine || !(await verifyRootlessEngine(config, processOptions))) {
     await writeAuditEvent(job.job_id, "validation_failed", "Configured rootless container engine is unavailable.", {}, config);
@@ -200,24 +208,29 @@ export async function runContainerJob(job, runtime, inputDirectory, options = {}
     await writeAuditEvent(job.job_id, "validation_failed", "Required immutable image is unavailable; automatic pulls are disabled.", {}, config);
     return { ...job, status: "validation_failed", result: "Sandbox runtime image unavailable." };
   }
+  if (options.signal?.aborted) {
+    return { ...job, status: "cancelled", killed: true, cleanup_ok: true, result: "Sandbox request was cancelled before execution." };
+  }
 
-  const { args, containerName } = buildContainerArgs({ job, runtime, inputDirectory, config });
+  const { args, containerName } = buildContainerArgs({ job, runtime, config });
   const startedAt = new Date().toISOString();
   await writeJob({ ...job, status: "running", started_at: startedAt, container_name: containerName }, config);
   await writeAuditEvent(job.job_id, "job_started", "Rootless container job started with fixed isolation controls.", {}, config);
 
   const child = spawnImpl(config.engine, args, {
-    stdio: ["ignore", "pipe", "pipe"],
+    stdio: ["pipe", "pipe", "pipe"],
     shell: false,
     env: config.engineEnv
   });
   const output = { stdout: [], stderr: [], stdoutBytes: 0, stderrBytes: 0, totalBytes: 0, outputTruncated: false, outputOverflow: false };
   let timedOut = false;
+  let cancelled = false;
   let killed = false;
   let terminationPromise = null;
   const terminate = (reason) => {
     if (!terminationPromise) {
       if (reason === "timeout") timedOut = true;
+      if (reason === "request_cancelled") cancelled = true;
       killed = true;
       child.kill("SIGKILL");
       terminationPromise = forceRemoveContainer(config, containerName, processOptions);
@@ -225,6 +238,11 @@ export async function runContainerJob(job, runtime, inputDirectory, options = {}
     return terminationPromise;
   };
   activeContainers.set(job.job_id, { terminate });
+  const cancelRun = () => { void terminate("request_cancelled"); };
+  options.signal?.addEventListener("abort", cancelRun, { once: true });
+  if (options.signal?.aborted) cancelRun();
+  child.stdin?.on("error", () => {});
+  child.stdin?.end(sourceCode, "utf8");
   child.stdout?.on("data", (chunk) => appendBounded(output, "stdout", chunk, terminate));
   child.stderr?.on("data", (chunk) => appendBounded(output, "stderr", chunk, terminate));
 
@@ -238,6 +256,7 @@ export async function runContainerJob(job, runtime, inputDirectory, options = {}
   });
   clearTimeout(timer);
   const cleanupOk = terminationPromise ? await terminationPromise : await forceRemoveContainer(config, containerName, processOptions);
+  options.signal?.removeEventListener("abort", cancelRun);
   activeContainers.delete(job.job_id);
 
   const stdout = sanitizeOutput(decodeUtf8Prefix(Buffer.concat(output.stdout)));
@@ -250,13 +269,15 @@ export async function runContainerJob(job, runtime, inputDirectory, options = {}
   const finishedAt = new Date().toISOString();
   const status = !cleanupOk
     ? "cleanup_failed"
-    : output.outputOverflow
-      ? "output_overflow"
-      : timedOut
-        ? "timed_out"
-        : exitCode === 0
-          ? "succeeded"
-          : "failed";
+    : cancelled
+      ? "cancelled"
+      : output.outputOverflow
+        ? "output_overflow"
+        : timedOut
+          ? "timed_out"
+          : exitCode === 0
+            ? "succeeded"
+            : "failed";
   const finalJob = {
     ...await readJob(job.job_id, config),
     status,

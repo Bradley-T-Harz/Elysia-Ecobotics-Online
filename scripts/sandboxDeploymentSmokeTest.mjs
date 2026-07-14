@@ -38,6 +38,9 @@ for (const [name, version] of Object.entries({
   assert(lock.packages[`node_modules/${name}`]?.version === version, `${name} lockfile resolution drifted.`);
 }
 assert(packageJson.devDependencies["@cloudflare/workers-types"] === "4.20260623.1", "Cloudflare runtime types must be pinned.");
+for (const requiredScript of ["test:sandbox-access", "test:sandbox-finalizer", "sandbox:finalizer:check"]) {
+  assert(typeof packageJson.scripts[requiredScript] === "string", `Missing ${requiredScript} repository verification command.`);
+}
 
 const fileChecks = [
   "functions/api/sandbox/run.ts",
@@ -50,11 +53,23 @@ const fileChecks = [
   "services/sandbox-runner/package-lock.json",
   "services/sandbox-runner/.npmrc",
   "services/sandbox-runner/.env.example",
+  "services/sandbox-runner/accessValidator.mjs",
+  "services/sandbox-runner/deployment/README.md",
   "services/sandbox-runner/deployment/systemd/elysia-sandbox-runner.service",
   "services/sandbox-runner/deployment/systemd/elysia-sandbox-cleanup.service",
   "services/sandbox-runner/deployment/systemd/elysia-sandbox-cleanup.timer",
   "services/sandbox-runner/deployment/cloudflared/config.example.yml",
+  "services/sandbox-runner/deployment/host-preflight.sh",
   "services/sandbox-runner/deployment/install-verified-release.sh",
+  "services/sandbox-runner/deployment/install-user-service.sh",
+  "services/sandbox-runner/deployment/post-install-verify.sh",
+  "services/sandbox-runner/deployment/rollback-release.sh",
+  "services/sandbox-runner/deployment/uninstall-user-service.sh",
+  "services/sandbox-runner/deployment/build-runtime-images.sh",
+  "services/sandbox-runner/deployment/validate-rootless-podman.sh",
+  "services/sandbox-runner/deployment/validate-rootless-docker-standby.sh",
+  "services/sandbox-runner/deployment/cloudflared/validate-config.sh",
+  "services/sandbox-runner/deployment/cloudflare/access-contract.example.json",
   "services/sandbox-runner/images/python.Containerfile",
   "services/sandbox-runner/images/node.Containerfile",
   "services/sandbox-runner/fixtures/snapshot-python-run.json",
@@ -63,6 +78,9 @@ const fileChecks = [
   "docs/deployment/governed-sandbox-deployment.md",
   "docs/security/governed-sandbox-incident-response.md",
   "scripts/packageSandboxRelease.mjs",
+  "scripts/sandboxAccessSmokeTest.mjs",
+  "scripts/sandboxFinalizerTokenSmokeTest.mjs",
+  "scripts/sandboxFinalizerTokenTool.mjs",
   "scripts/verifySandboxRelease.mjs",
   "supabase/migrations/20260714030000_sandbox_proxy_access_and_reservation.sql"
 ];
@@ -97,11 +115,28 @@ assert(cleanupUnit.includes("LimitCORE=0"), "Cleanup user unit must disable core
 assert(!cleanupUnit.includes("NoNewPrivileges=true") && !cleanupUnit.includes("ProtectControlGroups=true"), "The cleanup service must not block rootless Podman's newuidmap or delegated cgroup setup.");
 const containerRunner = await read("services/sandbox-runner/dockerRunner.mjs");
 assert(containerRunner.includes("cleanupOrphanContainers") && containerRunner.includes("label=io.elysia.sandbox=true") && containerRunner.includes("preserveRecent"), "Crash-safe strict container orphan cleanup is missing.");
+assert(containerRunner.includes('config.engine === "podman" ? ["--time", "0"]'), "Podman force removal must bypass its default stop grace period before verifying absence.");
 assert(containerRunner.includes('"--ulimit", "core=0:0"'), "Execution containers must disable core dumps.");
+assert(containerRunner.includes('`fsize=${config.limits.fileSizeBytes}:${config.limits.fileSizeBytes}`'), "Execution containers must enforce a hard file-size limit.");
+assert(containerRunner.includes('stdio: ["pipe", "pipe", "pipe"]') && containerRunner.includes('child.stdin?.end(sourceCode, "utf8")'), "Submitted source must reach the container over stdin only.");
+assert(containerRunner.includes('addEventListener("abort"') && containerRunner.includes('terminate("request_cancelled")') && containerRunner.includes('status: "cancelled"'), "Caller disconnect must terminate and clean the active container.");
+assert(!containerRunner.includes('"--mount"') && !containerRunner.includes("type=bind"), "The production runner must not bind-mount submitted source or other host paths.");
+assert(containerRunner.includes('/workspace:rw,nosuid,nodev,noexec') && containerRunner.includes('/tmp:rw,nosuid,nodev,noexec'), "Execution scratch filesystems must be bounded noexec tmpfs mounts.");
+const runnerServer = await read("services/sandbox-runner/server.mjs");
+const accessValidator = await read("services/sandbox-runner/accessValidator.mjs");
+const runnerConfig = await read("services/sandbox-runner/serviceConfig.mjs");
+assert(runnerServer.includes('request.headers["cf-access-jwt-assertion"]') && runnerServer.includes("startup_cleanup_unverified"), "The origin must require an Access assertion and refuse unverifiable startup cleanup.");
+for (const accessInvariant of ["RS256", "accessTeamDomain", "accessAudience", "/cdn-cgi/access/certs", "redirect: \"error\"", "MAX_ASSERTION_BYTES", "MAX_JWKS_BYTES"]) {
+  assert(accessValidator.includes(accessInvariant), `Access verifier missing ${accessInvariant}.`);
+}
+assert(runnerConfig.includes("cloudflareaccess") && runnerConfig.includes("ACCESS_TEAM_HOST") && runnerConfig.includes("access_team_domain_invalid") && runnerConfig.includes("access_audience_invalid"), "Production runner configuration must validate Access issuer and audience exactly.");
 const runnerNpmrc = await read("services/sandbox-runner/.npmrc");
 assert(runnerNpmrc.includes("package-lock=true") && runnerNpmrc.includes("fund=false") && runnerNpmrc.includes("ignore-scripts=true"), "Minimal runner npm policy must retain lockfiles and disable lifecycle scripts.");
 const runnerEnvironmentExample = await read("services/sandbox-runner/.env.example");
 assert(runnerEnvironmentExample.includes("ELYSIA_SANDBOX_RUNTIME_ROOT=/home/elysia-sandbox/") && !runnerEnvironmentExample.includes("RUNTIME_ROOT=%h"), "EnvironmentFile paths must not rely on unexpanded systemd specifiers.");
+assert(runnerEnvironmentExample.includes("ELYSIA_SANDBOX_ACCESS_TEAM_DOMAIN=") && runnerEnvironmentExample.includes("ELYSIA_SANDBOX_ACCESS_AUDIENCE="), "Runner environment example must name the Access assertion trust configuration without including credentials.");
+const postInstallVerifier = await read("services/sandbox-runner/deployment/post-install-verify.sh");
+assert(postInstallVerifier.includes("SANDBOX_DB_FINALIZER_TOKEN") && postInstallVerifier.includes("SUPABASE_" + "SERVICE_" + "ROLE_KEY") && postInstallVerifier.includes("DOCKER_HOST") && postInstallVerifier.includes("single_key"), "Production Podman verification must reject proxy/database secrets, standby sockets, and duplicate configuration keys.");
 const deploymentGuide = await read("docs/deployment/governed-sandbox-deployment.md");
 assert(deploymentGuide.includes("-m 0640 -o root -g elysia-sandbox") && deploymentGuide.includes("-m 0755 -o root -g root /home/elysia-sandbox/.config/systemd"), "Service environment and user-unit paths must remain root-controlled rather than writable by the runner account.");
 const legalPages = await read("src/pages/Legal/legalPolicyPages.ts");
@@ -110,9 +145,63 @@ assert(legalPages.includes("Governed code sandbox processing") && legalPages.inc
 assert(communePage.includes("Submitted code crosses Cloudflare and the Hetzner sandbox host") && communePage.includes("No browser execution"), "Run UI must disclose the external processing boundary without implying trust.");
 const cloudflared = await read("services/sandbox-runner/deployment/cloudflared/config.example.yml");
 assert(cloudflared.includes("http://127.0.0.1:8788") && cloudflared.includes("http_status:404"), "Tunnel example must route only to the localhost runner and fail closed otherwise.");
+const cloudflaredValidator = await read("services/sandbox-runner/deployment/cloudflared/validate-config.sh");
+assert(cloudflaredValidator.includes("tunnel_id") && cloudflaredValidator.includes('/etc/cloudflared/${tunnel_id}') && cloudflaredValidator.includes("cloudflared --config"), "Tunnel validation must bind the UUID to its root credential path and invoke the official ingress validator.");
+const accessContract = JSON.parse(await read("services/sandbox-runner/deployment/cloudflare/access-contract.example.json"));
+assert(accessContract.documentKind === "non-deployable-access-contract" && accessContract.policyDecision === "service_auth" && accessContract.originAssertionHeader === "Cf-Access-Jwt-Assertion" && accessContract.originValidation?.failClosed === true, "Access repository contract must remain non-deployable and fail closed.");
+const podmanValidator = await read("services/sandbox-runner/deployment/validate-rootless-podman.sh");
+const dockerValidator = await read("services/sandbox-runner/deployment/validate-rootless-docker-standby.sh");
+const hostPreflight = await read("services/sandbox-runner/deployment/host-preflight.sh");
+const imageBuilder = await read("services/sandbox-runner/deployment/build-runtime-images.sh");
+assert(podmanValidator.includes("rootless") && podmanValidator.includes("cgroupVersion") && podmanValidator.includes("subuid_count") && podmanValidator.includes("subgid_count"), "Podman validator must enforce rootless cgroup-v2 and subordinate-ID prerequisites.");
+assert(dockerValidator.includes('unix:///run/user/${uid}/docker.sock') && dockerValidator.includes("rootless") && dockerValidator.includes("CgroupVersion") && dockerValidator.includes("coldStandby"), "Docker standby validator must reject the rootful socket and require rootless cgroup v2.");
+assert(hostPreflight.includes("permitrootlogin no") && hostPreflight.includes("passwordauthentication no") && hostPreflight.includes("/var/lib/systemd/linger/elysia-sandbox") && hostPreflight.includes("loopbackOnly"), "Host preflight must read-only verify SSH, lingering, account, and runner-listener boundaries.");
+assert(imageBuilder.includes("--pull=never") && imageBuilder.includes("podman export") && imageBuilder.includes("pip[^/]*") && imageBuilder.includes("65534:65534"), "Runtime image builder must avoid pulls and inspect exported stripped filesystems and non-root identity.");
+const finalizerTool = await read("scripts/sandboxFinalizerTokenTool.mjs");
+assert(finalizerTool.includes("randomBytes(48)") && finalizerTool.includes('createHash("sha256")') && finalizerTool.includes("flag: \"wx\"") && finalizerTool.includes("operator_output_path_must_be_absolute_and_outside_repository"), "Finalizer tooling must generate strong tokens and keep private outputs outside Git.");
+assert(finalizerTool.includes("Raw tokens are never accepted in argv or printed") && !finalizerTool.includes("supabase db") && !finalizerTool.includes("migration repair"), "Finalizer tooling must not accept token argv values or mutate Supabase.");
 const pythonImage = await read("services/sandbox-runner/images/python.Containerfile");
 const nodeImage = await read("services/sandbox-runner/images/node.Containerfile");
 assert(pythonImage.includes("/bin/*") && pythonImage.includes("ensurepip") && nodeImage.includes("/bin/*") && nodeImage.includes("/usr/local/bin/npm"), "Minimal images must remove shells and package installers.");
+
+for (const script of [
+  "services/sandbox-runner/deployment/build-runtime-images.sh",
+  "services/sandbox-runner/deployment/cloudflared/validate-config.sh",
+  "services/sandbox-runner/deployment/host-preflight.sh",
+  "services/sandbox-runner/deployment/install-user-service.sh",
+  "services/sandbox-runner/deployment/post-install-verify.sh",
+  "services/sandbox-runner/deployment/rollback-release.sh",
+  "services/sandbox-runner/deployment/uninstall-user-service.sh",
+  "services/sandbox-runner/deployment/validate-rootless-docker-standby.sh",
+  "services/sandbox-runner/deployment/validate-rootless-podman.sh"
+]) await run("bash", ["-n", script]);
+
+const tunnelValidationRoot = await fs.mkdtemp(join(os.tmpdir(), "elysia-tunnel-contract-"));
+try {
+  const tunnelId = "00000000-0000-4000-8000-000000000001";
+  const tunnelConfig = join(tunnelValidationRoot, "config.yml");
+  await fs.writeFile(tunnelConfig, [
+    `tunnel: ${tunnelId}`,
+    `credentials-file: /etc/cloudflared/${tunnelId}.json`,
+    "originRequest:",
+    "  connectTimeout: 5s",
+    "  noTLSVerify: false",
+    "ingress:",
+    "  - hostname: sandbox.elysiaecobotics.com",
+    "    service: http://127.0.0.1:8788",
+    "  - service: http_status:404",
+    ""
+  ].join("\n"), { mode: 0o600 });
+  await run("bash", ["services/sandbox-runner/deployment/cloudflared/validate-config.sh", tunnelConfig]);
+  const linkedConfig = join(tunnelValidationRoot, "linked.yml");
+  await fs.symlink(tunnelConfig, linkedConfig);
+  let symlinkRejected = false;
+  try { await run("bash", ["services/sandbox-runner/deployment/cloudflared/validate-config.sh", linkedConfig]); }
+  catch { symlinkRejected = true; }
+  assert(symlinkRejected, "Tunnel validation must reject a symlinked configuration path.");
+} finally {
+  await fs.rm(tunnelValidationRoot, { recursive: true, force: true });
+}
 
 const resultRoot = await fs.mkdtemp(join(os.tmpdir(), "elysia-release-result-"));
 const functionsBuildRoot = join(resultRoot, "functions-build");

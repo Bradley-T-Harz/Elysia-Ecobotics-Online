@@ -1,8 +1,43 @@
 # Governed sandbox deployment runbook
 
-This runbook implements the production path without exposing an application port and without placing a Supabase service-role key anywhere in the browser, Pages Functions, or VPS. Perform production actions only after the repository is clean, every local check passes, the release bundle verifies, and an operator explicitly approves the deployment checkpoint.
+This is the canonical repository, deployment, operations, and incident-entry contract for the governed public sandbox. It implements the existing production path without exposing an application port and without placing a Supabase service-role key anywhere in the browser, Pages Functions, or VPS. Perform production actions only after the repository is clean, every local check passes, the release bundle verifies, and an operator explicitly approves the deployment checkpoint.
 
-Never paste a secret into source control, command history, chat, logs, or a deployment transcript. Enter values directly in the relevant masked dashboard field or mode-`0600` server file. The required secret names are listed at the end of this runbook; their values are deliberately absent.
+Never paste a secret into source control, command history, chat, logs, or a deployment transcript. Enter values directly in the relevant masked dashboard field or root-owned mode-`0640` server file. The required secret names are listed at the end of this runbook; their values are deliberately absent.
+
+## Current checkpoint and activation prohibition
+
+As of 2026-07-14, the four governed database migration versions are installed and aligned locally and remotely. The reaction-count, Repository Showcase, and sandbox database layers were verified after their individual installation gates. Do not reapply or edit those migrations, and **never execute the baseline SQL against existing production**.
+
+Repository readiness is not infrastructure readiness. The external runner, immutable runtime images, Hetzner service account, Tunnel, Access application/service token, and finalizer credential have not been provisioned by this repository-side pass. The production finalizer hash remains NULL, `SANDBOX_ENABLED=false`, and the public health endpoint returns HTTP 503 with `{"ok":false,"error":"sandbox_disabled"}` and `Cache-Control: no-store`. Preserve that state until every live acceptance item in section 10 passes.
+
+## Architecture, trust boundaries, and exact routes
+
+```text
+signed-in browser
+  -> /api/sandbox/health or POST /api/sandbox/run (Supabase access JWT)
+  -> Cloudflare Pages Function (JWT verification, source authorization, quota,
+     idempotency, reservation/start/finalize RPCs, response sanitization)
+  -> Cloudflare Access Service Auth (dedicated client ID/secret)
+  -> Cloudflare Tunnel (outbound connector only)
+  -> https://sandbox.elysiaecobotics.com
+  -> 127.0.0.1:8788 on Hetzner
+  -> authenticated runner GET /health or POST /v1/runs
+  -> one ephemeral rootless Podman container
+```
+
+The browser receives only the two same-origin Pages routes and never the runner origin or any private credential. The Pages proxy derives identity from the verified Supabase access token, resolves the source through RLS, and calls the installed database RPCs. It never forwards the user JWT, user ID, email, role, source ownership state, private notes, or finalizer token to Hetzner. The runner receives only the reservation ID, client request ID, lease expiry, code hash, UTF-8 byte count, opaque reservation snapshot ID, language/file, selected code, and fixed policies.
+
+The Pages proxy accepts only the canonical HTTPS `*.supabase.co` project origin with no credentials, port, path, query, or redirect. This prevents a configuration mistake from forwarding a user JWT to an arbitrary origin. A future Supabase custom domain would require a separately reviewed code/config change; it must not be added as a permissive wildcard or browser-controlled destination.
+
+The runner requires two independent request boundaries: its constant-time bearer service-token check and a verified `Cf-Access-Jwt-Assertion`. It validates RS256, exact Access team issuer, exact application audience, time claims, and a signing key retrieved only from the configured team-domain `/cdn-cgi/access/certs` endpoint. Missing, malformed, expired, not-yet-valid, wrong-issuer, wrong-audience, unknown-key, or unverifiable assertions fail closed. The Pages Function supplies `CF-Access-Client-Id` and `CF-Access-Client-Secret` only to Access; these values are never runner configuration and are never returned to the browser.
+
+`GET /health` on Pages requires a valid Supabase session and returns only `available`/`unavailable` when enabled. `GET /health` on the runner is private and may expose bounded engine/image readiness only to the authenticated proxy/operator path. `POST /v1/runs` is the runner's only mutation route. Every other runner path or method is rejected; browser `Origin` requests are rejected.
+
+## Fixed execution policy
+
+Executable languages are Python, JavaScript, and TypeScript. JSON, YAML, Markdown, HTML, CSS, and text use static diagnostics only; shell and arbitrary command execution are disabled. Each live job is limited to 0.5 CPU, 256 MiB memory with no additional swap, 32 PIDs, 64 file descriptors, 16 MiB file size, two 16 MiB noexec tmpfs filesystems, five seconds, 65,536 stored output bytes, a 98,304-byte hard output-flood cutoff, and one active execution process with no in-process queue. A competing request receives 429 and `Retry-After`.
+
+Source enters the container over stdin. There is no host bind mount. Jobs use `--network=none`, a read-only root, private IPC, dropped capabilities, `no-new-privileges`, numeric user `65534:65534`, `--pull=never`, and digest-pinned stripped images. No repository, home, vault, container socket, credential, package manager, or shell is mounted or available. Timeout, overflow, caller disconnect, shutdown, and startup all require verified container removal. Successful job source/output state is deleted before the execution slot is released; bounded interrupted remnants are cleaned at startup and by the 15-minute timer. Audit records contain only safe job/release identifiers and allowlisted sanitized metadata, rotate at 5 MiB with at most five rotations, and expire after the configured 1–30 day retention (14 days by default). They never contain raw source, credentials, JWTs, output bodies, or private context.
 
 ## 1. Preconditions and immutable local release
 
@@ -14,11 +49,15 @@ npm run test:routes
 npm run test:security
 npm run test:content
 npm run test:commune
+npm run test:addons
 npm run test:sandbox-runner
+npm run test:sandbox-access
+npm run test:sandbox-finalizer
 npm run test:sandbox-proxy
 npm run test:sandbox-deployment
 npm run test:sandbox-integration
 npm run test:sandbox-database
+npm run test:sandbox-database:disposable
 npm run typecheck
 npm run typecheck:functions
 npm run build
@@ -43,6 +82,8 @@ systemctl is-enabled ssh
 ```
 
 Expected effective policy includes `permitrootlogin no`, password and keyboard-interactive authentication disabled, public-key authentication enabled, and only `elysia-admin` allowed. Keep the Hetzner firewall limited to the administrative SSH rule. Do not open the runner port, 80, or 443 for this service; Cloudflare Tunnel initiates an outbound connection.
+
+After the service account and packages exist, `deployment/host-preflight.sh` performs the same host/account prerequisite audit without changing the server. It fails unless Ubuntu 24.04, hardened SSH, a locked no-SSH execution account, Node 22+, cgroup v2, subordinate IDs, lingering, Podman, and the loopback listener boundary are present. The Hetzner firewall remains a separate read-only dashboard/CLI verification because this repository helper must not alter provider state.
 
 ## 3. Create the dedicated service account
 
@@ -98,6 +139,8 @@ Docker is a cold standby only. Configure Docker's official Ubuntu APT repository
 
 The production environment must say `ELYSIA_SANDBOX_ENGINE=podman`. Activating Docker requires an intentional environment change and service restart; there is no automatic fallback. Official references:
 
+Run `deployment/validate-rootless-podman.sh` as `elysia-sandbox` before any Podman acceptance test. During the separately controlled Docker certification only, point `DOCKER_HOST` at that account's exact `/run/user/<uid>/docker.sock` and run `deployment/validate-rootless-docker-standby.sh`; it rejects Docker-group membership and rootful/remote sockets, neutralizes TLS/context overrides during inspection, and requires rootless mode with cgroup v2. Stop Docker afterward and remove `DOCKER_HOST` before the normal Podman post-install verification.
+
 - <https://podman.io/docs/installation>
 - <https://docs.podman.io/en/latest/markdown/podman.1.html#rootless-mode>
 - <https://docs.docker.com/engine/install/ubuntu/>
@@ -145,6 +188,8 @@ Then load and enable the cleanup timer; enable the runner only at the final acti
 
 The outer runner and cleanup units grant cgroup delegation and write to rootless Podman storage because the unprivileged engine must create and remove cgroups and container layers. They intentionally cannot use systemd `NoNewPrivileges`: that would disable the `newuidmap`/`newgidmap` helpers required for subordinate IDs. The untrusted execution container still receives `no-new-privileges`, capability dropping, a non-root user, and every other fixed isolation flag. Treat a live user-unit acceptance test after reboot as mandatory.
 
+These are hand-written systemd **user** units for a Node controller that launches short-lived `podman run --rm` jobs. They are not deprecated `podman generate systemd` output. A persistent-container Quadlet is intentionally not used: wrapping the controller in another container would require nested container control or an engine socket, both forbidden. If the architecture later gains a genuinely persistent Podman-managed container, use a reviewed rootless Quadlet for that new component rather than generated units.
+
 No AppArmor profile is installed by this release. A custom container profile is conditional: add one only after it is reviewed and shown compatible with rootless Podman, the stripped runtime images, timeout cleanup, and the full acceptance suite. Do not paste an untested profile into production merely to claim an extra control.
 
 ```bash
@@ -153,23 +198,11 @@ No AppArmor profile is installed by this release. A custom container profile is 
 "${sandbox_user[@]}" systemctl --user enable elysia-sandbox-runner.service
 ```
 
-## 7. Reconcile Supabase history and apply the additive migrations
+## 7. Preserve and verify the installed Supabase boundary
 
-Follow `docs/deployment/supabase-migration-drift-notes.md`. The active order is
-baseline history repair → reaction-count security repair → verification →
-Repository Showcase repair → verification → sandbox repair → verification.
-Never execute the baseline SQL against existing
-production and never execute or edit an archived historical file.
+The migration-history repair and three additive migrations are complete. All four versions are aligned locally/remotely. They are immutable historical inputs now: do not re-run them, edit them, use `db push` to replay them, or repair their history again. The baseline remains disposable-database-only and must never execute against the existing production database.
 
-At an explicit production checkpoint, re-run the read-only linked comparison,
-mark only `20260714010000` applied, apply and verify
-`20260714015000_commune_reaction_counts_security_invoker.sql`, then apply and
-verify `20260714020000_repository_showcase_structured_metadata_repair.sql`
-before applying `20260714030000_sandbox_proxy_access_and_reservation.sql`.
-Record each repair version as applied only after its SQL and verification gate
-succeed. Do not use a single command that silently applies all repairs.
-
-The migration:
+The installed sandbox database boundary:
 
 - adds code hashes, byte counts, idempotency keys, leases, execution/finalization timestamps, bounded results, and lifecycle constraints;
 - uses an advisory lock for atomic per-user reservation and stale-run recovery;
@@ -177,15 +210,17 @@ The migration:
 - rechecks every non-manual source association inside the `SECURITY DEFINER` reservation boundary and binds idempotent replays to the complete source/code metadata;
 - adds narrowly scoped reserve/start/finalize RPCs;
 - revokes direct run/diagnostic mutation and the old result-recording RPC from browser roles;
-- stores only a SHA-256 hash for `SANDBOX_DB_FINALIZER_TOKEN` in the private schema.
+- stores only a SHA-256 hash for `SANDBOX_DB_FINALIZER_TOKEN` in the private schema; that hash intentionally remains NULL until the external acceptance gate is ready.
 
-Generate the finalizer value outside the repository. Enter the same value directly into the production Pages secret and write only its digest to `private.sandbox_proxy_secrets` through a protected SQL operator session. Do not expose the private schema or grant browser roles access to it. Verify exact RPC overloads and grants after applying.
+The operator helper `scripts/sandboxFinalizerTokenTool.mjs` can validate its contract without creating secret material (`npm run sandbox:finalizer:check`). Later, its explicit rotation mode uses OS cryptographic randomness, writes only new owner-only files outside the repository, emits hash-only transactional SQL, and verifies that exactly one private row was changed. Its revocation mode emits a separately verified NULL-hash transaction. The helper never connects to Supabase or accepts a raw token in argv. Do not invoke secret-producing modes until the external infrastructure is ready and an operator explicitly controls the private destination. After later manual initialization, the same raw value exists only as the Pages production secret; Supabase stores only its SHA-256 digest. The browser, runner, preview deployments, logs, and Git never receive it.
 
 ## 8. Configure Cloudflare Tunnel and Access
 
 Create a named Cloudflare Tunnel and route `sandbox.elysiaecobotics.com` to `http://127.0.0.1:8788`. Install `cloudflared` from Cloudflare's official signed package source and run it as its persistent system service. Put the credential JSON only at its root-readable server path; never place it in the repository or release. The supplied `config.example.yml` ends with a mandatory `http_status:404` catch-all.
 
-Create a Cloudflare Access application for the sandbox hostname with a Service Auth policy that permits only the Pages proxy's service token. The Pages Function sends `CF-Access-Client-Id` and `CF-Access-Client-Secret`; ordinary browser access, a wrong pair, or a missing pair must fail before reaching the tunnel origin.
+Before installing that configuration, run `deployment/cloudflared/validate-config.sh` against the operator-created private copy. It accepts exactly one sandbox hostname, exactly the loopback runner service, and the final 404 catch-all; it rejects symlinks and credential-like inline fields and invokes `cloudflared tunnel ingress validate` when the CLI is present.
+
+Create a Cloudflare Access self-hosted application for the sandbox hostname with a Service Auth-only policy that permits only the Pages proxy's dedicated service token. The Pages Function sends `CF-Access-Client-Id` and `CF-Access-Client-Secret`; ordinary browser access, a wrong pair, or a missing pair must fail before reaching the tunnel origin. Configure the runner with the application's non-secret team issuer and AUD tag so it independently validates the resulting Access assertion at the origin. Direct tunnel/origin bypass must therefore fail even if the private bearer token were somehow known.
 
 Confirm Access is enforced on the tunnel hostname, DNS is proxied, the origin remains loopback-only, and the Hetzner firewall has no public runner/HTTP/HTTPS application rule. Official references:
 
@@ -206,7 +241,7 @@ Deploy the already verified clean application build through the established Page
 
 ## 10. Live acceptance and final activation
 
-Before public activation, run the live integration suite as `elysia-sandbox` against production-equivalent, non-production runtime state. It must prove Python, JavaScript, and TypeScript execution plus timeout, output, memory, PID, network, shell, cleanup, and no-orphan enforcement under rootless Podman. Repeat separately under rootless Docker to certify cold standby, then return the environment to Podman and stop Docker.
+Before public activation, run the live integration suite as `elysia-sandbox` against production-equivalent, non-production runtime state. It must prove Python, JavaScript, and TypeScript execution plus timeout, output, file-size, memory, PID, network, DNS, child-process/shell/package-manager refusal, caller-disconnect cleanup, and no-orphan enforcement under rootless Podman. Repeat separately under rootless Docker to certify cold standby, then return the environment to Podman and stop Docker. Static and mocked repository tests are not substitutes for these engine proofs. The suite permits an explicit `/tmp/elysia-sandbox-integration-*` runtime root for local preflight only; that exception is implemented solely in the test harness and is never accepted by the production service configuration.
 
 Test the complete deployed path for anonymous, invalid user token, unauthorized source, wrong Access token, and wrong runner token failures; authenticated health sanitization; immediate `429` on concurrent runs; idempotent retry; stale lease recovery; database-finalization distinction; raw-data deletion; response redaction; preview disablement; and persistence after the administrator disconnects. Inspect the process/socket boundary:
 
@@ -218,7 +253,7 @@ sudo ss -ltnp
 systemctl status cloudflared
 ```
 
-Only after every proof passes should the operator set both runner switches and the production Pages switch true, restart the user runner service, and deploy the production Pages binding change. Disconnect the ThinkPad, wait, then verify an authenticated health request and bounded run from an independent client.
+Only after every proof passes should the operator initialize the narrow finalizer credential, set both runner switches and the production Pages switch true, restart the user runner service, and deploy the production Pages binding change. Disconnect the ThinkPad, wait, then verify an authenticated health request and bounded run from an independent client. Until that one controlled checkpoint, all switches remain false and the finalizer hash remains NULL.
 
 ## 11. Rollback and kill switches
 
@@ -247,6 +282,26 @@ Production Pages encrypted secrets:
 Runner secret:
 
 - `ELYSIA_SANDBOX_SERVICE_TOKEN`
+
+Runner non-secret Access trust identifiers:
+
+- `ELYSIA_SANDBOX_ACCESS_TEAM_DOMAIN`
+- `ELYSIA_SANDBOX_ACCESS_AUDIENCE`
+
+Runner controls and non-secret settings:
+
+- `ELYSIA_SANDBOX_MODE`
+- `ELYSIA_SANDBOX_ENABLED`
+- `ELYSIA_SANDBOX_CONFIRM_SERVICE_EXECUTION`
+- `ELYSIA_SANDBOX_HOST`
+- `ELYSIA_SANDBOX_PORT`
+- `ELYSIA_SANDBOX_ENGINE`
+- `ELYSIA_SANDBOX_RUNTIME_ROOT`
+- `ELYSIA_SANDBOX_PYTHON_IMAGE`
+- `ELYSIA_SANDBOX_NODE_IMAGE`
+- `ELYSIA_SANDBOX_JOB_RETENTION_SECONDS`
+- `ELYSIA_SANDBOX_AUDIT_RETENTION_DAYS`
+- `DOCKER_HOST` only during explicit rootless-Docker cold-standby certification/activation
 
 Tunnel credential:
 

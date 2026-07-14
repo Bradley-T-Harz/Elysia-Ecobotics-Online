@@ -3,6 +3,9 @@ import { resolve } from "node:path";
 import { defaultLimits } from "./policy.mjs";
 
 const DIGEST_IMAGE = /^[a-z0-9][a-z0-9._/-]*(?::[a-z0-9._-]+)?@sha256:[0-9a-f]{64}$/;
+const ACCESS_AUDIENCE = /^[A-Za-z0-9_-]{16,256}$/;
+const ACCESS_TEAM_HOST = /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.cloudflareaccess\.com$/;
+const PRODUCTION_RUNTIME_ROOT = "/home/elysia-sandbox/.local/state/elysia-sandbox-runner";
 
 function integer(value, fallback, minimum, maximum, name) {
   const parsed = Number(value ?? fallback);
@@ -12,8 +15,38 @@ function integer(value, fallback, minimum, maximum, name) {
 
 function token(value, required, name) {
   const result = String(value ?? "");
-  if (required && (result.length < 32 || result.length > 512)) throw new Error(`${name}_invalid`);
+  if (required && (result.length < 32 || result.length > 512 || /(replace|placeholder|changeme|enter[_ -]?directly)/i.test(result))) {
+    throw new Error(`${name}_invalid`);
+  }
   return result;
+}
+
+function accessConfiguration(env, production) {
+  const rawDomain = String(env.ELYSIA_SANDBOX_ACCESS_TEAM_DOMAIN || "").replace(/\/$/, "");
+  const audience = String(env.ELYSIA_SANDBOX_ACCESS_AUDIENCE || "");
+  const configured = Boolean(rawDomain || audience);
+  if (production || configured) {
+    let url;
+    try { url = new URL(rawDomain); }
+    catch { throw new Error("access_team_domain_invalid"); }
+    if (
+      url.protocol !== "https:"
+      || !ACCESS_TEAM_HOST.test(url.hostname)
+      || url.port
+      || url.username
+      || url.password
+      || (url.pathname !== "/" && url.pathname !== "")
+      || url.search
+      || url.hash
+      || /REPLACE_WITH/i.test(rawDomain)
+    ) throw new Error("access_team_domain_invalid");
+    if (!ACCESS_AUDIENCE.test(audience) || /REPLACE_WITH/i.test(audience)) throw new Error("access_audience_invalid");
+  }
+  return Object.freeze({
+    accessRequired: production || configured,
+    accessTeamDomain: rawDomain,
+    accessAudience: audience
+  });
 }
 
 export function safeEngineEnvironment(engine, env = process.env) {
@@ -42,6 +75,13 @@ export function loadRunnerConfig(env = process.env) {
   }
   const defaultRuntimeRoot = fileURLToPath(new URL("./runtime/", import.meta.url));
   const runtimeRoot = resolve(String(env.ELYSIA_SANDBOX_RUNTIME_ROOT || defaultRuntimeRoot));
+  if (production && runtimeRoot !== PRODUCTION_RUNTIME_ROOT) throw new Error("runtime_root_invalid");
+  const access = accessConfiguration(env, production);
+  const engineEnv = safeEngineEnvironment(engine, env);
+  if (production && engine === "docker") {
+    const expectedDockerHost = `unix:///run/user/${process.getuid?.()}/docker.sock`;
+    if (engineEnv.DOCKER_HOST !== expectedDockerHost) throw new Error("rootless_docker_host_invalid");
+  }
   return Object.freeze({
     mode,
     production,
@@ -50,9 +90,10 @@ export function loadRunnerConfig(env = process.env) {
     host,
     port: integer(env.ELYSIA_SANDBOX_PORT || env.PORT, 8788, 1024, 65_535, "runner_port"),
     engine,
-    engineEnv: safeEngineEnvironment(engine, env),
+    engineEnv,
     images: Object.freeze({ python: pythonImage, node: nodeImage }),
     serviceToken: token(env.ELYSIA_SANDBOX_SERVICE_TOKEN, production, "service_token"),
+    ...access,
     runtimeRoot,
     jobsRoot: resolve(runtimeRoot, "jobs"),
     auditRoot: resolve(runtimeRoot, "audit"),
@@ -64,5 +105,8 @@ export function loadRunnerConfig(env = process.env) {
 }
 
 export function publicConfigReady(config) {
-  return config.enabled && config.confirmServiceExecution && Boolean(config.serviceToken);
+  return config.enabled
+    && config.confirmServiceExecution
+    && Boolean(config.serviceToken)
+    && (!config.accessRequired || Boolean(config.accessTeamDomain && config.accessAudience));
 }

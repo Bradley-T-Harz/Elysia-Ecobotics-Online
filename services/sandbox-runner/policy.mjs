@@ -7,19 +7,22 @@ export const supportedRuntimes = Object.freeze({
   python: Object.freeze({
     imageKey: "python",
     fileName: "main.py",
-    allowedCommand: Object.freeze(["python", "-I", "-B", "main.py"]),
+    handoffCommand: Object.freeze(["python", "-I", "-B", "main.py"]),
+    allowedCommand: Object.freeze(["python", "-I", "-B", "-"]),
     aliases: Object.freeze(["python", "py"])
   }),
   javascript: Object.freeze({
     imageKey: "node",
     fileName: "main.js",
-    allowedCommand: Object.freeze(["node", "--disable-proto=delete", "main.js"]),
+    handoffCommand: Object.freeze(["node", "--disable-proto=delete", "main.js"]),
+    allowedCommand: Object.freeze(["node", "--permission", "--disable-proto=delete", "--allow-fs-read=/tmp", "--allow-fs-write=/tmp", "-"]),
     aliases: Object.freeze(["javascript", "js", "node"])
   }),
   typescript: Object.freeze({
     imageKey: "node",
     fileName: "main.ts",
-    allowedCommand: Object.freeze(["node", "--disable-proto=delete", "--experimental-strip-types", "main.ts"]),
+    handoffCommand: Object.freeze(["node", "--disable-proto=delete", "--experimental-strip-types", "main.ts"]),
+    allowedCommand: Object.freeze(["node", "--permission", "--disable-proto=delete", "--allow-fs-read=/tmp", "--allow-fs-write=/tmp", "--experimental-strip-types", "-"]),
     aliases: Object.freeze(["typescript", "ts"])
   })
 });
@@ -35,7 +38,8 @@ export const defaultLimits = Object.freeze({
   timeoutSeconds: 5,
   pidsLimit: "32",
   tmpfsSize: "16m",
-  fileDescriptors: "64"
+  fileDescriptors: "64",
+  fileSizeBytes: "16777216"
 });
 
 export const dangerousCommandPatterns = Object.freeze([

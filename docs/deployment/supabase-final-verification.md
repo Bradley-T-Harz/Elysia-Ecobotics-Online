@@ -2,6 +2,8 @@
 
 This checklist is for the live Supabase project before public or beta testing. Do not run these checks with service-role credentials in frontend code, and do not expose raw query errors to public users.
 
+Current checkpoint (2026-07-14): the baseline history record, reaction-count repair, Repository Showcase repair, and governed-sandbox repair have each passed their controlled installation/verification gate and all four versions are aligned locally/remotely. This checklist remains the regression and activation reference; it is not authorization to reapply SQL. The finalizer hash remains NULL and public sandbox execution remains disabled.
+
 ## Required helpers
 
 Confirm these helper functions exist and return the expected result for admin, reviewer, moderator, developer, and normal member accounts:

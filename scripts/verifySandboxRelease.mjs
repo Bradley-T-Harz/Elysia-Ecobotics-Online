@@ -111,8 +111,21 @@ const runnerRoot = join(bundleRoot, "services", "sandbox-runner");
 const runnerPackage = JSON.parse(await fs.readFile(join(runnerRoot, "package.json"), "utf8"));
 const yamlPackage = JSON.parse(await fs.readFile(join(runnerRoot, "node_modules", "yaml", "package.json"), "utf8"));
 if (runnerPackage.dependencies.yaml !== "2.9.0" || yamlPackage.version !== "2.9.0") throw new Error("release_dependency_invalid");
-for (const file of ["server.mjs", "runner.mjs", "dockerRunner.mjs", "serviceConfig.mjs", "jobStore.mjs", "cleanup.mjs"]) {
+for (const file of ["server.mjs", "runner.mjs", "dockerRunner.mjs", "serviceConfig.mjs", "jobStore.mjs", "cleanup.mjs", "accessValidator.mjs"]) {
   await run(process.execPath, ["--check", join(runnerRoot, file)], bundleRoot);
+}
+for (const file of [
+  "deployment/build-runtime-images.sh",
+  "deployment/cloudflared/validate-config.sh",
+  "deployment/host-preflight.sh",
+  "deployment/install-user-service.sh",
+  "deployment/post-install-verify.sh",
+  "deployment/rollback-release.sh",
+  "deployment/uninstall-user-service.sh",
+  "deployment/validate-rootless-docker-standby.sh",
+  "deployment/validate-rootless-podman.sh"
+]) {
+  await run("bash", ["-n", join(runnerRoot, file)], bundleRoot);
 }
 const forbidden = listing.some((entry) => /(^|\/)(runtime|jobs|audit|\.env|runner\.env)(\/|$)/.test(entry));
 if (forbidden) throw new Error("release_contains_runtime_or_secret_file");

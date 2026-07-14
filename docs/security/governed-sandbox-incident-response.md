@@ -12,7 +12,7 @@
 
 Rotate only in the system that owns each value, entering replacements directly:
 
-- runner token: Pages production secret and the server's mode-`0600` runner environment;
+- runner token: Pages production secret and the root-owned, group-readable mode-`0640` runner environment;
 - database finalizer token: Pages production secret and its private Supabase hash row;
 - Access service token: Cloudflare Access and Pages production secrets;
 - Tunnel credential: Cloudflare and the root-readable `cloudflared` credential file.
@@ -24,6 +24,7 @@ Revoke the previous credential before re-enabling execution whenever continuity 
 - Identify the affected release ID, image digests, service start time, and bounded run IDs.
 - Verify the active release and images against their manifests/digests.
 - Confirm rootless engine state, cgroup limits, container removal, loopback listener, service unit hardening, and runtime-state ownership/modes.
+- Confirm the origin Access assertion verifier still requires the exact issuer/audience and that the Access JWKS path, Service Auth decision, and direct-origin rejection remain intact.
 - Check for unexpected files outside the service account's state root without opening unrelated private data.
 - Review Cloudflare Access decisions, Tunnel state, Pages invocation metadata, Supabase lifecycle transitions, quota behavior, and bounded runner audit events.
 - Treat raw engine exceptions, internal paths, headers, and secret-like strings as sensitive even if redaction was expected.

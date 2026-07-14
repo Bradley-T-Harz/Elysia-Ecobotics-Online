@@ -40,7 +40,7 @@ export function validateHandoffBundle(bundle) {
   for (const pattern of secretPatterns) if (pattern.pattern.test(aggregate)) errors.push(issue("error", `secret_${pattern.code}`, "Secret-like or private local material detected."));
   for (const pattern of dangerousCommandPatterns) if (pattern.pattern.test(expectedCommand)) errors.push(issue("error", `dangerous_command_${pattern.code}`, "Expected command contains a blocked pattern.", "execution_intent.expected_command"));
   if (!runtime) errors.push(issue("error", "unsupported_language", "Only python and javascript snippet runtimes are supported in V1.", "execution_intent.language"));
-  else if (expectedCommand && expectedCommand !== runtime.allowedCommand.join(" ")) errors.push(issue("error", "command_not_allowlisted", `Allowed command for this runtime is exactly: ${runtime.allowedCommand.join(" ")}.`, "execution_intent.expected_command"));
+  else if (expectedCommand && expectedCommand !== runtime.handoffCommand.join(" ")) errors.push(issue("error", "command_not_allowlisted", `Allowed handoff command for this runtime is exactly: ${runtime.handoffCommand.join(" ")}.`, "execution_intent.expected_command"));
   if (!String(payload.code_text ?? "").trim()) errors.push(issue("error", "missing_code_text", "V1 runner supports code_text payloads only.", "payload.code_text"));
   if (Buffer.byteLength(String(payload.code_text ?? ""), "utf8") > maxCodeBytes) errors.push(issue("error", "code_too_large", "Code payload exceeds the governed runner limit.", "payload.code_text"));
   if (payload.package_reference) errors.push(issue("error", "package_reference_unsupported", "Package references are not executable in this runner pass.", "payload.package_reference"));

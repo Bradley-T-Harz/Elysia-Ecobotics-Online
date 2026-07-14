@@ -9,8 +9,11 @@
 
 The baseline is a schema-only capture of production before the three repairs. It
 may be executed against a fresh disposable Supabase Postgres database for tests,
-but it must never be executed against the existing production project. At the
-future production checkpoint it is marked applied in migration history only.
+but it must never be executed against the existing production project. Its
+version was marked applied in migration history on 2026-07-14 without executing
+the baseline SQL; the three repair migrations were then applied and verified one
+at a time. All four versions are aligned locally/remotely. Do not replay or edit
+the completed chain.
 
 The invalidly versioned historical files are preserved byte-for-byte under
 `supabase/legacy-migrations`; they are documentation, not an executable chain.

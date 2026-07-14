@@ -1,0 +1,27 @@
+{
+  "documentKind": "non-deployable-access-contract",
+  "hostname": "sandbox.elysiaecobotics.com",
+  "applicationType": "self_hosted",
+  "policyDecision": "service_auth",
+  "allowedCaller": "one dedicated Pages proxy service token",
+  "requestCredentialHeaders": [
+    "CF-Access-Client-Id",
+    "CF-Access-Client-Secret"
+  ],
+  "originAssertionHeader": "Cf-Access-Jwt-Assertion",
+  "originValidation": {
+    "issuerEnvironment": "ELYSIA_SANDBOX_ACCESS_TEAM_DOMAIN",
+    "audienceEnvironment": "ELYSIA_SANDBOX_ACCESS_AUDIENCE",
+    "jwksPath": "/cdn-cgi/access/certs",
+    "requiredAlgorithm": "RS256",
+    "failClosed": true
+  },
+  "forbidden": [
+    "bypass policy",
+    "public allow policy",
+    "browser-held service token",
+    "unvalidated origin assertion",
+    "preview deployment credentials"
+  ],
+  "placeholdersOnly": true
+}

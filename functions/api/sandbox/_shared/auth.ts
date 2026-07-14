@@ -3,8 +3,26 @@ import { fetchWithTimeout, PublicHttpError } from "./http.ts";
 import type { AuthenticatedRequest, Env } from "./types.ts";
 
 function requiredEnv(value: string | undefined, code: string): string {
-  if (!value || value.length > 2_048) throw new PublicHttpError(503, code);
+  if (!value || value.length > 2_048 || /(replace|placeholder|changeme)/i.test(value)) throw new PublicHttpError(503, code);
   return value;
+}
+
+function requiredSupabaseUrl(value: string | undefined): string {
+  const configured = requiredEnv(value, "sandbox_misconfigured");
+  let url: URL;
+  try { url = new URL(configured); }
+  catch { throw new PublicHttpError(503, "sandbox_misconfigured"); }
+  if (
+    url.protocol !== "https:"
+    || !/^[a-z0-9-]+\.supabase\.co$/.test(url.hostname)
+    || url.port
+    || url.username
+    || url.password
+    || (url.pathname !== "/" && url.pathname !== "")
+    || url.search
+    || url.hash
+  ) throw new PublicHttpError(503, "sandbox_misconfigured");
+  return url.origin;
 }
 
 export async function authenticateRequest(request: Request, env: Env): Promise<AuthenticatedRequest> {
@@ -15,12 +33,12 @@ export async function authenticateRequest(request: Request, env: Env): Promise<A
   const accessToken = authorization.slice(7);
   if (!accessToken || /[\s,]/.test(accessToken)) throw new PublicHttpError(401, "authentication_invalid");
 
-  const supabaseUrl = requiredEnv(env.SUPABASE_URL, "sandbox_misconfigured");
+  const supabaseUrl = requiredSupabaseUrl(env.SUPABASE_URL);
   const publishableKey = requiredEnv(env.SUPABASE_PUBLISHABLE_KEY, "sandbox_misconfigured");
   const supabase = createClient(supabaseUrl, publishableKey, {
     global: {
       headers: { Authorization: `Bearer ${accessToken}` },
-      fetch: (input, init) => fetchWithTimeout(input, init ?? {}, 5_000)
+      fetch: (input, init) => fetchWithTimeout(input, { ...(init ?? {}), redirect: "error" }, 5_000)
     },
     auth: {
       persistSession: false,

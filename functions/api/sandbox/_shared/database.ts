@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { PublicHttpError } from "./http.ts";
-import type { AuthorizedSource, Reservation, RunnerResult, SandboxRunRequest } from "./types.ts";
+import type { AuthorizedSource, Reservation, RunnerResult, SandboxRunRequest, StartedReservation } from "./types.ts";
 
 function objectOrNull(value: unknown): Record<string, unknown> | null {
   return typeof value === "object" && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : null;
@@ -55,13 +55,34 @@ export async function reserveRun(
   };
 }
 
-export async function startRun(supabase: SupabaseClient, runId: string, clientRequestId: string, finalizerToken: string): Promise<void> {
-  const { error } = await supabase.rpc("start_commune_sandbox_run", {
+export async function startRun(
+  supabase: SupabaseClient,
+  runId: string,
+  clientRequestId: string,
+  finalizerToken: string
+): Promise<StartedReservation> {
+  const { data, error } = await supabase.rpc("start_commune_sandbox_run", {
     p_run_id: runId,
     p_client_request_id: clientRequestId,
     p_finalizer_token: finalizerToken
   });
   if (error) throw new PublicHttpError(503, "reservation_start_failed");
+  const record = objectOrNull(data);
+  const returnedRunId = stringOrNull(record?.runId);
+  const status = stringOrNull(record?.status);
+  const leaseExpiresAt = stringOrNull(record?.leaseExpiresAt);
+  const leaseTime = Date.parse(leaseExpiresAt ?? "");
+  if (
+    returnedRunId !== runId
+    || status !== "running"
+    || !leaseExpiresAt
+    || !Number.isFinite(leaseTime)
+    || leaseTime <= Date.now() + 10_000
+    || leaseTime > Date.now() + 120_000
+  ) {
+    throw new PublicHttpError(503, "reservation_start_invalid");
+  }
+  return { runId, clientRequestId, status: "running", leaseExpiresAt };
 }
 
 export async function finalizeRun(

@@ -10,11 +10,12 @@ Those historical files are now immutable records under
 public-schema baseline followed by three additive repairs. See the legacy manifest
 for the original filename, purpose, first repository commit, and known exception.
 
-## Current readiness stance
+## Current installed checkpoint
 
 - The active baseline and all three repairs must apply with `ON_ERROR_STOP=1` in a disposable Supabase Postgres database.
-- Do not claim live Supabase readiness until the verification checklist in `docs/deployment/supabase-final-verification.md` has been completed.
-- This local repair pass does not execute SQL or repair migration history remotely.
+- On 2026-07-14, the operator completed the baseline history reconciliation and applied each of the three additive repairs separately, with the documented read-only verification gate between them.
+- `supabase migration list --linked` then showed all four versions aligned locally/remotely. Do not reapply them or repeat the history repair.
+- The database layer being installed does not enable execution: the finalizer hash remains NULL and the Pages/runner kill switches remain off.
 - Frontend pages should continue to show clean "backend table/policy not active yet" states when optional tables are unavailable.
 
 ## Active migration order
@@ -29,15 +30,16 @@ project-owned `public` schema/ACL metadata only, with no rows, credentials, or
 recreation of Supabase-managed `auth`/`storage` internals. It is executable only
 for disposable validation.
 
-The final read-only `supabase migration list --linked` on 2026-07-14 showed the
-active versions locally and a blank remote column for each. That is the
-expected pre-reconciliation state; it is not evidence that any repair has been
-applied. The active baseline SHA-256 is
+The final pre-reconciliation read-only inspection on 2026-07-14 showed the
+active versions locally and a blank remote column for each. That evidence is
+retained as the historical starting point. Later on 2026-07-14, the operator
+completed the controlled history repair and three separately verified repair
+installations; all four versions then aligned. The active baseline SHA-256 is
 `8986352533e6b37fe5cf0a533367f87f3149deda6e87117c7b05d66ceca94503`.
 
-## Production sequence — future checkpoint only
+## Completed production sequence — do not repeat
 
-The exact future order is:
+The completed order was:
 
 1. Re-run read-only migration/catalog inspection.
 2. Mark baseline version `20260714010000` applied in migration history. Never execute its SQL against existing production.
@@ -51,10 +53,10 @@ The exact future order is:
 10. Verify exact RPC signatures/owners/search paths/grants, table grants/RLS, account/source denial paths, idempotency, leases, quotas, lifecycle, and finalizer hash slot.
 11. Record sandbox version `20260714030000` as applied.
 
-Manual SQL Editor application and each migration-history repair are production
-mutations. They require a clean reviewed tree, an explicit operator checkpoint,
-and a fresh read-only comparison immediately beforehand. They were not executed
-during the local implementation pass.
+Manual SQL Editor application and each migration-history repair were production
+mutations performed by the operator outside the repository-side implementation
+pass. Future corrections must be new additive migrations; the completed files
+and history entries are not to be changed or replayed.
 
 ## Drift risks to keep verifying
 
@@ -70,7 +72,7 @@ The most likely drift areas are:
 - sandbox handoff request/review/event tables
 - admin audit/review helper functions and role policies
 
-## Disposable database review
+## Disposable database regression
 
 Before using a brand-new Supabase project, apply the active chain to a disposable
 database and verify:
@@ -81,7 +83,7 @@ database and verify:
 - the archived duplicate table-family files are not treated as active migrations
 - `schema.sql` and `policies.sql` match the current migration intent
 
-## Live project review
+## Live project activation review
 
 Before inviting beta users, verify the live project has:
 
@@ -102,4 +104,4 @@ instead of editing the baseline or archived files. Prefer idempotent statements 
 - `drop policy if exists`
 - `create policy`
 
-Do not apply reconciliation migrations remotely until reviewed against a disposable database and the live table state.
+Do not reapply the completed reconciliation migrations. Review any future additive migration against a disposable database and the live table state before its own controlled checkpoint.

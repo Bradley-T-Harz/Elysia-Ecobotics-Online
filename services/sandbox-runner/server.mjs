@@ -11,8 +11,9 @@ import {
   shutdownRunner
 } from "./runner.mjs";
 import { loadRunnerConfig, publicConfigReady } from "./serviceConfig.mjs";
+import { verifyCloudflareAccessAssertion } from "./accessValidator.mjs";
 
-const MAX_BODY_BYTES = 70_000;
+const MAX_BODY_BYTES = 400_000;
 const RESPONSE_HEADERS = Object.freeze({
   "content-type": "application/json; charset=utf-8",
   "cache-control": "no-store",
@@ -62,13 +63,14 @@ function readJson(request) {
       settled = true;
       reject(new Error(code));
     };
-    request.setTimeout(7_000, () => fail("request_timeout"));
+    request.setTimeout(7_000, () => { request.resume(); fail("request_timeout"); });
     request.on("data", (chunk) => {
       if (settled) return;
       bytes += chunk.length;
       if (bytes > MAX_BODY_BYTES) {
-        request.pause();
+        chunks.length = 0;
         fail("request_too_large");
+        request.resume();
         return;
       }
       chunks.push(chunk);
@@ -97,7 +99,12 @@ export function httpStatusForRunResult(result) {
 }
 
 export async function handleSandboxRunnerRequest(request, response, options) {
-  const { config, runSnapshot = createAndRunSnapshotRun, healthCheck = doctor } = options;
+  const {
+    config,
+    runSnapshot = createAndRunSnapshotRun,
+    healthCheck = doctor,
+    accessVerifier = verifyCloudflareAccessAssertion
+  } = options;
   let url;
   try { url = new URL(request.url || "/", "http://sandbox.local"); }
   catch { send(response, 400, { ok: false, error: "request_invalid" }); return; }
@@ -109,6 +116,13 @@ export async function handleSandboxRunnerRequest(request, response, options) {
   if (!authenticated(request, config)) {
     send(response, 401, { ok: false, error: "authentication_invalid" });
     return;
+  }
+  if (config.accessRequired) {
+    const assertion = request.headers["cf-access-jwt-assertion"];
+    if (typeof assertion !== "string" || !(await accessVerifier(assertion, config))) {
+      send(response, 403, { ok: false, error: "access_denied" });
+      return;
+    }
   }
 
   if (request.method === "GET" && url.pathname === "/health" && !url.search) {
@@ -147,7 +161,13 @@ export async function handleSandboxRunnerRequest(request, response, options) {
       return;
     }
     try {
-      const result = await runSnapshot(payload, { confirmLocalExecution: true, config });
+      const disconnect = new AbortController();
+      const cancelDisconnectedRun = () => {
+        if (!response.writableEnded) disconnect.abort();
+      };
+      response.once("close", cancelDisconnectedRun);
+      const result = await runSnapshot(payload, { confirmLocalExecution: true, config, requireReservation: true, signal: disconnect.signal });
+      response.off("close", cancelDisconnectedRun);
       const status = httpStatusForRunResult(result);
       send(response, status, result, result.retryAfter ?? (result.busy ? config.retryAfterSeconds : null));
     } catch {
@@ -185,7 +205,8 @@ export function createSandboxRunnerServer(options = {}) {
 
 export async function startSandboxRunnerServer(options = {}) {
   const config = options.config || loadRunnerConfig();
-  await cleanupRunnerState(config, { removeAllOrphans: true });
+  const cleanup = await cleanupRunnerState(config, { removeAllOrphans: true });
+  if (!cleanup.containers?.ok) throw new Error("startup_cleanup_unverified");
   const server = createSandboxRunnerServer({ ...options, config });
   server.listen(config.port, config.host, () => {
     console.log(JSON.stringify({ service: "elysia-sandbox-runner", listening: true, enabled: publicConfigReady(config) }));

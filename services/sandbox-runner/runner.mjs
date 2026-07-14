@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { basename } from "node:path";
 import { diagnosticsBlockExecution, diagnostic, staticDiagnostics } from "./diagnostics.mjs";
 import { validateHandoffBundle } from "./handoffValidator.mjs";
@@ -15,12 +16,10 @@ import {
   cleanupExpiredJobs,
   createJobId,
   ensureRuntime,
-  inputDir,
   readJob,
   removeJob,
   stderrPath,
   stdoutPath,
-  writeInputFile,
   writeJob
 } from "./jobStore.mjs";
 import { cleanupExpiredAuditLogs, writeAuditEvent } from "./auditLog.mjs";
@@ -35,7 +34,12 @@ import {
 } from "./dockerRunner.mjs";
 import { loadRunnerConfig, publicConfigReady } from "./serviceConfig.mjs";
 
-const SNAPSHOT_KEYS = new Set(["snapshot_id", "language", "file_name", "code", "network_policy", "filesystem_policy"]);
+const SNAPSHOT_KEYS = new Set([
+  "reservation_id", "client_request_id", "lease_expires_at", "snapshot_id",
+  "language", "file_name", "code", "code_sha256", "code_bytes",
+  "network_policy", "filesystem_policy"
+]);
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 let executionActive = false;
 let acceptingRuns = true;
 
@@ -132,12 +136,14 @@ function validateFileName(fileName, language) {
   return allowed.some((extension) => fileName.toLowerCase().endsWith(extension)) ? fileName : null;
 }
 
-export function validateSnapshotRunPayload(payload) {
+export function validateSnapshotRunPayload(payload, { requireReservation = false, now = Date.now() } = {}) {
   const object = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
   const language = normalizeLanguage(object.language);
   const rawFileName = String(object.file_name ?? "").trim() || null;
   const fileName = validateFileName(rawFileName, language);
   const code = typeof object.code === "string" ? object.code : "";
+  const codeBytes = Buffer.byteLength(code, "utf8");
+  const codeSha256 = createHash("sha256").update(code, "utf8").digest("hex");
   const diagnostics = staticDiagnostics({ language, fileName: rawFileName, code });
   const errors = [];
   if (Object.keys(object).some((key) => !SNAPSHOT_KEYS.has(key))) errors.push(diagnostic({ severity: "error", phase: "policy", category: "policy_info", language, file: null, message: "Request contains unsupported fields.", source: "Request schema" }));
@@ -145,17 +151,38 @@ export function validateSnapshotRunPayload(payload) {
   if (!snapshotId || snapshotId.length > 160 || /[\u0000-\u001f\u007f]/.test(snapshotId)) errors.push(diagnostic({ severity: "error", phase: "policy", category: "policy_info", language, file: null, message: "Snapshot id is invalid.", source: "Snapshot policy" }));
   if (!code.trim()) errors.push(diagnostic({ severity: "error", phase: "policy", category: "policy_info", language, file: rawFileName, message: "Code payload is required.", source: "Snapshot policy" }));
   if (code.includes("\u0000")) errors.push(diagnostic({ severity: "error", phase: "security", category: "forbidden_operation", language, file: rawFileName, message: "Code payload contains a forbidden null byte.", source: "Request schema" }));
-  if (Buffer.byteLength(code, "utf8") > maxCodeBytes) errors.push(diagnostic({ severity: "error", phase: "policy", category: "policy_info", language, file: rawFileName, message: "Code payload exceeds the governed limit.", source: "Snapshot policy" }));
+  if (codeBytes > maxCodeBytes) errors.push(diagnostic({ severity: "error", phase: "policy", category: "policy_info", language, file: rawFileName, message: "Code payload exceeds the governed limit.", source: "Snapshot policy" }));
   if (rawFileName && !fileName) errors.push(diagnostic({ severity: "error", phase: "policy", category: "policy_info", language, file: null, message: "File name is invalid for the selected language.", source: "File policy" }));
   if (object.network_policy !== "disabled") errors.push(diagnostic({ severity: "error", phase: "policy", category: "network_denied", language, file: fileName, message: "network_policy must be disabled.", source: "Sandbox policy" }));
   if (object.filesystem_policy !== "temporary_workspace_only") errors.push(diagnostic({ severity: "error", phase: "policy", category: "filesystem_denied", language, file: fileName, message: "Only a temporary workspace is allowed.", source: "Sandbox policy" }));
+
+  const reservationFieldsPresent = ["reservation_id", "client_request_id", "lease_expires_at", "code_sha256", "code_bytes"]
+    .some((key) => key in object);
+  const reservationRequired = requireReservation || reservationFieldsPresent;
+  const reservationId = typeof object.reservation_id === "string" ? object.reservation_id.toLowerCase() : null;
+  const clientRequestId = typeof object.client_request_id === "string" ? object.client_request_id.toLowerCase() : null;
+  const leaseExpiresAt = typeof object.lease_expires_at === "string" ? object.lease_expires_at : null;
+  const leaseTime = Date.parse(leaseExpiresAt ?? "");
+  if (reservationRequired) {
+    if (!reservationId || !UUID_PATTERN.test(reservationId)) errors.push(diagnostic({ severity: "error", phase: "policy", category: "policy_info", language, file: null, message: "Reservation id is invalid.", source: "Reservation policy" }));
+    if (!clientRequestId || !UUID_PATTERN.test(clientRequestId)) errors.push(diagnostic({ severity: "error", phase: "policy", category: "policy_info", language, file: null, message: "Client request id is invalid.", source: "Reservation policy" }));
+    if (!reservationId || snapshotId !== `reservation-${reservationId}`) errors.push(diagnostic({ severity: "error", phase: "policy", category: "policy_info", language, file: null, message: "Snapshot and reservation identifiers do not match.", source: "Reservation policy" }));
+    if (object.code_sha256 !== codeSha256) errors.push(diagnostic({ severity: "error", phase: "security", category: "forbidden_operation", language, file: fileName, message: "Code hash does not match the started reservation.", source: "Reservation integrity" }));
+    if (object.code_bytes !== codeBytes) errors.push(diagnostic({ severity: "error", phase: "security", category: "forbidden_operation", language, file: fileName, message: "Code byte count does not match the started reservation.", source: "Reservation integrity" }));
+    if (!leaseExpiresAt || !Number.isFinite(leaseTime) || leaseTime <= now + 10_000 || leaseTime > now + 120_000) errors.push(diagnostic({ severity: "error", phase: "policy", category: "policy_info", language, file: null, message: "Reservation lease is invalid, expired, or too short for bounded execution.", source: "Reservation policy" }));
+  }
   return {
     ok: !diagnosticsBlockExecution(diagnostics) && !errors.length,
     diagnostics: [...diagnostics, ...errors].slice(0, 40),
     language,
     fileName,
     code,
-    snapshotId
+    codeBytes,
+    codeSha256,
+    snapshotId,
+    reservationId,
+    clientRequestId,
+    leaseExpiresAt
   };
 }
 
@@ -182,6 +209,7 @@ async function readOutput(jobId, config) {
 function runtimeDiagnostics(job, context) {
   const diagnostics = [];
   if (job.status === "validation_failed" || job.status === "cleanup_failed") diagnostics.push(diagnostic({ severity: "error", phase: "sandbox", category: "sandbox_internal_failure", ...context, message: "Sandbox runtime was unavailable or cleanup could not be verified.", source: "Sandbox runner" }));
+  if (job.status === "cancelled") diagnostics.push(diagnostic({ severity: "error", phase: "sandbox", category: "sandbox_internal_failure", ...context, message: "The caller disconnected; execution was cancelled and container removal was verified.", source: "Sandbox runner" }));
   if (job.timed_out) diagnostics.push(diagnostic({ severity: "error", phase: "sandbox", category: "timeout", ...context, message: "The wall-clock timeout was enforced and the container was removed.", source: "Sandbox runner" }));
   if (job.output_overflow) diagnostics.push(diagnostic({ severity: "error", phase: "sandbox", category: "output_truncated", ...context, message: "The hard output limit was enforced and the container was removed.", source: "Sandbox runner" }));
   if (job.status === "failed" && job.exit_code !== 0) diagnostics.push(diagnostic({ severity: "error", phase: "runtime", category: "runtime_error", ...context, message: context.stderr.trim().slice(0, 1000) || "The program exited with a non-zero status.", source: "Container runtime" }));
@@ -190,8 +218,8 @@ function runtimeDiagnostics(job, context) {
   return diagnostics;
 }
 
-export async function createAndRunSnapshotRun(payload, { confirmLocalExecution = false, config = loadRunnerConfig(), runContainer = runContainerJob } = {}) {
-  const validation = validateSnapshotRunPayload(payload);
+export async function createAndRunSnapshotRun(payload, { confirmLocalExecution = false, config = loadRunnerConfig(), runContainer = runContainerJob, requireReservation = false, now = Date.now(), signal = null } = {}) {
+  const validation = validateSnapshotRunPayload(payload, { requireReservation, now });
   if (!confirmLocalExecution || !config.enabled || !config.confirmServiceExecution || !acceptingRuns) {
     return { ok: false, status: "denied", language: validation.language, file: validation.fileName, snapshotId: validation.snapshotId, stdout: "", stderr: "", exitCode: null, durationMs: null, outputTruncated: false, diagnostics: validation.diagnostics, message: "Sandbox execution is disabled." };
   }
@@ -230,7 +258,12 @@ export async function createAndRunSnapshotRun(payload, { confirmLocalExecution =
     await ensureRuntime(config);
     const job = {
       job_id: jobId,
-      request_id: validation.snapshotId,
+      request_id: validation.reservationId ?? validation.snapshotId,
+      reservation_id: validation.reservationId,
+      client_request_id: validation.clientRequestId,
+      lease_expires_at: validation.leaseExpiresAt,
+      code_sha256: validation.codeSha256,
+      code_bytes: validation.codeBytes,
       language: validation.language,
       file_name: validation.fileName,
       status: "created",
@@ -242,8 +275,7 @@ export async function createAndRunSnapshotRun(payload, { confirmLocalExecution =
     };
     await writeJob(job, config);
     await writeAuditEvent(jobId, "job_created", "Request passed runner policy validation.", {}, config);
-    await writeInputFile(jobId, runtime.fileName, validation.code, config);
-    const finalJob = await runContainer(job, runtime, inputDir(jobId, config), { config });
+    const finalJob = await runContainer(job, runtime, validation.code, { config, signal });
     const { stdout, stderr } = await readOutput(jobId, config);
     const diagnostics = [...validation.diagnostics, ...runtimeDiagnostics(finalJob, { language: validation.language, file: validation.fileName, stdout, stderr })].slice(0, 40);
     const status = mapJobStatus(finalJob);
