@@ -89,6 +89,32 @@ Checks:
 - admins/reviewers/moderators can hide/remove/review only through role-gated policies
 - realtime chat messages are plain text only and reports remain private
 - sandbox handoff exports exclude private reviewer notes and secrets
+- Repository Showcase anonymous reads require both `status = 'published'` and `visibility = 'public'`
+- Coding Cornucopia snippet anonymous reads require both `status = 'published'` and `visibility = 'public'`
+- `commune_content_reaction_counts` has `security_invoker=true`; anonymous and authenticated counts follow parent post/comment RLS
+- `commune_content_reaction_totals` stores no user IDs, has RLS enabled, and grants API roles SELECT only
+- private/hidden parent content contributes no visible aggregate row to unrelated callers; authors and reviewers retain existing visibility
+- `sync_commune_content_reaction_totals()` is postgres-owned, uses an empty `search_path`, and is not directly executable by PUBLIC, `anon`, `authenticated`, or `service_role`
+- adding, changing, and removing a reaction updates the visible aggregate without changing reaction ownership rules
+
+## Governed sandbox database boundary
+
+Verify exact identities and grants for `current_user_sandbox_access`,
+`reserve_commune_sandbox_run`, `start_commune_sandbox_run`,
+`finalize_commune_sandbox_run`, `reconcile_stale_commune_sandbox_runs`, and the
+retired `record_commune_sandbox_run_result` overload.
+
+Checks:
+
+- no protected function retains PUBLIC or `anon` execution
+- only the intended public RPCs are executable by `authenticated`
+- every new `SECURITY DEFINER` function has `search_path = ''` and schema-qualified relations
+- `commune_sandbox_runs` and `commune_code_diagnostics` grant browser roles SELECT only; no INSERT, UPDATE, DELETE, TRUNCATE, TRIGGER, REFERENCES, or MAINTAIN
+- the legacy result-recording overload is not executable by PUBLIC, `anon`, `authenticated`, or `service_role`
+- missing-profile, anonymous, deleted, currently banned, and unauthenticated accounts cannot reserve
+- published-but-private snippets/posts are not public sandbox sources; owners and reviewers retain their intended paths
+- idempotent retries match every source/code association, active leases serialize per user, stale leases recover, and lifecycle transitions fail closed
+- the private finalizer row initially contains a NULL hash and the private schema/table is inaccessible to browser roles
 
 ## Storage buckets
 

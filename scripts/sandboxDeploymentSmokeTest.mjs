@@ -64,7 +64,7 @@ const fileChecks = [
   "docs/security/governed-sandbox-incident-response.md",
   "scripts/packageSandboxRelease.mjs",
   "scripts/verifySandboxRelease.mjs",
-  "supabase/migrations/2026_07_13_sandbox_proxy_access_and_reservation.sql"
+  "supabase/migrations/20260714030000_sandbox_proxy_access_and_reservation.sql"
 ];
 for (const file of fileChecks) await fs.access(file);
 assert(!(await fs.stat("wrangler.example.jsonc")).isDirectory(), "Wrangler example configuration missing.");
@@ -72,7 +72,7 @@ let liveWrangler = false;
 try { await fs.access("wrangler.jsonc"); liveWrangler = true; } catch {}
 assert(!liveWrangler, "A live wrangler.jsonc must not be created before the existing Pages project is verified.");
 
-const migration = await read("supabase/migrations/2026_07_13_sandbox_proxy_access_and_reservation.sql");
+const migration = await read("supabase/migrations/20260714030000_sandbox_proxy_access_and_reservation.sql");
 for (const required of ["client_request_id", "reservation_expires_at", "code_sha256", "pg_advisory_xact_lock", "reserve_commune_sandbox_run", "start_commune_sandbox_run", "finalize_commune_sandbox_run", "sandbox_finalizer_token_is_valid", "sandbox_source_is_authorized", "enforce_sandbox_run_status_transition", "reconcile_stale_commune_sandbox_runs", "revoke execute on function public.record_commune_sandbox_run_result", "secret_hash_hex is not null", "sandbox_final_result_inconsistent"]) {
   assert(migration.includes(required), `Governed reservation migration missing ${required}.`);
 }
