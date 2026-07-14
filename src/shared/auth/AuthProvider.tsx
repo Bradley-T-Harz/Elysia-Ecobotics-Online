@@ -6,11 +6,13 @@ import { hasSupabaseConfig, supabase } from "../../pages/The-Elysia-Marketplace/
 type AuthContextValue = {
   configured: boolean;
   session: Session | null;
+  userId: string | null;
+  accessToken: string | null;
   email: string | null;
   loading: boolean;
 };
 
-export const AuthContext = createContext<AuthContextValue>({ configured: hasSupabaseConfig, session: null, email: null, loading: false });
+export const AuthContext = createContext<AuthContextValue>({ configured: hasSupabaseConfig, session: null, userId: null, accessToken: null, email: null, loading: false });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
@@ -40,6 +42,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value = useMemo(() => ({
     configured: hasSupabaseConfig,
     session,
+    userId: session?.user.id ?? null,
+    accessToken: session?.access_token ?? null,
     email: session?.user.email ?? null,
     loading
   }), [session, loading]);

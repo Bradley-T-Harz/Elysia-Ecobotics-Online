@@ -1,169 +1,210 @@
 #!/usr/bin/env node
 import http from "node:http";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { pathToFileURL } from "node:url";
-import { createAndRunSnapshotRun, doctor } from "./runner.mjs";
+import {
+  beginRunnerShutdown,
+  cleanupRunnerState,
+  createAndRunSnapshotRun,
+  doctor,
+  runnerState,
+  shutdownRunner
+} from "./runner.mjs";
+import { loadRunnerConfig, publicConfigReady } from "./serviceConfig.mjs";
 
-const args = new Set(process.argv.slice(2));
-const confirmServiceExecution = args.has("--confirm-service-execution") || process.env.ELYSIA_SANDBOX_CONFIRM_SERVICE_EXECUTION === "true";
-const port = Number(process.env.PORT || process.env.ELYSIA_SANDBOX_PORT || 8788);
-const host = process.env.ELYSIA_SANDBOX_HOST || "127.0.0.1";
-const maxBodyBytes = 160 * 1024;
+const MAX_BODY_BYTES = 70_000;
+const RESPONSE_HEADERS = Object.freeze({
+  "content-type": "application/json; charset=utf-8",
+  "cache-control": "no-store",
+  "x-content-type-options": "nosniff"
+});
 
-function clientRequestError(message) {
-  const error = new Error(message);
-  error.statusCode = 400;
-  return error;
+function send(response, status, payload, retryAfter = null) {
+  const headers = { ...RESPONSE_HEADERS };
+  if (retryAfter !== null) headers["retry-after"] = String(retryAfter);
+  const body = `${JSON.stringify(payload)}\n`;
+  headers["content-length"] = String(Buffer.byteLength(body));
+  response.writeHead(status, headers);
+  response.end(body);
 }
 
-export const defaultAllowedOrigins = Object.freeze([
-  "https://elysiaecobotics.com",
-  "http://127.0.0.1:5173",
-  "http://localhost:5173"
-]);
-
-function configuredAllowedOrigins() {
-  const envOrigins = String(process.env.ELYSIA_SANDBOX_ALLOWED_ORIGINS || "")
-    .split(",")
-    .map((item) => item.trim())
-    .filter((item) => item && item !== "*");
-  return Array.from(new Set([...defaultAllowedOrigins, ...envOrigins]));
+function tokenMatches(authorization, expectedToken) {
+  if (typeof authorization !== "string" || !authorization.startsWith("Bearer ") || authorization.length > 600) return false;
+  const presented = authorization.slice(7);
+  if (!presented || /[\s,]/.test(presented) || !expectedToken) return false;
+  const left = createHash("sha256").update(presented).digest();
+  const right = createHash("sha256").update(expectedToken).digest();
+  return timingSafeEqual(left, right);
 }
 
-export function isAllowedCorsOrigin(origin, allowedOrigins = configuredAllowedOrigins()) {
-  if (!origin || origin === "*") return false;
-  if (allowedOrigins.includes(origin)) return true;
-  return /^https:\/\/[a-z0-9-]+\.elysia-ecobotics-online\.pages\.dev$/i.test(origin);
+function authenticated(request, config) {
+  return tokenMatches(request.headers.authorization, config.serviceToken);
 }
 
-export function headers(request, config = {}) {
-  const origin = request.headers.origin || "";
-  const allowedOrigins = config.allowedOrigins ?? configuredAllowedOrigins();
-  const corsOrigin = isAllowedCorsOrigin(origin, allowedOrigins) ? origin : "";
-  return {
-    "Content-Type": "application/json; charset=utf-8",
-    ...(corsOrigin ? { "Access-Control-Allow-Origin": corsOrigin, "Vary": "Origin" } : {}),
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Access-Control-Max-Age": "600"
-  };
-}
-
-function send(request, response, status, payload, config) {
-  response.writeHead(status, headers(request, config));
-  response.end(`${JSON.stringify(payload, null, 2)}\n`);
-}
-
-export function httpStatusForRunResult(result) {
-  if (result?.status === "policy_blocked") return 422;
-  if (result?.status === "denied") return 403;
-  if (result?.status === "sandbox_unavailable") return 503;
-  if (result?.status === "completed" || result?.status === "failed") return 200;
-  return result?.ok ? 200 : 500;
+function contentTypeIsJson(request) {
+  const contentType = String(request.headers["content-type"] || "").split(";", 1)[0].trim().toLowerCase();
+  return contentType === "application/json";
 }
 
 function readJson(request) {
   return new Promise((resolve, reject) => {
-    let body = "";
+    const declared = String(request.headers["content-length"] || "");
+    if (declared && (!/^\d+$/.test(declared) || Number(declared) > MAX_BODY_BYTES)) {
+      request.resume();
+      reject(new Error("request_too_large"));
+      return;
+    }
+    const chunks = [];
+    let bytes = 0;
+    let settled = false;
+    const fail = (code) => {
+      if (settled) return;
+      settled = true;
+      reject(new Error(code));
+    };
+    request.setTimeout(7_000, () => fail("request_timeout"));
     request.on("data", (chunk) => {
-      body += String(chunk);
-      if (Buffer.byteLength(body, "utf8") > maxBodyBytes) {
-        request.destroy();
-        reject(clientRequestError("Request body exceeds Coding Cornucopia sandbox limit."));
+      if (settled) return;
+      bytes += chunk.length;
+      if (bytes > MAX_BODY_BYTES) {
+        request.pause();
+        fail("request_too_large");
+        return;
       }
+      chunks.push(chunk);
     });
-    request.on("end", () => {
-      try { resolve(JSON.parse(body || "{}")); }
-      catch { reject(clientRequestError("Request body must be valid JSON.")); }
+    request.once("end", () => {
+      if (settled) return;
+      settled = true;
+      try {
+        const parsed = JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)));
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error("json_invalid");
+        resolve(parsed);
+      } catch { reject(new Error("json_invalid")); }
     });
-    request.on("error", reject);
+    request.once("aborted", () => fail("request_aborted"));
+    request.once("error", () => fail("request_failed"));
   });
 }
 
-export async function handleSandboxRunnerRequest(request, response, config = {}) {
-  const runnerConfig = {
-    confirmServiceExecution,
-    host,
-    allowedOrigins: configuredAllowedOrigins(),
-    runSnapshot: createAndRunSnapshotRun,
-    ...config
-  };
-  const url = new URL(request.url || "/", `http://${request.headers.host || "sandbox.local"}`);
-  if (request.method === "OPTIONS") {
-    if (url.pathname === "/health" || url.pathname === "/v1/runs") {
-      response.writeHead(204, headers(request, runnerConfig));
-      response.end();
+export function httpStatusForRunResult(result) {
+  if (result?.busy) return 429;
+  if (result?.status === "policy_blocked") return 422;
+  if (result?.status === "denied") return 503;
+  if (result?.status === "sandbox_unavailable") return 503;
+  if (result?.status === "completed" || result?.status === "failed") return 200;
+  return 500;
+}
+
+export async function handleSandboxRunnerRequest(request, response, options) {
+  const { config, runSnapshot = createAndRunSnapshotRun, healthCheck = doctor } = options;
+  let url;
+  try { url = new URL(request.url || "/", "http://sandbox.local"); }
+  catch { send(response, 400, { ok: false, error: "request_invalid" }); return; }
+
+  if (request.headers.origin) {
+    send(response, 403, { ok: false, error: "origin_denied" });
+    return;
+  }
+  if (!authenticated(request, config)) {
+    send(response, 401, { ok: false, error: "authentication_invalid" });
+    return;
+  }
+
+  if (request.method === "GET" && url.pathname === "/health" && !url.search) {
+    try {
+      const detail = await healthCheck(config);
+      send(response, detail.ready ? 200 : 503, {
+        ok: detail.ready === true,
+        service: "elysia-sandbox-runner",
+        state: runnerState(),
+        detail
+      });
+    } catch {
+      send(response, 503, { ok: false, service: "elysia-sandbox-runner", state: runnerState() });
+    }
+    return;
+  }
+
+  if (request.method === "POST" && url.pathname === "/v1/runs" && !url.search) {
+    if (!publicConfigReady(config)) {
+      request.resume();
+      send(response, 503, { ok: false, status: "denied", diagnostics: [], message: "Sandbox execution is disabled." });
       return;
     }
-    send(request, response, 404, { ok: false, message: "Unknown sandbox runner endpoint." }, runnerConfig);
-    return;
-  }
-  if (request.method === "GET" && url.pathname === "/health") {
-    send(request, response, 200, { service: "coding-cornucopia-sandbox-runner", local_only: runnerConfig.host === "127.0.0.1", confirm_service_execution: runnerConfig.confirmServiceExecution, ...(await doctor()) }, runnerConfig);
-    return;
-  }
-  if (request.method === "POST" && url.pathname === "/v1/runs") {
-    if (!runnerConfig.confirmServiceExecution) {
-      send(request, response, 403, { ok: false, status: "denied", message: "Sandbox service is fail-closed. Restart with --confirm-service-execution after reviewing deployment isolation, rate limits, and origin policy.", diagnostics: [] }, runnerConfig);
+    if (!contentTypeIsJson(request)) {
+      request.resume();
+      send(response, 415, { ok: false, error: "json_required" });
+      return;
+    }
+    let payload;
+    try {
+      payload = await readJson(request);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : "request_failed";
+      const status = code === "request_too_large" ? 413 : code === "request_timeout" ? 408 : 400;
+      send(response, status, { ok: false, error: status === 413 ? "request_too_large" : "request_invalid" });
       return;
     }
     try {
-      const payload = await readJson(request);
-      const result = await runnerConfig.runSnapshot(payload, { confirmLocalExecution: true });
-      send(request, response, httpStatusForRunResult(result), result, runnerConfig);
-    } catch (error) {
-      const status = error?.statusCode === 400 ? 400 : 500;
-      send(request, response, status, {
+      const result = await runSnapshot(payload, { confirmLocalExecution: true, config });
+      const status = httpStatusForRunResult(result);
+      send(response, status, result, result.retryAfter ?? (result.busy ? config.retryAfterSeconds : null));
+    } catch {
+      send(response, 503, {
         ok: false,
-        status: status === 400 ? "failed" : "sandbox_unavailable",
-        message: error instanceof Error ? error.message : "Sandbox service failed before returning a run result.",
-        diagnostics: status === 400 ? [] : [{
-          severity: "error",
-          phase: "sandbox",
-          category: "sandbox_internal_failure",
-          language: null,
-          file: null,
-          line: null,
-          column: null,
-          message: "Sandbox service failed before returning a run result.",
-          source: "Sandbox runner"
-        }]
-      }, runnerConfig);
+        status: "sandbox_unavailable",
+        diagnostics: [],
+        message: "Sandbox execution is temporarily unavailable."
+      });
     }
     return;
   }
-  send(request, response, 404, { ok: false, message: "Unknown sandbox runner endpoint." }, runnerConfig);
+
+  request.resume();
+  send(response, request.method === "GET" || request.method === "POST" ? 404 : 405, { ok: false, error: "endpoint_not_found" });
 }
 
-export function createSandboxRunnerServer(config = {}) {
-  return http.createServer((request, response) => {
-    void handleSandboxRunnerRequest(request, response, config);
+export function createSandboxRunnerServer(options = {}) {
+  const config = options.config || loadRunnerConfig();
+  const server = http.createServer({
+    maxHeaderSize: 8_192,
+    headersTimeout: 5_000,
+    requestTimeout: 10_000,
+    keepAliveTimeout: 1_000
+  }, (request, response) => {
+    void handleSandboxRunnerRequest(request, response, { ...options, config }).catch(() => {
+      if (!response.headersSent) send(response, 500, { ok: false, error: "sandbox_request_failed" });
+      else response.destroy();
+    });
   });
+  server.maxHeadersCount = 32;
+  server.maxConnections = 16;
+  return server;
 }
 
-export function startSandboxRunnerServer(config = {}) {
-  const runnerConfig = {
-    confirmServiceExecution,
-    port,
-    host,
-    allowedOrigins: configuredAllowedOrigins(),
-    ...config
+export async function startSandboxRunnerServer(options = {}) {
+  const config = options.config || loadRunnerConfig();
+  await cleanupRunnerState(config, { removeAllOrphans: true });
+  const server = createSandboxRunnerServer({ ...options, config });
+  server.listen(config.port, config.host, () => {
+    console.log(JSON.stringify({ service: "elysia-sandbox-runner", listening: true, enabled: publicConfigReady(config) }));
+  });
+  const stop = async () => {
+    beginRunnerShutdown();
+    server.closeIdleConnections?.();
+    await shutdownRunner();
+    await new Promise((resolve) => server.close(resolve));
   };
-  const server = createSandboxRunnerServer(runnerConfig);
-  server.listen(runnerConfig.port, runnerConfig.host, () => {
-    console.log(JSON.stringify({
-      service: "coding-cornucopia-sandbox-runner",
-      host: runnerConfig.host,
-      port: runnerConfig.port,
-      confirm_service_execution: runnerConfig.confirmServiceExecution,
-      allowed_origins: runnerConfig.allowedOrigins,
-      pages_preview_origins: "https://*.elysia-ecobotics-online.pages.dev",
-      note: "This service must run outside the website/browser/Supabase. Network is disabled inside containers; deployment must add rate limits and origin controls."
-    }, null, 2));
-  });
+  process.once("SIGTERM", () => { void stop(); });
+  process.once("SIGINT", () => { void stop(); });
   return server;
 }
 
 const isDirectRun = process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 if (isDirectRun) {
-  startSandboxRunnerServer();
+  startSandboxRunnerServer().catch(() => {
+    console.error(JSON.stringify({ service: "elysia-sandbox-runner", started: false, error: "startup_failed" }));
+    process.exitCode = 1;
+  });
 }

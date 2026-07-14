@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "include": ["/api/sandbox/*"],
+  "exclude": ["/api/sandbox/_shared/*"]
+}

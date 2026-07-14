@@ -1,46 +1,25 @@
-# Coding Cornucopia Sandbox Boundary
+# Coding Cornucopia governed sandbox boundary
 
-Coding Cornucopia is the Commune coding room. Public code is community knowledge, not automatic trust.
+Coding Cornucopia code is untrusted input. It is never executed in the browser, Pages Function, Supabase/Postgres, Cloudflare build environment, application host, or Local Elysia.
 
-## Execution Boundary
+The only production path is:
 
-The website, browser frontend, Supabase, Postgres, Cloudflare Pages build, and Local Elysia app must not execute public code snippets directly.
+```text
+browser
+  -> same-origin /api/sandbox/* Pages Functions
+  -> verified Supabase identity + RLS source authorization + atomic reservation
+  -> Cloudflare Access Service Auth
+  -> Cloudflare Tunnel
+  -> 127.0.0.1:8788 on Hetzner
+  -> one locked-down rootless Podman container
+```
 
-Executable runs must go through the isolated Coding Cornucopia sandbox runner or an equivalent reviewed sandbox service with:
+Trust is reduced at every hop. The browser supplies only a short-lived user token and source selection. Cloudflare validates identity and authorization, applies request and response bounds, and attaches private service credentials. Supabase provides the authoritative user, RLS source view, quotas, idempotency, leases, and bounded run record. Hetzner receives no identity token or private account/source context.
 
-- non-root execution
-- container or stronger isolation
-- no host home mount
-- no repo root mount
-- no Docker socket mount
-- no service-role keys
-- no website secrets
-- no private Supabase data
-- no Local Elysia memory/files/logs/vaults/credentials
-- ephemeral workspace
-- network disabled by default
-- CPU, memory, process, timeout, and output limits
-- language allowlist
-- dependency installs disabled by default
-- audit log
-- operator kill/revoke ability
+The runner enforces a second independent request schema and fixed policy. It has no network, shell, package install, writable container root, capabilities, privilege escalation, root user, host/repository/home/vault/socket mounts, or host-execution fallback. CPU, memory, PID, wall-clock, request, and output limits are fixed in code. Production images are immutable digests and are never pulled on demand. Only one execution may exist; there is no internal queue or automatic engine fallback.
 
-## Snapshot Rule
+Successful raw code and output are removed immediately. Supabase retains bounded metadata, code hash, safe output previews, diagnostics, status, quota/idempotency fields, and lifecycle timestamps under RLS. Bounded server audit records contain operational metadata, not raw code, output, tokens, or user identity.
 
-Sandbox runs target explicit snapshots. Hidden live editor state is not executable.
+Both Cloudflare and the runner have explicit execution kill switches. Incident response must fail closed first, preserve only bounded non-secret evidence, kill and remove any active container, rotate affected credentials directly in their control planes, and verify before re-enabling.
 
-Published posts remain stable public artifacts. Live/collaborative editing, later CRDT sessions, and workbench drafts must create snapshots before a sandbox run can be requested.
-
-## Trust Rule
-
-A successful sandbox run is evidence only. It does not mean:
-
-- the code is safe
-- the code is approved
-- the author is trusted
-- the snippet can be installed
-- the snippet is a Marketplace add-on
-- Developer Forge review is complete
-- Local Elysia should run it without revalidation
-
-Developer Forge and Marketplace approval remain separate manifest, permission, security, compatibility, licensing, signing, and review processes.
+Execution is evidence only. Success does not mean the code is safe, approved, trustworthy, correctly attributed, installable, compatible, or authorized for Marketplace, Developer Forge, or Local Elysia use.

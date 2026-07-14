@@ -1,17 +1,17 @@
 import { parseDocument } from "yaml";
-import { dangerousCommandPatterns, disabledLanguages, futureLanguages, languagePolicyStatus, normalizeLanguage, secretPatterns } from "./policy.mjs";
+import { dangerousCommandPatterns, disabledLanguages, futureLanguages, languagePolicyStatus, normalizeLanguage, redactSecrets, secretPatterns } from "./policy.mjs";
 
 export function diagnostic(input) {
   return {
     severity: input.severity || "info",
     phase: input.phase || "static",
-    category: input.category || "policy_info",
+    category: String(input.category || "policy_info").slice(0, 80),
     language: normalizeLanguage(input.language),
     file: input.file || null,
     line: input.line || null,
     column: input.column || null,
-    message: input.message,
-    source: input.source || "Elysia sandbox runner"
+    message: redactSecrets(String(input.message || "Sandbox diagnostic.")).slice(0, 1000),
+    source: String(input.source || "Elysia sandbox runner").slice(0, 120)
   };
 }
 
@@ -55,7 +55,7 @@ export function staticDiagnostics({ language, code, fileName }) {
   if (normalized === "html" && /<script\b|on\w+\s*=/i.test(text)) diagnostics.push(diagnostic({ severity: "warning", phase: "security", category: "forbidden_operation", language: normalized, file, message: "HTML script/event-handler content is flagged and never executed by this service.", source: "HTML static policy" }));
   if (normalized === "css" && ((text.match(/{/g) || []).length !== (text.match(/}/g) || []).length)) diagnostics.push(diagnostic({ severity: "warning", category: "syntax_error", language: normalized, file, message: "CSS braces appear unbalanced.", source: "CSS static checker" }));
   if (normalized === "markdown" && /\]\((file:|\/home\/|[A-Z]:\\)/i.test(text)) diagnostics.push(diagnostic({ severity: "warning", phase: "security", category: "filesystem_denied", language: normalized, file, message: "Markdown references to local file paths are not public-safe.", source: "Markdown static policy" }));
-  return diagnostics;
+  return diagnostics.slice(0, 40);
 }
 
 export function diagnosticsBlockExecution(diagnostics) {

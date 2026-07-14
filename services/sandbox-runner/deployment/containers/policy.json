@@ -1,0 +1,21 @@
+{
+  "default": [
+    {
+      "type": "reject"
+    }
+  ],
+  "transports": {
+    "docker": {
+      "registry.example.invalid/elysia/sandbox-python": [
+        {
+          "type": "insecureAcceptAnything"
+        }
+      ],
+      "registry.example.invalid/elysia/sandbox-node": [
+        {
+          "type": "insecureAcceptAnything"
+        }
+      ]
+    }
+  }
+}

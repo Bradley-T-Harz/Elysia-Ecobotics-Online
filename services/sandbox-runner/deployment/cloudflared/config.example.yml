@@ -1,0 +1,12 @@
+# Replace placeholders directly on the server. Never commit the credential JSON.
+tunnel: REPLACE_WITH_TUNNEL_UUID
+credentials-file: /etc/cloudflared/REPLACE_WITH_TUNNEL_UUID.json
+
+originRequest:
+  connectTimeout: 5s
+  noTLSVerify: false
+
+ingress:
+  - hostname: sandbox.elysiaecobotics.com
+    service: http://127.0.0.1:8788
+  - service: http_status:404
