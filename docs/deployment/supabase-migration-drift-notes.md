@@ -1,15 +1,62 @@
 # Supabase Migration Drift Notes
 
-This repository contains many local migrations created during staged feature work. They are the source of intent for the website schema, but a passing frontend build does not prove the live Supabase project has applied every migration in order.
+The former migration directory contained 47 filenames that all parsed as the
+same Supabase version, `2026`. A read-only linked inspection on 2026-07-14 also
+found that production had no Supabase migration-history schema/table. Production
+objects existed, but file-level application history could not be proven.
+
+Those historical files are now immutable records under
+`supabase/legacy-migrations`. The active directory contains one production
+public-schema baseline followed by three additive repairs. See the legacy manifest
+for the original filename, purpose, first repository commit, and known exception.
 
 ## Current readiness stance
 
-- Do not claim fresh-project Supabase reset readiness until a clean reset has been tested in a disposable project.
+- The active baseline and all three repairs must apply with `ON_ERROR_STOP=1` in a disposable Supabase Postgres database.
 - Do not claim live Supabase readiness until the verification checklist in `docs/deployment/supabase-final-verification.md` has been completed.
-- Local migrations must be applied manually through the normal Supabase deployment process; this repo pass does not run remote migrations.
+- This local repair pass does not execute SQL or repair migration history remotely.
 - Frontend pages should continue to show clean "backend table/policy not active yet" states when optional tables are unavailable.
 
-## Drift risks to verify
+## Active migration order
+
+1. `20260714010000_remote_public_schema_baseline.sql`
+2. `20260714015000_commune_reaction_counts_security_invoker.sql`
+3. `20260714020000_repository_showcase_structured_metadata_repair.sql`
+4. `20260714030000_sandbox_proxy_access_and_reservation.sql`
+
+The baseline represents production immediately before the repairs. It contains
+project-owned `public` schema/ACL metadata only, with no rows, credentials, or
+recreation of Supabase-managed `auth`/`storage` internals. It is executable only
+for disposable validation.
+
+The final read-only `supabase migration list --linked` on 2026-07-14 showed the
+active versions locally and a blank remote column for each. That is the
+expected pre-reconciliation state; it is not evidence that any repair has been
+applied. The active baseline SHA-256 is
+`8986352533e6b37fe5cf0a533367f87f3149deda6e87117c7b05d66ceca94503`.
+
+## Production sequence — future checkpoint only
+
+The exact future order is:
+
+1. Re-run read-only migration/catalog inspection.
+2. Mark baseline version `20260714010000` applied in migration history. Never execute its SQL against existing production.
+3. Apply only the reaction-count security repair.
+4. Verify the count view is `security_invoker`, its userless aggregate table has RLS, private targets remain hidden, public counts and reaction mutations work, and the trigger helper is not executable by API roles.
+5. Record reaction-count version `20260714015000` as applied.
+6. Apply only the Repository Showcase repair.
+7. Verify its 16 fields, constraint, indexes, comments, grants, RLS, and published-plus-public behavior.
+8. Record Repository Showcase version `20260714020000` as applied.
+9. Apply only the governed-sandbox repair.
+10. Verify exact RPC signatures/owners/search paths/grants, table grants/RLS, account/source denial paths, idempotency, leases, quotas, lifecycle, and finalizer hash slot.
+11. Record sandbox version `20260714030000` as applied.
+
+Manual SQL Editor application and each migration-history repair are production
+mutations. They require a clean reviewed tree, an explicit operator checkpoint,
+and a fresh read-only comparison immediately beforehand. They were not executed
+during the local implementation pass.
+
+## Drift risks to keep verifying
 
 The most likely drift areas are:
 
@@ -23,14 +70,15 @@ The most likely drift areas are:
 - sandbox handoff request/review/event tables
 - admin audit/review helper functions and role policies
 
-## Fresh database review
+## Disposable database review
 
-Before using a brand-new Supabase project, run a local/disposable migration reset and verify:
+Before using a brand-new Supabase project, apply the active chain to a disposable
+database and verify:
 
 - migrations apply in filename order without missing dependency errors
 - every policy references existing tables, columns, functions, and enum/type names
 - helper functions are created before policies that call them
-- duplicate table-family migrations are compatible or reconciled
+- the archived duplicate table-family files are not treated as active migrations
 - `schema.sql` and `policies.sql` match the current migration intent
 
 ## Live project review
@@ -45,7 +93,9 @@ Before inviting beta users, verify the live project has:
 
 ## Manual repair policy
 
-If the live project was manually repaired, add a new reconciliation migration instead of relying on undocumented dashboard changes. Prefer idempotent statements such as:
+If the live project is manually repaired, record the reviewed version in migration
+history and add any further correction as a new uniquely timestamped migration
+instead of editing the baseline or archived files. Prefer idempotent statements such as:
 
 - `create table if not exists`
 - `alter table ... add column if not exists`

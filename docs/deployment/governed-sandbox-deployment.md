@@ -18,6 +18,7 @@ npm run test:sandbox-runner
 npm run test:sandbox-proxy
 npm run test:sandbox-deployment
 npm run test:sandbox-integration
+npm run test:sandbox-database
 npm run typecheck
 npm run typecheck:functions
 npm run build
@@ -152,9 +153,21 @@ No AppArmor profile is installed by this release. A custom container profile is 
 "${sandbox_user[@]}" systemctl --user enable elysia-sandbox-runner.service
 ```
 
-## 7. Apply the additive Supabase migration
+## 7. Reconcile Supabase history and apply the additive migrations
 
-Review and apply `supabase/migrations/2026_07_13_sandbox_proxy_access_and_reservation.sql` through the existing controlled migration workflow. It must be applied as a new migration, never by editing prior production migrations.
+Follow `docs/deployment/supabase-migration-drift-notes.md`. The active order is
+baseline history repair → reaction-count security repair → verification →
+Repository Showcase repair → verification → sandbox repair → verification.
+Never execute the baseline SQL against existing
+production and never execute or edit an archived historical file.
+
+At an explicit production checkpoint, re-run the read-only linked comparison,
+mark only `20260714010000` applied, apply and verify
+`20260714015000_commune_reaction_counts_security_invoker.sql`, then apply and
+verify `20260714020000_repository_showcase_structured_metadata_repair.sql`
+before applying `20260714030000_sandbox_proxy_access_and_reservation.sql`.
+Record each repair version as applied only after its SQL and verification gate
+succeed. Do not use a single command that silently applies all repairs.
 
 The migration:
 

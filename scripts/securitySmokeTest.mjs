@@ -28,6 +28,7 @@ function allowHit(file, line, checkName) {
   const normalized = file.replaceAll(path.sep, "/");
   const controlledSpawnScripts = new Set([
     "scripts/packageSandboxRelease.mjs",
+    "scripts/sandboxDatabaseMigrationTest.mjs",
     "scripts/sandboxDeploymentSmokeTest.mjs",
     "scripts/sandboxIntegrationSmokeTest.mjs",
     "scripts/verifySandboxRelease.mjs"
@@ -37,6 +38,17 @@ function allowHit(file, line, checkName) {
     && ["Node child process", "process spawn"].includes(checkName)
     && (/node:child_process/.test(line) || /shell:\s*false/.test(line))
   ) return true;
+  if (checkName === "service role key strings") {
+    if (normalized === "supabase/migrations/20260714010000_remote_public_schema_baseline.sql" && /(?:GRANT|ALTER DEFAULT PRIVILEGES).*\bservice_role\b/i.test(line)) return true;
+    if ([
+      "supabase/migrations/20260714015000_commune_reaction_counts_security_invoker.sql",
+      "supabase/migrations/20260714030000_sandbox_proxy_access_and_reservation.sql",
+      "supabase/schema.sql",
+      "supabase/policies.sql",
+    ].includes(normalized) && /\brevoke\b|from public, anon, authenticated, service_role/i.test(line)) return true;
+    if (normalized === "scripts/fixtures/sandboxDatabaseBehavior.sql" && /has_(?:function|table)_privilege\('service_role'/i.test(line)) return true;
+    if (normalized === "scripts/sandboxDatabaseMigrationTest.mjs" && /assert|marker|service_role/i.test(line)) return true;
+  }
   if (normalized.endsWith("scripts/securitySmokeTest.mjs")) return true;
   if ((normalized.endsWith("scripts/communeSmokeTest.mjs") || normalized.endsWith("scripts/siteContentSmokeTest.mjs")) && /scanner|fixture|assert|secret|SUPABASE_SERVICE_ROLE|service_role|BEGIN \[A-Z \]\*PRIVATE KEY|AWS_ACCESS_KEY_ID/i.test(line)) return true;
   if (normalized.endsWith("scripts/addonSdkSmokeTest.mjs") && /scanner|fixture|assert|inspect|archive|service-role|private key|package install hook|postinstall|preinstall|SUPABASE_SERVICE_ROLE|BEGIN PRIVATE KEY/i.test(line)) return true;
@@ -95,18 +107,18 @@ for (const forbiddenBrowserBinding of ["VITE_CODING_SANDBOX_ENDPOINT", "VITE_SAN
   assert(!browserSource.includes(forbiddenBrowserBinding), `${forbiddenBrowserBinding} must not exist in browser source.`);
 }
 
-const communityVoteMigration = await fs.readFile("supabase/migrations/2026_07_05_02_commune_community_voting_room.sql", "utf8");
-const softDeleteCleanupMigration = await fs.readFile("supabase/migrations/2026_07_07_commune_soft_delete_cleanup.sql", "utf8");
-const communityVoteDeleteFilterMigration = await fs.readFile("supabase/migrations/2026_07_08_commune_vote_delete_parent_filter.sql", "utf8");
-const communityVoteSoftDeleteRepairMigration = await fs.readFile("supabase/migrations/2026_07_11_fix_commune_vote_soft_delete_rpc.sql", "utf8");
+const communityVoteMigration = await fs.readFile("supabase/legacy-migrations/2026_07_05_02_commune_community_voting_room.sql", "utf8");
+const softDeleteCleanupMigration = await fs.readFile("supabase/legacy-migrations/2026_07_07_commune_soft_delete_cleanup.sql", "utf8");
+const communityVoteDeleteFilterMigration = await fs.readFile("supabase/legacy-migrations/2026_07_08_commune_vote_delete_parent_filter.sql", "utf8");
+const communityVoteSoftDeleteRepairMigration = await fs.readFile("supabase/legacy-migrations/2026_07_11_fix_commune_vote_soft_delete_rpc.sql", "utf8");
 const supabaseSchema = await fs.readFile("supabase/schema.sql", "utf8");
-const reactionMigration = await fs.readFile("supabase/migrations/2026_06_21_commune_content_reactions.sql", "utf8");
-const codeProposalMigration = await fs.readFile("supabase/migrations/2026_06_25_coding_cornucopia_author_revision_proposals.sql", "utf8");
-const troubleshootingMigration = await fs.readFile("supabase/migrations/2026_06_26_troubleshooting_grove_structured_workflow.sql", "utf8");
-const researchMigration = await fs.readFile("supabase/migrations/2026_06_26_research_notes_structured_workflow.sql", "utf8");
-const jobMigration = await fs.readFile("supabase/migrations/2026_06_26_job_post_structured_workflow.sql", "utf8");
-const iterationMigration = await fs.readFile("supabase/migrations/2026_06_26_elysia_iteration_showcase_structured_metadata.sql", "utf8");
-const officialUpdateMigration = await fs.readFile("supabase/migrations/2026_06_26_official_update_structured_workflow.sql", "utf8");
+const reactionMigration = await fs.readFile("supabase/legacy-migrations/2026_06_21_commune_content_reactions.sql", "utf8");
+const codeProposalMigration = await fs.readFile("supabase/legacy-migrations/2026_06_25_coding_cornucopia_author_revision_proposals.sql", "utf8");
+const troubleshootingMigration = await fs.readFile("supabase/legacy-migrations/2026_06_26_troubleshooting_grove_structured_workflow.sql", "utf8");
+const researchMigration = await fs.readFile("supabase/legacy-migrations/2026_06_26_research_notes_structured_workflow.sql", "utf8");
+const jobMigration = await fs.readFile("supabase/legacy-migrations/2026_06_26_job_post_structured_workflow.sql", "utf8");
+const iterationMigration = await fs.readFile("supabase/legacy-migrations/2026_06_26_elysia_iteration_showcase_structured_metadata.sql", "utf8");
+const officialUpdateMigration = await fs.readFile("supabase/legacy-migrations/2026_06_26_official_update_structured_workflow.sql", "utf8");
 const commonsCircleApi = await fs.readFile("src/pages/The-Commons-Circle/commonsCircleApi.ts", "utf8");
 const communeAccountApi = await fs.readFile("src/pages/The-Elysia-Commune/communeAccountApi.ts", "utf8");
 const communePage = await fs.readFile("src/pages/The-Elysia-Commune/index.tsx", "utf8");

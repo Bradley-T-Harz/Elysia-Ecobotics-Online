@@ -1,6 +1,6 @@
 # Official Update Data Contract
 
-Canonical migration: `supabase/migrations/2026_06_26_official_update_structured_workflow.sql`.
+Canonical migration: `supabase/legacy-migrations/2026_06_26_official_update_structured_workflow.sql`.
 
 Primary tables:
 
