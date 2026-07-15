@@ -21,10 +21,9 @@ ProtectSystem=strict
 ProtectHome=read-only
 ReadWritePaths=%h/.local/state/elysia-sandbox-runner %h/.local/share/containers
 Delegate=yes
-ProtectKernelModules=true
+# Privileged capability and UTS operations that a user manager cannot enforce
+# remain excluded; the locked account and host boundary provide that isolation.
 ProtectKernelTunables=true
-ProtectClock=true
-ProtectHostname=true
 RestrictRealtime=true
 RestrictSUIDSGID=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
