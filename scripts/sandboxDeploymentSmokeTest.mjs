@@ -137,6 +137,20 @@ assert(runnerEnvironmentExample.includes("ELYSIA_SANDBOX_RUNTIME_ROOT=/home/elys
 assert(runnerEnvironmentExample.includes("ELYSIA_SANDBOX_ACCESS_TEAM_DOMAIN=") && runnerEnvironmentExample.includes("ELYSIA_SANDBOX_ACCESS_AUDIENCE="), "Runner environment example must name the Access assertion trust configuration without including credentials.");
 const postInstallVerifier = await read("services/sandbox-runner/deployment/post-install-verify.sh");
 assert(postInstallVerifier.includes("SANDBOX_DB_FINALIZER_TOKEN") && postInstallVerifier.includes("SUPABASE_" + "SERVICE_" + "ROLE_KEY") && postInstallVerifier.includes("DOCKER_HOST") && postInstallVerifier.includes("single_key"), "Production Podman verification must reject proxy/database secrets, standby sockets, and duplicate configuration keys.");
+
+const userServiceInstaller = await read("services/sandbox-runner/deployment/install-user-service.sh");
+assert(
+  userServiceInstaller.includes('"$unit_dir/timers.target.wants"') &&
+  userServiceInstaller.includes('"$unit_dir/default.target.wants"') &&
+  userServiceInstaller.includes('run ln -sfn ../elysia-sandbox-cleanup.timer') &&
+  userServiceInstaller.includes('run ln -sfn ../elysia-sandbox-runner.service'),
+  "Root-controlled user units must receive root-created persistent enablement links."
+);
+assert(
+  !userServiceInstaller.includes("systemctl --user enable") &&
+  userServiceInstaller.includes('systemctl --user start elysia-sandbox-cleanup.timer'),
+  "The unprivileged service account must not be asked to write enablement links inside the root-controlled unit directory."
+);
 const deploymentGuide = await read("docs/deployment/governed-sandbox-deployment.md");
 assert(deploymentGuide.includes("-m 0640 -o root -g elysia-sandbox") && deploymentGuide.includes("-m 0755 -o root -g root /home/elysia-sandbox/.config/systemd"), "Service environment and user-unit paths must remain root-controlled rather than writable by the runner account.");
 const legalPages = await read("src/pages/Legal/legalPolicyPages.ts");
