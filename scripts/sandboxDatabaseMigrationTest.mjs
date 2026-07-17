@@ -23,12 +23,31 @@ function run(bin, args, { allowFailure = false } = {}) {
   });
 }
 
-const activePaths = [
+const baselinePaths = [
   "supabase/migrations/20260714010000_remote_public_schema_baseline.sql",
   "supabase/migrations/20260714015000_commune_reaction_counts_security_invoker.sql",
   "supabase/migrations/20260714020000_repository_showcase_structured_metadata_repair.sql",
   "supabase/migrations/20260714030000_sandbox_proxy_access_and_reservation.sql",
 ];
+
+const economicPaths = [
+  "supabase/migrations/20260716010000_badge_security_and_semantics_hardening.sql",
+  "supabase/migrations/20260716011000_notification_read_state_hardening.sql",
+  "supabase/migrations/20260716011500_economic_notification_authenticity.sql",
+  "supabase/migrations/20260716012000_marketplace_identifier_compatibility.sql",
+  "supabase/migrations/20260716020000_private_economic_core.sql",
+  "supabase/migrations/20260716021000_economic_test_provider_catalog.sql",
+  "supabase/migrations/20260716030000_sandbox_credit_ledger_and_metering.sql",
+  "supabase/migrations/20260716032000_economic_operator_separation_of_duties.sql",
+  "supabase/migrations/20260716034000_sandbox_credit_commerce_and_compensation.sql",
+  "supabase/migrations/20260716040000_job_post_economic_sidecar_and_publication_gate.sql",
+  "supabase/migrations/20260716050000_marketplace_commerce_licenses_and_seller_accounting.sql",
+  "supabase/migrations/20260716060000_organization_sponsorship_waiver_sidecars.sql",
+  "supabase/migrations/20260716070000_economic_projections_reporting_notifications_lifecycle.sql",
+  "supabase/migrations/20260716071000_economic_route_kill_switch_boundaries.sql",
+];
+
+const activePaths = [...baselinePaths, ...economicPaths];
 
 const legacyHashes = new Map(Object.entries({
   "2026_06_02_profile_bootstrap_for_saved_addons.sql": "8750ff6eec1865b10543353131654843411b1ceea27bef19f3933671edf99364",
@@ -81,7 +100,7 @@ const legacyHashes = new Map(Object.entries({
 }));
 
 const activeNames = (await fs.readdir("supabase/migrations")).filter((name) => name.endsWith(".sql")).sort();
-assert(activeNames.length === 4, `Expected exactly four active migrations, found ${activeNames.length}.`);
+assert(activeNames.length === activePaths.length, `Expected exactly ${activePaths.length} active migrations, found ${activeNames.length}.`);
 assert(activeNames.every((name) => /^\d{14}_[a-z0-9_]+\.sql$/.test(name)), "Every active migration needs a unique 14-digit Supabase version.");
 assert(activeNames.join("\n") === activePaths.map((value) => path.basename(value)).join("\n"), "Active migration order or filenames changed.");
 
@@ -106,6 +125,160 @@ const [baseline, reactionMigration, repositoryMigration, sandboxMigration, schem
   fs.readFile("supabase/schema.sql", "utf8"),
   fs.readFile("supabase/policies.sql", "utf8"),
 ]);
+
+const economicMigrations = await Promise.all(economicPaths.map((file) => fs.readFile(file, "utf8")));
+const routeKillSwitchMigration = economicMigrations.at(-1);
+assert(routeKillSwitchMigration, "Economic route kill-switch migration is missing.");
+const economicBehaviorFixture = await fs.readFile("scripts/fixtures/economicDatabaseBehavior.sql", "utf8");
+for (const [index, migration] of economicMigrations.entries()) {
+  assert(migration.startsWith("--"), `${economicPaths[index]} needs an explanatory header.`);
+  assert(/^begin;/im.test(migration), `${economicPaths[index]} must start a transaction.`);
+  assert(/commit;\s*$/i.test(migration), `${economicPaths[index]} must commit atomically.`);
+  assert(!/postgres(?:ql)?:\/\//i.test(migration), `${economicPaths[index]} contains a connection string.`);
+  assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${economicPaths[index]} contains a token-like value.`);
+}
+const economicSource = economicMigrations.join("\n");
+const economicPlpgsqlFunctions = [...new Set(
+  [...economicSource.matchAll(/create or replace function\s+(public|private)\.([a-z0-9_]+)\s*\(/gi)]
+    .map((match) => `${match[1].toLowerCase()}.${match[2].toLowerCase()}`),
+)];
+for (const marker of [
+  "private.economic_orders", "private.economic_payment_transactions",
+  "private.economic_subscriptions", "private.economic_refunds",
+  "private.economic_disputes", "private.economic_operator_assignments",
+  "private.sandbox_credit_ledger_entries", "private.job_post_economic_conditions",
+  "private.marketplace_licenses", "private.organization_service_engagements",
+  "private.sponsorship_agreements", "private.economic_assistance_programs",
+  "public.process_economic_provider_event", "public.current_user_economic_account_summary",
+  "public.current_user_economic_operator_overview", "public.current_user_economic_audit_events",
+  "PREPARE TEST MARKETPLACE PAYOUT", "economic_marketplace_payout_execution_unavailable",
+  "providerExecutionAvailable", "paymentTransactionId", "sponsorship_checkout",
+  "organizationServiceCheckoutEnabled", "sponsorshipCheckoutEnabled",
+  "recognitionPreferenceAvailable",
+  "private.sandbox_credit_recurring_payment_fulfillments",
+  "private.sandbox_credit_recurring_adjustment_shortfalls",
+  "public.set_sandbox_test_credit_program_status",
+  "public.operator_grant_sandbox_credit_program",
+  "sandboxCreditTerms",
+  "economic_customer_portal_rate_limited",
+  "marketplace_seller_onboarding_rate_limited",
+  "marketplace_seller_status_rate_limited",
+  "private.economic_seller_provider_status_requests",
+  "private.marketplace_fulfillment_holds",
+  "marketplace_paid_fulfillment_quarantined",
+  "marketplace_fulfillment_review",
+  "private.job_post_payment_holds",
+  "private.job_post_checkout_is_eligible",
+  "job_post_payment_quarantined",
+  "job_post_payment_review",
+  "private.organization_sponsorship_settlement_holds",
+  "organization_service_payment_review",
+  "sponsorship_payment_review",
+  "organization_service_settlement_hold",
+  "sponsorship_settlement_hold",
+  "economic_operator_ineligible_assignment_closed",
+  "break_glass_recovery",
+  "public.expire_stale_economic_checkouts",
+  "public.attach_economic_checkout_billing_customer",
+  "checkout_billing_customer_attached",
+  "economic_billing_customer_required",
+  "private.economic_account_is_recoverable",
+  "economic_recoverable_account_required",
+  "economic_billing_customer_initialization_in_progress",
+  "checkout_session_expired",
+  "v_projected_order_status",
+]) assert(economicSource.includes(marker), `Economic migration chain omits ${marker}.`);
+for (const marker of [
+  "evt_payment_success_delivered_after_refund",
+  "evt_payment_success_delivered_after_dispute"
+]) assert(economicBehaviorFixture.includes(marker), `Economic disposable fixture omits ${marker}.`);
+assert(
+  economicBehaviorFixture.includes("unresolved Marketplace fulfillment hold revived license, entitlement, or payable state"),
+  "Economic disposable fixture omits Marketplace hold non-revival coverage."
+);
+assert(
+  /checkout_expires_at\s*=\s*pg_catalog\.now\(\)\s*\+\s*interval '35 minutes'/i.test(economicSource)
+    && /expire_stale_economic_checkouts_core\(20, p_actor_user_id\)/i.test(economicSource),
+  "Account-linked Checkout initialization must retain a bounded, skew-safe stale-session recovery path.",
+);
+assert(
+  economicSource.includes("check (row_limit between 1 and 100)")
+    && economicSource.includes("p_limit not between 1 and 100")
+    && economicSource.includes("economic_accounting_export_rate_limited")
+    && economicSource.includes("economic_accounting_export_actions_actor_created_idx"),
+  "Accounting exports must stay within the browser transport bound and a server-side generation rate bound.",
+);
+assert(
+  /revoke all privileges on function public\.process_economic_provider_event\(text, text, text, timestamptz, text, jsonb\)[\s\S]*from public, anon, authenticated, service_role;/i.test(economicSource),
+  "Verified webhook state mutation must be server-only.",
+);
+assert(
+  /grant execute on function public\.current_user_economic_account_summary\(\) to authenticated;/i.test(economicSource),
+  "The self-only account projection must remain available to authenticated users.",
+);
+assert(
+  /drop function public\.request_economic_account_action\(uuid, text, text, text\);/i.test(routeKillSwitchMigration)
+    && /revoke all privileges on function public\.request_economic_account_action\(uuid, uuid, text, text, text\)[\s\S]*?from public, anon, authenticated, service_role;/i.test(routeKillSwitchMigration)
+    && /grant execute on function public\.request_economic_account_action\(uuid, uuid, text, text, text\)\s+to service_role;/i.test(routeKillSwitchMigration)
+    && !/grant execute on function public\.request_economic_account_action\([^)]*\)\s+to (?:anon|authenticated)/i.test(routeKillSwitchMigration),
+  "Economic account actions must remain Worker-only after verified actor derivation.",
+);
+for (const recognitionFunction of ["public_support_recognition", "public_sponsorship_recognition"]) {
+  assert(
+    new RegExp(`revoke all privileges on function public\\.${recognitionFunction}\\(\\)[\\s\\S]*?from public, anon, authenticated, service_role;`, "i").test(routeKillSwitchMigration)
+      && new RegExp(`grant execute on function public\\.${recognitionFunction}\\(\\)\\s+to service_role;`, "i").test(routeKillSwitchMigration)
+      && !new RegExp(`grant execute on function public\\.${recognitionFunction}\\(\\)\\s+to (?:anon|authenticated)`, "i").test(routeKillSwitchMigration),
+    `Public ${recognitionFunction} projection must be loaded only by the environment-gated Worker endpoint.`,
+  );
+}
+const declaredEconomicPublicFunctions = new Set(
+  [...economicSource.matchAll(/create or replace function\s+public\.([a-z0-9_]+)\s*\(/gi)]
+    .map((match) => match[1]),
+);
+const aclManifestFunctions = new Set(
+  [...economicBehaviorFixture.matchAll(/'public\.([a-z0-9_]+)\([^']*\)'::regprocedure/gi)]
+    .map((match) => match[1]),
+);
+const hardenedExistingBadgeFunctions = new Set([
+  "create_badge_credit_event", "grant_user_badge", "revoke_badge_credit_event",
+]);
+for (const functionName of declaredEconomicPublicFunctions) {
+  assert(aclManifestFunctions.has(functionName), `Economic ACL manifest omits public.${functionName}.`);
+}
+for (const functionName of hardenedExistingBadgeFunctions) {
+  assert(aclManifestFunctions.has(functionName), `Economic ACL manifest omits hardened public.${functionName}.`);
+}
+for (const functionName of aclManifestFunctions) {
+  assert(
+    declaredEconomicPublicFunctions.has(functionName) || hardenedExistingBadgeFunctions.has(functionName),
+    `Economic ACL manifest contains an unmanaged function: public.${functionName}.`,
+  );
+}
+const publicSupportProjection = economicSource.match(
+  /create or replace function public\.public_support_recognition\(\)[\s\S]*?\n\$\$;/i,
+);
+assert(publicSupportProjection, "Public support recognition projection is missing.");
+assert(!publicSupportProjection[0].includes("'profileId'"), "Public support recognition must not expose an auth/profile UUID.");
+assert(publicSupportProjection[0].includes("'username'"), "Public support recognition needs a bounded public handle.");
+const economicOperatorOverview = economicSource.match(
+  /create or replace function public\.current_user_economic_operator_overview\(\)[\s\S]*?\n\$\$;/gi,
+);
+assert(economicOperatorOverview?.length, "Economic operator overview projection is missing.");
+const finalEconomicOperatorOverview = economicOperatorOverview.at(-1);
+assert(finalEconomicOperatorOverview.includes("'queueLimit', 10"), "Economic operator overview queue limit must remain 10.");
+assert(!/\blimit\s+50\b/i.test(finalEconomicOperatorOverview), "Economic operator overview contains an oversized queue.");
+assert(
+  /'featureFlags'[\s\S]*?where feature_key = any\(array\[[\s\S]*?limit 25/i.test(finalEconomicOperatorOverview),
+  "Economic operator feature flags need an explicit reviewed allowlist and hard maximum.",
+);
+assert(
+  /create trigger economic_payments_grant_recurring_sandbox_program[\s\S]*?private\.grant_recurring_sandbox_program_from_payment\(\)/i.test(economicSource),
+  "Configured recurring sandbox programs need transaction-scoped fulfillment.",
+);
+assert(
+  !/drop trigger if exists economic_payments_grant_recurring_sandbox_program/i.test(economicSource),
+  "Recurring sandbox program fulfillment is disconnected from verified payments.",
+);
 
 assert(baseline.startsWith("-- REMOTE PUBLIC-SCHEMA BASELINE — HISTORY RECONCILIATION ONLY."), "Baseline warning header missing.");
 assert(baseline.includes("NEVER execute this baseline against the existing production project"), "Baseline production prohibition missing.");
@@ -173,11 +346,18 @@ for (const match of protectedFunctionMatches) {
 }
 assert((sandboxMigration.match(/owner to postgres;/gi) || []).length === 11, "Private schema/table and all nine protected functions must be postgres-owned.");
 
-for (const snapshot of [schemaSnapshot, policySnapshot]) {
-  assert(snapshot.includes("-- Active migration repair snapshot (2026-07-14)."), "Snapshot repair marker missing.");
-  assert(snapshot.includes(reactionMigration.trim()), "Snapshot is not synchronized with the reaction-count repair.");
-  assert(snapshot.includes(repositoryMigration.trim()), "Snapshot is not synchronized with the Repository repair.");
-  assert(snapshot.endsWith(`${sandboxMigration.trim()}\n`), "Snapshot is not synchronized with the sandbox repair.");
+for (const [snapshotPath, snapshot] of [
+  ["supabase/schema.sql", schemaSnapshot],
+  ["supabase/policies.sql", policySnapshot],
+]) {
+  assert(snapshot.includes("-- Active migration repair snapshot (2026-07-14)."), `${snapshotPath} is missing its pre-economic 2026-07-14 repair marker.`);
+  assert(snapshot.includes(reactionMigration.trim()), `${snapshotPath} does not contain the complete 2026-07-14 reaction-count repair checkpoint.`);
+  assert(snapshot.includes(repositoryMigration.trim()), `${snapshotPath} does not contain the complete 2026-07-14 Repository repair checkpoint.`);
+  assert(snapshot.endsWith(`${sandboxMigration.trim()}\n`), `${snapshotPath} must end at the pre-economic 2026-07-14 sandbox repair checkpoint.`);
+  assert(
+    !snapshot.includes("private.economic_feature_flags") && !snapshot.includes("private.economic_orders"),
+    `${snapshotPath} unexpectedly contains forward 20260716 economic state; it is a pre-economic reference snapshot, not a synchronized current schema.`,
+  );
 }
 
 console.log("Sandbox database migration static checks ok.");
@@ -189,10 +369,28 @@ if (process.env.ELYSIA_SANDBOX_DATABASE_INTEGRATION !== "1") {
 
 const image = process.env.ELYSIA_SUPABASE_POSTGRES_IMAGE || "public.ecr.aws/supabase/postgres:17.6.1.127";
 const container = `elysia-sandbox-migration-test-${process.pid}`;
+const requestedRuntime = process.env.ELYSIA_CONTAINER_RUNTIME?.trim();
+
+async function selectContainerRuntime() {
+  const candidates = requestedRuntime ? [requestedRuntime] : ["podman", "docker"];
+  const failures = [];
+  for (const candidate of candidates) {
+    const probe = await run(candidate, ["version"], { allowFailure: true }).catch((error) => ({
+      code: -1,
+      stderr: error instanceof Error ? error.message : String(error),
+      stdout: "",
+    }));
+    if (probe.code === 0) return candidate;
+    failures.push(`${candidate}: ${(probe.stderr || probe.stdout || `exit ${probe.code}`).trim()}`);
+  }
+  throw new Error(`No usable rootless/user-scoped container runtime was found.\n${failures.join("\n")}`);
+}
+
+const containerRuntime = await selectContainerRuntime();
 let started = false;
 try {
-  await run("docker", ["version", "--format", "{{.Server.Version}}"]);
-  await run("docker", [
+  console.log(`Using disposable container runtime: ${containerRuntime}.`);
+  await run(containerRuntime, [
     "run", "--rm", "--name", container,
     "-e", "POSTGRES_PASSWORD=elysia_disposable_only",
     "-d", image,
@@ -200,21 +398,34 @@ try {
   started = true;
 
   const deadline = Date.now() + 60_000;
+  let databaseReady = false;
   while (Date.now() < deadline) {
-    const state = await run("docker", ["inspect", container, "--format", "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}"], { allowFailure: true });
-    if (state.code === 0 && state.stdout.trim() === "healthy") break;
+    const readiness = await run(containerRuntime, [
+      "exec", container, "pg_isready", "-q", "-U", "supabase_admin", "-d", "postgres",
+    ], { allowFailure: true });
+    if (readiness.code === 0) {
+      databaseReady = true;
+      break;
+    }
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
-  const health = await run("docker", ["inspect", container, "--format", "{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}"]).then((result) => result.stdout.trim());
-  assert(health === "healthy", `Disposable database did not become healthy: ${health}.`);
-
-  for (const file of [...activePaths, "scripts/fixtures/sandboxDatabaseBehavior.sql"]) {
-    await run("docker", ["cp", file, `${container}:/tmp/${path.basename(file)}`]);
+  if (!databaseReady) {
+    const state = await run(containerRuntime, ["inspect", container, "--format", "{{.State.Status}}"], { allowFailure: true });
+    const logs = await run(containerRuntime, ["logs", "--tail", "80", container], { allowFailure: true });
+    throw new Error(`Disposable database did not become ready (state: ${state.stdout.trim() || "unknown"}).\n${logs.stderr || logs.stdout}`);
   }
 
-  const psql = async (args) => run("docker", ["exec", container, "psql", "-q", "-v", "ON_ERROR_STOP=1", "-U", "supabase_admin", "-d", "postgres", ...args]);
+  for (const file of [
+    ...activePaths,
+    "scripts/fixtures/sandboxDatabaseBehavior.sql",
+    "scripts/fixtures/economicDatabaseBehavior.sql",
+  ]) {
+    await run(containerRuntime, ["cp", file, `${container}:/tmp/${path.basename(file)}`]);
+  }
 
-  const invalidOrder = await run("docker", [
+  const psql = async (args) => run(containerRuntime, ["exec", container, "psql", "-q", "-v", "ON_ERROR_STOP=1", "-U", "supabase_admin", "-d", "postgres", ...args]);
+
+  const invalidOrder = await run(containerRuntime, [
     "exec", container, "psql", "-q", "-v", "ON_ERROR_STOP=1",
     "-U", "supabase_admin", "-d", "postgres",
     "-f", `/tmp/${path.basename(activePaths[1])}`,
@@ -225,7 +436,7 @@ try {
     "Invalid-order failure did not identify the missing Commune reaction prerequisite.",
   );
 
-  const invalidRepositoryOrder = await run("docker", [
+  const invalidRepositoryOrder = await run(containerRuntime, [
     "exec", container, "psql", "-q", "-v", "ON_ERROR_STOP=1",
     "-U", "supabase_admin", "-d", "postgres",
     "-f", `/tmp/${path.basename(activePaths[2])}`,
@@ -240,7 +451,7 @@ try {
 
   // The currently cached Supabase Postgres image has an older auth.users test
   // fixture. Production was verified read-only to have these exact columns.
-  await psql(["-c", "alter table auth.users add column if not exists banned_until timestamptz, add column if not exists deleted_at timestamptz, add column if not exists is_anonymous boolean not null default false;"]);
+  await psql(["-c", "alter table auth.users add column if not exists banned_until timestamptz, add column if not exists deleted_at timestamptz, add column if not exists is_anonymous boolean not null default false, add column if not exists email_confirmed_at timestamptz;"]);
 
   await psql(["-c", `
     alter table public.commune_repository_showcases add column sandbox_review_status text;
@@ -251,7 +462,7 @@ try {
     insert into public.commune_repository_showcases(id, user_id, post_id, repository_url, status, sandbox_review_status)
       values ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'https://example.invalid/drift-probe', 'pending_review', 'unexpected_drift_value');
   `]);
-  const incompatibleDrift = await run("docker", [
+  const incompatibleDrift = await run(containerRuntime, [
     "exec", container, "psql", "-q", "-v", "ON_ERROR_STOP=1",
     "-U", "supabase_admin", "-d", "postgres",
     "-f", `/tmp/${path.basename(activePaths[2])}`,
@@ -283,7 +494,64 @@ try {
   await psql(["-f", `/tmp/${path.basename(activePaths[3])}`]);
   const behavior = await psql(["-f", "/tmp/sandboxDatabaseBehavior.sql"]);
   assert(behavior.stdout.includes("sandbox_database_behavior_ok"), "Disposable database behavior marker missing.");
-  console.log("Sandbox database disposable migration and behavior checks ok.");
+  for (const file of economicPaths) {
+    await psql(["-f", `/tmp/${path.basename(file)}`]);
+  }
+  const economicBehavior = await psql(["-f", "/tmp/economicDatabaseBehavior.sql"]);
+  assert(economicBehavior.stdout.includes("Economic database behavior checks ok."), "Economic database behavior marker missing.");
+
+  const catalogIntegrity = await psql(["-tAc", `
+    select
+      (select count(*) from pg_catalog.pg_index index_state
+       join pg_catalog.pg_class indexed_relation on indexed_relation.oid = index_state.indexrelid
+       join pg_catalog.pg_namespace indexed_namespace on indexed_namespace.oid = indexed_relation.relnamespace
+       where indexed_namespace.nspname in ('public', 'private')
+         and (not index_state.indisvalid or not index_state.indisready))
+      || '|' ||
+      (select count(*) from pg_catalog.pg_constraint constraint_state
+       join pg_catalog.pg_namespace constraint_namespace on constraint_namespace.oid = constraint_state.connamespace
+       where constraint_namespace.nspname in ('public', 'private')
+         and not constraint_state.convalidated);
+  `]);
+  assert(catalogIntegrity.stdout.trim() === "0|0", `Invalid indexes or unvalidated constraints remain: ${catalogIntegrity.stdout.trim()}.`);
+
+  const plpgsqlCheckAvailable = await psql(["-tAc", "select exists (select 1 from pg_catalog.pg_available_extensions where name = 'plpgsql_check');"]);
+  if (plpgsqlCheckAvailable.stdout.trim() === "t") {
+    await psql(["-c", "create extension if not exists plpgsql_check;"]);
+    const lintTargets = economicPlpgsqlFunctions.map((name) => `'${name}'`).join(", ");
+    const lintErrors = await psql(["-tAc", `
+      select count(*)
+      from pg_catalog.pg_proc checked_function
+      join pg_catalog.pg_namespace checked_namespace on checked_namespace.oid = checked_function.pronamespace
+      join pg_catalog.pg_language checked_language on checked_language.oid = checked_function.prolang
+      cross join lateral public.plpgsql_check_function_tb(checked_function.oid, fatal_errors := false) lint
+      where checked_namespace.nspname || '.' || checked_function.proname = any (array[${lintTargets}]::text[])
+        and checked_language.lanname = 'plpgsql'
+        and checked_function.prokind = 'f'
+        and checked_function.prorettype <> 'pg_catalog.trigger'::pg_catalog.regtype
+        and pg_catalog.lower(coalesce(lint.level, '')) in ('error', 'fatal');
+    `]);
+    if (lintErrors.stdout.trim() !== "0") {
+      const lintDetails = await psql(["-AtF", " | ", "-c", `
+        select checked_function.oid::pg_catalog.regprocedure, lint.level, lint.sqlstate, lint.message, lint.lineno, lint.statement
+        from pg_catalog.pg_proc checked_function
+        join pg_catalog.pg_namespace checked_namespace on checked_namespace.oid = checked_function.pronamespace
+        join pg_catalog.pg_language checked_language on checked_language.oid = checked_function.prolang
+        cross join lateral public.plpgsql_check_function_tb(checked_function.oid, fatal_errors := false) lint
+        where checked_namespace.nspname || '.' || checked_function.proname = any (array[${lintTargets}]::text[])
+          and checked_language.lanname = 'plpgsql'
+          and checked_function.prokind = 'f'
+          and checked_function.prorettype <> 'pg_catalog.trigger'::pg_catalog.regtype
+          and pg_catalog.lower(coalesce(lint.level, '')) in ('error', 'fatal')
+        order by checked_function.oid::pg_catalog.regprocedure::text, lint.lineno;
+      `]);
+      assert(false, `plpgsql_check found ${lintErrors.stdout.trim()} error-level findings in economic functions:\n${lintDetails.stdout.trim()}`);
+    }
+    console.log(`plpgsql_check found no error-level findings across ${economicPlpgsqlFunctions.length} economic function names.`);
+  } else {
+    console.log("plpgsql_check is not available in the disposable Supabase Postgres image; catalog integrity checks still passed.");
+  }
+  console.log("Sandbox and economic database disposable migration and behavior checks ok.");
 } finally {
-  if (started) await run("docker", ["rm", "-f", container], { allowFailure: true });
+  if (started) await run(containerRuntime, ["rm", "-f", container], { allowFailure: true });
 }

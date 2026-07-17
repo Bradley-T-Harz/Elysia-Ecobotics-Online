@@ -6,11 +6,15 @@ found that production had no Supabase migration-history schema/table. Production
 objects existed, but file-level application history could not be proven.
 
 Those historical files are now immutable records under
-`supabase/legacy-migrations`. The active directory contains one production
-public-schema baseline followed by three additive repairs. See the legacy manifest
-for the original filename, purpose, first repository commit, and known exception.
+`supabase/legacy-migrations`. The first four active-directory files are one
+production public-schema baseline followed by three additive repairs. That is
+the completed pre-economic 2026-07-14 checkpoint, not the whole current
+repository chain. The later `20260716...` economic migrations are forward
+repository declarations whose presence does not prove hosted application. See
+the legacy manifest for the original filename, purpose, first repository commit,
+and known exception.
 
-## Current installed checkpoint
+## Historical installed checkpoint (2026-07-14)
 
 - The active baseline and all three repairs must apply with `ON_ERROR_STOP=1` in a disposable Supabase Postgres database.
 - On 2026-07-14, the operator completed the baseline history reconciliation and applied each of the three additive repairs separately, with the documented read-only verification gate between them.
@@ -18,7 +22,7 @@ for the original filename, purpose, first repository commit, and known exception
 - The database layer being installed does not enable execution: the finalizer hash remains NULL and the Pages/runner kill switches remain off.
 - Frontend pages should continue to show clean "backend table/policy not active yet" states when optional tables are unavailable.
 
-## Active migration order
+## Pre-economic reconciliation order
 
 1. `20260714010000_remote_public_schema_baseline.sql`
 2. `20260714015000_commune_reaction_counts_security_invoker.sql`
@@ -74,14 +78,16 @@ The most likely drift areas are:
 
 ## Disposable database regression
 
-Before using a brand-new Supabase project, apply the active chain to a disposable
-database and verify:
+Before using a brand-new Supabase project, apply the complete current active
+chain to a disposable database and verify:
 
 - migrations apply in filename order without missing dependency errors
 - every policy references existing tables, columns, functions, and enum/type names
 - helper functions are created before policies that call them
 - the archived duplicate table-family files are not treated as active migrations
-- `schema.sql` and `policies.sql` match the current migration intent
+- `schema.sql` and `policies.sql` contain the complete pre-economic 2026-07-14
+  repair checkpoint, end at the sandbox repair, and intentionally omit the
+  `20260716...` forward economic state
 
 ## Live project activation review
 
