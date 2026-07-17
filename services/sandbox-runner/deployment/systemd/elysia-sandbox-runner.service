@@ -16,14 +16,10 @@ TimeoutStopSec=30s
 KillMode=control-group
 UMask=0077
 LimitCORE=0
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=read-only
-ReadWritePaths=%h/.local/state/elysia-sandbox-runner %h/.local/share/containers
 Delegate=yes
-# Privileged capability and UTS operations that a user manager cannot enforce
-# remain excluded; the locked account and host boundary provide that isolation.
-ProtectKernelTunables=true
+# Rootless Podman requires user and mount namespace setup. Outer-service
+# namespace protections that block Podman are intentionally omitted; each
+# execution container enforces the stronger per-job isolation boundary.
 RestrictRealtime=true
 RestrictSUIDSGID=true
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK

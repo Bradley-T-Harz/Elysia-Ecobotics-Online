@@ -106,33 +106,66 @@ assert(schemaSnapshot.includes("Governed sandbox schema snapshot") && schemaSnap
 assert(policySnapshot.includes("Governed sandbox policy snapshot") && policySnapshot.includes("grant execute on function public.finalize_commune_sandbox_run"), "Supabase policy snapshot is not reconciled with final grants.");
 
 const serviceUnit = await read("services/sandbox-runner/deployment/systemd/elysia-sandbox-runner.service");
-assert(serviceUnit.includes("ProtectSystem=strict") && serviceUnit.includes("ProtectHome=read-only") && serviceUnit.includes("ReadWritePaths=%h/.local/state/elysia-sandbox-runner %h/.local/share/containers") && serviceUnit.includes("Delegate=yes"), "Runner user unit hardening or rootless Podman writable/delegation boundary is incomplete.");
-assert(serviceUnit.includes("LimitCORE=0"), "Runner user unit must disable core dumps.");
 assert(
-  serviceUnit.includes("ProtectKernelTunables=true")
+  serviceUnit.includes("Delegate=yes")
     && serviceUnit.includes("RestrictRealtime=true")
-    && serviceUnit.includes("RestrictSUIDSGID=true"),
-  "Runner user unit must retain compatible unprivileged hardening."
+    && serviceUnit.includes("RestrictSUIDSGID=true")
+    && serviceUnit.includes("RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK")
+    && serviceUnit.includes("LockPersonality=true"),
+  "Runner user unit compatible rootless-Podman hardening is incomplete."
 );
 assert(
-  !serviceUnit.includes("ProtectKernelModules=")
-    && !serviceUnit.includes("ProtectClock=")
-    && !serviceUnit.includes("ProtectHostname="),
-  "Runner user unit must omit directives requiring privileged capability or UTS namespace setup."
+  serviceUnit.includes("LimitCORE=0") && serviceUnit.includes("UMask=0077"),
+  "Runner user unit must disable core dumps and retain its restrictive umask."
 );
-assert(!serviceUnit.includes("NoNewPrivileges=true") && !serviceUnit.includes("ProtectControlGroups=true"), "The outer service must not block rootless Podman's newuidmap or delegated cgroup setup; no-new-privileges remains mandatory inside each container.");
+for (const incompatibleDirective of [
+  "PrivateTmp=",
+  "ProtectSystem=",
+  "ProtectHome=",
+  "ReadWritePaths=",
+  "ProtectKernelTunables=",
+  "ProtectKernelModules=",
+  "ProtectClock=",
+  "ProtectHostname=",
+  "NoNewPrivileges=",
+  "ProtectControlGroups="
+]) {
+  assert(
+    !serviceUnit.includes(incompatibleDirective),
+    `Runner user unit must omit rootless-Podman-incompatible directive ${incompatibleDirective}`
+  );
+}
+
 const cleanupUnit = await read("services/sandbox-runner/deployment/systemd/elysia-sandbox-cleanup.service");
-assert(cleanupUnit.includes("ProtectSystem=strict") && cleanupUnit.includes("ProtectHome=read-only") && cleanupUnit.includes("ReadWritePaths=%h/.local/state/elysia-sandbox-runner %h/.local/share/containers") && cleanupUnit.includes("Delegate=yes"), "Cleanup user unit must be able to remove rootless Podman containers and storage state.");
-assert(cleanupUnit.includes("LimitCORE=0"), "Cleanup user unit must disable core dumps.");
 assert(
-  cleanupUnit.includes("ProtectKernelTunables=true"),
-  "Cleanup user unit must retain compatible unprivileged hardening."
+  cleanupUnit.includes("Delegate=yes")
+    && cleanupUnit.includes("RestrictRealtime=true")
+    && cleanupUnit.includes("RestrictSUIDSGID=true")
+    && cleanupUnit.includes("RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK")
+    && cleanupUnit.includes("LockPersonality=true"),
+  "Cleanup user unit compatible rootless-Podman hardening is incomplete."
 );
 assert(
-  !cleanupUnit.includes("ProtectKernelModules="),
-  "Cleanup user unit must omit capability hardening that an unprivileged user manager cannot apply."
+  cleanupUnit.includes("LimitCORE=0") && cleanupUnit.includes("UMask=0077"),
+  "Cleanup user unit must disable core dumps and retain its restrictive umask."
 );
-assert(!cleanupUnit.includes("NoNewPrivileges=true") && !cleanupUnit.includes("ProtectControlGroups=true"), "The cleanup service must not block rootless Podman's newuidmap or delegated cgroup setup.");
+for (const incompatibleDirective of [
+  "PrivateTmp=",
+  "ProtectSystem=",
+  "ProtectHome=",
+  "ReadWritePaths=",
+  "ProtectKernelTunables=",
+  "ProtectKernelModules=",
+  "ProtectClock=",
+  "ProtectHostname=",
+  "NoNewPrivileges=",
+  "ProtectControlGroups="
+]) {
+  assert(
+    !cleanupUnit.includes(incompatibleDirective),
+    `Cleanup user unit must omit rootless-Podman-incompatible directive ${incompatibleDirective}`
+  );
+}
 const containerRunner = await read("services/sandbox-runner/dockerRunner.mjs");
 assert(containerRunner.includes("cleanupOrphanContainers") && containerRunner.includes("label=io.elysia.sandbox=true") && containerRunner.includes("preserveRecent"), "Crash-safe strict container orphan cleanup is missing.");
 assert(containerRunner.includes('config.engine === "podman" ? ["--time", "0"]'), "Podman force removal must bypass its default stop grace period before verifying absence.");
