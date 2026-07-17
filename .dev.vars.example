@@ -9,3 +9,7 @@ CLOUDFLARE_ACCESS_CLIENT_ID="replace-directly-in-local-file"
 CLOUDFLARE_ACCESS_CLIENT_SECRET="replace-directly-in-local-file"
 SUPABASE_URL="https://project-ref.supabase.co"
 SUPABASE_PUBLISHABLE_KEY="replace-with-publishable-key"
+
+# This file belongs only to the Pages/sandbox process. Never add Stripe,
+# webhook, payout, banking, or Supabase service-role secrets. Use the separate
+# ignored billing-worker local file described by .dev.vars.billing.example.

@@ -11,18 +11,58 @@ function assert(condition, message) {
   }
 }
 
+const documentShell = await fs.readFile("index.html", "utf8");
+assert(
+  /<meta\s+name="referrer"\s+content="no-referrer"\s*\/?>/.test(documentShell),
+  "The document shell must not leak guest order references or recovery URLs through browser referrers."
+);
+
 const checks = [
   { name: "service role key strings", pattern: /SERVICE_ROLE|SUPABASE_SERVICE|SUPABASE_SERVICE_ROLE|service_role/ },
   { name: "private key material", pattern: /BEGIN [A-Z ]*PRIVATE KEY/ },
   { name: "obvious OpenAI key", pattern: /\bsk-[A-Za-z0-9_-]{20,}\b/ },
+  { name: "Stripe secret material", pattern: /\b(?:sk|rk)_(?:test|live)_[A-Za-z0-9]{16,}\b/ },
+  { name: "Stripe webhook secret material", pattern: /\bwhsec_[A-Za-z0-9]{16,}\b/ },
+  { name: "Supabase secret material", pattern: /\bsb_secret_[A-Za-z0-9_-]{16,}\b/ },
   { name: "GitHub token", pattern: /\b(ghp_|github_pat_)[A-Za-z0-9_]{20,}\b/ },
   { name: "runtime eval", pattern: /\beval\s*\(/ },
   { name: "Function constructor", pattern: /new Function\s*\(/ },
   { name: "Node child process", pattern: /\bchild_process\b/ },
-  { name: "process exec", pattern: /\bexec\s*\(/ },
+  { name: "process exec", pattern: /(?<!\.)\bexec(?:File)?(?:Sync)?\s*\(/ },
   { name: "process spawn", pattern: /\bspawn\s*\(/ },
   { name: "package hook execution", pattern: /\b(postinstall|preinstall)\b/ }
 ];
+
+const readOnlyInventorySource = await fs.readFile("scripts/supabaseReadOnlyInventory.mjs", "utf8");
+const readOnlyInventoryUsesControlledPsqlSpawn = /spawn\(\s*"psql"\s*,\s*\[\s*"--no-psqlrc"\s*,\s*"--quiet"\s*,\s*"--set"\s*,\s*"ON_ERROR_STOP=1"\s*,\s*"--file"\s*,\s*sqlPath\s*\]\s*,\s*\{[\s\S]{0,240}\bshell:\s*false\b/.test(readOnlyInventorySource);
+assert(readOnlyInventoryUsesControlledPsqlSpawn, "Read-only Supabase inventory must spawn only fixed-argument psql with shell:false.");
+
+const reviewedBillingServerBindingFiles = new Set([
+  "functions/api/billing/_shared/auth.ts",
+  "functions/api/billing/_shared/config.ts",
+  "functions/api/billing/_shared/types.ts"
+]);
+const reviewedEconomicServiceCredentialScripts = new Set([
+  "scripts/billingStripeTestCatalog.mjs",
+  "scripts/billingStripeFixedPriceTestCatalog.mjs",
+  "scripts/billingSandboxRecurringTestProgram.mjs"
+]);
+const reviewed20260716ServiceRoleMigrations = new Set([
+  "supabase/migrations/20260716010000_badge_security_and_semantics_hardening.sql",
+  "supabase/migrations/20260716011000_notification_read_state_hardening.sql",
+  "supabase/migrations/20260716011500_economic_notification_authenticity.sql",
+  "supabase/migrations/20260716012000_marketplace_identifier_compatibility.sql",
+  "supabase/migrations/20260716020000_private_economic_core.sql",
+  "supabase/migrations/20260716021000_economic_test_provider_catalog.sql",
+  "supabase/migrations/20260716030000_sandbox_credit_ledger_and_metering.sql",
+  "supabase/migrations/20260716032000_economic_operator_separation_of_duties.sql",
+  "supabase/migrations/20260716034000_sandbox_credit_commerce_and_compensation.sql",
+  "supabase/migrations/20260716040000_job_post_economic_sidecar_and_publication_gate.sql",
+  "supabase/migrations/20260716050000_marketplace_commerce_licenses_and_seller_accounting.sql",
+  "supabase/migrations/20260716060000_organization_sponsorship_waiver_sidecars.sql",
+  "supabase/migrations/20260716070000_economic_projections_reporting_notifications_lifecycle.sql",
+  "supabase/migrations/20260716071000_economic_route_kill_switch_boundaries.sql"
+]);
 
 function allowHit(file, line, checkName) {
   const normalized = file.replaceAll(path.sep, "/");
@@ -38,7 +78,38 @@ function allowHit(file, line, checkName) {
     && ["Node child process", "process spawn"].includes(checkName)
     && (/node:child_process/.test(line) || /shell:\s*false/.test(line))
   ) return true;
+  if (
+    normalized === "scripts/supabaseReadOnlyInventory.mjs"
+    && readOnlyInventoryUsesControlledPsqlSpawn
+    && ["Node child process", "process spawn"].includes(checkName)
+    && (/node:child_process/.test(line) || /spawn\("psql"/.test(line))
+  ) return true;
   if (checkName === "service role key strings") {
+    if (
+      reviewedBillingServerBindingFiles.has(normalized)
+      && /\bSUPABASE_SERVICE_ROLE_KEY\b|\bservice_role\b/.test(line)
+    ) return true;
+    if (
+      reviewedEconomicServiceCredentialScripts.has(normalized)
+      && /process\.env\.SUPABASE_SERVICE_ROLE_KEY/.test(line)
+    ) return true;
+    if (
+      normalized === "scripts/economicTestActivation.mjs"
+      && /serviceRoleKey:\s*process\.env\.SUPABASE_SERVICE_ROLE_KEY\s*\?\?\s*""/.test(line)
+    ) return true;
+    if (
+      normalized === "scripts/billingProxySmokeTest.mjs"
+      && (
+        /SUPABASE_SERVICE_ROLE_KEY/.test(line)
+        || /SUPABASE_PUBLISHABLE_KEY:\s*env\.SUPABASE_SERVICE_ROLE_KEY/.test(line)
+        || /SUPABASE_PUBLISHABLE_KEY:\s*legacyKey\("service_role"\)/.test(line)
+      )
+    ) return true;
+    if (
+      reviewed20260716ServiceRoleMigrations.has(normalized)
+      && /\bservice_role\b|economic_caller_is_service_role|economic_[a-z0-9_]*service_role_required/i.test(line)
+      && !/SUPABASE_SERVICE_ROLE_KEY\s*=|SERVICE_ROLE_KEY\s*=/.test(line)
+    ) return true;
     if (normalized === "supabase/migrations/20260714010000_remote_public_schema_baseline.sql" && /(?:GRANT|ALTER DEFAULT PRIVILEGES).*\bservice_role\b/i.test(line)) return true;
     if ([
       "supabase/migrations/20260714015000_commune_reaction_counts_security_invoker.sql",
@@ -47,9 +118,22 @@ function allowHit(file, line, checkName) {
       "supabase/policies.sql",
     ].includes(normalized) && /\brevoke\b|from public, anon, authenticated, service_role/i.test(line)) return true;
     if (normalized === "scripts/fixtures/sandboxDatabaseBehavior.sql" && /has_(?:function|table)_privilege\('service_role'/i.test(line)) return true;
+    if (
+      normalized === "scripts/fixtures/economicDatabaseBehavior.sql"
+      && (
+        /set_config\('request\.jwt\.claim\.role', 'service_role', true\)/i.test(line)
+        || /has_(?:function|table)_privilege\('service_role'/i.test(line)
+        || /'service_role', 'private\.organization_sponsorship_settlement_hold(?:s|_events)'/i.test(line)
+      )
+    ) return true;
     if (normalized === "scripts/sandboxDatabaseMigrationTest.mjs" && /assert|marker|service_role/i.test(line)) return true;
   }
   if (normalized.endsWith("scripts/securitySmokeTest.mjs")) return true;
+  if (
+    normalized.endsWith("scripts/billingWorkerIsolationSmokeTest.mjs")
+    && checkName === "service role key strings"
+    && /assert|scan|binding|credential|service-role/i.test(line)
+  ) return true;
   if ((normalized.endsWith("scripts/communeSmokeTest.mjs") || normalized.endsWith("scripts/siteContentSmokeTest.mjs")) && /scanner|fixture|assert|secret|SUPABASE_SERVICE_ROLE|service_role|BEGIN \[A-Z \]\*PRIVATE KEY|AWS_ACCESS_KEY_ID/i.test(line)) return true;
   if (normalized.endsWith("scripts/addonSdkSmokeTest.mjs") && /scanner|fixture|assert|inspect|archive|service-role|private key|package install hook|postinstall|preinstall|SUPABASE_SERVICE_ROLE|BEGIN PRIVATE KEY/i.test(line)) return true;
   if (normalized.endsWith("scripts/sandboxRunnerSmokeTest.mjs") && /child_process|spawnSync|assert|help|missing file|does not execute|never runs code/i.test(line)) return true;
@@ -107,6 +191,35 @@ for (const forbiddenBrowserBinding of ["VITE_CODING_SANDBOX_ENDPOINT", "VITE_SAN
   assert(!browserSource.includes(forbiddenBrowserBinding), `${forbiddenBrowserBinding} must not exist in browser source.`);
 }
 
+const directImportMetaEnvBindings = [...browserSource.matchAll(/import\.meta\.env(?:\.([A-Za-z_][A-Za-z0-9_]*)|\[\s*["']([^"']+)["']\s*\])/g)]
+  .map((match) => match[1] ?? match[2]);
+const forbiddenDirectServerBindingPatterns = [
+  /^(?:VITE_)?STRIPE_(?:SECRET_KEY(?:_TEST)?|WEBHOOK_SECRET(?:_TEST)?)$/,
+  /^(?:VITE_)?SUPABASE_SERVICE_ROLE(?:_KEY)?$/,
+  /^(?:VITE_)?BILLING_[A-Z0-9_]*(?:SECRET|TOKEN|PRIVATE_KEY|SERVICE_ROLE)[A-Z0-9_]*$/,
+  /^(?:VITE_)?(?:BILLING_)?WEBHOOK_SECRET(?:_TEST)?$/,
+  /^(?:VITE_)?SANDBOX_(?:RUNNER_TOKEN|SERVICE_TOKEN|DB_FINALIZER_TOKEN)$/,
+  /^(?:VITE_)?CLOUDFLARE_ACCESS_CLIENT_SECRET$/
+];
+for (const binding of directImportMetaEnvBindings) {
+  assert(
+    !forbiddenDirectServerBindingPatterns.some((pattern) => pattern.test(binding)),
+    `${binding} is a server-only secret binding and must not be read through import.meta.env in browser source.`
+  );
+}
+
+const forbiddenBrowserViteSecretPatterns = [
+  /\bVITE_STRIPE_[A-Z0-9_]*(?:SECRET|WEBHOOK|TOKEN|PRIVATE_KEY)[A-Z0-9_]*\b/,
+  /\bVITE_SUPABASE_SERVICE_ROLE(?:_KEY)?\b/,
+  /\bVITE_BILLING_[A-Z0-9_]*(?:SECRET|TOKEN|PRIVATE_KEY|SERVICE_ROLE)[A-Z0-9_]*\b/,
+  /\bVITE_(?:BILLING_)?WEBHOOK_SECRET(?:_TEST)?\b/,
+  /\bVITE_SANDBOX_(?:RUNNER_TOKEN|SERVICE_TOKEN|DB_FINALIZER_TOKEN)\b/,
+  /\bVITE_CLOUDFLARE_ACCESS_CLIENT_SECRET\b/
+];
+for (const pattern of forbiddenBrowserViteSecretPatterns) {
+  assert(!pattern.test(browserSource), `Browser source contains a prohibited VITE server-secret binding matching ${pattern}.`);
+}
+
 const communityVoteMigration = await fs.readFile("supabase/legacy-migrations/2026_07_05_02_commune_community_voting_room.sql", "utf8");
 const softDeleteCleanupMigration = await fs.readFile("supabase/legacy-migrations/2026_07_07_commune_soft_delete_cleanup.sql", "utf8");
 const communityVoteDeleteFilterMigration = await fs.readFile("supabase/legacy-migrations/2026_07_08_commune_vote_delete_parent_filter.sql", "utf8");
@@ -119,10 +232,29 @@ const researchMigration = await fs.readFile("supabase/legacy-migrations/2026_06_
 const jobMigration = await fs.readFile("supabase/legacy-migrations/2026_06_26_job_post_structured_workflow.sql", "utf8");
 const iterationMigration = await fs.readFile("supabase/legacy-migrations/2026_06_26_elysia_iteration_showcase_structured_metadata.sql", "utf8");
 const officialUpdateMigration = await fs.readFile("supabase/legacy-migrations/2026_06_26_official_update_structured_workflow.sql", "utf8");
+const badgeSecurityMigration = await fs.readFile("supabase/migrations/20260716010000_badge_security_and_semantics_hardening.sql", "utf8");
 const commonsCircleApi = await fs.readFile("src/pages/The-Commons-Circle/commonsCircleApi.ts", "utf8");
 const communeAccountApi = await fs.readFile("src/pages/The-Elysia-Commune/communeAccountApi.ts", "utf8");
 const communePage = await fs.readFile("src/pages/The-Elysia-Commune/index.tsx", "utf8");
 const communeSafety = await fs.readFile("src/pages/The-Elysia-Commune/communeSafety.ts", "utf8");
+const badgeVisibilityUpdate = commonsCircleApi.match(/export async function updateBadgeVisibility[\s\S]*?\n}/)?.[0] ?? "";
+assert(
+  /revoke all privileges on table public\.user_badges[\s\S]*from public, anon, authenticated;[\s\S]*grant update \(visibility\) on public\.user_badges to authenticated;/i.test(badgeSecurityMigration)
+    && !/grant update\s+on\s+public\.user_badges\s+to\s+authenticated/i.test(badgeSecurityMigration),
+  "Authenticated badge owners must receive only the visibility column update privilege, never a table-wide user_badges update grant."
+);
+assert(
+  /create or replace function public\.synchronize_user_badge_updated_at\(\)[\s\S]*returns trigger[\s\S]*new\.updated_at := pg_catalog\.now\(\);[\s\S]*revoke all privileges on function public\.synchronize_user_badge_updated_at\(\)[\s\S]*from public, anon, authenticated, service_role;[\s\S]*create trigger synchronize_user_badge_updated_at[\s\S]*before update on public\.user_badges[\s\S]*execute function public\.synchronize_user_badge_updated_at\(\);/i.test(badgeSecurityMigration),
+  "user_badges.updated_at must remain trigger-owned, non-callable, and synchronized on every badge update."
+);
+assert(
+  badgeVisibilityUpdate.includes('.from("user_badges").update({ visibility })')
+    && badgeVisibilityUpdate.includes('.eq("user_id", auth.user.id)')
+    && badgeVisibilityUpdate.includes('.eq("badge_key", badgeKey)')
+    && badgeVisibilityUpdate.includes('.is("revoked_at", null)')
+    && !badgeVisibilityUpdate.includes("updated_at"),
+  "The ordinary Commons badge mutation must update only visibility on the signed-in owner\'s active award and leave updated_at to the database trigger."
+);
 const secretSafetyWarningFixture = "Do not upload .env files, API keys, tokens, credentials, private logs, or vault data.";
 assert(secretSafetyWarningFixture.includes(".env") && secretSafetyWarningFixture.includes("API keys") && secretSafetyWarningFixture.includes("credentials"), "Security fixture should cover .env warning language without secret assignments.");
 const realSecretAssignmentFixtures = [

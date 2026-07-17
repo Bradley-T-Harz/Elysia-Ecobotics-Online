@@ -1,0 +1,41 @@
+# Copy to .dev.vars.billing only for the dedicated billing Worker. Never commit
+# the copy and never load it into the Pages/sandbox process.
+BILLING_ENABLED="false"
+BILLING_SUPPORT_CHECKOUT_ENABLED="false"
+BILLING_RECURRING_ENABLED="false"
+BILLING_WEBHOOK_FULFILLMENT_ENABLED="false"
+BILLING_NOTIFICATION_RETRY_ENABLED="false"
+BILLING_PORTAL_ENABLED="false"
+BILLING_SELLER_ONBOARDING_ENABLED="false"
+BILLING_JOB_POST_FEES_ENABLED="false"
+BILLING_SANDBOX_PURCHASES_ENABLED="false"
+BILLING_MARKETPLACE_COMMERCE_ENABLED="false"
+BILLING_MARKETPLACE_PAYOUT_PREPARATION_ENABLED="false"
+BILLING_ORGANIZATION_SERVICES_ENABLED="false"
+BILLING_SPONSORSHIP_ADMIN_ENABLED="false"
+BILLING_SPONSORSHIP_CHECKOUT_ENABLED="false"
+BILLING_SPONSORSHIP_RECOGNITION_ENABLED="false"
+BILLING_ASSISTANCE_ADMIN_ENABLED="false"
+BILLING_SUPPORT_RECOGNITION_ENABLED="false"
+BILLING_ACCOUNT_LIFECYCLE_ENABLED="false"
+BILLING_ACCOUNTING_EXPORT_ENABLED="false"
+BILLING_TEST_REFUNDS_ENABLED="false"
+BILLING_STAGING_ACCESS_CONFIRMED="false"
+BILLING_EDGE_RATE_LIMIT_CONFIRMED="false"
+BILLING_MODE="test"
+BILLING_PUBLIC_ORIGIN="http://localhost:8787"
+STRIPE_CONNECT_ENABLED="false"
+STRIPE_LIVE_ENABLED="false"
+STRIPE_WEBHOOK_TOLERANCE_SECONDS="300"
+# Pin one exact reviewed Stripe test API version, for example YYYY-MM-DD.codename.
+# STRIPE_API_VERSION="YYYY-MM-DD.codename"
+# STRIPE_WEBHOOK_API_VERSION="YYYY-MM-DD.codename"
+SUPABASE_URL="https://project-ref.supabase.co"
+SUPABASE_PUBLISHABLE_KEY="replace-with-publishable-key"
+
+# Server-only test secrets. Put real values only in the ignored local copy or
+# encrypted billing-Worker bindings. Never create VITE_ variants and never add
+# sandbox runner/finalizer/Access bindings to this process.
+STRIPE_SECRET_KEY_TEST="replace-directly-in-local-file"
+STRIPE_WEBHOOK_SECRET_TEST="replace-directly-in-local-file"
+SUPABASE_SERVICE_ROLE_KEY="replace-directly-in-local-file"
