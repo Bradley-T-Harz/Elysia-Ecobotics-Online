@@ -1,9 +1,10 @@
 import { PublicHttpError, fetchWithTimeout } from "../functions/api/sandbox/_shared/http.ts";
 import { authenticateRequest } from "../functions/api/sandbox/_shared/auth.ts";
-import { startRun } from "../functions/api/sandbox/_shared/database.ts";
+import { finalizeRun, startRun } from "../functions/api/sandbox/_shared/database.ts";
 import { executeRunner } from "../functions/api/sandbox/_shared/runner.ts";
 import { parseSandboxRunRequest } from "../functions/api/sandbox/_shared/schema.ts";
 import { resolveAuthorizedSource } from "../functions/api/sandbox/_shared/source.ts";
+import { handleSandboxCreditSummary } from "../functions/api/sandbox/credits.ts";
 import { handleSandboxHealth } from "../functions/api/sandbox/health.ts";
 import { handleSandboxRun } from "../functions/api/sandbox/run.ts";
 
@@ -71,7 +72,17 @@ const runnerResult = {
   durationMs: 12,
   outputTruncated: false,
   diagnostics: [],
-  message: "Execution completed. This is evidence only, never trust or approval."
+  message: "Execution completed. This is evidence only, never trust or approval.",
+  usage: {
+    inputBytes: new TextEncoder().encode(body.code).byteLength,
+    outputBytes: 5,
+    configuredCpuMillis: 500,
+    configuredMemoryBytes: 268_435_456,
+    actualCpuTimeMs: null,
+    peakMemoryBytes: null,
+    networkAccess: false,
+    failureClass: null
+  }
 };
 
 function dependencies(overrides = {}) {
@@ -170,9 +181,31 @@ try {
   untrustedSupabaseOriginRejected = error instanceof PublicHttpError && error.status === 503 && error.code === "sandbox_misconfigured";
 }
 assert(untrustedSupabaseOriginRejected, "Supabase user JWTs must never be forwarded to an untrusted configured origin.");
+for (const privilegedKey of [
+  `sb_secret_${"x".repeat(40)}`,
+  `header.${Buffer.from(JSON.stringify({ role: "privileged" })).toString("base64url")}.signature`
+]) {
+  let privilegedPublishableKeyRejected = false;
+  try {
+    await authenticateRequest(
+      new Request(`${env.SANDBOX_PUBLIC_ORIGIN}/api/sandbox/health`, { headers: { authorization: "Bearer synthetic-user-token" } }),
+      { ...env, SUPABASE_PUBLISHABLE_KEY: privilegedKey }
+    );
+  } catch (error) {
+    privilegedPublishableKeyRejected = error instanceof PublicHttpError
+      && error.status === 503
+      && error.code === "sandbox_misconfigured";
+  }
+  assert(privilegedPublishableKeyRejected, "The sandbox proxy must reject privileged Supabase key forms before creating a client.");
+}
 assert((await handleSandboxRun(request(), env, dependencies({ resolveSource: async () => { throw new PublicHttpError(403, "source_unauthorized"); } }))).status === 403, "Unauthorized sources must fail closed.");
 const quotaResponse = await handleSandboxRun(request(), env, dependencies({ reserve: async () => ({ accepted: false, idempotentReplay: false, runId: null, status: null, leaseExpiresAt: null, reason: "quota_exceeded", retryAfter: 3600, result: null }) }));
 assert(quotaResponse.status === 429 && quotaResponse.headers.get("retry-after") === "3600", "Quota rejection must return 429 and Retry-After.");
+
+const creditResponse = await handleSandboxRun(request(), env, dependencies({ reserve: async () => ({ accepted: false, idempotentReplay: false, runId: null, status: null, leaseExpiresAt: null, reason: "sandbox_credits_required", retryAfter: null, result: null }) }));
+assert(creditResponse.status === 402, "Economic credit rejection must be distinct from an operational quota rejection.");
+assert((await creditResponse.json()).error === "sandbox_credits_required", "Economic credit rejection must use a stable safe error code.");
+assert(creditResponse.headers.get("retry-after") === null, "Economic credit rejection must not imply that retrying will create credits.");
 
 let started = 0;
 let executed = 0;
@@ -204,6 +237,7 @@ assert(replayPayload.diagnostics[0]?.category === "sandbox_internal_failure" && 
 const recordingFailure = await handleSandboxRun(request(), env, dependencies({ finalize: async () => false }));
 const recordingPayload = await recordingFailure.json();
 assert(recordingFailure.status === 200 && recordingPayload.ok === true && recordingPayload.recordingStatus === "failed", "Database recording failure must remain distinct from execution failure.");
+assert(!("usage" in recordingPayload), "Private sandbox usage measurement must never be returned to the browser.");
 
 let startKey = null;
 let finalizeKey = null;
@@ -231,6 +265,18 @@ try {
 }
 assert(invalidStartReceiptRejected, "A mismatched database start receipt must fail closed before runner execution.");
 
+let finalizedRpcArgs = null;
+const finalized = await finalizeRun({
+  rpc: async (name, args) => {
+    assert(name === "finalize_commune_sandbox_run", "The governed finalizer RPC name must remain stable.");
+    finalizedRpcArgs = args;
+    return { data: { finalized: true }, error: null };
+  }
+}, "00000000-0000-4000-8000-000000000010", body.clientRequestId, env.SANDBOX_DB_FINALIZER_TOKEN, runnerResult);
+assert(finalized === true, "A successful measured finalization must be acknowledged.");
+assert(finalizedRpcArgs.p_input_bytes === runnerResult.usage.inputBytes && finalizedRpcArgs.p_output_bytes === runnerResult.usage.outputBytes, "Finalization must record bounded input and output measurement.");
+assert(finalizedRpcArgs.p_configured_cpu_millis === 500 && finalizedRpcArgs.p_configured_memory_bytes === 268_435_456 && finalizedRpcArgs.p_network_access === false, "Finalization must bind the fixed operational envelope without changing the safety tier.");
+
 let forwardedHeaders;
 let forwardedBody;
 const startedReservation = {
@@ -252,6 +298,16 @@ const actualRunnerResult = await executeRunner(env, startedReservation, source, 
     durationMs: 4,
     outputTruncated: false,
     diagnostics: [{ severity: "error", phase: "sandbox", category: "podman_internal", message: "token=private /opt/internal", source: "Podman engine" }],
+    usage: {
+      inputBytes: new TextEncoder().encode(source.code).byteLength,
+      outputBytes: 5,
+      configuredCpuMillis: 500,
+      configuredMemoryBytes: 268435456,
+      actualCpuTimeMs: null,
+      peakMemoryBytes: null,
+      networkAccess: true,
+      failureClass: null
+    },
     message: `Podman raw exception at /opt/private token=hidden ${env.SANDBOX_DB_FINALIZER_TOKEN}`,
     engine: "must-not-reach-browser",
     internalPath: "/private/path"
@@ -267,6 +323,7 @@ assert(forwardedBody.code_bytes === new TextEncoder().encode(source.code).byteLe
 assert(!("engine" in actualRunnerResult) && !JSON.stringify(actualRunnerResult).includes("/private/path") && !JSON.stringify(actualRunnerResult).includes("Podman") && !JSON.stringify(actualRunnerResult).includes("/opt/"), "Runner internals must be stripped from the public result.");
 assert(!JSON.stringify(actualRunnerResult).includes(env.SANDBOX_SERVICE_TOKEN) && !JSON.stringify(actualRunnerResult).includes(env.CLOUDFLARE_ACCESS_CLIENT_SECRET) && !JSON.stringify(actualRunnerResult).includes(env.SANDBOX_DB_FINALIZER_TOKEN), "Configured credentials must be redacted even if a compromised upstream reflects them.");
 assert(actualRunnerResult.diagnostics[0]?.category === "sandbox_internal_failure" && actualRunnerResult.diagnostics[0]?.source === "Coding Cornucopia sandbox", "Runner-chosen diagnostic metadata must be replaced by proxy allowlists.");
+assert(actualRunnerResult.usage.inputBytes === new TextEncoder().encode(source.code).byteLength && actualRunnerResult.usage.networkAccess === false, "Proxy must validate usage and refuse an upstream claim that network access occurred.");
 
 const utf8RunnerResult = await executeRunner(env, startedReservation, source, async () => new Response(JSON.stringify({
   ok: true,
@@ -320,6 +377,42 @@ const healthRequest = new Request(`${env.SANDBOX_PUBLIC_ORIGIN}/api/sandbox/heal
 const healthResponse = await handleSandboxHealth(healthRequest, env, { authenticate: async () => auth, health: async () => true });
 assert(healthResponse.status === 200 && healthResponse.headers.get("cache-control") === "no-store", "Authenticated health should return only non-cacheable sanitized availability.");
 assert((await handleSandboxHealth(healthRequest, env, { authenticate: async () => { throw new PublicHttpError(401, "authentication_invalid"); }, health: async () => true })).status === 401, "Anonymous or invalid-token health checks must fail closed.");
+
+const creditSummaryFixture = {
+  available: true,
+  mode: "test",
+  display_enabled: true,
+  enforcement_enabled: false,
+  test_mode: true,
+  unit_scale: 100,
+  balance_units: 1250,
+  reserved_units: 100,
+  available_units: 1150,
+  available_credits: 11.5,
+  purchased_credits: 5,
+  sponsored_credits: 5,
+  waived_credits: 0,
+  operator_granted_credits: 1.5,
+  active_rate: { rate_key: "sandbox_test_v1", base_units: 10, input_kib_units: 1, output_kib_units: 1, cpu_second_units: 5, memory_gib_second_units: 2, maximum_run_units: 100, approved_for_live_use: false, private_cost: 999 },
+  source_categories: [{ category: "sponsored", available_units: 500, private_reason: "must not pass" }],
+  active_reservations: [{ run_id: "00000000-0000-4000-8000-000000000010", reserved_units: 100, expires_at: "2026-07-16T12:00:00.000Z", user_id: "must not pass" }],
+  recent_receipts: [{ id: "00000000-0000-4000-8000-000000000011", entry_type: "consume", units_delta: -25, source_category: "sandbox_run", run_id: "00000000-0000-4000-8000-000000000010", created_at: "2026-07-16T12:00:01.000Z", private_reason: "must not pass" }],
+  warnings: ["Provisional test values only."],
+  provider_customer_reference: "must not pass"
+};
+const creditRequest = new Request(`${env.SANDBOX_PUBLIC_ORIGIN}/api/sandbox/credits`, { method: "GET", headers: { authorization: "Bearer verified-user-jwt" } });
+const creditSummaryResponse = await handleSandboxCreditSummary(creditRequest, env, { authenticate: async () => auth, load: async () => creditSummaryFixture });
+const publicCreditBody = await creditSummaryResponse.json();
+assert(creditSummaryResponse.status === 200 && publicCreditBody.summary.available_credits === 11.5, "Authenticated sandbox credit summary should expose only the validated self projection.");
+const disabledExecutionCreditResponse = await handleSandboxCreditSummary(
+  creditRequest,
+  { ...env, SANDBOX_ENABLED: "false" },
+  { authenticate: async () => auth, load: async () => creditSummaryFixture }
+);
+assert(disabledExecutionCreditResponse.status === 200, "Pausing code execution must not hide an authenticated user's existing sandbox-credit balance.");
+assert(!JSON.stringify(publicCreditBody).includes("private_reason") && !JSON.stringify(publicCreditBody).includes("provider_customer_reference") && !JSON.stringify(publicCreditBody).includes("private_cost"), "Sandbox credit endpoint must strip private provider, cost, and grant-reason fields.");
+const invalidCreditSummaryResponse = await handleSandboxCreditSummary(creditRequest, env, { authenticate: async () => auth, load: async () => ({ ...creditSummaryFixture, test_mode: false }) });
+assert(invalidCreditSummaryResponse.status === 503 && (await invalidCreditSummaryResponse.json()).error === "sandbox_credit_summary_invalid", "Sandbox credit endpoint must reject a non-test or malformed database projection.");
 
 const oversizedCodeResponse = await handleSandboxRun(request({ body: { code: "x".repeat(65_537) } }), env, dependencies());
 assert(oversizedCodeResponse.status === 413, "Oversized submitted code must fail before reservation or runner execution.");

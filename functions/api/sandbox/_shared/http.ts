@@ -34,7 +34,35 @@ export function safeErrorResponse(error: unknown): Response {
   return jsonResponse({ ok: false, error: "sandbox_request_failed" }, 502);
 }
 
+export function assertSandboxReadConfigured(request: Request, env: Env): void {
+  const rawOrigin = env.SANDBOX_PUBLIC_ORIGIN?.replace(/\/$/, "");
+  let configuredOrigin: URL;
+  try {
+    if (!rawOrigin) throw new Error("missing");
+    configuredOrigin = new URL(rawOrigin);
+  } catch {
+    throw new PublicHttpError(503, "sandbox_disabled");
+  }
+  const local = configuredOrigin.protocol === "http:"
+    && (configuredOrigin.hostname === "127.0.0.1" || configuredOrigin.hostname === "localhost");
+  const requestUrl = new URL(request.url);
+  if (
+    (configuredOrigin.protocol !== "https:" && !local)
+    || configuredOrigin.username
+    || configuredOrigin.password
+    || (configuredOrigin.pathname !== "/" && configuredOrigin.pathname !== "")
+    || configuredOrigin.search
+    || configuredOrigin.hash
+    || configuredOrigin.hostname.endsWith(".pages.dev")
+    || requestUrl.origin !== configuredOrigin.origin
+  ) throw new PublicHttpError(503, "sandbox_disabled");
+
+  const origin = request.headers.get("origin");
+  if (origin && origin !== configuredOrigin.origin) throw new PublicHttpError(403, "origin_denied");
+}
+
 export function assertProductionEnabled(request: Request, env: Env): void {
+  assertSandboxReadConfigured(request, env);
   const requestUrl = new URL(request.url);
   const configuredOrigin = env.SANDBOX_PUBLIC_ORIGIN?.replace(/\/$/, "");
   if (
@@ -42,13 +70,9 @@ export function assertProductionEnabled(request: Request, env: Env): void {
     || env.SANDBOX_DEPLOYMENT_ENV !== "production"
     || !configuredOrigin
     || requestUrl.origin !== configuredOrigin
-    || requestUrl.hostname.endsWith(".pages.dev")
   ) {
     throw new PublicHttpError(503, "sandbox_disabled");
   }
-
-  const origin = request.headers.get("origin");
-  if (origin && origin !== configuredOrigin) throw new PublicHttpError(403, "origin_denied");
 }
 
 export function requireSameOriginMutation(request: Request, env: Env): void {

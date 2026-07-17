@@ -20,6 +20,7 @@ export type CodingDiagnosticCategory =
   | "forbidden_operation"
   | "secret_scan_warning"
   | "unsupported_language"
+  | "sandbox_credits_required"
   | "sandbox_internal_failure"
   | "policy_info";
 

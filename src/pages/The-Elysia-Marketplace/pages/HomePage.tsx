@@ -1,5 +1,5 @@
 import { BookOpen, GitPullRequest, Search, ShieldCheck, Store, UploadCloud } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import PageBrandMark from "../../../shared/components/PageBrandMark";
 import { useMarketplaceContext } from "./useMarketplaceContext";
 
@@ -12,9 +12,11 @@ const steps = [
 ];
 
 export default function MarketplaceHomePage() {
+  const [searchParams] = useSearchParams();
   const { catalogStatusMessage, seedFallbackActive, sortedAddons, supabaseConfigured } = useMarketplaceContext();
   return (
     <div className="home-page">
+      {searchParams.get("commerce") === "canceled" && <div className="boundary-note" role="status">Stripe test checkout was canceled or left. No completed payment, fulfilled license, trust change, download, or installation is being claimed.</div>}
       <header className="hero page-hero">
         <div className="hero-copy">
           <p className="eyebrow">Elysia Marketplace</p>
@@ -42,7 +44,7 @@ export default function MarketplaceHomePage() {
             <dl className="mini-facts">
               <div><dt>Catalog entries</dt><dd>{sortedAddons.length}</dd></div>
               <div><dt>Local machine data</dt><dd>Not collected</dd></div>
-              <div><dt>Payments</dt><dd>Not present</dd></div>
+              <div><dt>Commerce</dt><dd>Separate test-mode offers only</dd></div>
               <div><dt>Execution</dt><dd>Future local Elysia only</dd></div>
             </dl>
           </aside>

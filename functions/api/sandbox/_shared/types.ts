@@ -112,6 +112,10 @@ export type Reservation = {
   leaseExpiresAt: string | null;
   reason: string | null;
   retryAfter: number | null;
+  economicEnforcement?: boolean;
+  creditReservationId?: string | null;
+  reservedCreditUnits?: number | null;
+  creditUnitScale?: number | null;
   result: Omit<PublicSandboxResult, "recordingStatus" | "idempotentReplay" | "runId"> | null;
 };
 
@@ -122,4 +126,18 @@ export type StartedReservation = {
   leaseExpiresAt: string;
 };
 
-export type RunnerResult = Omit<PublicSandboxResult, "recordingStatus" | "idempotentReplay" | "runId">;
+export type SandboxUsageMeasurement = {
+  inputBytes: number;
+  outputBytes: number;
+  configuredCpuMillis: number;
+  configuredMemoryBytes: number;
+  actualCpuTimeMs: number | null;
+  peakMemoryBytes: number | null;
+  networkAccess: false;
+  failureClass: string | null;
+};
+
+export type RunnerResult = Omit<PublicSandboxResult, "recordingStatus" | "idempotentReplay" | "runId"> & {
+  /** Private operational measurement. It is finalized to the ledger and stripped from browser responses. */
+  usage: SandboxUsageMeasurement;
+};

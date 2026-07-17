@@ -22,4 +22,6 @@ Successful raw code and output are removed immediately. Supabase retains bounded
 
 Both Cloudflare and the runner have explicit execution kill switches. Incident response must fail closed first, preserve only bounded non-secret evidence, kill and remove any active container, rotate affected credentials directly in their control planes, and verify before re-enabling.
 
+The website/Pages project owns this `/api/sandbox/*` boundary only. It must not contain any `BILLING_*` or `STRIPE_*` binding, payment/webhook/payout secret, or Supabase service-role credential. Same-origin `/api/billing/*` is owned by a separately deployed billing Worker with a disjoint binding set; the billing Worker imports no sandbox or runner code. Sharing the hostname does not permit sharing runtime secrets.
+
 Execution is evidence only. Success does not mean the code is safe, approved, trustworthy, correctly attributed, installable, compatible, or authorized for Marketplace, Developer Forge, or Local Elysia use.

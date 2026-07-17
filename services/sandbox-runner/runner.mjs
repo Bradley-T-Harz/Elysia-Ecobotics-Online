@@ -198,6 +198,43 @@ function mapJobStatus(job) {
   return "failed";
 }
 
+function configuredCpuMillis(limits = defaultLimits) {
+  const cpus = Number(limits.cpus);
+  return Number.isFinite(cpus) && cpus > 0 ? Math.round(cpus * 1_000) : 500;
+}
+
+function configuredMemoryBytes(limits = defaultLimits) {
+  const match = String(limits.memory).trim().match(/^(\d+)([kmgt]?)$/i);
+  if (!match) return 268_435_456;
+  const unit = match[2].toLowerCase();
+  const multiplier = unit === "k" ? 1_024 : unit === "m" ? 1_048_576 : unit === "g" ? 1_073_741_824 : unit === "t" ? 1_099_511_627_776 : 1;
+  return Number(match[1]) * multiplier;
+}
+
+function failureClass(job) {
+  if (job.status === "succeeded") return null;
+  if (job.timed_out || job.status === "timed_out") return "timeout";
+  if (job.output_overflow || job.status === "output_overflow") return "output_overflow";
+  if (job.status === "cancelled") return "cancelled";
+  if (job.status === "cleanup_failed") return "cleanup_failed";
+  if (job.status === "validation_failed") return "runner_unavailable";
+  return "runtime_error";
+}
+
+function usageMeasurement(validation, overrides = {}) {
+  return {
+    inputBytes: validation.codeBytes,
+    outputBytes: 0,
+    configuredCpuMillis: configuredCpuMillis(),
+    configuredMemoryBytes: configuredMemoryBytes(),
+    actualCpuTimeMs: null,
+    peakMemoryBytes: null,
+    networkAccess: false,
+    failureClass: null,
+    ...overrides
+  };
+}
+
 async function readOutput(jobId, config) {
   const [stdout, stderr] = await Promise.all([
     fs.readFile(stdoutPath(jobId, config), "utf8").catch(() => ""),
@@ -221,10 +258,10 @@ function runtimeDiagnostics(job, context) {
 export async function createAndRunSnapshotRun(payload, { confirmLocalExecution = false, config = loadRunnerConfig(), runContainer = runContainerJob, requireReservation = false, now = Date.now(), signal = null } = {}) {
   const validation = validateSnapshotRunPayload(payload, { requireReservation, now });
   if (!confirmLocalExecution || !config.enabled || !config.confirmServiceExecution || !acceptingRuns) {
-    return { ok: false, status: "denied", language: validation.language, file: validation.fileName, snapshotId: validation.snapshotId, stdout: "", stderr: "", exitCode: null, durationMs: null, outputTruncated: false, diagnostics: validation.diagnostics, message: "Sandbox execution is disabled." };
+    return { ok: false, status: "denied", language: validation.language, file: validation.fileName, snapshotId: validation.snapshotId, stdout: "", stderr: "", exitCode: null, durationMs: null, outputTruncated: false, diagnostics: validation.diagnostics, message: "Sandbox execution is disabled.", usage: usageMeasurement(validation, { failureClass: "denied" }) };
   }
   if (!validation.ok) {
-    return { ok: false, status: "policy_blocked", language: validation.language, file: validation.fileName, snapshotId: validation.snapshotId, stdout: "", stderr: "", exitCode: null, durationMs: null, outputTruncated: false, diagnostics: validation.diagnostics, message: "Sandbox request was blocked by policy." };
+    return { ok: false, status: "policy_blocked", language: validation.language, file: validation.fileName, snapshotId: validation.snapshotId, stdout: "", stderr: "", exitCode: null, durationMs: null, outputTruncated: false, diagnostics: validation.diagnostics, message: "Sandbox request was blocked by policy.", usage: usageMeasurement(validation, { failureClass: "policy_blocked" }) };
   }
   if (staticDiagnosticLanguages.includes(validation.language)) {
     const hasError = validation.diagnostics.some((item) => item.severity === "error");
@@ -241,13 +278,14 @@ export async function createAndRunSnapshotRun(payload, { confirmLocalExecution =
       durationMs: 0,
       outputTruncated: false,
       diagnostics: validation.diagnostics,
+      usage: usageMeasurement(validation, { failureClass: hasError ? "policy_blocked" : null }),
       message: hasError
         ? "Static diagnostics found errors; no code was executed."
         : "Static diagnostics completed without code execution."
     };
   }
   if (languagePolicyStatus(validation.language) !== "active_sandbox") {
-    return { ok: false, status: "policy_blocked", language: validation.language, file: validation.fileName, snapshotId: validation.snapshotId, stdout: "", stderr: "", exitCode: null, durationMs: null, outputTruncated: false, diagnostics: validation.diagnostics, message: "Language is not enabled for execution." };
+    return { ok: false, status: "policy_blocked", language: validation.language, file: validation.fileName, snapshotId: validation.snapshotId, stdout: "", stderr: "", exitCode: null, durationMs: null, outputTruncated: false, diagnostics: validation.diagnostics, message: "Language is not enabled for execution.", usage: usageMeasurement(validation, { failureClass: "policy_blocked" }) };
   }
   if (executionActive) return { ok: false, busy: true, status: "sandbox_unavailable", retryAfter: config.retryAfterSeconds, diagnostics: [], message: "Sandbox is busy." };
 
@@ -291,6 +329,12 @@ export async function createAndRunSnapshotRun(payload, { confirmLocalExecution =
       exitCode: finalJob.exit_code ?? null,
       durationMs: durationMs(finalJob),
       outputTruncated: finalJob.output_truncated === true || finalJob.output_overflow === true,
+      usage: usageMeasurement(validation, {
+        outputBytes: Number.isInteger(finalJob.output_bytes) ? finalJob.output_bytes : Buffer.byteLength(`${stdout}${stderr}`, "utf8"),
+        configuredCpuMillis: configuredCpuMillis(finalJob.resource_limits),
+        configuredMemoryBytes: configuredMemoryBytes(finalJob.resource_limits),
+        failureClass: failureClass(finalJob)
+      }),
       diagnostics,
       message: finalJob.status === "succeeded" ? "Sandbox execution completed. This is evidence only, never trust or approval." : finalJob.timed_out ? "Sandbox execution timed out and cleanup was verified." : finalJob.output_overflow ? "Sandbox output limit was enforced and cleanup was verified." : "Sandbox execution failed safely."
     };

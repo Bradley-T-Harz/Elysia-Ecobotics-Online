@@ -1,6 +1,7 @@
 import type { AddonManifest } from "../types";
 import { permissionLabels, toneForRisk, toneForTrustTier, trustTierDescription, trustTierLabel } from "../lib/securityLabels";
 import TrustBadge from "./TrustBadge";
+import MarketplaceCommercePanel from "./MarketplaceCommercePanel";
 
 type AddonDetailsProps = {
   addon: AddonManifest | null;
@@ -53,6 +54,7 @@ export default function AddonDetails({ addon, onPrepareInstall, onOpenLocalInsta
         <summary>View Manifest JSON</summary>
         <pre>{JSON.stringify(addon, null, 2)}</pre>
       </details>
+      <MarketplaceCommercePanel addon={addon} />
       <div className="button-row"><button type="button" className="button-primary" disabled={installBlocked} onClick={() => onPrepareInstall(addon.id)}>{installBlocked ? "Install intent blocked" : "Review permissions"}</button><button type="button" disabled={installBlocked} onClick={() => onOpenLocalInstall(addon.id)}>{installBlocked ? "Local install blocked" : "Prepare Local Install"}</button><button type="button" disabled>.elysia-addon package preview only</button><a className="button-link" href="/catalog-preview.json" target="_blank" rel="noreferrer">View catalog preview JSON</a></div>
     </section>
   );

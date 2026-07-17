@@ -130,7 +130,7 @@ export async function prepareLocalInstallIntent(addon: AddonManifest): Promise<M
       user_id: auth.user.id,
       listing_id: listingRow?.id ?? null,
       marketplace_addon_version_id: liveVersion?.id ?? null,
-      addon_id: addonRow?.id ?? null,
+      legacy_addon_id: addonRow?.id ?? null,
       addon_version_id: versionRow?.id ?? null,
       addon_slug: addon.id,
       addon_name: listingRow?.name ?? addonRow?.name ?? addon.name,

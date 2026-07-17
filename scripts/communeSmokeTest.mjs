@@ -17,6 +17,7 @@ const safety = await read("src/pages/The-Elysia-Commune/communeSafety.ts");
 const accountApi = await read("src/pages/The-Elysia-Commune/communeAccountApi.ts");
 const adminPage = await read("src/pages/Admin/index.tsx");
 const reviewClient = await read("src/shared/review/reviewClient.ts");
+const jobPostReviewClient = await read("src/shared/review/jobPostReviewClient.ts");
 const migration = await read("supabase/legacy-migrations/2026_06_12_commune_full_system.sql");
 const realtimeMigration = await read("supabase/legacy-migrations/2026_06_14_commune_realtime_chat_moderation.sql");
 const realtimeApi = await read("src/pages/The-Elysia-Commune/communeRealtimeApi.ts");
@@ -29,6 +30,7 @@ const sandboxBuilder = await read("src/shared/sandbox/sandboxHandoffBuilder.ts")
 const languagePolicies = await read("src/pages/The-Elysia-Commune/codeLanguagePolicies.ts");
 const diagnosticTypes = await read("src/pages/The-Elysia-Commune/codeDiagnosticTypes.ts");
 const sandboxClient = await read("src/pages/The-Elysia-Commune/codingSandboxClient.ts");
+const sandboxCreditsClient = await read("src/pages/The-Elysia-Commune/sandboxCreditsClient.ts");
 const commonsPage = await read("src/pages/The-Commons-Circle/index.tsx");
 const commonsApi = await read("src/pages/The-Commons-Circle/commonsCircleApi.ts");
 const signalConsolePage = await read("src/pages/The-Commons-Circle/SignalConsolePage.tsx");
@@ -71,6 +73,7 @@ const researchNotesPolicyDoc = await read("docs/commune/research-notes-policy.md
 const researchNotesBoundaryDoc = await read("docs/security/research-notes-boundary.md");
 const researchNotesContractDoc = await read("docs/api/research-notes-contract.md");
 const jobPostWorkflowMigration = await read("supabase/legacy-migrations/2026_06_26_job_post_structured_workflow.sql");
+const jobPostEconomicMigration = await read("supabase/migrations/20260716040000_job_post_economic_sidecar_and_publication_gate.sql");
 const jobPostPolicyDoc = await read("docs/commune/job-post-policy.md");
 const jobPostBoundaryDoc = await read("docs/security/job-post-boundary.md");
 const jobPostContractDoc = await read("docs/api/job-post-contract.md");
@@ -237,6 +240,26 @@ assert(jobPostWorkflowMigration.includes("public reads published job post metada
 assert(!jobPostWorkflowMigration.includes("authors maintain own non-trust job post status"), "Job Post authors should not have a broad direct update policy on the public sidecar table.");
 assert(jobPostWorkflowMigration.includes("p.status in ('pending_review','published')") && jobPostWorkflowMigration.includes("p.status <> 'published' or public.current_user_is_admin()"), "Job Post migration should prevent normal users from creating direct-published sidecar rows.");
 assert(jobPostWorkflowMigration.includes("reviewed_clear") && jobPostWorkflowMigration.includes("needs_pay_clarification") && jobPostWorkflowMigration.includes("needs_contact_clarification") && jobPostWorkflowMigration.includes("needs_location_clarification") && jobPostWorkflowMigration.includes("suspicious"), "Job Post migration should define anti-scam review states.");
+assert(jobPostReviewClient.includes('rpc("review_commune_job_post"') && jobPostReviewClient.includes("p_job_post_id") && jobPostReviewClient.includes("p_action") && jobPostReviewClient.includes("p_reason"), "Job Post moderation must use the exact authenticated publication-gate RPC contract.");
+for (const action of ["approve", "reject", "hide", "archive", "needs_information", "escalate"]) {
+  assert(jobPostReviewClient.includes(`"${action}"`), `Governed Job Post review client is missing action: ${action}`);
+}
+for (const field of ["jobPostId", "postId", "action", "contentApproved", "contentStatus", "economicStatus", "publicationStatus", "published", "feeEnforcement"]) {
+  assert(jobPostReviewClient.includes(`row.${field}`), `Governed Job Post review parser is missing response field: ${field}`);
+}
+assert(jobPostReviewClient.includes("No publication result should be assumed") || jobPostReviewClient.includes("no publication result should be assumed"), "Job Post RPC errors must use a non-leaking, fail-closed publication message.");
+assert(accountApi.includes('item.kind === "job" || (item.kind === "post" && ownerRow.post_type === "job_post")') && accountApi.includes("resolveCommuneJobPostId(item.id)") && accountApi.includes("reviewCommuneJobPost(jobPostTarget.jobPostId"), "Both Job Post sidecar and linked Commune post moderation paths must resolve through the governed RPC.");
+assert(accountApi.includes("finalizeGovernedJobPostPublication") && accountApi.includes("if (!supabase || !result.published) return"), "Job Post thread approval and attachment publication must run only after the database reports published=true.");
+const moderationFunction = accountApi.slice(accountApi.indexOf("export async function moderateCommuneItem"));
+assert(!moderationFunction.includes('ownerRow.post_type === "job_post") {\n    const jobReviewStatus') && !moderationFunction.includes('(item.kind === "repo" || item.kind === "iteration" || item.kind === "job") && postId'), "Job Post moderation must not retain the old direct sidecar/linked-post publication branch.");
+assert(reviewClient.includes("resolveReviewItemJobPostTarget") && reviewClient.includes('item.source_table === "commune_job_posts"') && reviewClient.includes('item.source_table !== "commune_posts"'), "Admin Review must recognize both Job Post review records and linked Commune post review records.");
+assert(reviewClient.includes("reviewJobPostFromReviewItem") && reviewClient.includes("governedJobPostReview.handled") && reviewClient.includes("finalizeGovernedJobPostReviewPublication"), "Admin Review status changes must bypass generic direct post updates for Job Posts and condition ancillary publication on the RPC result.");
+assert(reviewClient.includes('currentRow.post_type === "job_post"') && reviewClient.includes('action === "approve_and_restore" ? "approve" : "needs_information"'), "Job Post restore and rejected-recovery approval paths must also retain the database publication gate.");
+assert(jobPostEconomicMigration.includes("create or replace function public.review_commune_job_post") && jobPostEconomicMigration.includes("private.publish_job_post_if_eligible"), "Job Post migration must centralize content review and conditional publication.");
+assert(jobPostEconomicMigration.includes("v_economic_satisfied := not v_fee_enabled") && jobPostEconomicMigration.includes("'feeEnforcement', v_fee_enabled"), "Fee-off mode must preserve existing approved Job Post publication while returning the explicit enforcement state.");
+assert(jobPostEconomicMigration.includes("condition_status in ('not_required', 'satisfied', 'waived', 'subsidized')") && jobPostEconomicMigration.includes("Payment may satisfy a Job Post economic condition"), "Fee-on Job Post publication must require an independent satisfied/waived/subsidized condition without making payment content approval.");
+assert(jobPostEconomicMigration.includes("create trigger enforce_job_post_economic_publication_gate\nbefore update of status on public.commune_posts"), "Job Post publication gating must fail closed on status updates when fee enforcement is enabled.");
+assert(jobPostEconomicMigration.includes("create trigger enforce_job_post_economic_publication_gate_on_insert\nbefore insert on public.commune_posts"), "Job Post publication gating must also fail closed on direct published inserts when fee enforcement is enabled.");
 assert(jobPostPolicyDoc.includes("Normal community users may submit Job Posts") && jobPostPolicyDoc.includes("Every normal-user Job Post requires admin approval"), "Job Post policy doc missing public submission/admin approval doctrine.");
 assert(jobPostPolicyDoc.includes("Work With Elysia Ecobotics is the private application/intake path") && jobPostPolicyDoc.includes("not Work With Elysia Ecobotics"), "Job Post policy doc missing public board/private Work With separation.");
 assert(jobPostBoundaryDoc.includes("must not store or expose") && jobPostBoundaryDoc.includes("resumes/CVs") && jobPostBoundaryDoc.includes("SSNs") && jobPostBoundaryDoc.includes("Work With private uploads"), "Job Post security boundary doc missing private applicant data prohibitions.");
@@ -406,6 +429,57 @@ assert(page.includes("Running does not submit the proposal, update public code, 
 assert(sandboxClient.includes('fetch("/api/sandbox/run"') && sandboxClient.includes('"authorization": `Bearer ${accessToken}`'), "Coding Cornucopia must use only the authenticated same-origin sandbox proxy.");
 assert(sandboxClient.includes("new AbortController()") && sandboxClient.includes("signal: controller.signal"), "Browser sandbox requests must have an explicit abort timeout.");
 assert(!sandboxClient.includes("VITE_CODING_SANDBOX_ENDPOINT"), "The removed direct sandbox endpoint must not return to browser code.");
+assert(sandboxCreditsClient.includes('fetch("/api/sandbox/credits"') && sandboxCreditsClient.includes('authorization: `Bearer ${accessToken}`') && sandboxCreditsClient.includes('credentials: "same-origin"') && sandboxCreditsClient.includes('cache: "no-store"'), "Sandbox credit display must use only the authenticated, no-store, same-origin summary endpoint.");
+assert(sandboxCreditsClient.includes("new AbortController()") && sandboxCreditsClient.includes("15_000") && sandboxCreditsClient.includes("clearTimeout(timeout)"), "Sandbox credit summary requests must retain the bounded 15-second timeout and cleanup.");
+assert(sandboxCreditsClient.includes("MAX_RESPONSE_BYTES") && sandboxCreditsClient.includes("content-length") && sandboxCreditsClient.includes("TextEncoder().encode(text).byteLength"), "Sandbox credit summary parsing must bound both declared and actual response sizes.");
+assert(sandboxCreditsClient.includes("envelope?.ok !== true") && sandboxCreditsClient.includes("parseSummary(envelope.summary)"), "Sandbox credit client must require the canonical ok/summary response envelope.");
+assert(sandboxCreditsClient.includes("CACHE_MILLISECONDS = 30_000") && sandboxCreditsClient.includes("inFlight?.token === accessToken") && sandboxCreditsClient.includes("cache?.token === accessToken"), "Sandbox credit summaries should be briefly cached and in-flight deduplicated across repeated Commune panels.");
+const sandboxCreditSummaryFixture = {
+  available: true,
+  mode: "test",
+  display_enabled: false,
+  enforcement_enabled: false,
+  test_mode: true,
+  unit_scale: 100,
+  balance_units: 250,
+  reserved_units: 50,
+  available_units: 200,
+  available_credits: 2,
+  purchased_credits: 0,
+  sponsored_credits: 0,
+  waived_credits: 0,
+  operator_granted_credits: 2,
+  active_rate: { rate_key: "sandbox_test_v1", base_units: 1, input_kib_units: 10, output_kib_units: 1, cpu_second_units: 1, memory_gib_second_units: 5, maximum_run_units: 100, approved_for_live_use: false },
+  source_categories: [{ category: "starter", available_units: 200 }],
+  active_reservations: [{ run_id: "00000000-0000-4000-8000-000000000001", reserved_units: 50, expires_at: "2026-07-16T00:00:00Z" }],
+  recent_receipts: [{ id: "00000000-0000-4000-8000-000000000002", entry_type: "reserve", units_delta: -50, source_category: "starter", run_id: "00000000-0000-4000-8000-000000000001", created_at: "2026-07-16T00:00:00Z" }],
+  warnings: ["Credits never change safety limits, network policy, reviewer status, or governance authority."]
+};
+for (const key of Object.keys(sandboxCreditSummaryFixture)) {
+  assert(sandboxCreditsClient.includes(`row.${key}`), `Sandbox credit client is missing the exact database summary key: ${key}`);
+}
+for (const key of Object.keys(sandboxCreditSummaryFixture.active_rate)) {
+  assert(sandboxCreditsClient.includes(`row.${key}`), `Sandbox credit rate parser is missing the exact database key: ${key}`);
+}
+for (const category of ["starter", "recurring_support", "purchased", "sponsored", "waiver", "waived", "operational", "operator", "test", "sandbox_run", "refund", "dispute"]) {
+  assert(sandboxCreditsClient.includes(`"${category}"`), `Sandbox credit client is missing a repository-declared source category: ${category}`);
+}
+for (const entryType of ["grant", "reserve", "consume", "release", "expire", "refund_adjustment", "dispute_hold", "admin_correction", "compensating_credit", "compensating_debit"]) {
+  assert(sandboxCreditsClient.includes(`"${entryType}"`), `Sandbox credit client is missing a repository-declared receipt type: ${entryType}`);
+}
+assert(page.includes("Private sandbox service credits") && page.includes("creditSummary?.displayEnabled"), "Commune sandbox panels should render the authenticated private summary only when its display flag is enabled.");
+assert(page.includes("Credit enforcement is off") && page.includes("Existing free operational sandbox behavior remains available"), "Sandbox credit display must preserve and explain enforcement-off/free behavior.");
+assert(page.includes("Maximum per run") && page.includes("Conservative full-limit estimate") && page.includes("Low balance for a full-limit run."), "Sandbox credit display should explain the provisional maximum, conservative estimate, and low-balance state.");
+assert(page.includes("Latest matched run receipts") && page.includes("receipt.runId === result.runId") && page.includes("No charge or release is being claimed by this panel."), "Sandbox credit receipts must be shown only when safely matched to the latest run id, without inventing a charge or release.");
+assert(page.includes('to="/support"') && page.includes("No automatic purchase or charge will occur") && page.includes("never starts an automatic sandbox-credit purchase"), "Low credit balance must offer only optional support information and must never imply an automatic purchase.");
+assert(page.includes("Credits never enable network access, secrets, package installation, host files, private Elysia context, approval, or trust."), "Sandbox credit display must preserve the execution, privacy, and authority boundary.");
+const sandboxPanelStart = page.indexOf("function CodingSandboxRunPanel");
+const sandboxDisabledStart = page.indexOf("const disabledReason", sandboxPanelStart);
+const sandboxRunStart = page.indexOf("async function runSnapshot", sandboxDisabledStart);
+const sandboxRunEligibility = page.slice(sandboxDisabledStart, sandboxRunStart);
+assert(sandboxRunEligibility.includes("const canRun = !disabledReason") && !sandboxRunEligibility.includes("creditSummary"), "Client sandbox execution eligibility must remain independent from the informational credit balance.");
+assert(page.includes("if (runResult.runId) void refreshCreditSummary(true)"), "A completed sandbox run should refresh its private credit summary so a safely matched receipt can appear.");
+assert(styles.includes(".coding-sandbox-credit-summary") && styles.includes(".coding-sandbox-credit-summary--low") && styles.includes(".sandbox-credit-source-list") && styles.includes(".sandbox-credit-low-balance"), "Commune sandbox credit summary and low-balance styles are missing.");
 assert(page.includes("No terminal") && page.includes("No package install"), "Coding Cornucopia must preserve no-terminal/no-package-install boundary copy.");
 assert(!page.includes("dangerouslySetInnerHTML"), "Commune page must not render chat/code with dangerouslySetInnerHTML.");
 assert(page.includes("Canonical account-backed paths"), "Commune canonical table path status copy missing.");
@@ -510,7 +584,7 @@ assert(page.includes("Developer Forge and Marketplace approval remain separate")
 for (const column of ["provider", "default_branch", "commit_sha", "manifest_status", "elysia_compatibility", "readme_preview", "file_tree_preview", "risk_flags", "sandbox_review_request_id", "imported_metadata", "redaction_notes"]) {
   assert(accountApi.includes(column), "Repository Showcase structured submit/load field missing: " + column);
 }
-assert(accountApi.includes('ownerRow.post_type === "repository_showcase"') && accountApi.includes('(item.kind === "repo" || item.kind === "iteration" || item.kind === "job") && postId') && accountApi.includes('item.kind === "repo" ? "repository_showcase" : item.kind === "iteration" ? "elysia_iteration_showcase" : "job_post"'), "Repository Showcase, Elysia Iteration Showcase, and Job Post moderation should keep linked post/sidecar state consistent.");
+assert(accountApi.includes('ownerRow.post_type === "repository_showcase"') && accountApi.includes('(item.kind === "repo" || item.kind === "iteration") && postId') && accountApi.includes('item.kind === "repo" ? "repository_showcase" : "elysia_iteration_showcase"'), "Repository Showcase and Elysia Iteration Showcase moderation should keep their existing linked post/sidecar behavior.");
 assert(repositoryMetadataMigration.includes("public reads published repository showcase metadata") && repositoryMetadataMigration.includes("readme_preview") && repositoryMetadataMigration.includes("sandbox_review_request_id"), "Repository Showcase structured metadata migration missing public read policy or structured columns.");
 assert(repositoryMetadataMigration.includes("grant select on table public.commune_repository_showcases to anon") && repositoryMetadataMigration.includes("Selected-artifact sandbox review status only"), "Repository Showcase migration should expose only published metadata and preserve selected-artifact boundary.");
 assert(repositoryPolicyDoc.includes("Public GitHub import is metadata assistance only") && repositoryPolicyDoc.includes("Local showcase manifest import") && repositoryPolicyDoc.includes("selected-artifact only"), "Repository Showcase policy doc missing import/sandbox boundary.");
@@ -527,7 +601,7 @@ for (const column of ["iteration_type", "version_build_label", "what_changed", "
 }
 assert(accountApi.includes('post_type: "elysia_iteration_showcase"') && accountApi.includes("submitIterationShowcase"), "Elysia Iteration Showcase should create/link a normal Commune post.");
 assert(accountApi.includes("requestIterationShowcaseSandboxReview") && accountApi.includes("commune_iteration_showcases"), "Elysia Iteration Showcase selected-artifact sandbox helper missing.");
-assert(accountApi.includes('ownerRow.post_type === "elysia_iteration_showcase"') && accountApi.includes('(item.kind === "repo" || item.kind === "iteration" || item.kind === "job") && postId') && accountApi.includes('item.kind === "repo" ? "repository_showcase" : item.kind === "iteration" ? "elysia_iteration_showcase" : "job_post"'), "Elysia Iteration Showcase and other structured room moderation should keep linked post/metadata state consistent.");
+assert(accountApi.includes('ownerRow.post_type === "elysia_iteration_showcase"') && accountApi.includes('(item.kind === "repo" || item.kind === "iteration") && postId') && accountApi.includes('item.kind === "repo" ? "repository_showcase" : "elysia_iteration_showcase"'), "Elysia Iteration Showcase and Repository Showcase moderation should keep linked post/metadata state consistent.");
 assert(iterationMetadataMigration.includes("public reads published iteration showcase metadata") && iterationMetadataMigration.includes("commune_iteration_showcases") && iterationMetadataMigration.includes("sandbox_review_request_id"), "Elysia Iteration Showcase structured metadata migration missing public read policy or structured columns.");
 assert(iterationMetadataMigration.includes("grant select on table public.commune_iteration_showcases to anon") && iterationMetadataMigration.includes("Selected-artifact sandbox review status only"), "Elysia Iteration Showcase migration should expose only published metadata and preserve selected-artifact boundary.");
 assert(iterationPolicyDoc.includes("public GitHub import") && iterationPolicyDoc.includes("structured metadata") && iterationPolicyDoc.includes("selected-artifact only"), "Elysia Iteration Showcase policy doc missing import/sandbox boundary.");

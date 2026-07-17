@@ -19,6 +19,8 @@ Rotate only in the system that owns each value, entering replacements directly:
 
 Revoke the previous credential before re-enabling execution whenever continuity permits. A suspected Supabase user token is handled through the account/session response path; it is never sent to Hetzner.
 
+Pages owns no billing, Stripe, webhook, payout, or Supabase service-role credential. If any such binding is discovered during a sandbox incident, treat that as a separate billing-secret exposure: remove it from Pages, rotate it in the billing provider/control plane, keep billing mutations disabled, and verify the dedicated billing Worker boundary. Never copy a billing credential into the sandbox runtime to diagnose or restore service.
+
 ## Investigation checklist
 
 - Identify the affected release ID, image digests, service start time, and bounded run IDs.

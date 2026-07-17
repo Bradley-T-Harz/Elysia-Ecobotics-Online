@@ -1,4 +1,5 @@
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../../pages/The-Elysia-Marketplace/lib/supabase";
+import { jobPostReviewResultMessage, resolveCommuneJobPostId, reviewCommuneJobPost, type JobPostReviewAction, type JobPostReviewResult } from "./jobPostReviewClient";
 
 export type AppRole = "administrator" | "moderator" | "reviewer" | "marketplace_reviewer" | "source_reviewer" | "commune_moderator" | "guardian_reviewer";
 export type ReviewStatus = "draft" | "pending_review" | "in_review" | "needs_information" | "approved" | "rejected" | "withdrawn" | "archived";
@@ -186,6 +187,7 @@ type CommuneCommentModerationRow = {
 type CommunePostModerationRow = {
   id: string;
   user_id?: string | null;
+  post_type?: string | null;
   title?: string | null;
   body?: string | null;
   excerpt?: string | null;
@@ -348,6 +350,63 @@ async function publishCommunePostMedia(postId: string) {
     .in("status", ["pending_review", "approved"]);
 }
 
+const jobPostReviewActionByStatus: Partial<Record<ReviewStatus, JobPostReviewAction>> = {
+  in_review: "escalate",
+  needs_information: "needs_information",
+  approved: "approve",
+  rejected: "reject",
+  archived: "archive"
+};
+
+type JobPostReviewTarget =
+  | { kind: "not_job_post" }
+  | { kind: "job_post"; jobPostId: string }
+  | { kind: "error"; message: string };
+
+async function resolveReviewItemJobPostTarget(item: ReviewItem): Promise<JobPostReviewTarget> {
+  if (!supabase || item.domain !== "commune") return { kind: "not_job_post" };
+  if (item.source_table === "commune_job_posts") return { kind: "job_post", jobPostId: item.source_id };
+  if (item.source_table !== "commune_posts") return { kind: "not_job_post" };
+  const { data, error } = await supabase.from("commune_posts").select("id,post_type").eq("id", item.source_id).maybeSingle();
+  if (error) return { kind: "error", message: "The Commune post type could not be verified. No review or publication change was made." };
+  if (!data) return { kind: "error", message: "The Commune post could not be found. No review or publication change was made." };
+  if ((data as { post_type?: string | null }).post_type !== "job_post") return { kind: "not_job_post" };
+  const resolved = await resolveCommuneJobPostId(item.source_id);
+  return resolved.ok ? { kind: "job_post", jobPostId: resolved.jobPostId } : { kind: "error", message: resolved.message };
+}
+
+async function finalizeGovernedJobPostReviewPublication(result: JobPostReviewResult, actorId: string) {
+  if (!supabase || !result.published) return;
+  const { data: postRow } = await supabase.from("commune_posts").select("id,user_id,title").eq("id", result.postId).maybeSingle();
+  const post = postRow as { user_id?: string | null; title?: string | null } | null;
+  const { data: threadRow } = await supabase.from("commune_threads").select("id").eq("post_id", result.postId).order("created_at", { ascending: true }).limit(1).maybeSingle();
+  let threadId = (threadRow as { id?: string } | null)?.id ?? null;
+  if (!threadId) {
+    const { data: createdThread } = await supabase.from("commune_threads").insert({
+      post_id: result.postId,
+      title: post?.title ?? "Job Post discussion",
+      created_by: actorId,
+      visibility: "public",
+      status: "open"
+    }).select("id").single();
+    threadId = (createdThread as { id?: string } | null)?.id ?? null;
+  }
+  await grantCommuneThreadApproval({ threadId, postId: result.postId, userId: post?.user_id ?? null, approvedBy: actorId, source: "job_post_governed_approval" });
+  await publishCommunePostMedia(result.postId);
+}
+
+async function reviewJobPostFromReviewItem(item: ReviewItem, nextStatus: ReviewStatus, note: string, actorId: string): Promise<{ handled: boolean; ok: boolean; warning?: string; message?: string }> {
+  const target = await resolveReviewItemJobPostTarget(item);
+  if (target.kind === "not_job_post") return { handled: false, ok: true };
+  if (target.kind === "error") return { handled: true, ok: false, warning: target.message };
+  const action = jobPostReviewActionByStatus[nextStatus];
+  if (!action) return { handled: true, ok: false, warning: "That review state is not supported by the governed Job Post review boundary." };
+  const reviewed = await reviewCommuneJobPost(target.jobPostId, action, note);
+  if (!reviewed.ok) return { handled: true, ok: false, warning: reviewed.message };
+  await finalizeGovernedJobPostReviewPublication(reviewed.result, actorId);
+  return { handled: true, ok: true, message: jobPostReviewResultMessage(reviewed.result) };
+}
+
 async function syncCommuneReviewSubject(item: ReviewItem, nextStatus: ReviewStatus, note: string, actorId: string): Promise<{ ok: boolean; warning?: string }> {
   if (!supabase || item.domain !== "commune") return { ok: true };
   const now = new Date().toISOString();
@@ -414,7 +473,7 @@ async function syncCommuneReviewSubject(item: ReviewItem, nextStatus: ReviewStat
   return { ok: true };
 }
 
-export async function restoreCommuneReviewSubject(item: ReviewItem, note: string): Promise<{ ok: boolean; warning?: string }> {
+export async function restoreCommuneReviewSubject(item: ReviewItem, note: string): Promise<{ ok: boolean; warning?: string; message?: string }> {
   if (!hasSupabaseConfig || !supabase) return { ok: false, warning: supabaseNotConfiguredMessage };
   if (item.domain !== "commune" || !["commune_posts", "commune_comments"].includes(item.source_table)) return { ok: false, warning: "Only Commune posts and comments can be restored from this recovery action." };
   if (item.status !== "approved") return { ok: false, warning: "Only approved Commune content can be restored to public visibility from this action. Rejected and archived records stay in admin history unless reviewed separately." };
@@ -445,11 +504,19 @@ export async function restoreCommuneReviewSubject(item: ReviewItem, note: string
     return { ok: true };
   }
 
-  const { data: current, error: currentError } = await supabase.from("commune_posts").select("status,visibility,visibility_state,moderation_status,hidden_at,removed_at,archived_at,published_at").eq("id", item.source_id).maybeSingle();
+  const { data: current, error: currentError } = await supabase.from("commune_posts").select("id,user_id,title,post_type,status,visibility,visibility_state,moderation_status,hidden_at,removed_at,archived_at,published_at").eq("id", item.source_id).maybeSingle();
   if (currentError) return { ok: false, warning: `Commune post could not be loaded: ${friendlyReviewWarning(currentError.message)}` };
   const currentRow = current as CommunePostModerationRow | null;
   if (!currentRow) return { ok: false, warning: "Commune post was not found." };
   if (["rejected", "deleted_by_user"].includes(currentRow.status ?? "")) return { ok: false, warning: "Rejected or user-deleted posts are not restored by the visibility recovery action." };
+  if (currentRow.post_type === "job_post") {
+    const target = await resolveCommuneJobPostId(item.source_id);
+    if (!target.ok) return { ok: false, warning: target.message };
+    const reviewed = await reviewCommuneJobPost(target.jobPostId, "approve", note);
+    if (!reviewed.ok) return { ok: false, warning: reviewed.message };
+    await finalizeGovernedJobPostReviewPublication(reviewed.result, auth.user.id);
+    return { ok: true, message: jobPostReviewResultMessage(reviewed.result) };
+  }
   const previousState = derivePostModerationState(currentRow);
   const { error } = await supabase.from("commune_posts").update({
     status: "published",
@@ -543,7 +610,7 @@ async function recordCommuneRejectedRecoveryEvent(input: {
   });
 }
 
-export async function recoverRejectedCommuneReviewSubject(item: ReviewItem, action: RejectedCommuneRecoveryAction, note: string): Promise<{ ok: boolean; warning?: string }> {
+export async function recoverRejectedCommuneReviewSubject(item: ReviewItem, action: RejectedCommuneRecoveryAction, note: string): Promise<{ ok: boolean; warning?: string; message?: string }> {
   if (!hasSupabaseConfig || !supabase) return { ok: false, warning: supabaseNotConfiguredMessage };
   if (!isRecoverableRejectedCommuneItem(item)) return { ok: false, warning: "Only rejected Commune posts and comments can use rejected recovery actions." };
   const { data: auth } = await supabase.auth.getUser();
@@ -593,11 +660,21 @@ export async function recoverRejectedCommuneReviewSubject(item: ReviewItem, acti
     return { ok: true };
   }
 
-  const { data: current, error: currentError } = await supabase.from("commune_posts").select("id,user_id,title,status,visibility,visibility_state,moderation_status,hidden_at,removed_at,archived_at,published_at").eq("id", item.source_id).maybeSingle();
+  const { data: current, error: currentError } = await supabase.from("commune_posts").select("id,user_id,title,post_type,status,visibility,visibility_state,moderation_status,hidden_at,removed_at,archived_at,published_at").eq("id", item.source_id).maybeSingle();
   if (currentError) return { ok: false, warning: `Commune post could not be loaded: ${friendlyReviewWarning(currentError.message)}` };
   const currentRow = current as CommunePostModerationRow | null;
   if (!currentRow) return { ok: false, warning: "Source content not found; this rejected record is history only." };
   if (currentRow.status === "deleted_by_user") return { ok: false, warning: "User-deleted posts cannot be restored from rejected recovery." };
+  if (currentRow.post_type === "job_post") {
+    const target = await resolveCommuneJobPostId(item.source_id);
+    if (!target.ok) return { ok: false, warning: target.message };
+    const reviewed = await reviewCommuneJobPost(target.jobPostId, action === "approve_and_restore" ? "approve" : "needs_information", recoveryNote);
+    if (!reviewed.ok) return { ok: false, warning: reviewed.message };
+    await finalizeGovernedJobPostReviewPublication(reviewed.result, auth.user.id);
+    return { ok: true, message: action === "reopen_review"
+      ? "Rejected Job Post reopened in the active needs-information state. It remains non-public."
+      : jobPostReviewResultMessage(reviewed.result) };
+  }
   const previousState = derivePostModerationState(currentRow);
   const update = action === "reopen_review"
     ? {
@@ -652,10 +729,12 @@ export async function recoverRejectedCommuneReviewSubject(item: ReviewItem, acti
   return { ok: true };
 }
 
-export async function updateReviewStatus(item: ReviewItem, nextStatus: ReviewStatus, note: string): Promise<{ ok: boolean; warning?: string }> {
+export async function updateReviewStatus(item: ReviewItem, nextStatus: ReviewStatus, note: string): Promise<{ ok: boolean; warning?: string; message?: string }> {
   if (!hasSupabaseConfig || !supabase) return { ok: false, warning: supabaseNotConfiguredMessage };
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return { ok: false, warning: "Sign in with a reviewer account first." };
+  const governedJobPostReview = await reviewJobPostFromReviewItem(item, nextStatus, note, auth.user.id);
+  if (governedJobPostReview.handled) return { ok: governedJobPostReview.ok, warning: governedJobPostReview.warning, message: governedJobPostReview.message };
   const reviewed = ["approved", "rejected", "archived"].includes(nextStatus);
   const subjectSync = await syncCommuneReviewSubject(item, nextStatus, note, auth.user.id);
   if (!subjectSync.ok) return subjectSync;

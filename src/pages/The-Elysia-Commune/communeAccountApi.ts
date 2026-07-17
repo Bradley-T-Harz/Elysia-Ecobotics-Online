@@ -1,4 +1,5 @@
 import { createReviewHistoryItem, createReviewItem, loadCurrentRoleState, type AppRole } from "../../shared/review/reviewClient";
+import { jobPostReviewResultMessage, resolveCommuneJobPostId, reviewCommuneJobPost, type JobPostReviewAction, type JobPostReviewResult } from "../../shared/review/jobPostReviewClient";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
 import { communeFallbackCategories, communeReportReasons, parseCommuneTags, scanCommuneTextForSecrets, validateCommuneMediaFile } from "./communeSafety";
 
@@ -537,6 +538,19 @@ async function publishPostAttachments(postId: string) {
     .update({ status: "published" })
     .eq("post_id", postId)
     .in("status", ["pending_review", "approved"]);
+}
+
+async function finalizeGovernedJobPostPublication(result: JobPostReviewResult, targetUserId: string, approvedBy: string) {
+  if (!supabase || !result.published) return;
+  const { data: threadRow } = await supabase.from(canonicalCommuneTables.threads).select("id").eq("post_id", result.postId).maybeSingle();
+  await grantThreadParticipationApproval({
+    threadId: (threadRow as { id?: string } | null)?.id ?? null,
+    postId: result.postId,
+    userId: targetUserId,
+    approvedBy,
+    source: "job_post_governed_approval"
+  });
+  await publishPostAttachments(result.postId);
 }
 
 const repositoryShowcaseSelect = "id,user_id,post_id,repository_url,repository_host,project_name,project_summary,provider,default_branch,commit_sha,license,manifest_status,elysia_compatibility,short_description,readme_preview,file_tree_preview,screenshot_notes_or_urls,risk_flags,sandbox_review_requested,sandbox_review_status,sandbox_review_request_id,status,import_source,imported_metadata,imported_at,redaction_notes,created_at,updated_at";
@@ -1129,7 +1143,8 @@ export async function loadCommuneData(roomSlug?: string, postId?: string, postTy
   if (roomError) warnings.push(roomError.message);
   const candidateRoomSlugs = roomSlugCandidates(roomSlug);
   const selectedRoom = candidateRoomSlugs.length ? (rooms ?? []).find((room) => candidateRoomSlugs.includes(room.slug)) as CommuneRoom | undefined : undefined;
-  let postQuery = supabase.from(canonicalCommuneTables.posts).select("id,user_id,author_username,post_type,title,body,excerpt,tags,links,repository_url,status,visibility,visibility_state,hidden_at,removed_at,archived_at,published_at,last_activity_at,created_at").eq("status", "published").eq("visibility", "public").order("last_activity_at", { ascending: false });
+  const postSelect = "id,user_id,author_username,post_type,title,body,excerpt,tags,links,repository_url,status,visibility,visibility_state,hidden_at,removed_at,archived_at,published_at,last_activity_at,created_at";
+  let postQuery = supabase.from(canonicalCommuneTables.posts).select(postSelect).eq("status", "published").eq("visibility", "public").order("last_activity_at", { ascending: false });
   if (postId) postQuery = postQuery.eq("id", postId);
   if (postType) postQuery = postQuery.eq("post_type", postType);
   if (!postId && !postType) postQuery = postQuery.limit(50);
@@ -1140,7 +1155,17 @@ export async function loadCommuneData(roomSlug?: string, postId?: string, postTy
   }
   const { data: posts, error: postError } = await postQuery;
   if (postError) warnings.push(postError.message);
-  const activePosts = ((posts ?? []) as CommunePost[]).filter(isActivePublicCommunePost);
+  let candidatePosts = (posts ?? []) as CommunePost[];
+  if (postId && candidatePosts.length === 0 && account.userId) {
+    const ownerResult = await supabase.from(canonicalCommuneTables.posts).select(postSelect).eq("id", postId).eq("user_id", account.userId).eq("post_type", "job_post").maybeSingle();
+    if (ownerResult.error) warnings.push(ownerResult.error.message);
+    else if (ownerResult.data) candidatePosts = [ownerResult.data as CommunePost];
+  }
+  const activePosts = candidatePosts.filter((post) => isActivePublicCommunePost(post) || Boolean(
+    postId && account.userId && post.user_id === account.userId && post.post_type === "job_post"
+    && !post.hidden_at && !post.removed_at && !post.archived_at
+    && !["deleted_by_user", "removed_by_moderator", "hidden", "archived"].includes(post.status)
+  ));
   const postIds = activePosts.map((post) => post.id);
   let threadQuery = supabase.from(canonicalCommuneTables.threads).select("id,post_id,room_id,title,status,visibility,last_reply_at").eq("visibility", "public").order("last_reply_at", { ascending: false });
   if (postIds.length) threadQuery = threadQuery.in("post_id", postIds);
@@ -1941,7 +1966,7 @@ export async function submitJobPost(input: {
   if (secretScan.blocked) return { ok: false, message: "Job Post blocked because it appears to contain private or secret material: " + secretScan.warnings.join(", ") + ". Remove it before submitting." };
   const now = new Date().toISOString();
   const postId = crypto.randomUUID();
-  const adminDirectPublish = account.isAdmin;
+  const adminDirectReview = account.isAdmin;
   const tags = parseCommuneTags(input.tags);
   const links = splitList(input.links);
   const body = input.body.trim();
@@ -1955,9 +1980,12 @@ export async function submitJobPost(input: {
     excerpt: excerpt(input.summary || input.roleSummary || body),
     tags,
     links,
-    status: adminDirectPublish ? "published" : "pending_review",
-    moderation_status: adminDirectPublish ? "approved" : "pending_review",
-    published_at: adminDirectPublish ? now : null,
+    // Even administrators create a non-public subject first. The governed
+    // review RPC evaluates content and the independent publication condition
+    // only after the structured Job Post row exists.
+    status: "pending_review",
+    moderation_status: "pending_review",
+    published_at: null,
     safety_acknowledgements: { public_boundary: true, no_secrets: true, admin_approval_required: true, job_public_board: true, no_private_applicant_data: true, work_with_private_path_separate: true }
   });
   if (postError) return { ok: false, message: friendlyError(postError.message, "This Job Post is blocked by the current Commune room-post policy. Normal users must submit for admin approval before publication.") };
@@ -1988,28 +2016,59 @@ export async function submitJobPost(input: {
     safety_notes: input.safetyNotes || null,
     role_summary: input.roleSummary || input.summary || null,
     application_status: normalizeEnumValue(input.applicationStatus, jobPostApplicationStatuses, "open"),
-    anti_scam_review_status: adminDirectPublish ? normalizeEnumValue(input.antiScamReviewStatus, jobPostAntiScamStatuses, "reviewed_clear") : "not_reviewed",
+    anti_scam_review_status: "not_reviewed",
     work_with_link_enabled: true,
     private_application_note: account.isModerator ? input.privateApplicationNote || null : null,
     public_correction_note: input.publicCorrectionNote || null,
-    reviewed_by: adminDirectPublish ? account.userId : null,
-    reviewed_at: adminDirectPublish ? now : null,
+    reviewed_by: null,
+    reviewed_at: null,
     updated_at: now
   };
   const { data, error: jobError } = await supabase.from(canonicalCommuneTables.jobPosts).insert(structuredPayload).select("id").single();
   if (jobError || !data) return { ok: false, postId, message: friendlyError(jobError?.message ?? "Job Post metadata insert did not return a row.", "Job Post saved, but structured metadata could not be saved. Apply the Job Post structured workflow migration, then repair this post.") };
   const jobPostId = (data as { id: string }).id;
   if (input.upload) {
-    const upload = await uploadCommuneAttachment(input.upload, { postId, role: "job_post_attachment", publishImmediately: adminDirectPublish });
+    const upload = await uploadCommuneAttachment(input.upload, { postId, role: "job_post_attachment", publishImmediately: false });
     if (!upload.ok) return { ok: false, id: jobPostId, postId, message: `Job Post saved, but upload failed: ${upload.message}` };
   }
-  if (adminDirectPublish) {
-    await grantThreadParticipationApproval({ threadId, postId, userId: account.userId, approvedBy: account.userId, source: "admin_direct_job_post" });
-    await publishPostAttachments(postId);
-    await recordCommuneGovernanceEvent({ actorId: account.userId, targetType: "post", targetId: postId, action: "admin_job_post_published", fromStatus: "draft", toStatus: "published", metadata: { post_type: "job_post", job_post_id: jobPostId, review_item_created: false } });
-    await createReviewHistoryItem({ domain: "commune", sourceTable: canonicalCommuneTables.jobPosts, sourceId: jobPostId, submittedBy: account.userId, title: input.title, summary: "Admin-published public Job Post. Anti-scam, pay/contact/location clarity, and Work With separation remain auditable.", status: "approved", eventType: "admin_job_post_direct_published", metadata: { post_id: postId, thread_id: threadId, role_type: structuredPayload.role_type } });
-    await notifyJobPostAuthor({ userId: account.userId, actorId: account.userId, postId, sourceId: jobPostId, title: "Job Post published", body: "Your Job Post is public with structured role metadata. Work With remains the private application path.", type: "job_post_published" });
-    return { ok: true, id: jobPostId, postId, message: "Job Post published directly by admin with structured role metadata, public thread, anti-scam review state, and Work With separation." };
+  if (adminDirectReview) {
+    const reviewed = await reviewCommuneJobPost(jobPostId, "approve", input.publicCorrectionNote || "");
+    if (!reviewed.ok) {
+      return { ok: false, id: jobPostId, postId, message: `Job Post was saved non-public, but governed administrator review could not complete. ${reviewed.message}` };
+    }
+    await finalizeGovernedJobPostPublication(reviewed.result, account.userId, account.userId);
+    await createReviewHistoryItem({
+      domain: "commune",
+      sourceTable: canonicalCommuneTables.jobPosts,
+      sourceId: jobPostId,
+      submittedBy: account.userId,
+      title: input.title,
+      summary: reviewed.result.published
+        ? "Administrator-reviewed public Job Post. Content approval and the independent publication condition remain auditable."
+        : "Administrator-approved Job Post held non-public by its independent economic publication condition.",
+      status: "approved",
+      eventType: reviewed.result.published ? "admin_job_post_reviewed_and_published" : "admin_job_post_reviewed_pending_economic_condition",
+      metadata: {
+        post_id: postId,
+        thread_id: threadId,
+        role_type: structuredPayload.role_type,
+        economic_status: reviewed.result.economicStatus,
+        fee_enforcement: reviewed.result.feeEnforcement,
+        payment_granted_content_approval: false
+      }
+    });
+    await notifyJobPostAuthor({
+      userId: account.userId,
+      actorId: account.userId,
+      postId,
+      sourceId: jobPostId,
+      title: reviewed.result.published ? "Job Post published" : "Job Post content approved",
+      body: reviewed.result.published
+        ? "Your Job Post is public after governed content review and an independently satisfied publication condition. Work With remains the private application path."
+        : "Your Job Post content is approved but remains non-public until its independent service condition is satisfied. Payment cannot grant content approval.",
+      type: reviewed.result.published ? "job_post_published" : "job_post_approved_pending_economic_condition"
+    });
+    return { ok: true, id: jobPostId, postId, message: jobPostReviewResultMessage(reviewed.result) };
   }
   await createReviewItem({ domain: "commune", sourceTable: canonicalCommuneTables.posts, sourceId: postId, submittedBy: account.userId, title: input.title.trim(), summary: excerpt(input.summary || input.roleSummary || body) });
   await createReviewItem({ domain: "commune", sourceTable: canonicalCommuneTables.jobPosts, sourceId: jobPostId, submittedBy: account.userId, title: input.title.trim(), summary: "Job Post metadata awaiting admin approval. Check pay/volunteer clarity, location/remote clarity, contact path, scam risk, and no private applicant data." });
@@ -2925,10 +2984,34 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
   const table = item.kind === "post" ? canonicalCommuneTables.posts : item.kind === "comment" ? canonicalCommuneTables.comments : item.kind === "upload" ? canonicalCommuneTables.media : item.kind === "repo" ? canonicalCommuneTables.repositoryShowcases : item.kind === "iteration" ? canonicalCommuneTables.iterationShowcases : item.kind === "job" ? canonicalCommuneTables.jobPosts : item.kind === "sandbox" ? canonicalCommuneTables.sandboxReviews : canonicalCommuneTables.legacyReports;
   const ownerSelect = item.kind === "post" ? "user_id,title,post_type" : item.kind === "comment" ? "user_id,body,post_id,thread_id" : item.kind === "repo" ? "user_id,project_name,post_id" : item.kind === "iteration" ? "author_user_id,iteration_type,version_build_label,post_id" : item.kind === "job" ? "author_user_id,role_title,organization_project,post_id" : item.kind === "sandbox" ? "user_id,request_title" : item.kind === "upload" ? "owner_user_id,file_name,post_id" : "reporter_user_id,report_type";
   const ownerResult = await supabase.from(table).select(ownerSelect).eq("id", item.id).maybeSingle();
-  const ownerRow = (ownerResult.data ?? {}) as Record<string, unknown>;
+  if (ownerResult.error) return { ok: false, message: "This Commune item could not be loaded for governed moderation. No review or publication change was made." };
+  if (!ownerResult.data) return { ok: false, message: "This Commune item could not be found. It may already have been removed." };
+  const ownerRow = ownerResult.data as unknown as Record<string, unknown>;
   const targetUserId = String(ownerRow.user_id ?? ownerRow.author_user_id ?? ownerRow.owner_user_id ?? ownerRow.reporter_user_id ?? "");
   const notificationTitle = String(ownerRow.title ?? ownerRow.project_name ?? ownerRow.iteration_type ?? ownerRow.role_title ?? ownerRow.request_title ?? ownerRow.file_name ?? ownerRow.report_type ?? item.title);
   const postId = String(ownerRow.post_id ?? (item.kind === "post" ? item.id : ""));
+  if (item.kind === "job" || (item.kind === "post" && ownerRow.post_type === "job_post")) {
+    if (action === "lock") return { ok: false, message: "Lock is not a supported governed Job Post review action. No review or publication change was made." };
+    const jobPostTarget = item.kind === "job" ? { ok: true as const, jobPostId: item.id } : await resolveCommuneJobPostId(item.id);
+    if (!jobPostTarget.ok) return { ok: false, message: jobPostTarget.message };
+    const jobReview = await reviewCommuneJobPost(jobPostTarget.jobPostId, action as JobPostReviewAction, reason);
+    if (!jobReview.ok) return { ok: false, message: jobReview.message };
+    await finalizeGovernedJobPostPublication(jobReview.result, targetUserId, account.userId);
+    if (targetUserId && targetUserId !== account.userId) {
+      await supabase.from("user_notifications").insert({
+        user_id: targetUserId,
+        notification_type: "commune_moderation_update",
+        source_type: "job",
+        source_id: jobReview.result.jobPostId,
+        title: `Commune review update: ${notificationTitle}`,
+        body: jobReview.result.published
+          ? "Your Job Post content was approved and the listing is now public. Payment did not grant review approval."
+          : `Your Job Post review is now ${jobReview.result.contentStatus.replace(/_/g, " ")}. The listing remains non-public unless every independent publication condition is satisfied.`,
+        action_url: `/commune/posts/${jobReview.result.postId}`
+      });
+    }
+    return { ok: true, message: jobPostReviewResultMessage(jobReview.result) };
+  }
   const update: Record<string, unknown> = {};
   if (item.kind === "post") {
     update.updated_at = now;
@@ -2952,13 +3035,6 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
   } else if (item.kind === "iteration") {
     update.updated_at = now;
     update.status = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "hide" ? "rejected" : action === "archive" ? "archived" : action === "escalate" ? "in_review" : "needs_information";
-  } else if (item.kind === "job") {
-    update.updated_at = now;
-    update.anti_scam_review_status = action === "approve" ? "reviewed_clear" : action === "reject" || action === "hide" ? "removed" : action === "archive" ? "removed" : action === "escalate" ? "suspicious" : "needs_contact_clarification";
-    update.application_status = action === "archive" ? "archived" : action === "reject" || action === "hide" ? "closed" : action === "approve" ? "open" : "needs_clarification";
-    update.reviewed_by = account.userId;
-    update.reviewed_at = now;
-    if (reason) update.public_correction_note = reason;
   } else if (item.kind === "sandbox") {
     update.updated_at = now;
     update.status = action === "approve" ? "approved_for_local_sandbox" : action === "reject" ? "rejected" : action === "archive" ? "archived" : action === "escalate" ? "in_review" : "needs_information";
@@ -2986,12 +3062,7 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
     const iterationStatus = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "hide" ? "rejected" : action === "archive" ? "archived" : action === "escalate" ? "in_review" : "needs_information";
     await supabase.from(canonicalCommuneTables.iterationShowcases).update({ status: iterationStatus, updated_at: now }).eq("post_id", item.id);
   }
-  if (item.kind === "post" && ownerRow.post_type === "job_post") {
-    const jobReviewStatus: JobPostAntiScamReviewStatus = action === "approve" ? "reviewed_clear" : action === "reject" || action === "hide" || action === "archive" ? "removed" : action === "escalate" ? "suspicious" : "needs_contact_clarification";
-    const jobApplicationStatus: JobPostApplicationStatus = action === "approve" ? "open" : action === "archive" ? "archived" : action === "reject" || action === "hide" ? "closed" : "needs_clarification";
-    await supabase.from(canonicalCommuneTables.jobPosts).update({ anti_scam_review_status: jobReviewStatus, application_status: jobApplicationStatus, reviewed_by: account.userId, reviewed_at: now, updated_at: now, public_correction_note: reason || null }).eq("post_id", item.id);
-  }
-  if ((item.kind === "repo" || item.kind === "iteration" || item.kind === "job") && postId) {
+  if ((item.kind === "repo" || item.kind === "iteration") && postId) {
     const linkedPostUpdate: Record<string, unknown> = { updated_at: now };
     linkedPostUpdate.status = action === "approve" ? "published" : action === "reject" ? "removed_by_moderator" : action === "hide" ? "hidden" : action === "archive" ? "archived" : "needs_information";
     linkedPostUpdate.moderation_status = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "hide" ? "hidden" : action === "archive" ? "archived" : "needs_information";
@@ -3002,7 +3073,7 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
     } else {
       linkedPostUpdate.moderation_reason = reason || null;
     }
-    await supabase.from(canonicalCommuneTables.posts).update(linkedPostUpdate).eq("id", postId).eq("post_type", item.kind === "repo" ? "repository_showcase" : item.kind === "iteration" ? "elysia_iteration_showcase" : "job_post");
+    await supabase.from(canonicalCommuneTables.posts).update(linkedPostUpdate).eq("id", postId).eq("post_type", item.kind === "repo" ? "repository_showcase" : "elysia_iteration_showcase");
     const linkedReview = await supabase.from("review_items").select("id,status").eq("domain", "commune").eq("source_table", canonicalCommuneTables.posts).eq("source_id", postId).maybeSingle();
     if (!linkedReview.error && linkedReview.data) {
       const linkedReviewStatus = action === "approve" ? "approved" : action === "reject" ? "rejected" : action === "needs_information" ? "needs_information" : action === "archive" ? "archived" : "in_review";
@@ -3023,9 +3094,9 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
       await grantThreadParticipationApproval({ threadId: (threadRow as { id?: string } | null)?.id ?? null, postId: item.id, userId: targetUserId, approvedBy: account.userId, source: "post_approval" });
       await publishPostAttachments(item.id);
     }
-    if ((item.kind === "repo" || item.kind === "iteration" || item.kind === "job") && postId) {
+    if ((item.kind === "repo" || item.kind === "iteration") && postId) {
       const { data: threadRow } = await supabase.from(canonicalCommuneTables.threads).select("id").eq("post_id", postId).maybeSingle();
-      await grantThreadParticipationApproval({ threadId: (threadRow as { id?: string } | null)?.id ?? null, postId, userId: targetUserId, approvedBy: account.userId, source: item.kind === "repo" ? "repository_showcase_approval" : item.kind === "iteration" ? "iteration_showcase_approval" : "job_post_approval" });
+      await grantThreadParticipationApproval({ threadId: (threadRow as { id?: string } | null)?.id ?? null, postId, userId: targetUserId, approvedBy: account.userId, source: item.kind === "repo" ? "repository_showcase_approval" : "iteration_showcase_approval" });
       await publishPostAttachments(postId);
     }
     if (item.kind === "comment") {

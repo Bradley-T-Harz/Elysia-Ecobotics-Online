@@ -285,6 +285,8 @@ export async function runContainerJob(job, runtime, sourceCode, options = {}) {
     exit_code: exitCode,
     timed_out: timedOut,
     killed,
+    input_bytes: Buffer.byteLength(sourceCode, "utf8"),
+    output_bytes: Math.min(output.totalBytes, 1_048_576),
     output_truncated: output.outputTruncated,
     output_overflow: output.outputOverflow,
     cleanup_ok: cleanupOk

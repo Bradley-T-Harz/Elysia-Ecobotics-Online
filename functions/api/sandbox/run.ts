@@ -40,6 +40,11 @@ const defaultDependencies: RunDependencies = {
   finalize: (auth, runId, clientRequestId, env, result) => finalizeRun(auth.supabase, runId, clientRequestId, requiredFinalizerToken(env), result)
 };
 
+function publicRunnerResult(result: RunnerResult): Omit<RunnerResult, "usage"> {
+  const { usage: _privateUsage, ...publicResult } = result;
+  return publicResult;
+}
+
 function requiredFinalizerToken(env: Env): string {
   const token = env.SANDBOX_DB_FINALIZER_TOKEN;
   if (!token || token.length < 32 || token.length > 512 || /(replace|placeholder|changeme|enter[_ -]?directly)/i.test(token)) {
@@ -58,7 +63,7 @@ function replayResult(reservation: Reservation, source: AuthorizedSource, env: E
   if (!reservation.runId || !result) throw new PublicHttpError(409, "idempotent_request_pending", 4);
   const sanitized = sanitizeRunnerResult(result, source, env);
   return {
-    ...sanitized,
+    ...publicRunnerResult(sanitized),
     runId: reservation.runId,
     recordingStatus: "recorded",
     idempotentReplay: true
@@ -84,6 +89,9 @@ export async function handleSandboxRun(
 
     const reservation = await dependencies.reserve(auth, parsedRequest, source);
     if (!reservation.accepted) {
+      if (reservation.reason === "sandbox_credits_required") {
+        throw new PublicHttpError(402, "sandbox_credits_required");
+      }
       const error = reservation.reason === "quota_exceeded" ? "sandbox_quota_exceeded" : "sandbox_busy";
       throw new PublicHttpError(429, error, reservation.retryAfter ?? 4);
     }
@@ -102,7 +110,7 @@ export async function handleSandboxRun(
         throw new PublicHttpError(429, "sandbox_busy", error.retryAfter ?? 4);
       }
       return jsonResponse({
-        ...runnerResult,
+        ...publicRunnerResult(runnerResult),
         runId: reservation.runId,
         recordingStatus: recorded ? "recorded" : "failed",
         idempotentReplay: false
@@ -111,7 +119,7 @@ export async function handleSandboxRun(
 
     const recorded = await dependencies.finalize(auth, reservation.runId, parsedRequest.clientRequestId, env, runnerResult);
     return jsonResponse({
-      ...runnerResult,
+      ...publicRunnerResult(runnerResult),
       runId: reservation.runId,
       recordingStatus: recorded ? "recorded" : "failed",
       idempotentReplay: false

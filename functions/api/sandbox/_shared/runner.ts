@@ -1,5 +1,5 @@
 import { PublicHttpError, fetchWithTimeout, readBoundedResponseJson } from "./http.ts";
-import type { AuthorizedSource, Env, RunnerResult, SandboxDiagnostic, SandboxFinalStatus, StartedReservation } from "./types.ts";
+import type { AuthorizedSource, Env, RunnerResult, SandboxDiagnostic, SandboxFinalStatus, SandboxUsageMeasurement, StartedReservation } from "./types.ts";
 
 const FINAL_STATUSES = new Set<SandboxFinalStatus>([
   "completed",
@@ -53,6 +53,34 @@ function cleanText(value: unknown, maximum: number, env?: Env): string {
 
 function finiteInteger(value: unknown, minimum: number, maximum: number): number | null {
   return typeof value === "number" && Number.isInteger(value) && value >= minimum && value <= maximum ? value : null;
+}
+
+function usageMeasurement(payload: Record<string, unknown>, source: AuthorizedSource, status: SandboxFinalStatus): SandboxUsageMeasurement {
+  const usage = record(payload.usage) ?? {};
+  const inputBytes = finiteInteger(usage.inputBytes, 0, 65_536)
+    ?? new TextEncoder().encode(source.code).byteLength;
+  const outputBytes = finiteInteger(usage.outputBytes, 0, 1_048_576) ?? 0;
+  const configuredCpuMillis = finiteInteger(usage.configuredCpuMillis, 1, 600_000) ?? 500;
+  const configuredMemoryBytes = finiteInteger(usage.configuredMemoryBytes, 1_048_576, 17_179_869_184) ?? 268_435_456;
+  const actualCpuTimeMs = finiteInteger(usage.actualCpuTimeMs, 0, 600_000);
+  const peakMemoryBytes = finiteInteger(usage.peakMemoryBytes, 0, 17_179_869_184);
+  const allowedFailureClasses = new Set([
+    "policy_blocked", "runner_unavailable", "runtime_error", "timeout", "output_overflow",
+    "cancelled", "cleanup_failed", "denied"
+  ]);
+  const failureClass = typeof usage.failureClass === "string" && allowedFailureClasses.has(usage.failureClass)
+    ? usage.failureClass
+    : status === "completed" ? null : status === "policy_blocked" ? "policy_blocked" : status === "denied" ? "denied" : status === "sandbox_unavailable" ? "runner_unavailable" : "runtime_error";
+  return {
+    inputBytes,
+    outputBytes,
+    configuredCpuMillis,
+    configuredMemoryBytes,
+    actualCpuTimeMs,
+    peakMemoryBytes,
+    networkAccess: false,
+    failureClass
+  };
 }
 
 function parseDiagnostics(value: unknown, language: string, file: string | null, env?: Env): SandboxDiagnostic[] {
@@ -213,7 +241,8 @@ export function sanitizeRunnerResult(value: unknown, source: AuthorizedSource, e
           ? "Sandbox execution is temporarily unavailable."
           : status === "denied"
             ? "Sandbox execution was denied."
-            : "Sandbox execution failed safely."
+            : "Sandbox execution failed safely.",
+    usage: usageMeasurement(payload, source, status)
   };
 }
 
@@ -230,6 +259,16 @@ export function unavailableRunnerResult(source: AuthorizedSource, message = "San
     durationMs: null,
     outputTruncated: false,
     diagnostics: [],
-    message
+    message,
+    usage: {
+      inputBytes: new TextEncoder().encode(source.code).byteLength,
+      outputBytes: 0,
+      configuredCpuMillis: 500,
+      configuredMemoryBytes: 268_435_456,
+      actualCpuTimeMs: null,
+      peakMemoryBytes: null,
+      networkAccess: false,
+      failureClass: "runner_unavailable"
+    }
   };
 }

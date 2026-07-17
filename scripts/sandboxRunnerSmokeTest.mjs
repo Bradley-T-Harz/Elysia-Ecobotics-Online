@@ -170,6 +170,7 @@ const brokenJson = validateSnapshotRunPayload(brokenJsonPayload);
 assert(brokenJson.ok === true && brokenJson.diagnostics.some((item) => item.category === "syntax_error"), "Static JSON diagnostics must report syntax errors truthfully without executing code.");
 const brokenJsonRun = await createAndRunSnapshotRun(brokenJsonPayload, { confirmLocalExecution: true, config });
 assert(brokenJsonRun.ok === false && brokenJsonRun.status === "failed" && brokenJsonRun.exitCode === null, "Static syntax errors must never be finalized as successful evidence.");
+assert(brokenJsonRun.usage.inputBytes === brokenJsonPayload.code_bytes && brokenJsonRun.usage.networkAccess === false, "Static diagnostics must report bounded non-network usage without pretending code executed.");
 
 let releaseExecution;
 const executionBarrier = new Promise((resolve) => { releaseExecution = resolve; });
@@ -189,6 +190,7 @@ assert(concurrent.busy === true && concurrent.retryAfter === 4, "A concurrent ex
 releaseExecution();
 const completed = await firstRun;
 assert(completed.ok === true && completed.status === "completed", "Mocked governed execution should complete.");
+assert(completed.usage.inputBytes === validPayload.code_bytes && completed.usage.configuredCpuMillis === 500 && completed.usage.configuredMemoryBytes === 268_435_456 && completed.usage.networkAccess === false, "Governed execution must return its fixed measurement envelope separately from authority.");
 assert((await fs.readdir(config.jobsRoot)).length === 0, "Raw job input/output must be removed before the execution slot is released.");
 
 class MockResponse extends EventEmitter {

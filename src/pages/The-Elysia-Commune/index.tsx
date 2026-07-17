@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { cpp } from "@codemirror/lang-cpp";
 import { css } from "@codemirror/lang-css";
@@ -17,6 +17,7 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
 import { useAuth } from "../../shared/auth/useAuth";
+import { billingErrorMessage, createBillingClientRequestId, createJobPostCheckout, loadBillingCapabilities, loadBillingOrder, loadJobPostOwnerEconomicStatus, type BillingCapabilities, type BillingOrderSummary, type JobPostOwnerEconomicStatus } from "../../shared/billing/billingClient";
 import {
   clearCommuneReaction,
   castCommunityVoteBallot,
@@ -161,6 +162,7 @@ import { type SandboxRequestInput, type SandboxRequestRecord } from "../../share
 import { codingLanguageOptions, codingLanguageStatusLabel, getCodingLanguagePolicy, normalizeCodingLanguage } from "./codeLanguagePolicies";
 import { runStaticCodingDiagnostics, type CodingDiagnostic, type SandboxRunResult } from "./codeDiagnosticTypes";
 import { requestSandboxRun, sandboxEndpointState, type SandboxSourceType } from "./codingSandboxClient";
+import { loadSandboxCreditSummary, sandboxCreditClientMessage, type SandboxCreditSourceCategory, type SandboxCreditSummary } from "./sandboxCreditsClient";
 
 type CommuneStatus =
   | "draft_local"
@@ -541,6 +543,46 @@ function proposalDraftSnapshotId(snippetId: string, input: { codeText: string; l
   return `proposal-draft-${snippetId}-${stableSnapshotSuffix([input.language, input.fileName, input.codeText].join("\n---coding-cornucopia-draft---\n"))}`;
 }
 
+function formatSandboxCredits(units: number, unitScale: number) {
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 3 }).format(units / unitScale);
+}
+
+const sandboxCreditSourceLabels: Record<SandboxCreditSourceCategory, string> = {
+  starter: "Starter access",
+  purchased: "Purchased service access",
+  sponsored: "Sponsored access",
+  waiver: "Waived access",
+  waived: "Waived access",
+  recurring_support: "Sustaining-support access",
+  operational: "Existing operational access",
+  operator: "Service-provided access",
+  test: "Test access"
+};
+
+function groupedSandboxCreditSources(summary: SandboxCreditSummary) {
+  const grouped = new Map<string, number>();
+  for (const source of summary.sourceCategories) {
+    const label = sandboxCreditSourceLabels[source.category];
+    grouped.set(label, (grouped.get(label) ?? 0) + source.availableUnits);
+  }
+  return [...grouped.entries()].map(([label, units]) => ({ label, units }));
+}
+
+function sandboxCreditReceiptLabel(entryType: SandboxCreditSummary["recentReceipts"][number]["entryType"]) {
+  switch (entryType) {
+    case "grant": return "added";
+    case "reserve": return "reserved";
+    case "consume": return "consumed";
+    case "release": return "released";
+    case "expire": return "expiry adjustment";
+    case "refund_adjustment": return "refund adjustment";
+    case "dispute_hold": return "dispute hold";
+    case "admin_correction": return "account correction";
+    case "compensating_credit": return "returned";
+    case "compensating_debit": return "corrected";
+  }
+}
+
 function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeDocumentId, codeVersionId, language, fileName, code, signedIn = true, runLabel = "Run snapshot in sandbox" }: {
   snapshotId: string;
   sourceType: SandboxSourceType;
@@ -563,6 +605,27 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
   const [running, setRunning] = useState(false);
   const [runState, setRunState] = useState<SandboxRunUiState>("idle");
   const [recordMessage, setRecordMessage] = useState("");
+  const [creditSummary, setCreditSummary] = useState<SandboxCreditSummary | null>(null);
+  const [creditLoading, setCreditLoading] = useState(false);
+  const [creditMessage, setCreditMessage] = useState("");
+  const refreshCreditSummary = useCallback(async (force = false) => {
+    if (!signedIn || !accessToken) {
+      setCreditSummary(null);
+      setCreditMessage("");
+      setCreditLoading(false);
+      return;
+    }
+    setCreditLoading(true);
+    try {
+      setCreditSummary(await loadSandboxCreditSummary(accessToken, { force }));
+      setCreditMessage("");
+    } catch (error) {
+      setCreditMessage(sandboxCreditClientMessage(error));
+    } finally {
+      setCreditLoading(false);
+    }
+  }, [accessToken, signedIn]);
+  useEffect(() => { void refreshCreditSummary(); }, [refreshCreditSummary]);
   useEffect(() => {
     setResult(null);
     setRunState("idle");
@@ -597,6 +660,7 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
         : runResult.recordingStatus === "recorded"
           ? "Run evidence was recorded privately through the governed proxy."
           : "");
+      if (runResult.runId) void refreshCreditSummary(true);
     } catch {
       const failedResult: SandboxRunResult = {
         ok: false,
@@ -624,11 +688,48 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
     }
   }
 
+  const maximumRunCredits = creditSummary?.activeRate
+    ? formatSandboxCredits(creditSummary.activeRate.maximumRunUnits, creditSummary.unitScale)
+    : null;
+  const conservativeFullRuns = creditSummary?.activeRate
+    ? Math.floor(creditSummary.availableUnits / creditSummary.activeRate.maximumRunUnits)
+    : null;
+  const lowBalance = Boolean(creditSummary?.activeRate && creditSummary.availableUnits < creditSummary.activeRate.maximumRunUnits);
+  const matchedReceipts = result?.runId ? creditSummary?.recentReceipts.filter((receipt) => receipt.runId === result.runId).slice(0, 3) ?? [] : [];
+  const matchedReservation = result?.runId ? creditSummary?.activeReservations.find((reservation) => reservation.runId === result.runId) ?? null : null;
+  const creditSources = creditSummary ? groupedSandboxCreditSources(creditSummary) : [];
+
   return <section className="coding-sandbox-panel">
     <div className="addon-card__topline"><strong>Sandbox diagnostics</strong><span>{codingLanguageStatusLabel(policy.status)}</span></div>
     <p className="boundary-note">{endpoint.message}</p>
     <p className="boundary-note">Submitted code crosses Cloudflare and the Hetzner sandbox host. Bounded run metadata and output previews may be stored privately in Supabase. No browser execution, terminal, package install, repo clone, Local Elysia handoff, trust label, or approval is created by a successful run.</p>
     <StatusBadges labels={[`state: ${runState.replace(/_/g, " ")}`, policy.sandboxRuntime ? `runtime: ${policy.sandboxRuntime}` : "no active runtime", "network disabled", "ephemeral workspace"]} />
+    {signedIn && <section className={`coding-sandbox-credit-summary${lowBalance ? " coding-sandbox-credit-summary--low" : ""}`} aria-live="polite" aria-busy={creditLoading}>
+      <div className="addon-card__topline"><strong>Private sandbox service credits</strong><span>{creditLoading ? "refreshing" : creditSummary?.mode === "test" ? "test mode" : "availability unknown"}</span></div>
+      {creditLoading && !creditSummary && <p>Loading the private account summary...</p>}
+      {creditMessage && <p className="boundary-note">{creditMessage}</p>}
+      {creditSummary?.displayEnabled && <>
+        <dl className="mini-facts">
+          <div><dt>Available</dt><dd>{formatSandboxCredits(creditSummary.availableUnits, creditSummary.unitScale)} credits</dd></div>
+          <div><dt>Reserved</dt><dd>{formatSandboxCredits(creditSummary.reservedUnits, creditSummary.unitScale)} credits</dd></div>
+          <div><dt>Maximum per run</dt><dd>{maximumRunCredits ? `${maximumRunCredits} provisional credits` : "Rate unavailable"}</dd></div>
+          <div><dt>Conservative full-limit estimate</dt><dd>{conservativeFullRuns === null ? "Unavailable" : `${conservativeFullRuns} run${conservativeFullRuns === 1 ? "" : "s"}`}</dd></div>
+        </dl>
+        {creditSources.length > 0 && <div className="sandbox-credit-source-list" aria-label="Private sandbox credit sources">{creditSources.map((source) => <span key={source.label}>{source.label}: {formatSandboxCredits(source.units, creditSummary.unitScale)}</span>)}</div>}
+        {lowBalance && <p className="sandbox-credit-low-balance"><strong>Low balance for a full-limit run.</strong> No automatic purchase or charge will occur. A smaller successful run may use less than the provisional maximum.</p>}
+        {creditSummary.enforcementEnabled
+          ? <p className="boundary-note">Credit enforcement is enabled for measured online execution capacity only. It does not increase safety privileges, network access, concurrency limits, reviewer status, or authority.</p>
+          : <p className="boundary-note">Credit enforcement is off. Existing free operational sandbox behavior remains available under the current quota and safety rules; this balance is test information only.</p>}
+        {result?.runId && matchedReceipts.length > 0 && <div className="inline-status"><strong>Latest matched run receipts</strong><ul>{matchedReceipts.map((receipt) => <li key={receipt.id}>{sandboxCreditReceiptLabel(receipt.entryType)} {formatSandboxCredits(Math.abs(receipt.unitsDelta), creditSummary.unitScale)} credits</li>)}</ul><span>This private ledger information grants no trust or authority.</span></div>}
+        {result?.runId && matchedReservation && <p className="inline-status">This run has {formatSandboxCredits(matchedReservation.reservedUnits, creditSummary.unitScale)} credits reserved while server finalization completes. No second checkout is needed.</p>}
+        {result?.runId && creditSummary.enforcementEnabled && matchedReceipts.length === 0 && !matchedReservation && <p className="small-note">No matching private consumption or reservation receipt is available yet. No charge or release is being claimed by this panel.</p>}
+        {creditSummary.warnings.map((warning) => <p className="small-note" key={warning}>{warning}</p>)}
+        <div className="button-row"><button type="button" disabled={creditLoading} onClick={() => void refreshCreditSummary(true)}>{creditLoading ? "Refreshing..." : "Refresh private balance"}</button><Link className="button-link" to="/support">Learn about optional support</Link></div>
+        <p className="small-note">The Support page never starts an automatic sandbox-credit purchase. Only an explicitly labeled, enabled sandbox checkout could add purchased credits.</p>
+      </>}
+      {creditSummary && !creditSummary.displayEnabled && <p className="boundary-note">Private credit display is disabled. The existing sandbox run path and its operational safety limits remain unchanged.</p>}
+      <p className="small-note">Credits never enable network access, secrets, package installation, host files, private Elysia context, approval, or trust. Free, sponsored, waived, recurring, purchased, and service-provided access use the same execution safety policy.</p>
+    </section>}
     <DiagnosticsList diagnostics={staticDiagnostics} />
     <div className="button-row">
       <button type="button" disabled={!canRun || running} onClick={() => void runSnapshot()}>{running ? "Running in sandbox..." : runLabel}</button>
@@ -3766,7 +3867,122 @@ function JobPostReviewControls({ jobPost, postId, isModerator, onMessage, onChan
   </div>;
 }
 
-function JobPostDetail({ post, jobPost, parsedBody, isModerator, onMessage, onChanged }: { post: CommunePost; jobPost?: JobPostMetadata | null; parsedBody: ReturnType<typeof splitPostSections>; isModerator: boolean; onMessage: (message: string) => void; onChanged: () => Promise<void> }) {
+function JobPostEconomicOwnerPanel({ jobPostId, accessToken }: { jobPostId: string; accessToken: string }) {
+  const location = useLocation();
+  const returnParameters = useMemo(() => new URLSearchParams(location.search), [location.search]);
+  const jobPaymentReturn = returnParameters.get("job-payment");
+  const orderReference = returnParameters.get("order") ?? "";
+  const [economic, setEconomic] = useState<JobPostOwnerEconomicStatus | null>(null);
+  const [capabilities, setCapabilities] = useState<BillingCapabilities | null>(null);
+  const [returnOrder, setReturnOrder] = useState<BillingOrderSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [accepted, setAccepted] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [error, setError] = useState("");
+  const requestIdRef = useRef("");
+  const refreshSequenceRef = useRef(0);
+  const errorRef = useRef<HTMLDivElement>(null);
+
+  const refresh = useCallback(async () => {
+    const sequence = ++refreshSequenceRef.current;
+    setLoading(true);
+    setEconomic(null);
+    setError("");
+    const orderRequest = jobPaymentReturn && orderReference
+      ? loadBillingOrder(orderReference, accessToken)
+      : Promise.resolve(null);
+    const [economicResult, capabilitiesResult, orderResult] = await Promise.allSettled([
+      loadJobPostOwnerEconomicStatus(jobPostId, accessToken), loadBillingCapabilities(), orderRequest
+    ]);
+    if (sequence !== refreshSequenceRef.current) return;
+    setEconomic(economicResult.status === "fulfilled" ? economicResult.value : null);
+    setCapabilities(capabilitiesResult.status === "fulfilled" ? capabilitiesResult.value : null);
+    setReturnOrder(orderResult.status === "fulfilled" ? orderResult.value : null);
+    if (economicResult.status === "rejected") setError(billingErrorMessage(economicResult.reason));
+    else if (capabilitiesResult.status === "rejected") setError("The current Job Post fee condition is readable, but the canonical legal-consent bundle could not be verified. Checkout remains disabled and no version will be guessed.");
+    setLoading(false);
+  }, [accessToken, jobPaymentReturn, jobPostId, orderReference]);
+
+  useEffect(() => {
+    void refresh();
+    return () => { refreshSequenceRef.current += 1; };
+  }, [refresh]);
+
+  if (loading) return <section className="commune-room-native-field commune-job-economic-owner" aria-live="polite"><h3>Private Job Post economic condition</h3><p>Loading the owner-only fee status…</p></section>;
+  if (!economic) return <section className="commune-room-native-field commune-job-economic-owner"><h3>Private Job Post economic condition</h3><p className="boundary-note">No owner-only economic assessment is available. This does not imply that a fee is due or paid, and it does not change ordinary content review.</p>{error && <div className="validation validation--bad" role="alert">{error}</div>}</section>;
+
+  const consentBundle = capabilities?.legalConsentBundles?.job_post_fee_checkout_bundle ?? null;
+  const feeTermsDocument = consentBundle?.documents.jobPostFeeTerms ?? null;
+  const refundDocument = consentBundle?.documents.refundPolicy ?? null;
+  const privacyDocument = consentBundle?.documents.privacyDisclosure ?? null;
+  const termsMatch = economic.classification === "commercial" && Boolean(consentBundle && feeTermsDocument && refundDocument && privacyDocument && economic.termsVersion === consentBundle?.version);
+  const paymentRequired = economic.classification === "commercial" && economic.economicStatus === "payment_required";
+  const canCheckout = Boolean(paymentRequired && economic.contentApproved && economic.amountMinor !== null && economic.currency === "usd" && termsMatch && accepted && !busy);
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setStatusMessage("");
+    if (!canCheckout || !consentBundle) {
+      setError("Checkout is unavailable until content review is approved and the exact server-published fee consent bundle matches this assessment. No payment was created.");
+      requestAnimationFrame(() => errorRef.current?.focus());
+      return;
+    }
+    setBusy(true);
+    setStatusMessage("Preparing a separate Stripe-hosted Job Post test checkout…");
+    requestIdRef.current ||= createBillingClientRequestId();
+    try {
+      const result = await createJobPostCheckout({
+        jobPostId,
+        clientRequestId: requestIdRef.current,
+        sourceRoute: "/commune/rooms/job-post/posts",
+        consentVersion: consentBundle.version
+      }, accessToken);
+      setStatusMessage("Opening Stripe-hosted test checkout. A return page is not proof of payment or publication; the signed webhook and independent content-approval fact decide.");
+      window.location.assign(result.checkoutUrl);
+    } catch (requestError) {
+      setBusy(false);
+      setStatusMessage("");
+      setError(billingErrorMessage(requestError));
+      requestAnimationFrame(() => errorRef.current?.focus());
+    }
+  }
+
+  const amount = economic.amountMinor === null || economic.currency === null
+    ? "No payment amount"
+    : new Intl.NumberFormat("en-US", { style: "currency", currency: economic.currency }).format(economic.amountMinor / 100);
+  const returnOrderMatchesJobPostFee = returnOrder?.flow === "job_post_fee";
+  return <section className="commune-room-native-field commune-job-economic-owner" aria-labelledby="job-post-economic-owner-title">
+    <p className="eyebrow">Owner-only economic status</p>
+    <h3 id="job-post-economic-owner-title">Job Post fee condition</h3>
+    <p>This private condition is separate from anti-scam review, content approval, publication, employer identity, community trust, and the public listing. A payment can satisfy only the assessed commercial fee.</p>
+    {(jobPaymentReturn === "complete" || jobPaymentReturn === "canceled") && <div className="boundary-note job-post-payment-return" role="status">
+      <p>{jobPaymentReturn === "complete" ? "A Stripe test checkout return parameter reached this Job Post owner surface." : "A canceled or left Stripe test checkout return parameter reached this Job Post owner surface."} Browser return alone is not proof of payment, fulfillment, content approval, or publication.</p>
+      {returnOrderMatchesJobPostFee ? <p>Private server Job Post fee order state: {returnOrder.status.replace(/_/g, " ")}. The owner-only fee condition below remains the authoritative service projection.</p> : returnOrder?.flow ? <p>The private order belongs to a different economic flow. It is not being labeled as this Job Post fee, and no Job Post payment or publication condition is being claimed from it. Generic server order state: {returnOrder.status.replace(/_/g, " ")}.</p> : <p>The private server order flow could not be verified, so this reference is not being labeled as a Job Post fee. The owner-only fee condition below remains the authoritative service projection.</p>}
+      <div className="button-row"><button type="button" disabled={loading} onClick={() => void refresh()}>{loading ? "Checking verified status…" : "Check verified fee status again"}</button><Link className="button-link" to={location.pathname}>Clear checkout return notice</Link></div>
+    </div>}
+    <dl className="mini-facts"><div><dt>Classification</dt><dd>{economic.classification.replace(/_/g, " ")}</dd></div><div><dt>Economic state</dt><dd>{economic.economicStatus.replace(/_/g, " ")}</dd></div><div><dt>Content review</dt><dd>{economic.contentApproved ? "Approved independently" : "Not approved"}</dd></div><div><dt>Publication</dt><dd>{economic.publicationStatus.replace(/_/g, " ")}</dd></div><div><dt>Assessed amount</dt><dd>{amount}{economic.testMode && economic.amountMinor !== null ? " · Stripe test mode" : ""}</dd></div></dl>
+    {economic.classification !== "commercial" && <p className="inline-status">No commercial checkout is required for this classification. Free, waived, and subsidized conditions are legitimate and do not create a public financial label.</p>}
+    {economic.economicStatus === "payment_pending" && <p className="boundary-note">A test checkout is already pending. Do not start another payment from this page. Publication still requires the independent content-approval fact and verified server fulfillment.</p>}
+    {economic.economicStatus === "satisfied" && <p className="inline-status">The server marks the fee condition satisfied. This does not itself prove content approval; publication still follows the two-fact gate.</p>}
+    {economic.economicStatus === "reconciliation_required" && <p className="boundary-note" role="status">A verified payment arrived after this Job Post was no longer eligible for fulfillment. Publication was withheld, the payment is privately quarantined, and a full-refund review is required. Community standing, content review, and account access remain separate.</p>}
+    {["refunded", "disputed"].includes(economic.economicStatus) && <p className="boundary-note">This fee is {economic.economicStatus}. Contact private billing support for the economic record. Community standing and ordinary account access remain separate.</p>}
+    {paymentRequired && !economic.contentApproved && <p className="boundary-note">The commercial fee was assessed, but checkout is withheld until independent content review is approved. Payment cannot buy approval or force publication.</p>}
+    {paymentRequired && !termsMatch && <p className="boundary-note">The assessment does not match the current complete Job Post fee consent bundle. Checkout remains disabled and this page will not guess or substitute a version.</p>}
+    {paymentRequired && economic.contentApproved && termsMatch && <form className="support-form" onSubmit={submit} noValidate>
+      <p><strong>{amount} once in Stripe test mode.</strong> No renewal is created. The fee pays for the narrowly disclosed commercial Job Post service and grants no approval, ranking, trust, authority, or special moderation treatment.</p>
+      <label className="checkbox-line support-consent"><input type="checkbox" checked={accepted} disabled={busy} onChange={(event) => { setAccepted(event.target.checked); requestIdRef.current = ""; setError(""); setStatusMessage(""); }} /><span>I accept the <Link to={feeTermsDocument?.path ?? "/legal/job-post-fee-terms"}>Job Post Fee Terms</Link>, <Link to={refundDocument?.path ?? "/legal/refund-and-cancellation-policy"}>Refund and Cancellation Policy</Link>, and <Link to={privacyDocument?.path ?? "/legal/privacy-policy"}>Privacy Policy</Link> in consent bundle {consentBundle?.version}; I understand payment never grants content approval or publication.</span></label>
+      {error && <div className="validation validation--bad" role="alert" tabIndex={-1} ref={errorRef}>{error}</div>}
+      <p className="inline-status" role="status" aria-live="polite">{statusMessage}</p>
+      <button className="button-primary" type="submit" disabled={!canCheckout}>{busy ? "Opening Stripe test checkout…" : `Continue to Stripe for ${amount}`}</button>
+    </form>}
+    {!paymentRequired && error && <div className="validation validation--bad" role="alert">{error}</div>}
+    <p className="boundary-note">Failed payment, refund, dispute, or chargeback may restrict only this economic service. It cannot become a general community ban or remove the Website Account, Commons Profile, content, badges, roles, or dignity.</p>
+  </section>;
+}
+
+function JobPostDetail({ post, jobPost, parsedBody, userId, accessToken, isModerator, onMessage, onChanged }: { post: CommunePost; jobPost?: JobPostMetadata | null; parsedBody: ReturnType<typeof splitPostSections>; userId?: string | null; accessToken?: string | null; isModerator: boolean; onMessage: (message: string) => void; onChanged: () => Promise<void> }) {
   const section = (...headings: string[]) => explicitFormSectionValue(parsedBody, ...headings);
   const value = (metadataValue?: string | null, ...fallbackHeadings: string[]) => metadataText(metadataValue) || (fallbackHeadings.length ? section(...fallbackHeadings) : "");
   const adminApplicationClarification = String(jobPost?.private_application_note ?? "").trim();
@@ -3799,6 +4015,7 @@ function JobPostDetail({ post, jobPost, parsedBody, isModerator, onMessage, onCh
     </div>
     <RoomNativeDetails label="Structured job listing" fields={fields} className="commune-job-native-details" />
     <WarningCallout title="Anti-scam and privacy safety"><p>Do not share SSNs, bank details, identity documents, resumes/CVs, private addresses, private phone numbers, tax forms, contracts, private application packets, Work With uploads, or sensitive personal data in public Job Post comments. Use a safe public contact path or the private Work With intake when appropriate.</p></WarningCallout>
+    {jobPost && accessToken && userId && (jobPost.author_user_id === userId || post.user_id === userId) && <JobPostEconomicOwnerPanel jobPostId={jobPost.id} accessToken={accessToken} />}
     <section className="commune-room-native-field commune-job-work-with"><h3>Private application path</h3><p>{jobPrivateApplicationSystemNotice}</p>{adminApplicationClarification && <p className="boundary-note">Admin clarification: {adminApplicationClarification}</p>}<div className="button-row"><Link className="button-link" to="/work-with-elysia-ecobotics">Open Work With Elysia Ecobotics</Link></div></section>
     <JobPostReviewControls jobPost={jobPost} postId={post.id} isModerator={isModerator} onMessage={onMessage} onChanged={onChanged} />
   </div>;
@@ -4108,6 +4325,7 @@ function OfficialUpdateDetail({ post, officialUpdate, parsedBody }: { post: Comm
 
 function PostDetail({ postId }: { postId: string }) {
   const navigate = useNavigate();
+  const { accessToken } = useAuth();
   const { state, refresh } = useCommuneLoad(undefined, postId);
   const [snippets, setSnippets] = useState<CommuneCodeSnippet[]>([]);
   const [comment, setComment] = useState("");
@@ -4226,6 +4444,7 @@ function PostDetail({ postId }: { postId: string }) {
   const isTroubleshooting = post.post_type === "troubleshooting";
   const isResearchNotes = post.post_type === "research_note";
   const isJobPost = post.post_type === "job_post";
+  const isPrivateOwnerJobPreview = isJobPost && Boolean(state.userId && post.user_id === state.userId) && (post.status !== "published" || post.visibility !== "public");
   const commentsLocked = (isOfficialUpdate && officialUpdate?.comments_enabled === false) || (isCommunityVote && communityVote?.vote.allow_comments === false);
   const bodyMarkdown = bodyMarkdownForPost(post);
   const genericRoomNativeDetails = post.post_type === "community_network" ? legacyCommunityNetworkDetails(parsedBody) : [];
@@ -4235,6 +4454,7 @@ function PostDetail({ postId }: { postId: string }) {
       <h2>{post.title}</h2>
       <p>{isOfficialUpdate ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>}</p>
       <StatusBadges labels={[post.status, post.visibility]} />
+      {isPrivateOwnerJobPreview && <p className="boundary-note" role="status"><strong>Private author view:</strong> this Job Post is not public. It is visible here only to its signed-in author so independent content review and any separate economic condition can be understood. Public comments, reactions, saves, follows, and reports stay unavailable until publication.</p>}
       <RoomNativeDetails label="Room-native details" fields={genericRoomNativeDetails} />
       {isRepositoryShowcase && <RepositoryShowcaseDetail post={post} showcase={repositoryShowcase} parsedBody={parsedBody} />}
       {isIterationShowcase && <ElysiaIterationShowcaseDetail post={post} iteration={iterationShowcase} parsedBody={parsedBody} />}
@@ -4242,17 +4462,16 @@ function PostDetail({ postId }: { postId: string }) {
       {isCommunityVote && <CommunityVoteDetail communityVote={communityVote} signedIn={state.signedIn} isAdmin={state.isAdmin} onMessage={setMessage} onChanged={refresh} />}
       {isTroubleshooting && <TroubleshootingDetail post={post} troubleshooting={troubleshooting} parsedBody={parsedBody} comments={state.comments} userId={state.userId} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}
       {isResearchNotes && <ResearchNotesDetail post={post} researchNote={researchNote} parsedBody={parsedBody} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}
-      {isJobPost && <JobPostDetail post={post} jobPost={jobPost} parsedBody={parsedBody} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}
+      {isJobPost && <JobPostDetail post={post} jobPost={jobPost} parsedBody={parsedBody} userId={state.userId} accessToken={accessToken} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}
       <CommunePostBody body={bodyMarkdown} />
       {attachments.length > 0 && <div className="commune-media-section"><p className="eyebrow">Attached media</p><p className="commune-media-attribution">Attached to this post by {isOfficialUpdate ? "Elysia Ecobotics Official" : authorLink(post.author_username)}.</p><p className="boundary-note">Published attachments are read-only and remain governed by Commune moderation and safety policies.</p><div className="commune-media-grid">{attachments.map((item) => <article className="commune-media-card" key={item.id}>{item.media_kind === "image" && item.signed_url ? <button className="commune-media-image-button" type="button" onClick={() => setActiveMedia(item)}><img src={item.signed_url} alt={`Attached media: ${item.file_name}`} loading="lazy" /></button> : <div className="commune-media-unavailable"><strong>{item.file_name}</strong><p>{item.signed_url ? "This attachment can be opened from its signed public review URL." : "Attachment unavailable or still under review."}</p></div>}<div className="commune-media-meta"><strong>{item.file_name}</strong><span>{item.mime_type ?? item.media_kind}{item.file_size ? ` · ${item.file_size} bytes` : ""}</span></div></article>)}</div></div>}
       {isOfficialUpdate ? <OfficialCodeSnippets officialUpdate={officialUpdate} officialCodeSnippets={officialCodeSnippets} fallbackSnippets={snippets} isAdmin={state.isAdmin} onMessage={setMessage} onChanged={refresh} /> : !isCommunityVote && <AttachedCodeSnippets snippets={snippets} authorUsername={post.author_username} postType={post.post_type} signedIn={state.signedIn} onMessage={setMessage} />}
       <TagChips tags={post.tags} />
-      <ReactionBar targetType="post" targetId={post.id} signedIn={state.signedIn} onMessage={setMessage} />
-      <div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div>
+      {!isPrivateOwnerJobPreview && <><ReactionBar targetType="post" targetId={post.id} signedIn={state.signedIn} onMessage={setMessage} /><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div></>}
     </section>
     {activeMedia?.signed_url && <div className="commune-media-lightbox" role="dialog" aria-modal="true" aria-label={`Attachment preview: ${activeMedia.file_name}`} onClick={() => setActiveMedia(null)}><div className="commune-media-lightbox-panel" onClick={(event) => event.stopPropagation()}><button className="commune-media-lightbox-close" type="button" onClick={() => setActiveMedia(null)}>Close</button><img src={activeMedia.signed_url} alt={`Attached media: ${activeMedia.file_name}`} /></div></div>}
-    <section className="section-card"><p className="eyebrow">Comments</p><h2>Comments and replies</h2><p className="boundary-note">{commentsLocked ? isCommunityVote ? "Comments are disabled for this Community Voting Room vote. Existing public comments remain visible unless moderated, but new public comments are disabled by an administrator." : "Comments are locked for this Official Update. Existing public comments remain visible unless moderated, but new public comments are disabled by an administrator." : state.isAdmin ? "Admin comments publish directly and remain auditable." : "First participation in a post/thread is reviewed. After approval in that thread, later comments and replies can publish directly while remaining reportable and removable."}</p>{!thread && <p className="boundary-note">This published post is missing its discussion thread. Submitting a comment will try to repair the thread with normal account permissions before saving.</p>}{topLevelComments.map((item) => renderComment(item))}{!topLevelComments.length && <p>Moderated comments will appear here once the backend tables are active and replies are approved.</p>}{commentsLocked ? <p className="message">{isCommunityVote ? "Comments are disabled for this Community Voting Room vote." : "Comments are locked for this official update."}</p> : <><label><span>Comment on this post</span><textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><div className="button-row"><button type="button" disabled={commentSubmitting} onClick={() => void submitThreadComment()}>{commentSubmitting ? "Submitting comment..." : "Submit comment"}</button></div></>}<p className="message">{commentStatus}</p></section>
-    <section className="section-card"><p className="eyebrow">Report</p><h2>Report this post</h2><p>Reports are reviewed by moderators/administrators. Reporting does not automatically remove content unless urgent automated controls are later added. Ratings do not replace reports or moderation.</p><label><span>Report type</span><select value={report.type} onChange={(event) => setReport({ ...report, type: event.target.value })}>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span>Reason</span><textarea rows={3} value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value })} /></label><button type="button" onClick={() => void reportPost()}>Send report</button><p className="message">{message}</p></section>
+    {!isPrivateOwnerJobPreview && <section className="section-card"><p className="eyebrow">Comments</p><h2>Comments and replies</h2><p className="boundary-note">{commentsLocked ? isCommunityVote ? "Comments are disabled for this Community Voting Room vote. Existing public comments remain visible unless moderated, but new public comments are disabled by an administrator." : "Comments are locked for this Official Update. Existing public comments remain visible unless moderated, but new public comments are disabled by an administrator." : state.isAdmin ? "Admin comments publish directly and remain auditable." : "First participation in a post/thread is reviewed. After approval in that thread, later comments and replies can publish directly while remaining reportable and removable."}</p>{!thread && <p className="boundary-note">This published post is missing its discussion thread. Submitting a comment will try to repair the thread with normal account permissions before saving.</p>}{topLevelComments.map((item) => renderComment(item))}{!topLevelComments.length && <p>Moderated comments will appear here once the backend tables are active and replies are approved.</p>}{commentsLocked ? <p className="message">{isCommunityVote ? "Comments are disabled for this Community Voting Room vote." : "Comments are locked for this official update."}</p> : <><label><span>Comment on this post</span><textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><div className="button-row"><button type="button" disabled={commentSubmitting} onClick={() => void submitThreadComment()}>{commentSubmitting ? "Submitting comment..." : "Submit comment"}</button></div></>}<p className="message">{commentStatus}</p></section>}
+    {!isPrivateOwnerJobPreview && <section className="section-card"><p className="eyebrow">Report</p><h2>Report this post</h2><p>Reports are reviewed by moderators/administrators. Reporting does not automatically remove content unless urgent automated controls are later added. Ratings do not replace reports or moderation.</p><label><span>Report type</span><select value={report.type} onChange={(event) => setReport({ ...report, type: event.target.value })}>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span>Reason</span><textarea rows={3} value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value })} /></label><button type="button" onClick={() => void reportPost()}>Send report</button><p className="message">{message}</p></section>}
     {isOfficialUpdate && state.isAdmin && <OfficialUpdateAdminPanel officialUpdate={officialUpdate} postId={post.id} onMessage={setMessage} onChanged={refresh} />}
     <AdminContentControls targetType="post" targetId={post.id} isModerator={state.isModerator} onChanged={refresh} onDeleted={handlePostDeleted} onMessage={setMessage} />
   </>;

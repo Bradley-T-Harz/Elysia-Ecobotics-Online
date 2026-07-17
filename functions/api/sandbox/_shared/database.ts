@@ -14,6 +14,10 @@ function numberOrNull(value: unknown): number | null {
   return typeof value === "number" && Number.isFinite(value) ? value : null;
 }
 
+function booleanOrUndefined(value: unknown): boolean | undefined {
+  return typeof value === "boolean" ? value : undefined;
+}
+
 export async function sha256Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -51,6 +55,10 @@ export async function reserveRun(
     leaseExpiresAt: stringOrNull(record.leaseExpiresAt),
     reason: stringOrNull(record.reason),
     retryAfter: numberOrNull(record.retryAfter),
+    economicEnforcement: booleanOrUndefined(record.economicEnforcement),
+    creditReservationId: stringOrNull(record.creditReservationId),
+    reservedCreditUnits: numberOrNull(record.reservedCreditUnits),
+    creditUnitScale: numberOrNull(record.creditUnitScale),
     result: existingResult as Reservation["result"]
   };
 }
@@ -104,7 +112,15 @@ export async function finalizeRun(
     p_exit_code: result.exitCode,
     p_duration_ms: result.durationMs,
     p_output_truncated: result.outputTruncated,
-    p_diagnostics: result.diagnostics
+    p_diagnostics: result.diagnostics,
+    p_input_bytes: result.usage.inputBytes,
+    p_output_bytes: result.usage.outputBytes,
+    p_configured_cpu_millis: result.usage.configuredCpuMillis,
+    p_configured_memory_bytes: result.usage.configuredMemoryBytes,
+    p_actual_cpu_time_ms: result.usage.actualCpuTimeMs,
+    p_peak_memory_bytes: result.usage.peakMemoryBytes,
+    p_network_access: result.usage.networkAccess,
+    p_failure_class: result.usage.failureClass
   });
   return !error;
 }

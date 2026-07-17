@@ -234,7 +234,7 @@ First verify the exact existing Pages project name and current build/deployment 
 
 For the production environment only, set ordinary variables and encrypted secrets described below. Preview must retain `SANDBOX_ENABLED=false` and `SANDBOX_DEPLOYMENT_ENV=preview`, and production secrets must not be added to preview. The production origin must be exactly `https://elysiaecobotics.com`; the service URL must be the Access-protected tunnel hostname.
 
-Deploy the already verified clean application build through the established Pages workflow. Confirm `public/_routes.json` includes `/api/sandbox/*` and excludes the shared module path. Cloudflare binding references:
+Deploy the already verified clean application build through the established Pages workflow. Confirm `public/_routes.json` includes `/api/sandbox/*`, excludes the shared module path, and does not include `/api/billing/*`. This Pages project is website/sandbox-only: never configure `BILLING_*`, `STRIPE_*`, payment, webhook, payout, or `SUPABASE_SERVICE_ROLE_KEY` bindings here. The same-origin billing namespace belongs to the separately deployed billing Worker described in `stripe-test-mode-economic-system.md`; sharing a hostname does not permit sharing secret bindings. Cloudflare binding references:
 
 - <https://developers.cloudflare.com/pages/functions/bindings/>
 - <https://developers.cloudflare.com/pages/functions/routing/>
@@ -307,4 +307,4 @@ Tunnel credential:
 
 - `CLOUDFLARED_TUNNEL_CREDENTIAL`
 
-Never create a `VITE_` form of a private value. No Supabase service-role/secret key belongs in this architecture.
+Never create a `VITE_` form of a private value. No Supabase service-role/secret key or billing/provider secret belongs in this Pages/sandbox architecture. Use `wrangler.example.jsonc` and `.dev.vars.example` only for this boundary; never merge the separate billing-Worker examples or local variables into them.

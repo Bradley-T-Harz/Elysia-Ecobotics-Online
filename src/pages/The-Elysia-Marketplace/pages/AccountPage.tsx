@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import AuthPanel from "../components/AuthPanel";
 import ProfilePanel from "../components/ProfilePanel";
+import MarketplaceCommerceAccountPanel from "../components/MarketplaceCommerceAccountPanel";
 import { useMarketplaceContext } from "./useMarketplaceContext";
 
 export default function AccountPage() {
@@ -35,6 +36,7 @@ export default function AccountPage() {
         <AuthPanel onMessage={pushMessage} onAuthChanged={refreshAccountSurfaces} />
         <ProfilePanel profile={profile} supabaseConfigured={supabaseConfigured} onMessage={pushMessage} onProfileSaved={refreshAccountSurfaces} />
       </section>
+      <MarketplaceCommerceAccountPanel />
     </div>
   );
 }

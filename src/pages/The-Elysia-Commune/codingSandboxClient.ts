@@ -159,6 +159,12 @@ export async function requestSandboxRun(request: SandboxRunRequest, accessToken:
     if (response.ok && isSandboxRunResult(payload)) return payload;
     if (attempt === 0 && [502, 504].includes(response.status)) continue;
     if (response.status === 401 || response.status === 403) return failedResult(request, "denied", "This sandbox request was not authorized.");
+    if (response.status === 402) return failedResult(
+      request,
+      "denied",
+      "This run needs more sandbox service credits. No automatic purchase or charge was made. Free, sponsored, and waived credit sources provide the same execution permissions as purchased credits.",
+      "sandbox_credits_required"
+    );
     if (response.status === 422) return failedResult(request, "policy_blocked", "This sandbox request was blocked by policy.");
     if (response.status === 429) return failedResult(request, "sandbox_unavailable", "The sandbox is busy or the current quota is exhausted. Please wait before retrying.");
     return failedResult(request, "sandbox_unavailable", "The governed sandbox is temporarily unavailable.");
