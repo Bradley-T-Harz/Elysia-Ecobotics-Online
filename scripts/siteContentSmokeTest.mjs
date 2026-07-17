@@ -35,6 +35,7 @@ const app = await read("src/App.tsx");
 const commons = await read("src/pages/The-Commons-Circle/index.tsx");
 const commonsApi = await read("src/pages/The-Commons-Circle/commonsCircleApi.ts");
 const commonsSetup = await read("src/pages/The-Commons-Circle/CommonsCircleSetupPage.tsx");
+const commonsLocalOnboarding = await read("src/pages/The-Commons-Circle/CommonsCircleOnboardingPage.tsx");
 const commonsAvatarViewer = await read("src/shared/components/CommonsAvatarViewer.tsx");
 const commonsAdminConsole = await read("src/pages/The-Commons-Circle/CommonsCircleAdminConsolePage.tsx");
 const publicProfileFieldsMigration = await read("supabase/legacy-migrations/2026_06_22_commons_public_profile_fields.sql");
@@ -44,6 +45,8 @@ const softDeleteCleanupMigration = await read("supabase/legacy-migrations/2026_0
 const communityVoteDeleteFilterMigration = await read("supabase/legacy-migrations/2026_07_08_commune_vote_delete_parent_filter.sql");
 const adminPage = await read("src/pages/Admin/index.tsx");
 const reviewClient = await read("src/shared/review/reviewClient.ts");
+const jobPostReviewClient = await read("src/shared/review/jobPostReviewClient.ts");
+const jobPostEconomicMigration = await read("supabase/migrations/20260716040000_job_post_economic_sidecar_and_publication_gate.sql");
 const publicProfile = await read("src/pages/Public-Commons-Profile/index.tsx");
 const commune = await read("src/pages/The-Elysia-Commune/index.tsx");
 const communeAccountApi = await read("src/pages/The-Elysia-Commune/communeAccountApi.ts");
@@ -78,6 +81,8 @@ const homeMain = await read("src/pages/Elysia-Ecobotics-Online-MainPage/index.ts
 const marketplaceHome = await read("src/pages/The-Elysia-Marketplace/pages/HomePage.tsx");
 const marketplaceCard = await read("src/pages/The-Elysia-Marketplace/components/AddonCard.tsx");
 const marketplaceDetails = await read("src/pages/The-Elysia-Marketplace/components/AddonDetails.tsx");
+const installIntentApi = await read("src/pages/The-Elysia-Marketplace/lib/installIntentApi.ts");
+const marketplaceIdentifierMigration = await read("supabase/migrations/20260716012000_marketplace_identifier_compatibility.sql");
 const productsPage = await read("src/pages/Elysia-Ecobotics-Products/index.tsx");
 const labPage = await read("src/pages/The-Elysia-Ecobotics-Lab/index.tsx");
 const forgePage = await read("src/pages/The-Developer-Forge/index.tsx");
@@ -87,14 +92,32 @@ const storyPage = await read("src/pages/The-Story-of-Elysia/index.tsx");
 const aboutPage = await read("src/pages/About-Elysia-Ecobotics/index.tsx");
 const missionPage = await read("src/pages/The-Elysia-Mission/index.tsx");
 const sandboxHandoff = await read("src/shared/sandbox/sandboxHandoffBuilder.ts");
+const supportPage = await read("src/pages/Support/index.tsx");
+const supportThankYou = await read("src/pages/Support/SupportThankYouPage.tsx");
+const billingClient = await read("src/shared/billing/billingClient.ts");
+const exactMoney = await read("src/shared/billing/exactMoney.ts");
+const stripeTestCatalog = await read("scripts/billingStripeTestCatalog.mjs");
+const supportBilling = await read("src/pages/The-Commons-Circle/SupportBillingPage.tsx");
+const checkoutReturnStatus = await read("src/shared/billing/CheckoutReturnStatus.tsx");
+const economicOperations = await read("src/pages/Admin/EconomicOperationsPage.tsx");
+const forgotPassword = await read("src/pages/Account/AccountForgotPasswordPage.tsx");
+const accountRecovery = await read("src/pages/Account/AccountRecoveryPage.tsx");
+const authPanel = await read("src/pages/The-Elysia-Marketplace/components/AuthPanel.tsx");
+const safeInternalActionPath = await read("src/shared/navigation/safeInternalActionPath.ts");
+const authProvider = await read("src/shared/auth/AuthProvider.tsx");
 
-const expectedNav = ["Home", "Archive", "Marketplace", "Products", "Lab", "Developer Forge", "Living Library", "Commune", "Work With", "Commons Circle", "Story", "About", "Mission", "Legal"];
+const expectedNav = ["Home", "Archive", "Marketplace", "Products", "Lab", "Developer Forge", "Living Library", "Commune", "Work With", "Commons Circle", "Story", "About", "Mission", "Support", "Legal"];
 let cursor = -1;
 for (const label of expectedNav) {
   const next = nav.indexOf(`label: "${label}"`);
   assert(next > cursor, `Nav order missing or out of order: ${label}`);
   cursor = next;
 }
+assert(nav.includes('aria-controls="site-navigation-links"') && nav.includes("aria-expanded={open}"), "Responsive site navigation should expose its controlled menu and open state to assistive technology.");
+assert(nav.includes('data-open={open ? "true" : "false"}') && nav.includes("onClick={() => setOpen(false)}"), "Responsive site navigation should expose its visual state and close after route selection.");
+assert(cssRuleIncludes(styles, ".site-nav", ["flex-wrap: wrap", "overflow-x: visible"]), "Desktop site navigation should wrap without a persistent horizontal scrollbar.");
+assert(styles.includes('.site-nav[data-open="true"] { display: grid; }') && cssRuleIncludes(styles, ".site-nav-toggle", ["display: none"]), "Responsive site navigation should use an explicit accessible disclosure instead of horizontal overflow.");
+assert(styles.includes(".site-footer { display: grid; grid-template-columns: minmax(18rem, 0.6fr) minmax(0, 1.4fr);"), "Desktop footer should reserve readable space for its identity text while allowing its link collection to wrap.");
 
 assert(footer.includes("Elysia Ecobotics™ is an EcoSyneva Commons LLC initiative."), "Footer initiative trademark text missing.");
 assert(footer.includes("Elysia Ecobotics™ is a trademark of EcoSyneva Commons LLC."), "Footer trademark owner text missing.");
@@ -386,7 +409,12 @@ assert(reviewClient.includes("review_status_preserved: true"), "Commune restore 
 assert(reviewClient.includes("recoverRejectedCommuneReviewSubject") && reviewClient.includes("commune_rejection_reopened") && reviewClient.includes("commune_rejected_approved_and_restored"), "Commune rejected recovery should support reopening review and approving/restoring rejected source content.");
 assert(reviewClient.includes("original_rejection_preserved: true"), "Commune rejected recovery should preserve original rejection history.");
 assert(reviewClient.includes('item.source_table === "commune_posts"'), "Commune review sync should target commune_posts.");
-assert(reviewClient.includes('status: "published"') && reviewClient.includes('visibility: "public"'), "Commune approval should publish the underlying post.");
+assert(reviewClient.includes('status: "published"') && reviewClient.includes('visibility: "public"'), "Non-Job-Post Commune approval should preserve existing underlying-post publication behavior.");
+assert(jobPostReviewClient.includes('rpc("review_commune_job_post"') && jobPostReviewClient.includes("p_job_post_id") && jobPostReviewClient.includes("p_action") && jobPostReviewClient.includes("p_reason"), "Job Post review must use the exact database publication-gate RPC contract.");
+assert(reviewClient.includes("resolveReviewItemJobPostTarget") && reviewClient.includes("reviewJobPostFromReviewItem") && reviewClient.includes("governedJobPostReview.handled"), "Admin Review must bypass generic direct Commune post writes for Job Post records.");
+assert(reviewClient.includes("if (!supabase || !result.published) return") && reviewClient.includes("finalizeGovernedJobPostReviewPublication"), "Job Post attachment/thread publication must be conditional on the database's published result.");
+assert(reviewClient.includes('currentRow.post_type === "job_post"') && reviewClient.includes('action === "approve_and_restore" ? "approve" : "needs_information"'), "Job Post visibility restore and rejected recovery paths must retain the database publication gate.");
+assert(jobPostEconomicMigration.includes("v_economic_satisfied := not v_fee_enabled") && jobPostEconomicMigration.includes("condition_status in ('not_required', 'satisfied', 'waived', 'subsidized')"), "Job Post fee-off compatibility and fee-on independent condition gate are not both represented.");
 assert(reviewClient.includes("approved Commune post thread repair") && reviewClient.includes('post_id: item.source_id'), "Commune approval should repair missing discussion threads for approved posts.");
 assert(reviewClient.includes('status: "archived"') && reviewClient.includes('visibility: "private_draft"'), "Commune archive should make the underlying post non-public.");
 assert(reviewClient.includes('status: "removed_by_moderator"'), "Commune rejection should remove the underlying post from public workflow.");
@@ -405,6 +433,14 @@ assert(adminPage.includes("Public visibility") && adminPage.includes("Moderation
 assert(!commons.includes("plannedBadges.map"), "Commons Circle appears to render planned/locked badge catalog.");
 assert(!publicProfile.includes("plannedBadges.map"), "Public profile appears to render planned/locked badge catalog.");
 assert(commons.includes("Recognition, not authority") || commons.includes("Badges are recognition"), "Commons Circle badge/role authority separation copy missing.");
+assert(commonsApi.includes("const canonicalFreeMemberCompletedAt = profile?.commons_onboarding_completed_at ?? null") && commonsApi.includes("const profileQualifiesForFreeMember = Boolean(canonicalFreeMemberCompletedAt)"), "Free Member eligibility must use the canonical account-bound Commons onboarding timestamp.");
+assert(commonsApi.includes("profileQualifiesForFreeMember && !hasFreeMemberAward") && commonsApi.includes('badge.badge_key === "free_member" && !badge.revoked_at'), "Free Member reconciliation must preserve a legitimate loaded active award and only grant a missing award after canonical onboarding.");
+assert(!commonsApi.includes("profile.commons_onboarding_completed_at || localOnboarding.completed") && !commonsApi.includes("localOnboarding.completedAt as string") && !commonsApi.includes("userBadges: [freeMemberFallbackBadge()]"), "A browser-local onboarding flag or disconnected fallback badge must not qualify an account for Free Member recognition.");
+assert(commonsApi.includes('description: "Recognition for completing signed-in Commons Profile onboarding."') && commonsApi.includes('award_mode: "automatic after Commons onboarding"'), "Free Member fallback metadata must describe canonical Commons onboarding rather than mere website-account existence.");
+assert(commons.includes("const profileSetupComplete = Boolean(profile?.commons_onboarding_completed_at)") && commons.includes("freeMemberRecognized") && commons.includes("membershipTierLabel"), "Commons private membership state must derive Free Member recognition from canonical onboarding or a legitimate loaded award.");
+assert(commons.includes("Free Member pending") && commons.includes("A browser-local onboarding flag or a minimal Marketplace profile is not sufficient."), "Commons Circle must show a pending state and explain the cross-account/minimal-profile boundary.");
+assert(commonsSetup.includes("successfully records this signed-in Commons Profile's onboarding completion") && commonsSetup.includes("minimal Marketplace profile alone does not qualify") && commonsSetup.includes("Existing legitimate awards remain preserved"), "Final Commons setup must explain canonical Free Member grant eligibility and preserve legitimate prior awards.");
+assert(commonsLocalOnboarding.includes("These local choices do not grant Free Member recognition to this or any other account"), "Browser-local Commons onboarding must not claim or imply account-bound Free Member recognition.");
 assert(commons.includes("CommonsCircleAdminEntryCard"), "Commons Circle should show a compact admin-console entry card instead of the full panel.");
 assert(commons.includes("`/commons-circle/@${encodeURIComponent(profile.username)}`"), "Commons Circle View public profile should use /commons-circle/@username.");
 assert(!commons.includes("href=\"/\"") || !commons.includes("View public profile"), "Commons Circle View public profile should not point to the homepage.");
@@ -425,6 +461,12 @@ assert(publicProfile.includes("publicUsernameFromHandle") && publicProfile.inclu
 assert(commonsApi.includes("loadPublicCommonsProfile") && !commonsApi.match(/loadPublicCommonsProfile[\s\S]*?select\("[^"]*is_admin/), "Public profile loader should not select admin/private authority fields.");
 assert(commonsApi.includes('select("id, username, display_name, bio, interests, website_url, github_url, avatar_url, commons_onboarding_completed_at")'), "Public profile loader should start from live-safe baseline profile fields.");
 assert(commonsApi.includes("Public profile fields") && commonsApi.includes("organization, headline, featured_public_links"), "Public profile optional fields should load separately from the baseline profile row.");
+assert(commonsApi.includes('const selfBadgeAwardColumns = "badge_key, awarded_at, award_source, visibility, revoked_at"'), "Ordinary/self badge reads must request only columns still granted after badge hardening.");
+const publicProfileLoader = commonsApi.slice(commonsApi.indexOf("export async function loadPublicCommonsProfile"));
+assert(publicProfileLoader.includes('from("visible_user_badges").select(publicBadgeAwardColumns)') && !publicProfileLoader.includes('from("user_badges")'), "Public Commons profiles must load badge presentation through the column-minimized visible_user_badges view.");
+for (const privateBadgeField of ["award_reason", "evidence_type", "evidence_id"]) {
+  assert(!publicProfileLoader.includes(privateBadgeField), `Public profile badge loading must never request private award evidence field: ${privateBadgeField}`);
+}
 assert(publicProfileFieldsMigration.includes("add column if not exists organization") && publicProfileFieldsMigration.includes("add column if not exists headline") && publicProfileFieldsMigration.includes("add column if not exists featured_public_links"), "Public profile field repair migration should add explicit public profile fields.");
 assert(commons.includes("Shape your public profile room") && commonsSetup.includes("Organization, optional"), "Commons Circle should still expose public profile customization/editing paths.");
 assert(commonsSetup.includes("Headline, optional") && commonsSetup.includes("Featured public links, optional"), "Commons Profile setup should include newly rendered public fields.");
@@ -553,14 +595,98 @@ for (const forbidden of ["elysiaecobotics.example", "Draft, not attorney-reviewe
 for (const email of ["hello@elysiaecobotics.com", "contact@elysiaecobotics.com", "support@elysiaecobotics.com", "privacy@elysiaecobotics.com", "security@elysiaecobotics.com", "abuse@elysiaecobotics.com", "legal@elysiaecobotics.com", "dmca@elysiaecobotics.com", "marketplace@elysiaecobotics.com", "stewardship@elysiaecobotics.com", "volunteer@elysiaecobotics.com"]) {
   assert(legalCombined.includes(email), `Role-based legal contact missing: ${email}`);
 }
+for (const slug of ["support-and-billing-terms", "refund-and-cancellation-policy", "sandbox-credit-terms", "job-post-fee-terms", "marketplace-commerce-terms", "organization-services-terms", "sponsorship-independence-policy", "account-closure-financial-retention"]) {
+  assert(legalPolicies.includes(`slug: "${slug}"`), `Economic legal policy missing: ${slug}`);
+}
+assert(legalPolicies.includes("Payment does not grant governance") && legalPolicies.includes("Credits are service units, not money or recognition") && legalPolicies.includes("Payment is not approval"), "Economic policies must preserve no-pay-to-govern, sandbox-credit, and Job Post review boundaries.");
+for (const organizationBoundary of ["Human-reviewed scope", "Proposal and contract", "Invoices and payment", "Confidentiality and minimum necessary data", "Data processors and external services", "Cancellation and suspension", "Refunds and service credits", "No purchase of authority"]) {
+  assert(legalPolicies.includes(organizationBoundary), `Organization Services Terms are missing required boundary: ${organizationBoundary}`);
+}
+assert(legalPolicies.includes('slugs: ["organization-services-terms", "sponsorship-independence-policy"]') && legalIndex.includes('to="/legal/organization-services-terms"'), "Organization Services Terms must appear in legal metadata/grouping and policy navigation.");
+assert(legalPolicies.includes("Economic and payment processing") && legalPolicies.includes("Guest checkout is not linked to a Website Account merely by matching an email address"), "Privacy policy economic processor and account-linking disclosure missing.");
+
+assert(app.includes('path="support"') && app.includes('path="support/thank-you"') && app.includes('path="commons-circle/support-billing"') && app.includes('path="admin/economic-operations"'), "Economic routes are not wired into the application.");
+assert(app.includes('path="account/forgot-password"') && app.includes('path="account/recovery"'), "Website Account recovery routes are not wired.");
+assert(supportPage.includes("No recurring option is preselected") && supportPage.includes("Free local core") && supportPage.includes("No pay-to-govern"), "Support page must preserve free local use and deliberate recurring support.");
+for (const neutralLabel of ["$1 monthly support", "$5 monthly support", "$12 monthly support", "$25 monthly support", "$50 monthly support"]) {
+  assert(supportPage.includes(neutralLabel) && stripeTestCatalog.includes(neutralLabel), `Neutral recurring-support label is not aligned across Elysia and Stripe test checkout: ${neutralLabel}`);
+}
+for (const wealthLikeLabel of ["Seed Supporter", "Commons Sustainer", "Infrastructure Sustainer", "Sandbox Sustainer", "Commons Patron"]) {
+  assert(!supportPage.includes(wealthLikeLabel) && !stripeTestCatalog.includes(wealthLikeLabel), `Recurring support must not create a wealth- or rank-like public/provider label: ${wealthLikeLabel}`);
+}
+assert(supportPage.includes("does not itself promise sandbox credits") && supportPage.includes("no authority, rank, or public financial status") && stripeTestCatalog.includes("does not promise credits"), "Recurring support must not imply an unfulfilled sandbox-credit benefit or public status.");
+assert(supportPage.includes('searchParams.get("checkout") === "canceled"') && supportPage.includes("No completed payment is being claimed"), "Canceled checkout return must not show a fake success or change account standing.");
+for (const priceCode of ["support_monthly_seed_usd", "support_monthly_commons_usd", "support_monthly_infrastructure_usd", "support_monthly_sandbox_usd", "support_monthly_50_usd"]) {
+  assert(supportPage.includes(priceCode) && billingClient.includes(priceCode), `Recurring support product is not aligned across UI/client: ${priceCode}`);
+}
+for (const requestField of ["clientRequestId", "amountMinor", "priceCode", "sourceRoute", "consentVersion"]) {
+  assert(billingClient.includes(requestField), `Billing client request contract missing ${requestField}.`);
+}
+assert(billingClient.includes('url.hostname === "checkout.stripe.com"') && billingClient.includes('url.hostname === "billing.stripe.com"') && billingClient.includes('url.hostname === "connect.stripe.com"'), "Billing client must constrain checkout, portal, and seller-onboarding redirects to exact provider hosts.");
+assert(billingClient.includes("new AbortController()") && billingClient.includes("15_000") && billingClient.includes("clearTimeout(timeout)"), "Browser billing requests must have a cleared bounded timeout rather than leaving support/account screens busy indefinitely.");
+assert(supportPage.includes("checkoutRequestIdRef") && supportPage.includes("createBillingClientRequestId"), "Checkout retries must retain a client idempotency key until the economic input changes.");
+assert(!billingClient.includes("support_kind: request") && !billingClient.includes("amount_cents: request"), "Billing client still sends the superseded checkout payload.");
+assert(supportThankYou.includes('searchParams.get("order")') && supportThankYou.includes("loadBillingOrder(reference, accessToken)") && supportThankYou.includes("redirect alone is not proof of payment") && supportThankYou.includes('order.flow === "support_one_time" || order.flow === "support_recurring"') && supportThankYou.includes("This Support page does not identify it as support"), "Support return page must verify the opaque order reference and its support flow server-side with the account bearer when present.");
+assert(supportBilling.includes("Manage billing in Stripe") && supportBilling.includes("Continue to cancellation") && !supportBilling.includes('from("profiles")'), "Support & Billing must use private server/provider paths, not public profile data.");
+assert(billingClient.includes('billingFetch("/api/billing/sandbox-credits/catalog", { cache: "no-store" })') && billingClient.includes('billingFetch("/api/billing/sandbox-credits/checkout"'), "Sandbox credit commerce client must use only the same-origin catalog and authenticated checkout routes.");
+const sandboxCheckoutClient = billingClient.slice(billingClient.indexOf("export async function createSandboxCreditCheckout"), billingClient.indexOf("export async function createSupportCheckout"));
+assert(sandboxCheckoutClient.includes("const body: SandboxCreditCheckoutInput = { clientRequestId, packCode: input.packCode, sourceRoute: input.sourceRoute, consentVersion: input.consentVersion }") && sandboxCheckoutClient.includes("JSON.stringify(body)"), "Sandbox checkout must send only the exact request ID, pack code, source route, and consent version contract.");
+assert(sandboxCheckoutClient.includes('pack.changesSafetyPrivileges !== false') && sandboxCheckoutClient.includes('new URL(checkoutUrl).hostname === "checkout.stripe.com"'), "Sandbox checkout response must prove no safety-privilege change and constrain its redirect to exact Stripe Checkout.");
+assert(supportBilling.includes('useState("")') && supportBilling.includes("No option is preselected, no automatic purchase occurs") && supportBilling.includes("checkoutRequestIdRef.current ||="), "Sandbox pack selection must start empty, avoid automatic purchase, and retain one request ID across ambiguous retries.");
+assert(supportBilling.includes("Sandbox Credit Terms") && supportBilling.includes("fulfillment requires a verified webhook") && supportBilling.includes("The browser does not set price, units, expiration, provider references, fulfillment, or safety privileges"), "Sandbox checkout must collect explicit terms consent and preserve server-authoritative price, fulfillment, and safety boundaries.");
+assert(supportBilling.includes('["sandbox-payment", "sandbox_credits", "sandbox service"') && supportBilling.includes("<CheckoutReturnStatus") && checkoutReturnStatus.includes("Browser return alone is not proof of payment or fulfillment") && checkoutReturnStatus.includes("loadBillingOrder(orderReference, accessToken)") && checkoutReturnStatus.includes("order?.flow === expectedFlow") && checkoutReturnStatus.includes("The private order belongs to a different economic flow"), "Sandbox checkout return must verify the exact private order and canonical sandbox flow without claiming browser-verified payment or credit fulfillment.");
+assert(billingClient.includes("flow: BillingOrderFlow | null") && billingClient.includes("strictBillingOrderFlow(source.flow)") && billingClient.includes('exactRecord(data, ["ok", "order"]') && billingClient.includes("source.publicReference !== reference"), "Billing order lookup must retain and strictly validate the canonical server flow and exact private response.");
+assert(exactMoney.includes("wholeMinor") && exactMoney.includes("fractionalMinor") && !exactMoney.includes("parseFloat") && supportPage.includes("exactUsdDecimalToMinor(customAmount) ?? 0") && !supportPage.includes("Math.round(amount * 100)"), "Support custom USD input must convert exact decimal strings to minor units without floating-point rounding.");
+assert(economicOperations.includes("overview?.authorized") && economicOperations.includes("loadEconomicOperatorOverview") && !economicOperations.includes("loadCurrentRoleState") && !economicOperations.includes("is_admin"), "Economic operations gate must use the dedicated private operator overview, not personal billing or community roles.");
+assert(billingClient.includes('billingFetch("/api/billing/operator/overview", { cache: "no-store" }, accessToken)') && billingClient.includes("operator.testMode !== true"), "Economic operator overview client must use the authenticated no-store test-only endpoint.");
+for (const field of ["authorized", "capabilities", "orderQueue", "paymentQueue", "refundablePaymentQueue", "refundQueue", "subscriptionQueue", "disputeQueue", "webhookQueue", "reconciliationQueue", "sandboxCorrectionQueue", "jobPostEconomicQueue", "sellerPayableQueue", "sellerPayoutPreparationQueue", "organizationServiceQueue", "sponsorshipQueue", "accountRequestQueue", "assistanceProgramQueue", "assistanceQueue", "featureFlags", "providerIdentifiersExposed", "personalContactDataExposed", "testMode"]) {
+  assert(billingClient.includes(`operator.${field}`), `Economic operator overview parser is missing exact field: ${field}`);
+}
+assert(billingClient.includes("boundedOperatorQueue") && billingClient.includes("maximum = 10") && billingClient.includes("value.length > maximum") && billingClient.includes("operatorQueueMoney") && billingClient.includes("100_000_000_000"), "Operator overview queues must remain count-bounded while exact monetary summaries use the frozen minor-unit ceiling.");
+for (const [capability, method, path] of [
+  ["economic_operator_assignments_manage", "setEconomicOperatorAssignment", "/api/billing/operator/assignment"],
+  ["sandbox_credits_adjust", "grantEconomicOperatorSandboxCredits", "/api/billing/operator/sandbox-credit-grant"],
+  ["economic_refunds_manage", "placeEconomicOperatorRefundHold", "/api/billing/operator/refund-hold"],
+  ["economic_reconciliation_manage", "openEconomicOperatorReconciliationCase", "/api/billing/operator/reconciliation"]
+]) {
+  assert(economicOperations.includes(`hasCapability("${capability}")`) && economicOperations.includes(method), `Economic operations UI is missing exact capability gating for ${capability}.`);
+  assert(billingClient.includes(`billingFetch("${path}"`) && billingClient.includes(`export async function ${method}`), `Strict operator billing client is missing ${path}.`);
+}
+assert(billingClient.includes("exactRecord") && billingClient.includes("operatorMutationEnvelope") && billingClient.includes("MAX_BILLING_RESPONSE_BYTES") && billingClient.includes("TextEncoder().encode(text).byteLength"), "Operator browser responses must be size-bounded and exact-schema parsed.");
+assert(billingClient.includes("billingUuidPattern") && billingClient.includes("normalizedOperatorReason") && billingClient.includes("Number.isSafeInteger(input.units)") && billingClient.includes("Number.isSafeInteger(input.amountMinor)"), "Operator clients must validate internal UUIDs, private reasons, and bounded integer units before mutation.");
+for (const confirmation of ["grant-economic-capability", "revoke-economic-capability"]) {
+  assert(economicOperations.includes(confirmation) && billingClient.includes(confirmation), `Operator capability assignment is missing typed confirmation: ${confirmation}`);
+}
+assert((economicOperations.match(/if \(busy\) return;/g) ?? []).length >= 6 && economicOperations.includes("disabled={!canSubmit}") && economicOperations.includes('role="status"') && economicOperations.includes('role="alert"'), "Deliberate operator forms must prevent double submission and expose accessible status/error regions.");
+assert(economicOperations.includes("idempotencyKeyRef.current ||=") && (economicOperations.match(/clientRequestIdRef\.current \|\|=/g) ?? []).length >= 3, "Sandbox, refund, reconciliation, and lifecycle retries must retain stable client idempotency identifiers.");
+assert(billingClient.includes('export async function executeEconomicOperatorTestRefund') && billingClient.includes('billingFetch("/api/billing/operator/refund-execution"') && billingClient.includes('confirmation: "AUTHORIZE TEST REFUND"'), "Test refund execution client must use the exact two-step audited route and confirmation contract.");
+assert(economicOperations.includes("requestIdsRef.current") && economicOperations.includes("approvalClientRequestId") && economicOperations.includes("providerAttachClientRequestId") && economicOperations.includes("while (providerAttachClientRequestId === approvalClientRequestId)"), "Test-refund UI must retain two distinct request IDs across ambiguous retries.");
+assert(economicOperations.includes("TEST MODE ONLY") && economicOperations.includes("Stripe's test API only") && economicOperations.includes("operator who requested the hold from approving it"), "Test-refund UI must disclose test-only provider execution and independent approval separation.");
+assert(economicOperations.includes("Bootstrap assignment remains server-only and is unavailable in this browser") && economicOperations.includes("Economic-operator bootstrap remains an explicit server-side procedure"), "Economic operator bootstrap must remain unavailable to browser code.");
+for (const privateResultId of ["assignmentId", "creditLotId", "reconciliationCaseId"]) {
+  assert(!economicOperations.includes(privateResultId), `Economic operator UI must not render private result identifier: ${privateResultId}`);
+}
+assert(!economicOperations.includes("result.refundRequestId") && !economicOperations.includes(">{refundRequestId}<"), "Test-refund UI may accept an internal request UUID but must not render returned private identifiers.");
+assert(economicOperations.includes("not a Stripe checkout, payment, charge, customer, or subscription ID") && economicOperations.includes("does not send a Stripe refund"), "Operator forms must distinguish internal order UUIDs from provider identifiers and refund execution.");
+assert(forgotPassword.includes("resetPasswordForEmail") && forgotPassword.includes("does not confirm whether an account exists"), "Forgot-password flow must send a privacy-preserving recovery request.");
+assert(accountRecovery.includes('autoComplete="new-password"') && accountRecovery.includes("minLength={6}") && /Twelve or more unique characters/i.test(accountRecovery), "Recovery form must preserve the repository 6-character compatibility minimum while recommending stronger passwords.");
+assert(authProvider.includes('event === "PASSWORD_RECOVERY"') && authProvider.includes("recoveryMode") && accountRecovery.includes("!recoveryMode"), "Password update must require an actual Supabase recovery event, not any ordinary signed-in session or a user-controlled URL hint.");
+assert(authPanel.includes('autoComplete={authMode === "sign_up" ? "new-password" : "current-password"}') && authPanel.includes('to="/account/forgot-password"') && authPanel.includes("password.length < 6"), "Website Account form must preserve password-manager and recovery behavior without raising the current minimum.");
+assert(safeInternalActionPath.includes('value.startsWith("//")') && safeInternalActionPath.includes("parsed.origin"), "Database-backed notification actions must be constrained to safe internal paths.");
+assert(signalConsole.includes("Support & Billing") && signalConsole.includes("safeInternalActionPath"), "Signal Console must categorize economic notices and constrain their actions.");
+assert(commons.includes('to="/commons-circle/support-billing"') && commons.includes("Private economic account room"), "Commons Circle must expose the private Support & Billing room without changing membership.");
 assert(archive.includes("No public installer exists yet"), "Archive must not imply a public installer exists.");
 assert(archive.includes("unofficial mirror") || archive.includes("unofficial mirrors"), "Archive unofficial mirror warning missing.");
 assert(archive.includes("Signatures") && archive.includes("after signing is actually in place"), "Archive signature honesty copy missing.");
+assert(archive.includes("Downloads remain independent of payment") && archive.includes("will not require a Website Account"), "Archive must preserve free local downloads independently of support.");
 assert(marketplaceHome.includes("Seed catalog fallback") || marketplaceHome.includes("local seed catalog"), "Marketplace seed/demo catalog clarity missing.");
 assert(marketplaceCard.includes("Seed/example catalog"), "Marketplace cards must label seed/example catalog entries.");
 assert(marketplaceCard.includes("Unsigned or unverified package"), "Marketplace cards must avoid fake signature claims.");
 assert(marketplaceDetails.includes("Install intent blocked"), "Marketplace details must block install intent for revoked/unavailable listings.");
 assert(marketplaceDetails.includes("This website does not install this add-on locally"), "Marketplace details local-install boundary copy missing.");
+assert(installIntentApi.includes("legacy_addon_id: addonRow?.id ?? null") && !installIntentApi.includes("\n      addon_id: addonRow?.id ?? null"), "Marketplace install intent must use the migration-declared legacy_addon_id rather than the absent active-baseline addon_id column.");
+assert(installIntentApi.includes("marketplace_addon_version_id: liveVersion?.id ?? null") && installIntentApi.includes("addon_version_id: versionRow?.id ?? null"), "Marketplace install intent must preserve current Marketplace and legacy add-on version lineages for the compatibility trigger.");
+assert(marketplaceIdentifierMigration.includes("new.legacy_addon_version_id := coalesce(") && marketplaceIdentifierMigration.includes("new.addon_version_id := new.marketplace_addon_version_id") && marketplaceIdentifierMigration.includes("if new.legacy_addon_id is null and new.addon_slug is not null"), "Marketplace identifier migration must normalize the explicitly separated current and legacy install-intent identifiers.");
 assert(sandboxHandoff.includes("private_reviewer_notes_included") && sandboxHandoff.includes("false"), "Sandbox handoff must explicitly exclude private reviewer notes.");
 assert(commune.includes("Community Voting Room") && commune.includes("Community votes guide stewardship decisions"), "Commune should include Community Voting Room advisory copy.");
 assert(commune.includes("Repository Showcase guidance") && commune.includes("Admin room guidance / template post") && commune.includes("not a repository approval, compatibility review, Marketplace listing, install recommendation, or trust signal"), "Repository Showcase copy should distinguish admin guidance/template posts from repository listings and trust/Marketplace approval.");

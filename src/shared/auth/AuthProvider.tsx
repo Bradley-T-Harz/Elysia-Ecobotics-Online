@@ -10,13 +10,15 @@ type AuthContextValue = {
   accessToken: string | null;
   email: string | null;
   loading: boolean;
+  recoveryMode: boolean;
 };
 
-export const AuthContext = createContext<AuthContextValue>({ configured: hasSupabaseConfig, session: null, userId: null, accessToken: null, email: null, loading: false });
+export const AuthContext = createContext<AuthContextValue>({ configured: hasSupabaseConfig, session: null, userId: null, accessToken: null, email: null, loading: false, recoveryMode: false });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(Boolean(supabase));
+  const [recoveryMode, setRecoveryMode] = useState(false);
 
   useEffect(() => {
     if (!supabase) {
@@ -29,9 +31,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(data.session);
       setLoading(false);
     });
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
       setSession(nextSession);
       setLoading(false);
+      if (event === "PASSWORD_RECOVERY") setRecoveryMode(true);
+      if (event === "SIGNED_OUT" || event === "USER_UPDATED") setRecoveryMode(false);
     });
     return () => {
       mounted = false;
@@ -45,8 +49,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     userId: session?.user.id ?? null,
     accessToken: session?.access_token ?? null,
     email: session?.user.email ?? null,
-    loading
-  }), [session, loading]);
+    loading,
+    recoveryMode
+  }), [session, loading, recoveryMode]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

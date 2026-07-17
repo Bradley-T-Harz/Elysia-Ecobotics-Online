@@ -15,6 +15,7 @@ import CommonsAvatarViewer from "../../shared/components/CommonsAvatarViewer";
 import CommonsProfileLayoutFrame from "../../shared/components/CommonsProfileLayoutFrame";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
+import { safeInternalActionPath } from "../../shared/navigation/safeInternalActionPath";
 import { loadCurrentRoleState } from "../../shared/review/reviewClient";
 import type { AppRole } from "../../shared/review/reviewClient";
 import { CommonsCircleAdminEntryCard, userCanOpenCommonsAdminConsole } from "./CommonsCircleAdminConsolePage";
@@ -48,11 +49,10 @@ import {
 } from "./commonsCircleApi";
 import type { CommonsHomebaseData, NotificationPreferences, ProfileCustomization, UserBadge, VisibilitySettings } from "./commonsCircleApi";
 
-type OnboardingState = { skippedStewardship?: boolean; welcomed?: boolean; completed?: boolean; completedAt?: string; membershipTier?: "Free Member" };
 type StewardshipDraft = { status?: "draft_local" | "pending_admin_review_local" };
 
 const membershipTiers = [
-  { name: "Free Member", purpose: "Default account tier for participation in the public website commons. No donation is required.", awarded: "Default tier after account/profile creation.", status: "Default tier", note: "No private Elysia access." },
+  { name: "Free Member", purpose: "Default free recognition for participation in the public website commons. No donation is required.", awarded: "Granted for new members after Commons onboarding is completed; existing legitimate awards are preserved.", status: "Free recognition", note: "No payment, authority, or private Elysia access." },
   { name: "Contributor Member", purpose: "Recognition for constructive publishing, helpful community work, source suggestions, troubleshooting support, documentation, add-ons, research notes, or other contributions.", awarded: "Awarded by administrator review.", status: "Admin-awarded later", note: "Does not grant hidden authority." },
   { name: "Steward Member", purpose: "Recognition for verified stewardship support, such as direct support for independent nonprofits or other meaningful public-benefit stewardship.", awarded: "Recognition is reviewed before being awarded.", status: "Stewardship verification", note: "Not payment to Elysia." },
   { name: "Guardian / Reviewer", purpose: "A trust role for moderation, review, safety, source review, marketplace review, or Commune review.", awarded: "Manually assigned by an administrator. Never self-assigned.", status: "Trust role", note: "No self-assignment." },
@@ -140,7 +140,6 @@ export default function CommonsCirclePage() {
   const [mediaStatus, setMediaStatus] = useState<string | null>(null);
   const [notificationDraft, setNotificationDraft] = useState<NotificationPreferences>(defaultNotificationPreferences);
   const [syncChoice, setSyncChoice] = useState(() => readLocalStorage<{ choice?: string }>(commonsStorageKeys.syncChoice, {}));
-  const [onboardingDone, setOnboardingDone] = useState<OnboardingState>(() => readLocalStorage(commonsStorageKeys.onboarding, { skippedStewardship: false, welcomed: false }));
   const [verificationDrafts, setVerificationDrafts] = useState<StewardshipDraft[]>(() => readLocalStorage(commonsStorageKeys.stewardshipDrafts, []));
   const [contributionRequests, setContributionRequests] = useState<unknown[]>(() => readLocalStorage(commonsStorageKeys.contributionRequests, []));
   const [roleState, setRoleState] = useState<{ roles: AppRole[]; isAdmin: boolean; signedIn: boolean; warnings: string[] }>({ roles: [], isAdmin: false, signedIn: false, warnings: [] });
@@ -151,7 +150,6 @@ export default function CommonsCirclePage() {
   }, []);
 
   const refreshLocalCounts = useCallback(() => {
-    setOnboardingDone(readLocalStorage(commonsStorageKeys.onboarding, { skippedStewardship: false, welcomed: false }));
     setVerificationDrafts(readLocalStorage(commonsStorageKeys.stewardshipDrafts, []));
     setContributionRequests(readLocalStorage(commonsStorageKeys.contributionRequests, []));
     setSyncChoice(readLocalStorage(commonsStorageKeys.syncChoice, {}));
@@ -199,7 +197,7 @@ export default function CommonsCirclePage() {
   }, [pushMessage, refreshHomebase]);
 
   const profile = homebase?.profile ?? null;
-  const profileSetupComplete = Boolean(profile?.commons_onboarding_completed_at || onboardingDone.completed);
+  const profileSetupComplete = Boolean(profile?.commons_onboarding_completed_at);
   const publicProfilePath = profile?.username ? `/commons-circle/@${encodeURIComponent(profile.username)}` : "/commons-circle/setup/profile";
   const pendingRecognitionCount = verificationDrafts.filter((draft) => draft.status === "pending_admin_review_local").length;
   const localLivingCount = homebase?.localLiving.savedSourceIds.length ?? 0;
@@ -222,8 +220,10 @@ export default function CommonsCirclePage() {
   const earnedBadges = useMemo(() => {
     const earned = homebase?.userBadges.filter((badge) => badge.earned && !badge.revoked_at) ?? [];
     const hasFreeMember = earned.some((badge) => badge.badge_key === "free_member");
-    return profile && profileSetupComplete && !hasFreeMember ? [freeMemberFallbackBadge(profile.commons_onboarding_completed_at ?? onboardingDone.completedAt), ...earned] : earned;
-  }, [homebase?.userBadges, onboardingDone.completedAt, profile, profileSetupComplete]);
+    return profile?.commons_onboarding_completed_at && !hasFreeMember ? [freeMemberFallbackBadge(profile.commons_onboarding_completed_at), ...earned] : earned;
+  }, [homebase?.userBadges, profile?.commons_onboarding_completed_at]);
+  const freeMemberRecognized = earnedBadges.some((badge) => badge.badge_key === "free_member");
+  const membershipTierLabel = freeMemberRecognized ? "Free Member" : profile ? "Pending — finish Commons Profile setup" : "Pending — create Commons Profile";
   const adminEntryAllowed = userCanOpenCommonsAdminConsole(homebase, roleState);
 
   async function saveVisibility() {
@@ -422,7 +422,7 @@ export default function CommonsCirclePage() {
           </div>
         </div>
         <dl className="mini-facts">
-          <MiniFact label="Tier" value="Free Member" />
+          <MiniFact label="Tier" value={membershipTierLabel} />
           <MiniFact label="Setup" value={profileSetupComplete ? "Complete" : "Needs setup"} />
           <MiniFact label="Unread signals" value={unreadCount} />
           <MiniFact label="Saved shelves" value={(homebase?.savedAddons.length ?? 0) + (homebase?.savedLivingSources.length ?? 0) + (homebase?.sourceCollections.length ?? 0)} />
@@ -433,6 +433,7 @@ export default function CommonsCirclePage() {
           <a className="button-link" href="/commons-circle/setup/profile">Edit profile setup</a>
           <a className="button-link" href="#customization-studio">Customize circle</a>
           <a className="button-link" href="#privacy-lanterns">Privacy settings</a>
+          <Link className="button-link" to="/commons-circle/support-billing">Support &amp; Billing</Link>
           {adminEntryAllowed && <a className="button-link" href="/commons-circle/admin-console">Admin Console</a>}
         </div>
       </section>
@@ -454,7 +455,7 @@ export default function CommonsCirclePage() {
           <p className="boundary-note">This is a preview. The full private Signal Console handles Coding Cornucopia proposal decisions, Troubleshooting Grove proposed fixes/status updates, Research Notes citation/source activity, accepted/rejected outcomes, sandbox signals, and review notices.</p>
           <Link className="button-link button-link--primary" to="/commons-circle/signals">Open Signal Console</Link>
           {!homebase?.notifications.length && <EmptyState>No notifications yet. Review status, followed threads, and marketplace updates will appear here when account-backed events exist.</EmptyState>}
-          {homebase?.notifications.map((notice) => <div className="commons-preview-card" key={notice.id}><strong>{notice.title}</strong><p>{notice.body || notice.notification_type || "Account signal"}</p><span>{notice.read_at ? "read" : "unread"}</span><div className="button-row"><button type="button" onClick={async () => { polishedActionMessages("notification-read", await markNotificationRead(notice.id), "Notification actions are not active yet.").forEach(pushMessage); await refreshHomebase(); }}>Mark read</button>{notice.action_url && <a className="button-link" href={notice.action_url}>Open</a>}</div></div>)}
+          {homebase?.notifications.map((notice) => { const actionPath = safeInternalActionPath(notice.action_url); return <div className="commons-preview-card" key={notice.id}><strong>{notice.title}</strong><p>{notice.body || notice.notification_type || "Account signal"}</p><span>{notice.read_at ? "read" : "unread"}</span><div className="button-row"><button type="button" onClick={async () => { polishedActionMessages("notification-read", await markNotificationRead(notice.id), "Notification actions are not active yet.").forEach(pushMessage); await refreshHomebase(); }}>Mark read</button>{actionPath && <Link className="button-link" to={actionPath}>Open</Link>}</div></div>; })}
           {homebase?.notifications.length ? <button type="button" onClick={async () => { polishedActionMessages("notifications-read-all", await markAllNotificationsRead(), "Notification actions are not active yet.").forEach(pushMessage); await refreshHomebase(); }}>Mark all read</button> : null}
         </article>
 
@@ -463,6 +464,13 @@ export default function CommonsCirclePage() {
           <h2>Private request status</h2>
           <dl className="mini-facts"><MiniFact label="Stewardship local pending" value={pendingRecognitionCount} /><MiniFact label="Contribution help drafts" value={contributionRequests.length} /><MiniFact label="Work With / review queues" value="private; account-backed when submitted" /></dl>
           <p className="boundary-note">Work With requests, resumes/CVs, stewardship receipts/proofs, admin review data, and private drafts are never shown on the public profile.</p>
+        </article>
+        <article className="section-card">
+          <p className="eyebrow">Support &amp; Billing</p>
+          <h2>Private economic account room</h2>
+          <p>View account-linked support and recurring-support management, with clearly labeled availability and dedicated private paths for receipt, service-credit, Marketplace, Job Post, and seller records. Missing projections are never presented as proof that no record exists.</p>
+          <p className="boundary-note">Free Member remains free. Payment does not change badges, roles, review authority, moderation state, or public rank.</p>
+          <Link className="button-link button-link--primary" to="/commons-circle/support-billing">Open Support &amp; Billing</Link>
         </article>
       </section>
 
@@ -483,9 +491,10 @@ export default function CommonsCirclePage() {
 
       <section className="section-card commons-membership-status">
         <p className="eyebrow">Membership Status</p>
-        <h2>Free Member by default</h2>
-        <dl className="mini-facts"><MiniFact label="Current tier" value="Free Member" /><MiniFact label="Setup complete" value={profileSetupComplete ? "Yes" : "Not yet"} /><MiniFact label="Pending recognition drafts" value={pendingRecognitionCount} /><MiniFact label="Contribution help drafts" value={contributionRequests.length} /><MiniFact label="Developer" value={profile?.is_developer ? "Requested / visible" : "Pending / No"} /><MiniFact label="Admin" value={profile?.is_admin ? "Yes" : "No"} /></dl>
-        <p className="boundary-note">Membership tiers and badges are ultimately assigned by authorized administrators. Donation proof may support Steward recognition, but it does not create administrator, moderator, reviewer, developer, paid role, or guardian authority.</p>
+        <h2>{freeMemberRecognized ? "Free Member recognition" : "Free Member pending"}</h2>
+        <dl className="mini-facts"><MiniFact label="Current tier" value={membershipTierLabel} /><MiniFact label="Setup complete" value={profileSetupComplete ? "Yes" : "Not yet"} /><MiniFact label="Pending recognition drafts" value={pendingRecognitionCount} /><MiniFact label="Contribution help drafts" value={contributionRequests.length} /><MiniFact label="Developer" value={profile?.is_developer ? "Requested / visible" : "Pending / No"} /><MiniFact label="Admin" value={profile?.is_admin ? "Yes" : "No"} /></dl>
+        {!freeMemberRecognized && <p className="boundary-note">Complete Commons Profile setup before Free Member recognition is granted. A browser-local onboarding flag or a minimal Marketplace profile is not sufficient.</p>}
+        <p className="boundary-note">Free Member recognition follows canonical completed Commons onboarding, while existing legitimate awards remain preserved. Other membership tiers and badges are assigned through their own authorized rules. Donation proof may support Steward recognition, but it does not create administrator, moderator, reviewer, developer, paid role, or guardian authority.</p>
       </section>
 
       <section className="section-card commons-medallion-wall">
@@ -572,7 +581,7 @@ export default function CommonsCirclePage() {
             <section className="commons-profile-slot commons-profile-slot--badges">
               <article className="commons-public-section-card commons-public-badges-card">
                 <p className="commons-public-section-card__eyebrow">Badges</p>
-                <div className="commons-public-badge-list"><span>Free Member</span><span>Recognition</span><span>Public</span></div>
+                <div className="commons-public-badge-list"><span>{freeMemberRecognized ? "Free Member" : "Membership pending"}</span><span>Recognition</span><span>Public</span></div>
               </article>
             </section>
             <section className="commons-profile-slot commons-profile-slot--collections">

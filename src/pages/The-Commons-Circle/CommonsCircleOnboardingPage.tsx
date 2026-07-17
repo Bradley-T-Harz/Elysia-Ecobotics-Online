@@ -115,7 +115,7 @@ export default function CommonsCircleOnboardingPage() {
 
   function skipStewardship() {
     writeStorage(storageKeys.onboarding, { donationSkipped: true, welcomed: true, membershipTier: "Free Member", updatedAt: new Date().toISOString() });
-    pushMessage("Welcome to The Commons Circle. You are now a Free Member. You can support stewardship organizations later from the Commons Circle page if you choose.");
+    pushMessage("Stewardship was skipped for this browser onboarding draft. Free Member recognition is granted only after the signed-in Commons Profile setup records canonical onboarding completion; a local browser flag is not eligibility.");
     setStep("contribution");
   }
 
@@ -278,8 +278,8 @@ export default function CommonsCircleOnboardingPage() {
 
       {step === "finish" && <section className="section-card commons-onboarding-panel">
         <p className="eyebrow">Complete</p>
-        <h2>Commons Circle onboarding is complete</h2>
-        <p>Commons Circle onboarding is complete. Your original Commons Circle tab should refresh. You remain a Free Member until any stewardship recognition or contribution request is reviewed and approved by an administrator.</p>
+        <h2>Browser onboarding choices are complete</h2>
+        <p>Your browser-local choices are complete and the original Commons Circle tab should refresh. These local choices do not grant Free Member recognition to this or any other account. Complete the signed-in Commons Profile setup so canonical onboarding completion is recorded for the correct Website Account.</p>
         {closeAttempted && <p className="boundary-note">Your browser may not allow this tab to close automatically. You can close this tab and return to the Commons Circle tab.</p>}
         <div className="button-row"><a className="button-link button-link--primary" href="/commons-circle">Return to Commons Circle</a><button type="button" onClick={() => { notifyOriginalTab(); window.close(); }}>Try closing this tab</button></div>
       </section>}

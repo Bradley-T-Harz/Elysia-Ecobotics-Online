@@ -627,7 +627,7 @@ export default function CommonsCircleSetupPage() {
       if (workWithMessage) pushMessage(workWithMessage);
       writeStorage(localStorageKeys.onboarding, { completed: true, welcomed: true, membershipTier: "Free Member", completedAt: now });
       notifyCommonsCircle();
-      pushMessage("Commons Profile created. You are a Free Member by default until any optional recognition is reviewed by an administrator.");
+      pushMessage("Commons Profile onboarding completed. Free Member recognition is granted from this account-backed completion; optional higher recognition still requires its own administrator review.");
       navigate("/commons-circle");
     } catch (error) {
       pushMessage(error instanceof Error ? error.message : "Could not finish Commons Profile setup.");
@@ -785,7 +785,7 @@ export default function CommonsCircleSetupPage() {
           <div><dt>Work With request</dt><dd>{workWithDraft.skipped ? "Skipped" : workWithDraft.prepared ? "Prepared" : "Not prepared"}</dd></div>
           <div><dt>Resume/CV</dt><dd>{resumeFile ? `Private upload after final confirmation: ${resumeFile.name}` : "None selected"}</dd></div>
         </dl>
-        <p className="boundary-note">You will be a Free Member by default. Steward, Contributor, Guardian / Reviewer, Founding Steward, moderator, administrator, developer trust, or paid roles require administrator review and cannot be self-assigned.</p>
+        <p className="boundary-note">When final confirmation successfully records this signed-in Commons Profile's onboarding completion, Free Member recognition is granted. A browser-local flag or minimal Marketplace profile alone does not qualify. Existing legitimate awards remain preserved. Steward, Contributor, Guardian / Reviewer, Founding Steward, moderator, administrator, developer trust, or paid roles require their own administrator review and cannot be self-assigned.</p>
         <div className="button-row"><button type="button" onClick={() => go("profile")}>Back to profile draft</button><button type="button" className="button-primary" onClick={() => void finalizeProfile()} disabled={busy}>{busy ? "Creating profile..." : "Create Commons Profile"}</button></div>
       </section>}
     </div>

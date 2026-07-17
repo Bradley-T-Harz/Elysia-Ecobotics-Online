@@ -214,7 +214,11 @@ export type CommunityVoteSignalPreview = {
   role_context: "author" | "reviewer" | "closing_soon" | "outcome";
 };
 export type BadgeDefinition = { badge_key: string; name: string; description: string; badge_type: string; category?: string | null; rarity: string; is_active?: boolean; icon_path?: string | null; tags?: string[]; authority?: boolean; authority_linked?: boolean | null; award_mode?: string | null; rule_summary?: string | null; is_manual_only?: boolean | null; sort_order?: number | null; note?: string; default_status?: string };
+// Evidence fields remain optional for a future privileged, audited RPC result.
+// Ordinary/self and public reads below deliberately request only presentation-safe columns.
 export type BadgeAwardRow = { badge_key: string; awarded_at?: string | null; award_reason?: string | null; award_source?: string | null; evidence_type?: string | null; evidence_id?: string | null; visibility?: "public" | "private" | null; revoked_at?: string | null };
+const selfBadgeAwardColumns = "badge_key, awarded_at, award_source, visibility, revoked_at";
+const publicBadgeAwardColumns = "badge_key, awarded_at, award_source, visibility";
 export type UserBadge = BadgeDefinition & BadgeAwardRow & { visibility?: "public" | "private" | null; earned: true };
 export type PublicCommunePostPreview = { id: string; title: string; post_type?: string | null; excerpt?: string | null; published_at?: string | null; created_at?: string | null };
 export type PublicCommuneCommentPreview = { id: string; post_id: string; parent_comment_id?: string | null; body: string; published_at?: string | null; created_at?: string | null };
@@ -408,7 +412,7 @@ export const defaultNotificationPreferences: NotificationPreferences = {
 };
 
 export const plannedBadges: BadgeDefinition[] = [
-  { badge_key: "free_member", name: "Free Member", description: "Default recognition for joining the public website commons.", badge_type: "member", category: "membership", rarity: "common", icon_path: "/images/badges/Free_Member.png", tags: ["membership", "common"], authority: false, award_mode: "automatic for website members", default_status: "earned" },
+  { badge_key: "free_member", name: "Free Member", description: "Recognition for completing signed-in Commons Profile onboarding.", badge_type: "member", category: "membership", rarity: "common", icon_path: "/images/badges/Free_Member.png", tags: ["membership", "common"], authority: false, award_mode: "automatic after Commons onboarding", default_status: "earned" },
   { badge_key: "stewardship_supporter", name: "Stewardship Supporter", description: "Recognition for reviewed public-benefit stewardship support.", badge_type: "stewardship", category: "stewardship", rarity: "uncommon", icon_path: "/images/badges/Stewardship_Supporter.png", tags: ["stewardship", "public-benefit"], authority: false, award_mode: "review-awarded", default_status: "planned/locked" },
   { badge_key: "water_steward", name: "Water Steward", description: "Recognition connected to water access, watersheds, wetlands, or aquatic care.", badge_type: "stewardship", category: "water", rarity: "uncommon", icon_path: "/images/badges/Water_Steward.png", tags: ["water", "stewardship"], authority: false, award_mode: "review-awarded", default_status: "planned/locked" },
   { badge_key: "forest_steward", name: "Forest Steward", description: "Recognition connected to forests, restoration, and habitat care.", badge_type: "stewardship", category: "forest", rarity: "uncommon", icon_path: "/images/badges/Forest_Steward.png", tags: ["forest", "stewardship"], authority: false, award_mode: "review-awarded", default_status: "planned/locked" },
@@ -718,7 +722,7 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
       followedThreads: [],
       notifications: [],
       badgeDefinitions: plannedBadges,
-      userBadges: [freeMemberFallbackBadge()],
+      userBadges: [],
       localLiving,
       localCommuneDrafts: localCommune,
       localFollowedThreads: localThreads
@@ -766,27 +770,27 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
     safeQuery<Array<{ id: string; thread_id: string; followed_at?: string | null; last_read_at?: string | null; muted?: boolean | null }>>(warnings, "Followed Commune threads", supabase.from("user_followed_commune_threads").select("id, thread_id, followed_at, last_read_at, muted").eq("user_id", userId).order("followed_at", { ascending: false }).limit(200), []),
     safeQuery<NotificationPreview[]>(warnings, "Notifications", supabase.from("user_notifications").select("id, title, body, action_url, read_at, created_at, notification_type, source_type, source_id").eq("user_id", userId).order("created_at", { ascending: false }).limit(12), []),
     safeQuery<BadgeDefinition[]>(warnings, "Badge definitions", supabase.from("badge_definitions").select("badge_key, name, description, badge_type, icon_path, category, rarity, sort_order, authority_linked, award_mode, rule_summary, is_manual_only, is_active").eq("is_active", true).order("sort_order", { ascending: true }), plannedBadges),
-    safeQuery<BadgeAwardRow[]>(warnings, "User badges", supabase.from("user_badges").select("badge_key, awarded_at, award_reason, award_source, evidence_type, evidence_id, visibility, revoked_at").eq("user_id", userId).is("revoked_at", null), [])
+    safeQuery<BadgeAwardRow[]>(warnings, "User badges", supabase.from("user_badges").select(selfBadgeAwardColumns).eq("user_id", userId).is("revoked_at", null), [])
   ]);
 
   const avatarMedia = mediaRows.find((row) => row.media_type === "avatar");
   const bannerMedia = mediaRows.find((row) => row.media_type === "banner");
   const avatarUrl = avatarMedia?.public_url;
   const bannerUrl = bannerMedia?.public_url;
-  const localOnboarding = readLocalStorage<{ completed?: boolean; completedAt?: string }>(commonsStorageKeys.onboarding, {});
-  const profileQualifiesForFreeMember = Boolean(profile && (profile.commons_onboarding_completed_at || localOnboarding.completed));
+  const canonicalFreeMemberCompletedAt = profile?.commons_onboarding_completed_at ?? null;
+  const profileQualifiesForFreeMember = Boolean(canonicalFreeMemberCompletedAt);
   let badgeAwards: BadgeAwardRow[] = [...awarded];
   const hasFreeMemberAward = badgeAwards.some((badge) => badge.badge_key === "free_member" && !badge.revoked_at);
   if (profileQualifiesForFreeMember && !hasFreeMemberAward) {
     const rpcResult = await supabase.rpc("grant_free_member_for_user", { p_target_user_id: userId });
     if (rpcResult.error) {
       logBackendDetail("Free Member badge", rpcResult.error.message);
-      badgeAwards = [{ badge_key: "free_member", awarded_at: profile?.commons_onboarding_completed_at ?? localOnboarding.completedAt ?? new Date().toISOString(), award_source: "local_fallback", visibility: "public" }, ...badgeAwards];
+      badgeAwards = [{ badge_key: "free_member", awarded_at: canonicalFreeMemberCompletedAt as string, award_source: "local_fallback", visibility: "public" }, ...badgeAwards];
     } else {
-      const refreshed = await safeQuery<BadgeAwardRow[]>(warnings, "User badges", supabase.from("user_badges").select("badge_key, awarded_at, award_reason, award_source, evidence_type, evidence_id, visibility, revoked_at").eq("user_id", userId).is("revoked_at", null), []);
+      const refreshed = await safeQuery<BadgeAwardRow[]>(warnings, "User badges", supabase.from("user_badges").select(selfBadgeAwardColumns).eq("user_id", userId).is("revoked_at", null), []);
       badgeAwards = refreshed.some((badge) => badge.badge_key === "free_member" && !badge.revoked_at)
         ? refreshed
-        : [{ badge_key: "free_member", awarded_at: profile?.commons_onboarding_completed_at ?? localOnboarding.completedAt ?? new Date().toISOString(), award_source: "local_fallback", visibility: "public" }, ...badgeAwards];
+        : [{ badge_key: "free_member", awarded_at: canonicalFreeMemberCompletedAt as string, award_source: "local_fallback", visibility: "public" }, ...badgeAwards];
     }
   }
   const customization = normalizeProfileCustomization({
@@ -1216,7 +1220,7 @@ export async function updateBadgeVisibility(badgeKey: string, visibility: "publi
   if (!supabase) return [supabaseNotConfiguredMessage];
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return ["Sign in before updating badge visibility."];
-  const { error } = await supabase.from("user_badges").update({ visibility, updated_at: new Date().toISOString() }).eq("user_id", auth.user.id).eq("badge_key", badgeKey).is("revoked_at", null);
+  const { error } = await supabase.from("user_badges").update({ visibility }).eq("user_id", auth.user.id).eq("badge_key", badgeKey).is("revoked_at", null);
   return error ? [friendlyBackendMessage("User badges", error.message)] : [];
 }
 
@@ -1311,7 +1315,7 @@ export async function loadPublicCommonsProfile(username: string): Promise<{ data
     safeQuery<ProfileCustomization[]>(warnings, "Public customization", supabase.from("profile_customization").select("*").eq("user_id", profileRow.id).limit(1), []),
     safeQuery<Array<{ id?: string | null; media_type: string; public_url?: string | null; created_at?: string | null }>>(warnings, "Public profile media", supabase.from("profile_media").select("id, media_type, public_url, created_at").eq("user_id", profileRow.id).eq("status", "active").order("created_at", { ascending: false }), []),
     safeQuery<BadgeDefinition[]>(warnings, "Public badges", supabase.from("badge_definitions").select("badge_key, name, description, badge_type, icon_path, category, rarity, sort_order, authority_linked, award_mode, rule_summary, is_manual_only, is_active").eq("is_active", true).order("sort_order", { ascending: true }), plannedBadges),
-    safeQuery<BadgeAwardRow[]>(warnings, "Public user badges", supabase.from("user_badges").select("badge_key, awarded_at, award_reason, award_source, evidence_type, evidence_id, visibility, revoked_at").eq("user_id", profileRow.id).eq("visibility", "public").is("revoked_at", null), []),
+    safeQuery<BadgeAwardRow[]>(warnings, "Public user badges", supabase.from("visible_user_badges").select(publicBadgeAwardColumns).eq("user_id", profileRow.id), []),
     safeQuery<Array<{ id: string; title: string; description?: string | null; visibility: string; created_at?: string | null }>>(warnings, "Public collections", supabase.from("user_source_collections").select("id, title, description, visibility, created_at").eq("user_id", profileRow.id).eq("visibility", "public").limit(12), []),
     safeQuery<Array<PublicCommunePostPreview & ActivePublicCommunePost>>(warnings, "Public Commune posts", supabase.from("commune_posts").select("id, title, post_type, excerpt, status, visibility, visibility_state, hidden_at, removed_at, archived_at, published_at, created_at").eq("user_id", profileRow.id).eq("status", "published").eq("visibility", "public").order("published_at", { ascending: false }).limit(6), []),
     safeQuery<PublicCommuneCommentPreview[]>(warnings, "Public Commune comments", supabase.from("commune_comments").select("id, post_id, parent_comment_id, body, published_at, created_at").eq("user_id", profileRow.id).eq("status", "published").eq("visibility_state", "published").order("published_at", { ascending: false }).limit(6), [])

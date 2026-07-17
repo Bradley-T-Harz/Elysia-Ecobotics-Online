@@ -122,6 +122,362 @@ export const legalPolicyPages: LegalPolicyPage[] = [
   }
 ];
 
+const economicPolicyDate = "2026-07-16";
+const economicPolicyStatus = "Test-mode operating terms";
+
+legalPolicyPages.push(
+  {
+    slug: "support-and-billing-terms",
+    route: "/legal/support-and-billing-terms",
+    title: "Support and Billing Terms",
+    status: economicPolicyStatus,
+    lastUpdated: economicPolicyDate,
+    body: `# Support and Billing Terms
+
+**Operator:** EcoSyneva Commons LLC
+**Status:** Test-mode operating terms; informational and subject to legal review.
+**Version:** 2026-07-16
+**Last updated:** 2026-07-16
+
+## 1. Scope and current availability
+
+These terms cover voluntary one-time support, recurring sustaining support, and private billing-account surfaces offered by EcoSyneva Commons LLC for Elysia Ecobotics Online. Repository support checkout is currently designed for Stripe test mode. A visible page or test checkout is not a promise that live payments are active.
+
+## 2. What remains free
+
+Local Elysia remains free and local-first. A Website Account is not required for ordinary local use. Free Member recognition remains free. Supporting Elysia is optional and is not a condition of ordinary community participation.
+
+## 3. What payment cannot buy
+
+Payment does not grant governance, trust, moderation power, reviewer status, developer approval, publisher verification, publication approval, Marketplace approval, Job Post approval, voting power, search prominence, social rank, or control of the Commons. Payment failures, refunds, cancellation, waivers, and disputes do not by themselves change community standing.
+
+## 4. One-time support
+
+The amount and currency are shown before transfer to Stripe-hosted Checkout. One-time support does not renew. Guest support is not linked to a Website Account merely because the same email address is used; account linkage must be established by the authenticated checkout path and server records.
+
+## 5. Recurring support
+
+Recurring support is never preselected. Before checkout, the site shows the fixed monthly amount, monthly cadence, cancellation path, applicable refund policy, and the fact that cancellation does not affect community standing. A Website Account is required so the supporter can recover access and use private billing management. Recurring support continues until canceled according to Stripe's hosted confirmation and the effective date shown there.
+
+## 6. Processor and data boundary
+
+Stripe is the initial replaceable payment processor. Payment-card, bank, checkout-contact, device, fraud-prevention, transaction, and provider-account information is processed under Stripe's terms and privacy practices. Elysia Ecobotics Online does not intentionally send local Elysia memory, local files, local conversations, Commune content, or sandbox source code to Stripe as checkout data.
+
+## 7. Records, receipts, and payment truth
+
+Browser redirects, screenshots, emails, and notification messages are not authoritative payment records. Server-verified provider events and private economic records determine payment state. Stripe may send receipts to the checkout email. Do not post receipts, billing identifiers, disputes, balances, or financial evidence publicly.
+
+## 8. Entity and tax status
+
+Payments are made to EcoSyneva Commons LLC. They are not presented as tax-deductible charitable contributions. Nothing on the Support page is tax, legal, or accounting advice.
+
+## 9. Errors and support
+
+Do not retry a checkout while its state is uncertain. For a mistaken or duplicate payment, billing-access problem, or cancellation question, contact support@elysiaecobotics.com without sending card numbers, bank details, passwords, identity documents, or provider secrets.
+
+## 10. Activation boundary
+
+Live payment activation requires separate business, banking, provider-verification, legal, tax, accounting, pricing, and operational approval. Test-mode behavior must not be represented as a live charge or live payout.
+`
+  },
+  {
+    slug: "refund-and-cancellation-policy",
+    route: "/legal/refund-and-cancellation-policy",
+    title: "Refund and Cancellation Policy",
+    status: economicPolicyStatus,
+    lastUpdated: economicPolicyDate,
+    body: `# Refund and Cancellation Policy
+
+**Operator:** EcoSyneva Commons LLC
+**Status:** Test-mode operating policy; informational and subject to legal review.
+**Version:** 2026-07-16
+**Last updated:** 2026-07-16
+
+## 1. Current mode
+
+Repository billing is test-mode-only. Test payments move no real funds and cannot produce a real refund. This policy defines the intended fair process that must be reviewed before live activation.
+
+## 2. Recurring-support cancellation
+
+Recurring support can be managed and canceled through the secure Stripe Customer Portal when that capability is enabled. The portal shows the effective date. Cancellation stops future renewal according to that date; it does not delete a Website Account, Commons Profile, content, Free Member recognition, unrelated badges, purchases, licenses, or community standing.
+
+## 3. Refund requests
+
+For a mistaken amount, duplicate payment, unauthorized transaction concern, material service failure, or other good-faith problem, contact support@elysiaecobotics.com promptly. Include only the minimum safe information needed to locate the transaction. Never email card or bank numbers, passwords, identity documents, or full provider identifiers.
+
+## 4. One-time voluntary support
+
+One-time support normally funds ongoing work rather than a promised deliverable. A refund may still be appropriate for a duplicate, mistake, unauthorized-payment concern, technical error, or where law requires it. Requests are reviewed fairly and are not conditioned on community status.
+
+## 5. Service purchases and credits
+
+Sandbox credits, Job Post fees, Marketplace licenses, organizational services, and sponsorships require their own checkout-specific terms. Those terms must disclose delivery, expiration if any, cancellation, and refund conditions before money is accepted. This general policy does not silently remove rights stated at checkout or required by law.
+
+## 6. Method and timing
+
+Approved refunds are returned through the original processor and payment method where possible. Provider and banking timelines may delay appearance of funds. EcoSyneva Commons LLC will not request a second payment method to issue a routine refund.
+
+## 7. Disputes and chargebacks
+
+Contacting support first may allow a faster correction, but it does not waive lawful dispute rights. A dispute or failed payment can restrict only the affected economic entitlement while it is unresolved; it is not a general community ban and cannot erase unrelated recognition.
+
+## 8. No retaliation or public exposure
+
+Refund, cancellation, waiver, failed-payment, and dispute status remains private. It must not be used for public shaming, donor ranking, moderation retaliation, or governance decisions.
+`
+  },
+  {
+    slug: "sandbox-credit-terms",
+    route: "/legal/sandbox-credit-terms",
+    title: "Online Sandbox Credit Terms",
+    status: economicPolicyStatus,
+    lastUpdated: economicPolicyDate,
+    body: `# Online Sandbox Credit Terms
+
+**Operator:** EcoSyneva Commons LLC
+**Status:** Pre-activation test-mode terms; informational and subject to legal review.
+**Version:** 2026-07-16
+**Last updated:** 2026-07-16
+
+## 1. Separate online service
+
+The Commune coding sandbox is an optional online service with real remote-compute costs. It is separate from free local Elysia and from ordinary local coding. A Website Account may be required for governed online execution.
+
+## 2. Credits are service units, not money or recognition
+
+Sandbox credits represent a narrow right to request measured online service under current limits. They are not cash, deposits, stored value, badge credits, contribution credits, governance votes, trust scores, or public status. Purchased, recurring, sponsored, waived, starter, and operational credit sources remain distinguishable in the private ledger.
+
+## 3. Disclosure before activation
+
+Before paid credits can be sold, the checkout must state the price, currency, measured unit, rate, reservation behavior, any expiration, refund conditions, and what happens to unused credits. If those facts are not advertised by an enabled server capability, paid sandbox credits are unavailable.
+
+## 4. Reservations and settlement
+
+A run may reserve credits before execution and settle against measured use afterward. Failed, canceled, timed-out, or infrastructure-error runs must follow documented release or adjustment rules. Corrections are durable compensating ledger entries, not silent balance rewrites.
+
+## 5. Safety limits do not increase with payment
+
+Buying or receiving credits does not increase network access, filesystem access, package-install permission, shell privilege, reviewer status, administrator limits, trust, concurrency safety caps, or code approval. The sandbox may reject or stop work for safety, abuse prevention, resource limits, maintenance, or policy compliance regardless of balance.
+
+## 6. Sponsored and waived access
+
+Free, sponsored, and waived access is legitimate and private. It must not be publicly stigmatized or treated as lesser community standing.
+
+## 7. Source-code and provider boundary
+
+Sandbox source code may be transmitted to the governed execution path described in the Privacy Policy. It is not sent to Stripe merely because credits are purchased. Billing services must never execute user code, and the sandbox must never receive payment secrets.
+`
+  },
+  {
+    slug: "job-post-fee-terms",
+    route: "/legal/job-post-fee-terms",
+    title: "Commercial Job Post Fee Terms",
+    status: economicPolicyStatus,
+    lastUpdated: economicPolicyDate,
+    body: `# Commercial Job Post Fee Terms
+
+**Operator:** EcoSyneva Commons LLC
+**Status:** Pre-activation test-mode terms; informational and subject to legal review.
+**Version:** 2026-07-16
+**Last updated:** 2026-07-16
+
+## 1. Separate decisions
+
+A commercial Job Post may require an economic condition such as paid, waived, subsidized, or exempt. Economic state is separate from anti-scam review, content review, employer identity checks, moderation, publication, expiration, and archival state.
+
+## 2. Payment is not approval
+
+Paying a fee cannot approve a post, bypass review, guarantee publication, extend a listing, improve ranking, silence reports, or purchase endorsement. Reviewers must not infer truth or safety from payment.
+
+## 3. Clear checkout
+
+Before a live fee is accepted, the employer must see the amount, currency, listing scope, duration if any, renewal status, refund conditions, and whether publication is still subject to review. No recurring Job Post charge may be hidden or preselected.
+
+## 4. Rejection, withdrawal, and removal
+
+The applicable checkout terms must state how rejection before publication, voluntary withdrawal, later policy removal, duplicate payment, and technical failure affect refunds or credits. Content enforcement and financial correction remain separately audited.
+
+## 5. Privacy
+
+Fee status, waivers, disputes, billing contacts, provider references, and payment history are private. A public listing may include only approved employer and opportunity information, not financial evidence.
+`
+  },
+  {
+    slug: "marketplace-commerce-terms",
+    route: "/legal/marketplace-commerce-terms",
+    title: "Marketplace Commerce Terms",
+    status: economicPolicyStatus,
+    lastUpdated: economicPolicyDate,
+    body: `# Marketplace Commerce Terms
+
+**Operator:** EcoSyneva Commons LLC
+**Status:** Pre-activation test-mode terms; informational and subject to legal review.
+**Version:** 2026-07-16
+**Last updated:** 2026-07-16
+
+## 1. Current boundary
+
+Commercial Marketplace activation remains disabled unless an enabled server capability, reviewed offer, price, license, seller readiness state, and test-mode payment path are all present. Existing free add-ons and review workflows remain separate.
+
+## 2. Offer, listing, purchase, license, and install are distinct
+
+A reviewed listing may have a separate commercial offer. A successful payment may create the stated license entitlement; it does not approve the listing, verify the publisher, certify safety, download a package, or authorize installation. Local Elysia retains manifest validation, permission disclosure, user confirmation, installation, and revocation authority.
+
+## 3. Price and license disclosure
+
+Before purchase, the offer must state price, currency, license scope, covered version or term, external dependencies, support expectations, material restrictions, refund conditions, and whether future versions require another purchase. No undisclosed renewal or add-on charge is permitted.
+
+## 4. Seller preparation and payouts
+
+Eligible sellers may complete provider-hosted identity, tax, and bank onboarding through Stripe Connect test mode. Developer status, publisher verification, seller eligibility, review approval, commercial-offer approval, payable balance, and payout readiness remain separate. A seller cannot self-approve any of them merely by completing provider onboarding.
+
+## 5. Commission and accounting
+
+Before live sales, the seller agreement must disclose commission, processor fees, refunds, reserves, disputes, taxes, payout schedule, minimums if any, and termination handling. Seller income, banking state, tax data, and payout identifiers remain private.
+
+## 6. Safety and revocation
+
+Commercial status does not reduce security review or prevent urgent delisting. License and purchaser-remedy handling after revocation must be defined without silently reinstalling, deleting, or changing local software.
+`
+  },
+  {
+    slug: "sponsorship-independence-policy",
+    route: "/legal/sponsorship-independence-policy",
+    title: "Sponsorship Independence Policy",
+    status: economicPolicyStatus,
+    lastUpdated: economicPolicyDate,
+    body: `# Sponsorship Independence Policy
+
+**Operator:** EcoSyneva Commons LLC
+**Status:** Pre-activation operating policy; informational and subject to legal review.
+**Version:** 2026-07-16
+**Last updated:** 2026-07-16
+
+## 1. Purpose
+
+Ethical sponsorship may help fund public-interest infrastructure while preserving truthfulness, independence, privacy, and the dignity of people who do not pay.
+
+## 2. What sponsorship cannot purchase
+
+Sponsors cannot buy governance, moderation outcomes, reviewer assignments, developer approval, publisher verification, publication decisions, Living Library conclusions, research claims, search prominence disguised as relevance, access to private user data, or control of the Commons.
+
+## 3. Disclosure
+
+Material sponsorship must be labeled clearly where it affects a public surface. Disclosure should identify the sponsor and general supported area without publishing private contract terms, amounts, bank information, or user financial data.
+
+## 4. Privacy and tracking
+
+Sponsorship must not require behavioral advertising profiles, sale of account activity, hidden pixels, cross-site surveillance, access to local Elysia memory, or receipt of sandbox source code. Any necessary external data transfer must be disclosed before it occurs.
+
+## 5. Conflicts and refusal
+
+Economic operators must record conflicts and keep sponsorship administration separate from governance and content review. EcoSyneva Commons LLC may decline or end arrangements that conflict with safety, ecology, community dignity, independence, or these boundaries.
+`
+  },
+  {
+    slug: "organization-services-terms",
+    route: "/legal/organization-services-terms",
+    title: "Organization Services Terms",
+    status: economicPolicyStatus,
+    lastUpdated: economicPolicyDate,
+    body: `# Organization Services Terms
+
+**Operator:** EcoSyneva Commons LLC
+**Status:** Pre-activation test-mode terms; informational and subject to legal review.
+**Version:** 2026-07-16
+**Last updated:** 2026-07-16
+
+## 1. Purpose and current boundary
+
+These terms describe the intended process for human-reviewed organizational and professional services offered by EcoSyneva Commons LLC. A website inquiry, account, meeting, automated message, test-mode record, or payment screen is not by itself an accepted engagement. Services begin only under a mutually accepted written proposal, statement of work, or contract. Live service sales remain disabled until business, banking, processor, legal, tax, accounting, insurance, pricing, and operational review is complete.
+
+## 2. Human-reviewed scope
+
+Each request is reviewed by a person for fit, lawful purpose, safety, capacity, ecological and community alignment, privacy needs, conflicts, and technical feasibility. EcoSyneva Commons LLC may decline work. Payment cannot compel acceptance, override safety boundaries, or turn an inquiry into an approved project.
+
+## 3. Proposal and contract
+
+Before paid work begins, the written proposal or contract should identify the parties; scope and exclusions; deliverables; responsible contacts; schedule and dependencies; review and acceptance process; fees, currency, taxes, and approved expenses; invoice and payment schedule; change-control process; cancellation terms; refund or credit conditions; confidentiality; data handling and processors; intellectual-property and license terms; support or maintenance expectations; and any service-specific limitations. A change in scope requires documented agreement rather than an undisclosed charge.
+
+## 4. Invoices and payment
+
+Invoices must identify the agreed service, amount, currency, due date, and payment instructions. Recurring fees, retainers, deposits, milestones, reimbursable expenses, and automatic renewal must be disclosed expressly before agreement and may not be preselected or hidden. Test-mode invoices or payments move no real funds. Browser redirects, screenshots, and emails are not authoritative payment records; verified processor events and private accounting records determine payment state.
+
+## 5. Confidentiality and minimum necessary data
+
+The parties should identify confidential material and any permitted uses in writing. Do not submit secrets, credentials, regulated records, identity documents, private source code, personal data, or confidential client materials through public Commons Profiles, Commune posts, Marketplace listings, ordinary email, or an intake field not designated for that material. EcoSyneva Commons LLC should request and retain only information reasonably necessary for the agreed work, security, accounting, and legal duties. Confidentiality does not require concealing unlawful conduct or prevent disclosures required by law.
+
+## 6. Data processors and external services
+
+Before protected client data leaves the agreed boundary, the proposal or contract should identify material processor categories, data purpose, and relevant location or transfer considerations. Depending on the engagement, processors may include Stripe for payment, invoicing, or fraud prevention; Supabase for authenticated private records; Cloudflare for website delivery and security; and specifically disclosed communication, source-control, hosting, or project tools. Local Elysia memory, local files, conversations, and credentials are not sent to those services merely because an organization asks for or pays for work. New material processors or materially different uses require notice and, where promised or required, approval.
+
+## 7. Security and access
+
+Client access, credentials, environments, and data must be scoped to the minimum necessary work and handled through an agreed secure method. Payment does not authorize access to unrelated systems or data. Each party remains responsible for access it controls, prompt credential revocation, incident contact, and truthful disclosure of known constraints. No public website form should be treated as a secure vault.
+
+## 8. Review, acceptance, and change requests
+
+Deliverables are reviewed under the acceptance criteria and review period stated in the written agreement. Silence is not acceptance unless the contract clearly and lawfully says otherwise. Material change requests may require a revised scope, schedule, and price accepted before the extra work begins. Technical, safety, legal, or dependency constraints may require a pause and documented decision.
+
+## 9. Cancellation and suspension
+
+The written agreement must state how either party may cancel, what notice is required, what work stops, how client materials are returned or deleted, and what completed or committed work remains payable. EcoSyneva Commons LLC may pause or end work for nonpayment, unsafe or unlawful requests, security risk, material breach, unavailable dependencies, conflicts, or capacity limits, subject to the agreement and applicable law. Cancellation of services does not delete a Website Account or alter community standing.
+
+## 10. Refunds and service credits
+
+Refund and credit treatment depends on the written agreement, work already performed, nonrecoverable commitments, duplicate or mistaken payment, material failure to deliver the agreed scope, and applicable law. Approved refunds should return through the original payment method where practical. A refund request, payment failure, dispute, waiver, or negotiated credit remains private and cannot trigger public shaming, governance loss, or unrelated account punishment. The general Refund and Cancellation Policy also applies unless the signed agreement provides a more specific lawful term.
+
+## 11. Intellectual property and licenses
+
+Ownership, pre-existing materials, open-source components, third-party licenses, attribution, portfolio use, confidentiality, and delivery of source or documentation must be stated in the written agreement. Payment does not silently transfer EcoSyneva Commons LLC background technology, Elysia core rights, third-party rights, community content, trademarks, or a client's pre-existing rights.
+
+## 12. No purchase of authority
+
+An organization, client, sponsor, or payer cannot buy governance, moderation outcomes, reviewer assignments, developer approval, publisher verification, publication approval, Marketplace approval, search prominence disguised as relevance, research conclusions, public endorsement, voting power, badges of trust, access to private community data, or control of the Commons. Commercial client identity and economic records remain separate from Commons identity, roles, recognition, moderation, and public profiles.
+
+## 13. Contact and agreement priority
+
+Questions about a proposed engagement may be sent to contact@elysiaecobotics.com without including secrets or regulated data. Billing questions may be sent to support@elysiaecobotics.com. If an executed written agreement conflicts with these general terms, the executed agreement controls for that engagement to the extent lawful; privacy, security, no-pay-to-govern, and applicable legal duties remain binding boundaries.
+`
+  },
+  {
+    slug: "account-closure-financial-retention",
+    route: "/legal/account-closure-financial-retention",
+    title: "Account Closure and Financial Record Retention",
+    status: economicPolicyStatus,
+    lastUpdated: economicPolicyDate,
+    body: `# Account Closure and Financial Record Retention
+
+**Operator:** EcoSyneva Commons LLC
+**Status:** Pre-activation operating policy; informational and subject to legal review.
+**Version:** 2026-07-16
+**Last updated:** 2026-07-16
+
+## 1. Separate lifecycle records
+
+Supabase Auth identity, Commons Profile identity, public content, badges, roles, economic customer records, subscriptions, service entitlements, ledgers, licenses, seller records, provider records, and financial audit records have different purposes and retention duties. They must not be flattened into one deletable profile row.
+
+## 2. Before closing an account with economic value
+
+A person should be able to recover access, view private state, cancel recurring support, resolve pending refunds or disputes, understand remaining service credits and licenses, and request an appropriate export before closure. Closure must not silently orphan a subscription or seller payout.
+
+## 3. What may be retained
+
+EcoSyneva Commons LLC may retain minimum transaction, tax, accounting, fraud-prevention, dispute, consent, security, and audit records where reasonably necessary or legally required. Retained records remain restricted and are not public profile data. Provider-side deletion and retention are also governed by Stripe and applicable law.
+
+## 4. What closure does not mean
+
+Closing a Website Account is not automatically a refund, does not erase already published community history where lawful retention or attribution applies, and does not authorize reuse of financial data for public recognition. Conversely, retaining a financial record does not keep a public profile active.
+
+## 5. Requests and assistance
+
+When the test-mode economic lifecycle feature is enabled, a signed-in person may use the private Support & Billing room to request an economic-data export or economic-account closure and to review current economic closure blockers. This workflow is not general Website Account deletion: Supabase Auth identity, the Commons Profile, community content, badges, roles, governance state, already-earned Marketplace licenses, and remaining sandbox service credits stay separate. Economic closure cannot be represented as complete while subscriptions, unsettled orders, refunds, disputes, reconciliation cases, seller obligations, fulfillment, payouts, or organization and sponsorship signer duties remain unresolved.
+
+Contact privacy@elysiaecobotics.com for broader privacy requests and support@elysiaecobotics.com for subscription, receipt, credit, license, seller-finance, export-artifact, or economic-closure coordination. Send only the minimum information necessary and never email payment secrets or identity documents unless a verified secure process specifically requires them.
+`
+  }
+);
+
 const governedSandboxLegalNotices: Record<string, string> = {
   "privacy-policy": "## Governed code sandbox processing\n\nWhen a signed-in user deliberately requests a Coding Cornucopia sandbox run, the submitted code is transmitted through Cloudflare Pages Functions and Cloudflare Access to an isolated runner hosted on a Hetzner server. The code is used only for the requested execution or static diagnostics. The browser does not receive the private runner credential, and the runner does not receive the user's Supabase token, email, roles, private notes, secrets, or private Elysia context.\n\nSupabase may retain bounded metadata such as the requesting account identifier, idempotency key, source reference, code hash, language, status, timing, limited output previews, and diagnostics. Raw runner input and output are deleted promptly after processing; short-lived failure cleanup and bounded security audit records may remain for operational recovery and abuse prevention. Do not submit secrets, personal data, confidential code, or material you do not have authority to process.",
   "terms-of-use": "## Governed code sandbox\n\nCoding Cornucopia sandbox execution is optional, authenticated, rate-limited, resource-limited, and intended only as evidence about one submitted snapshot. Submitted code crosses Cloudflare and an isolated Hetzner-hosted runner, and bounded run metadata may be recorded privately in Supabase. Network access, package installation, shell access, host repositories, private paths, credentials, and private Elysia context are not provided to the execution container.\n\nA successful execution is not security review, trust, compatibility, licensing clearance, Marketplace approval, moderation approval, or a promise that the code is safe in another environment. You are responsible for the code you submit and must not attempt to escape limits, access secrets or private systems, overload the service, or use the sandbox to facilitate prohibited conduct."
@@ -138,6 +494,22 @@ for (const page of legalPolicyPages) {
         "Community code must not run directly in the browser, Supabase/Postgres, Cloudflare Function runtime, Elysia core, an administrator machine, or the runner host. Governed execution may occur only through the optional authenticated sandbox path with explicit snapshots, fixed resource limits, no network, no secrets, no host/repository/socket mounts, bounded logs, and operator kill switches."
       );
     page.body = `${page.body.trim()}\n\n${notice}\n`;
+  }
+}
+
+const economicWebsiteLegalNotices: Record<string, string> = {
+  "privacy-policy": "## Economic and payment processing\n\nWhen a person deliberately starts support or another enabled economic checkout, the browser sends a bounded request to the server and then opens Stripe-hosted Checkout. Stripe may process checkout contact, payment method, device, fraud-prevention, transaction, subscription, portal, and—only for eligible sellers using Connect—identity, tax, bank, and payout information under Stripe's own terms. Elysia Ecobotics Online stores private normalized economic records needed for consent, reconciliation, receipts, refunds, disputes, entitlements, accounting, and audit. It does not place amounts, plans, waivers, failed payments, refunds, disputes, balances, seller income, or provider identifiers in public Commons Profiles.\n\nGuest checkout is not linked to a Website Account merely by matching an email address. Account-linked billing uses an authenticated server request. Billing does not intentionally send local Elysia memory, local files, local conversations, Commune content, or sandbox source code to Stripe. The separate governed sandbox path is described above. Financial records may require different retention from an Auth user or public profile; see the Account Closure and Financial Record Retention policy.",
+  "terms-of-use": "## Economic services and payment boundaries\n\nAny enabled support, sandbox-credit, Job Post, Marketplace, organization, or sponsorship surface is governed by its specific disclosed terms in addition to these Terms. Payment never grants governance, trust, moderation power, reviewer status, developer or publisher approval, publication approval, ranking, voting power, or control of the Commons. Browser redirects and notifications are not proof of payment. Recurring payments must be chosen explicitly, state their cadence and amount, and provide an online management or cancellation path. Test-mode interfaces cannot create a live charge or payout."
+};
+
+for (const page of legalPolicyPages) {
+  const notice = economicWebsiteLegalNotices[page.slug];
+  if (notice) {
+    page.lastUpdated = economicPolicyDate;
+    page.body = page.body
+      .replace(/\*\*Last updated:\*\* \d{4}-\d{2}-\d{2}/, `**Last updated:** ${economicPolicyDate}`)
+      .trim();
+    page.body = `${page.body}\n\n${notice}\n`;
   }
 }
 
@@ -204,7 +576,15 @@ export const legalPolicyMetadata: Record<string, LegalPolicyMetadata> = {
   "trademark-notice": {
     category: "Stewardship and Brand",
     description: "A safe public trademark notice for Elysia Ecobotics™ without publishing private evidence records."
-  }
+  },
+  "support-and-billing-terms": { category: "Economic Support and Services", description: "Voluntary support, recurring support, processor, account-linking, consent, and no-pay-to-govern boundaries." },
+  "refund-and-cancellation-policy": { category: "Economic Support and Services", description: "Cancellation, duplicate or mistaken payments, service refunds, disputes, privacy, and non-retaliation." },
+  "sandbox-credit-terms": { category: "Economic Support and Services", description: "Measured online sandbox credits, private ledgers, reservations, sponsored access, and immutable safety limits." },
+  "job-post-fee-terms": { category: "Economic Support and Services", description: "Commercial Job Post fee conditions kept separate from anti-scam review and publication decisions." },
+  "marketplace-commerce-terms": { category: "Marketplace and Add-ons", description: "Commercial offers, licenses, seller preparation, commissions, payouts, review, and local installation authority." },
+  "sponsorship-independence-policy": { category: "Organizations and Sponsorship", description: "Disclosure, editorial independence, privacy, conflicts, and the authority that sponsorship cannot buy." },
+  "organization-services-terms": { category: "Organizations and Sponsorship", description: "Human-reviewed scopes, proposals, contracts, invoices, confidentiality, processors, cancellation, refunds, and no-pay-to-govern boundaries." },
+  "account-closure-financial-retention": { category: "Core Website", description: "How account closure, subscriptions, entitlements, licenses, economic records, and lawful retention remain distinct." }
 };
 
 export const legalPolicyGroups: LegalPolicyGroup[] = [
@@ -221,7 +601,12 @@ export const legalPolicyGroups: LegalPolicyGroup[] = [
   {
     category: "Marketplace and Add-ons",
     description: "Developer agreements, add-on submissions, permissions, manifests, and security review.",
-    slugs: ["marketplace-developer-agreement", "add-on-submission-policy", "security-review-policy"]
+    slugs: ["marketplace-developer-agreement", "add-on-submission-policy", "security-review-policy", "marketplace-commerce-terms"]
+  },
+  {
+    category: "Economic Support and Services",
+    description: "Voluntary support, recurring billing, refunds, online service credits, and commercial Job Post boundaries.",
+    slugs: ["support-and-billing-terms", "refund-and-cancellation-policy", "sandbox-credit-terms", "job-post-fee-terms", "account-closure-financial-retention"]
   },
   {
     category: "Security and Copyright",
@@ -232,6 +617,11 @@ export const legalPolicyGroups: LegalPolicyGroup[] = [
     category: "Stewardship and Brand",
     description: "Donation recognition boundaries and public brand/trademark notice.",
     slugs: ["donation-recognition-terms", "trademark-notice"]
+  },
+  {
+    category: "Organizations and Sponsorship",
+    description: "Human-reviewed professional services and ethical sponsorship with privacy, independence, and conflict boundaries.",
+    slugs: ["organization-services-terms", "sponsorship-independence-policy"]
   }
 ];
 

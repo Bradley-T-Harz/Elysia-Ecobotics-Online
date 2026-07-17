@@ -92,6 +92,9 @@ function PolicyQuickLinks() {
       <Link to="/legal">Back to Legal</Link>
       <Link to="/legal/privacy-policy">Privacy Policy</Link>
       <Link to="/legal/terms-of-use">Terms of Use</Link>
+      <Link to="/legal/support-and-billing-terms">Support &amp; Billing</Link>
+      <Link to="/legal/refund-and-cancellation-policy">Refund &amp; Cancellation</Link>
+      <Link to="/legal/organization-services-terms">Organization Services</Link>
       <Link to="/legal/community-guidelines">Community Guidelines</Link>
       <Link to="/legal/vulnerability-disclosure-policy">Security</Link>
       <Link to="/legal/trademark-notice">Trademark Notice</Link>
@@ -103,7 +106,7 @@ export default function LegalPage() {
   return (
     <div className="page-stack legal-page">
       <PageHero eyebrow="Legal" title="Legal, Safety, and Community Policies" brandMark="standard">
-        <p>Elysia Ecobotics Online is a public website and commons around a private local-first Elysia core. These policies explain how the public site handles privacy, accounts, community participation, Marketplace add-ons, security review, copyright, volunteer requests, and stewardship recognition.</p>
+        <p>Elysia Ecobotics Online is a public website and commons around a private local-first Elysia core. These policies explain how the public site handles privacy, accounts, community participation, Marketplace add-ons, security review, copyright, volunteer requests, stewardship recognition, optional support, paid online services, seller preparation, and sponsorship independence.</p>
         <p>The public website is cloud-facing. The private local Elysia core remains local, governed, and user-controlled. These policies do not turn private local Elysia memory, files, vaults, logs, passwords, or credentials into public website data.</p>
       </PageHero>
 
@@ -111,7 +114,7 @@ export default function LegalPage() {
         <article className="section-card legal-note-card">
           <StatusBadge label="Public operating policy" tone="warning" />
           <h2>Operating policies</h2>
-          <p>These policies are public operating guidance for the current website and are not a substitute for legal advice. They should be reviewed periodically as the project grows, paid add-ons launch, live uploads expand, public chat opens wider, backend moderation queues mature, or receipt storage changes.</p>
+          <p>These policies are public operating guidance and are not a substitute for legal advice. Economic policies describe test-mode and pre-activation boundaries; live charges, payouts, pricing, and service sales remain disabled until the applicable business, banking, provider, legal, tax, accounting, and operational reviews are complete.</p>
         </article>
         <article className="section-card legal-note-card">
           <StatusBadge label="Official contacts" tone="warning" />

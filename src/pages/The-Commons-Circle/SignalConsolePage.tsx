@@ -3,10 +3,12 @@ import { Link } from "react-router-dom";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
+import { safeInternalActionPath } from "../../shared/navigation/safeInternalActionPath";
 import { loadSignalConsole, markAllNotificationsRead, markNotificationRead, type CodeProposalSignalPreview, type CodeProposalSignalStatus, type CommunityVoteSignalPreview, type ElysiaIterationShowcaseSignalPreview, type JobPostSignalPreview, type NotificationPreview, type OfficialUpdateSignalPreview, type RepositoryShowcaseSignalPreview, type ResearchNotesSignalPreview, type SignalConsoleData, type TroubleshootingSignalPreview } from "./commonsCircleApi";
 
 function signalCategory(signal: NotificationPreview) {
   const text = `${signal.notification_type ?? ""} ${signal.source_type ?? ""}`;
+  if (/billing|economic|support_payment|subscription|sandbox_credit|job_fee|marketplace_purchase|refund|payout/i.test(text)) return "Support & Billing";
   if (/community_vote|community voting|vote_status|commune_vote/i.test(text)) return "Community Voting Room";
   if (/job_post|job post|opportunity|anti_scam/i.test(text)) return "Job Post";
   if (/official_update|official_security|official_notice/i.test(text)) return "Official Update";
@@ -47,11 +49,12 @@ function proposalTime(proposal: CodeProposalSignalPreview) {
 }
 
 function SignalCard({ signal, onRead }: { signal: NotificationPreview; onRead: (id: string) => void }) {
+  const actionPath = safeInternalActionPath(signal.action_url);
   return <article className={signal.read_at ? "commons-signal-card" : "commons-signal-card commons-signal-card--unread"}>
     <div className="addon-card__topline"><strong>{signal.title}</strong><span>{signal.created_at ? new Date(signal.created_at).toLocaleString() : "recent"}</span></div>
     <div className="commons-signal-meta"><span>{signalCategory(signal)}</span><span>{statusLabel(signal)}</span><span>{signal.notification_type?.replace(/_/g, " ") ?? "account signal"}</span></div>
     <p>{signal.body || "A Commons Circle signal needs your attention."}</p>
-    <div className="button-row"><button type="button" disabled={Boolean(signal.read_at)} onClick={() => onRead(signal.id)}>{signal.read_at ? "Read" : "Mark read"}</button>{signal.action_url && <a className="button-link" href={signal.action_url}>Open signal action</a>}</div>
+    <div className="button-row"><button type="button" disabled={Boolean(signal.read_at)} onClick={() => onRead(signal.id)}>{signal.read_at ? "Read" : "Mark read"}</button>{actionPath && <Link className="button-link" to={actionPath}>Open signal action</Link>}</div>
   </article>;
 }
 

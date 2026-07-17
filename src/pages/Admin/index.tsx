@@ -92,7 +92,8 @@ const adminLinks = [
   ["/admin/review/marketplace", "Marketplace"],
   ["/admin/review/broken-links", "Broken Links"],
   ["/admin/roles", "Roles"],
-  ["/admin/audit", "Audit"]
+  ["/admin/audit", "Audit"],
+  ["/admin/economic-operations", "Economic Operations"]
 ] as const;
 
 const routeDomains: Record<string, ReviewDomain | undefined> = {
@@ -190,7 +191,7 @@ function ReviewActions({ item, onChanged }: { item: ReviewItem; onChanged: (mess
     const result = await updateReviewStatus(item, status, note);
     setBusy(false);
     setConfirmReject(false);
-    onChanged(result.ok ? `Marked ${item.title ?? item.id} as ${status}.` : result.warning ?? "Review action failed.");
+    onChanged(result.ok ? result.message ?? `Marked ${item.title ?? item.id} as ${status}.` : result.warning ?? "Review action failed.");
   }
 
   async function assign() {
@@ -219,7 +220,7 @@ function CommuneRecoveryActions({ item, onChanged }: { item: ReviewItem; onChang
     setBusy(true);
     const result = await restoreCommuneReviewSubject(item, note || "Restored public visibility from admin recovery view.");
     setBusy(false);
-    onChanged(result.ok ? "Commune content restored to public visibility. Review history was preserved." : result.warning ?? "Restore action failed.");
+    onChanged(result.ok ? result.message ?? "Commune content restored to public visibility. Review history was preserved." : result.warning ?? "Restore action failed.");
   }
 
   return <div className="review-actions">
@@ -241,9 +242,9 @@ function CommuneRejectedRecoveryActions({ item, onChanged }: { item: ReviewItem;
       onChanged(result.warning ?? "Rejected recovery action failed.");
       return;
     }
-    onChanged(action === "reopen_review"
+    onChanged(result.message ?? (action === "reopen_review"
       ? "Rejected Commune item reopened for review. It remains non-public."
-      : "Rejected Commune item approved and restored. Original rejection history was preserved.");
+      : "Rejected Commune item approved and restored. Original rejection history was preserved."));
   }
 
   return <div className="review-actions">

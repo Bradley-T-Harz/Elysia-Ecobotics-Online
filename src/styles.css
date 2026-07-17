@@ -341,12 +341,14 @@ code { color: var(--teal); overflow-wrap: anywhere; }
 .header-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 0.55rem; }
 .account-button, .install-link { border: 1px solid var(--line); border-radius: 999px; padding: 0.45rem 0.7rem; color: var(--muted); }
 .install-link { color: var(--teal); border-color: var(--line-bright); }
-.site-nav { display: flex; gap: 0.35rem; overflow-x: auto; padding-bottom: 0.1rem; }
+.site-nav-region { min-width: 0; }
+.site-nav-toggle { display: none; }
+.site-nav { display: flex; flex-wrap: wrap; justify-content: center; gap: 0.35rem; overflow-x: visible; padding-bottom: 0.1rem; }
 .site-nav a { color: var(--muted); text-decoration: none; white-space: nowrap; padding: 0.48rem 0.68rem; border-radius: 999px; font-size: 0.9rem; }
 .site-nav a:hover, .site-nav a.active { color: var(--text); background: rgba(126, 215, 209, 0.1); }
 .site-main { display: grid; gap: 1rem; }
 .site-trust-strip, .site-footer { border: 1px solid var(--line); border-radius: 18px; background: rgba(8, 11, 16, 0.54); padding: 1rem; color: var(--muted); margin-top: 1rem; line-height: 1.55; }
-.site-footer { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0.8rem 1rem; align-items: start; }
+.site-footer { display: grid; grid-template-columns: minmax(18rem, 0.6fr) minmax(0, 1.4fr); gap: 0.8rem 1rem; align-items: start; }
 .site-footer nav { display: flex; flex-wrap: wrap; gap: 0.7rem; justify-content: flex-end; }
 .site-footer p { margin: 0; }
 .page-stack { display: grid; gap: 1rem; }
@@ -416,7 +418,36 @@ code { color: var(--teal); overflow-wrap: anywhere; }
 .mission-page .page-hero-block h1 { max-width: none; }
 .mission-statement { font-family: Roboto, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; font-size: clamp(1.4rem, 3vw, 2.5rem); color: var(--text); max-width: 980px; }
 @media (max-width: 1120px) { .feature-grid--four, .feature-grid--five, .subsystem-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (max-width: 820px) { .site-shell { width: min(100% - 1rem, 1480px); } .brand-row, .site-footer, .timeline-list article, .filter-strip { grid-template-columns: 1fr; display: grid; } .header-actions, .site-footer nav { justify-content: start; } .feature-grid--three, .feature-grid--four, .feature-grid--five, .subsystem-grid { grid-template-columns: 1fr; } }
+@media (max-width: 820px) {
+  .site-shell { width: min(100% - 1rem, 1480px); }
+  .brand-row, .site-footer, .timeline-list article, .filter-strip { grid-template-columns: 1fr; display: grid; }
+  .header-actions, .site-footer nav { justify-content: start; }
+  .feature-grid--three, .feature-grid--four, .feature-grid--five, .subsystem-grid { grid-template-columns: 1fr; }
+  .site-nav-toggle {
+    display: inline-flex;
+    width: 100%;
+    justify-content: center;
+    border-radius: 999px;
+    color: var(--teal);
+    border-color: var(--line-bright);
+  }
+  .site-nav {
+    display: none;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.4rem;
+    padding-top: 0.55rem;
+  }
+  .site-nav[data-open="true"] { display: grid; }
+  .site-nav a {
+    display: flex;
+    min-width: 0;
+    min-height: 2.75rem;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    white-space: normal;
+  }
+}
 @media (max-width: 820px) {
   .page-brand-mark--standard {
     position: static;
@@ -4283,6 +4314,53 @@ button.commune-vote-option-card:disabled {
   background: rgba(3, 10, 16, 0.54);
 }
 
+.coding-sandbox-credit-summary {
+  display: grid;
+  gap: 0.7rem;
+  border: 1px solid rgba(142, 232, 220, 0.24);
+  border-radius: 13px;
+  padding: 0.8rem;
+  background: rgba(142, 232, 220, 0.045);
+}
+
+.coding-sandbox-credit-summary--low {
+  border-color: rgba(216, 182, 111, 0.48);
+  background: rgba(216, 182, 111, 0.055);
+}
+
+.coding-sandbox-credit-summary p,
+.coding-sandbox-credit-summary dl,
+.coding-sandbox-credit-summary ul {
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+.coding-sandbox-credit-summary .inline-status ul {
+  margin: 0.35rem 0;
+  padding-left: 1.2rem;
+}
+
+.sandbox-credit-source-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.sandbox-credit-source-list span {
+  border: 1px solid rgba(142, 232, 220, 0.2);
+  border-radius: 999px;
+  padding: 0.32rem 0.58rem;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.sandbox-credit-low-balance {
+  border-left: 3px solid rgba(216, 182, 111, 0.75);
+  padding: 0.55rem 0.7rem;
+  background: rgba(216, 182, 111, 0.07);
+}
+
 .coding-diagnostic {
   border: 1px solid rgba(142, 232, 220, 0.18);
   border-radius: 12px;
@@ -4650,4 +4728,248 @@ button.commune-vote-option-card:disabled {
 .commune-job-work-with {
   margin-top: var(--space-4, 1rem);
   border-left: 3px solid var(--color-accent, #4c8f72);
+}
+
+/* Voluntary support, private billing, and account recovery */
+.support-checkout-card,
+.account-recovery-card,
+.economic-room-card,
+.marketplace-commerce-panel,
+.marketplace-commerce-account,
+.economic-operations-page .section-card {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.marketplace-commerce-panel {
+  margin: 1rem 0;
+  border-color: color-mix(in srgb, var(--teal) 30%, var(--line));
+}
+
+.marketplace-commerce-account,
+.marketplace-license-list,
+.marketplace-seller-readiness,
+.seller-onboarding-consent,
+.seller-offer-form {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.seller-onboarding-consent {
+  padding: 0.9rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(126, 215, 209, 0.04);
+}
+
+.seller-offer-form {
+  padding: 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--gold) 28%, var(--line));
+  border-radius: 16px;
+  background: rgba(216, 182, 111, 0.04);
+}
+
+.seller-offer-form > label,
+.seller-offer-form .confirmation-panel label {
+  display: grid;
+  gap: 0.45rem;
+  max-width: 48rem;
+}
+
+.support-form,
+.auth-form {
+  display: grid;
+  gap: 1rem;
+}
+
+.economic-operation-card {
+  border-color: color-mix(in srgb, var(--teal) 24%, var(--line));
+}
+
+.economic-operation-form {
+  max-width: 48rem;
+}
+
+.economic-operation-form > label,
+.economic-operation-form .confirmation-panel label {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.economic-operation-form .checkbox-line {
+  display: flex;
+}
+
+.operator-choice-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+}
+
+.operator-choice-fieldset legend {
+  padding: 0 0.35rem;
+  color: var(--text);
+  font-weight: 800;
+}
+
+.operator-live-region:empty {
+  min-height: 0;
+  margin: 0;
+}
+
+.support-form fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.support-form legend {
+  margin-bottom: 0.65rem;
+  color: var(--text);
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.support-choice-grid,
+.support-funds-grid,
+.economic-capability-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 0.7rem;
+}
+
+.support-choice-grid--plans {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.support-choice {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  min-width: 0;
+  min-height: 4.5rem;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.025);
+  cursor: pointer;
+}
+
+.support-choice:hover,
+.support-choice:focus-within,
+.support-choice--selected {
+  border-color: var(--line-bright);
+  background: rgba(126, 215, 209, 0.08);
+}
+
+.support-choice > input[type="radio"] {
+  width: 1.1rem;
+  min-width: 1.1rem;
+  height: 1.1rem;
+  margin-top: 0.2rem;
+  accent-color: var(--teal);
+}
+
+.support-choice > span {
+  display: grid;
+  gap: 0.2rem;
+  color: var(--text);
+}
+
+.support-choice small,
+.small-note,
+.support-account-context,
+.economic-summary-card p,
+.economic-summary-card span {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.support-choice--custom {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+}
+
+.support-choice--custom > input[type="number"] {
+  grid-column: 1 / -1;
+}
+
+.support-funds-grid > div,
+.economic-summary-card,
+.confirmation-panel {
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.economic-summary-card {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+}
+
+.economic-summary-card p {
+  margin: 0;
+}
+
+.confirmation-panel {
+  border-color: rgba(255, 139, 139, 0.3);
+  background: rgba(255, 139, 139, 0.06);
+}
+
+.button-danger {
+  color: var(--danger);
+  border-color: rgba(255, 139, 139, 0.36);
+  background: rgba(255, 139, 139, 0.08);
+}
+
+.account-recovery-card label,
+.auth-form label {
+  max-width: 42rem;
+}
+
+.account-recovery-layout {
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 0.75fr);
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(126, 215, 209, 0.7);
+  outline-offset: 3px;
+}
+
+@media (max-width: 820px) {
+  .support-choice-grid,
+  .support-choice-grid--plans,
+  .support-funds-grid,
+  .economic-capability-grid,
+  .account-recovery-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .support-checkout-card .section-heading--inline {
+    display: grid;
+    align-items: start;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .support-page *,
+  .account-recovery-page *,
+  .commons-support-billing-page *,
+  .marketplace-scope *,
+  .economic-operations-page * {
+    scroll-behavior: auto !important;
+    animation: none !important;
+    transition: none !important;
+  }
 }

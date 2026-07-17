@@ -21,11 +21,16 @@ const DeveloperForgePage = lazy(() => import("./pages/The-Developer-Forge"));
 const LivingLibraryPage = lazy(() => import("./pages/The-Living-Library"));
 const CommunePage = lazy(() => import("./pages/The-Elysia-Commune"));
 const WorkWithPage = lazy(() => import("./pages/Work-With-Elysia-Ecobotics"));
+const SupportPage = lazy(() => import("./pages/Support"));
+const SupportThankYouPage = lazy(() => import("./pages/Support/SupportThankYouPage"));
+const AccountForgotPasswordPage = lazy(() => import("./pages/Account/AccountForgotPasswordPage"));
+const AccountRecoveryPage = lazy(() => import("./pages/Account/AccountRecoveryPage"));
 const CommonsCirclePage = lazy(() => import("./pages/The-Commons-Circle"));
 const CommonsCircleAdminConsolePage = lazy(() => import("./pages/The-Commons-Circle/CommonsCircleAdminConsolePage"));
 const CommonsCircleSetupPage = lazy(() => import("./pages/The-Commons-Circle/CommonsCircleSetupPage"));
 const SavedShelvesPage = lazy(() => import("./pages/The-Commons-Circle/SavedShelvesPage"));
 const SignalConsolePage = lazy(() => import("./pages/The-Commons-Circle/SignalConsolePage"));
+const SupportBillingPage = lazy(() => import("./pages/The-Commons-Circle/SupportBillingPage"));
 const PublicCommonsProfilePage = lazy(() => import("./pages/Public-Commons-Profile"));
 const StoryPage = lazy(() => import("./pages/The-Story-of-Elysia"));
 const AboutPage = lazy(() => import("./pages/About-Elysia-Ecobotics"));
@@ -41,6 +46,7 @@ const AdminDevelopersPage = lazy(() => import("./pages/Admin").then((module) => 
 const AdminAddonSubmissionsPage = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminAddonSubmissionsPage })));
 const AdminLibrarySourcesPage = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminLibrarySourcesPage })));
 const AdminWorkSubmissionsPage = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminWorkSubmissionsPage })));
+const EconomicOperationsPage = lazy(() => import("./pages/Admin/EconomicOperationsPage"));
 
 function PageLoading() {
   return <main className="site-loading" aria-live="polite">Loading Elysia Ecobotics Online...</main>;
@@ -124,10 +130,15 @@ export default function App() {
             <Route path="commune/:roomSlug/new" element={<CommunePage />} />
             <Route path="commune/:roomSlug" element={<CommunePage />} />
             <Route path="work-with-elysia-ecobotics" element={<WorkWithPage />} />
+            <Route path="support" element={<SupportPage />} />
+            <Route path="support/thank-you" element={<SupportThankYouPage />} />
+            <Route path="account/forgot-password" element={<AccountForgotPasswordPage />} />
+            <Route path="account/recovery" element={<AccountRecoveryPage />} />
             <Route path="commons-circle" element={<CommonsCirclePage />} />
             <Route path="commons-circle/admin-console" element={<CommonsCircleAdminConsolePage />} />
             <Route path="commons-circle/saved-shelves" element={<SavedShelvesPage />} />
             <Route path="commons-circle/signals" element={<SignalConsolePage />} />
+            <Route path="commons-circle/support-billing" element={<SupportBillingPage />} />
             <Route path="commons-circle/onboarding" element={<Navigate to="/commons-circle/setup/profile" replace />} />
             <Route path="commons-circle/setup/:step" element={<CommonsCircleSetupPage />} />
             <Route path="commons-circle/:publicHandle" element={<PublicCommonsProfilePage />} />
@@ -153,6 +164,7 @@ export default function App() {
             <Route path="admin/review/broken-links" element={<AdminReviewPage />} />
             <Route path="admin/roles" element={<AdminRolesPage />} />
             <Route path="admin/audit" element={<AdminAuditPage />} />
+            <Route path="admin/economic-operations" element={<EconomicOperationsPage />} />
             <Route path="browse" element={<Navigate to="/marketplace/browse" replace />} />
             <Route path="addons/:id" element={<LegacyAddonAlias />} />
             <Route path="action-preview" element={<LegacySearchAlias target="/marketplace/action-preview" />} />

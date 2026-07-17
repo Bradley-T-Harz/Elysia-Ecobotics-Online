@@ -12,9 +12,13 @@ export default function SiteFooter() {
         <Link to="/mission">Mission</Link>
         <Link to="/marketplace/trust">Marketplace Trust</Link>
         <Link to="/commons-circle">Commons Circle</Link>
+        <Link to="/support">Support Elysia</Link>
+        <Link to="/commons-circle/support-billing">Support &amp; Billing</Link>
         <Link to="/legal">Legal</Link>
         <Link to="/legal/privacy-policy">Privacy</Link>
         <Link to="/legal/terms-of-use">Terms</Link>
+        <Link to="/legal/support-and-billing-terms">Support &amp; Billing Terms</Link>
+        <Link to="/legal/refund-and-cancellation-policy">Refund &amp; Cancellation</Link>
         <Link to="/legal/community-guidelines">Community Guidelines</Link>
         <Link to="/legal/vulnerability-disclosure-policy">Security</Link>
         <Link to="/legal/trademark-notice">Trademark Notice</Link>
