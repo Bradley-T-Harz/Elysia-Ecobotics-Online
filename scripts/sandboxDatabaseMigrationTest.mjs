@@ -47,7 +47,13 @@ const economicPaths = [
   "supabase/migrations/20260716071000_economic_route_kill_switch_boundaries.sql",
 ];
 
-const activePaths = [...baselinePaths, ...economicPaths];
+const artisanPaths = [
+  "supabase/migrations/20260718010000_shared_identity_profile_governance.sql",
+  "supabase/migrations/20260718020000_artisan_core_content_and_media.sql",
+  "supabase/migrations/20260718030000_artisan_authorization_rpcs_and_storage.sql",
+];
+
+const activePaths = [...baselinePaths, ...economicPaths, ...artisanPaths];
 
 const legacyHashes = new Map(Object.entries({
   "2026_06_02_profile_bootstrap_for_saved_addons.sql": "8750ff6eec1865b10543353131654843411b1ceea27bef19f3933671edf99364",
@@ -127,6 +133,7 @@ const [baseline, reactionMigration, repositoryMigration, sandboxMigration, schem
 ]);
 
 const economicMigrations = await Promise.all(economicPaths.map((file) => fs.readFile(file, "utf8")));
+const artisanMigrations = await Promise.all(artisanPaths.map((file) => fs.readFile(file, "utf8")));
 const routeKillSwitchMigration = economicMigrations.at(-1);
 assert(routeKillSwitchMigration, "Economic route kill-switch migration is missing.");
 const economicBehaviorFixture = await fs.readFile("scripts/fixtures/economicDatabaseBehavior.sql", "utf8");
@@ -137,6 +144,30 @@ for (const [index, migration] of economicMigrations.entries()) {
   assert(!/postgres(?:ql)?:\/\//i.test(migration), `${economicPaths[index]} contains a connection string.`);
   assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${economicPaths[index]} contains a token-like value.`);
 }
+for (const [index, migration] of artisanMigrations.entries()) {
+  assert(migration.startsWith("--"), `${artisanPaths[index]} needs an explanatory header.`);
+  assert(/^begin;/im.test(migration), `${artisanPaths[index]} must start a transaction.`);
+  assert(/commit;\s*$/i.test(migration), `${artisanPaths[index]} must commit atomically.`);
+  assert(!/postgres(?:ql)?:\/\//i.test(migration), `${artisanPaths[index]} contains a connection string.`);
+  assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${artisanPaths[index]} contains a token-like value.`);
+}
+const artisanSource = artisanMigrations.join("\n");
+for (const marker of [
+  "private.community_profile_is_public",
+  "private.recompute_community_participation",
+  "public.profile_public_cards",
+  "private.community_provider_transactions",
+  "create schema if not exists artisan",
+  "artisan.media_processing_jobs",
+  "public.artisan_public_media_asset",
+  "approved_checksum_sha256",
+  "thumbnail_checksum_sha256",
+  "private_original_requires_safe_transform",
+]) assert(artisanSource.includes(marker), `Artisan migration chain omits ${marker}.`);
+const artisanPlpgsqlFunctions = [...new Set(
+  [...artisanSource.matchAll(/create or replace function\s+(public|private)\.([a-z0-9_]+)\s*\(/gi)]
+    .map((match) => `${match[1].toLowerCase()}.${match[2].toLowerCase()}`),
+)];
 const economicSource = economicMigrations.join("\n");
 const economicPlpgsqlFunctions = [...new Set(
   [...economicSource.matchAll(/create or replace function\s+(public|private)\.([a-z0-9_]+)\s*\(/gi)]
@@ -419,6 +450,7 @@ try {
     ...activePaths,
     "scripts/fixtures/sandboxDatabaseBehavior.sql",
     "scripts/fixtures/economicDatabaseBehavior.sql",
+    "scripts/fixtures/artisanDatabaseBehavior.sql",
   ]) {
     await run(containerRuntime, ["cp", file, `${container}:/tmp/${path.basename(file)}`]);
   }
@@ -499,6 +531,40 @@ try {
   }
   const economicBehavior = await psql(["-f", "/tmp/economicDatabaseBehavior.sql"]);
   assert(economicBehavior.stdout.includes("Economic database behavior checks ok."), "Economic database behavior marker missing.");
+  // The database-only image does not install the Storage API catalog. Create
+  // the narrow catalog shape used by migrations; hosted Supabase supplies the
+  // same relations before application migrations run.
+  await psql(["-c", `
+    create schema if not exists storage;
+    create table if not exists storage.buckets (
+      id text primary key,
+      name text not null unique,
+      public boolean not null default false,
+      file_size_limit bigint,
+      allowed_mime_types text[]
+    );
+    create table if not exists storage.objects (
+      id uuid primary key default gen_random_uuid(),
+      bucket_id text not null references storage.buckets(id),
+      name text not null,
+      owner_id uuid,
+      created_at timestamptz not null default now(),
+      unique (bucket_id, name)
+    );
+    alter table storage.objects enable row level security;
+    create or replace function auth.jwt()
+    returns jsonb
+    language sql
+    stable
+    as \$\$
+      select coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb);
+    \$\$;
+  `]);
+  for (const file of artisanPaths) {
+    await psql(["-f", `/tmp/${path.basename(file)}`]);
+  }
+  const artisanBehavior = await psql(["-f", "/tmp/artisanDatabaseBehavior.sql"]);
+  assert(artisanBehavior.stdout.includes("Artisan database behavior checks ok."), "Artisan database behavior marker missing.");
 
   const catalogIntegrity = await psql(["-tAc", `
     select
@@ -518,7 +584,8 @@ try {
   const plpgsqlCheckAvailable = await psql(["-tAc", "select exists (select 1 from pg_catalog.pg_available_extensions where name = 'plpgsql_check');"]);
   if (plpgsqlCheckAvailable.stdout.trim() === "t") {
     await psql(["-c", "create extension if not exists plpgsql_check;"]);
-    const lintTargets = economicPlpgsqlFunctions.map((name) => `'${name}'`).join(", ");
+    const governedPlpgsqlFunctions = [...new Set([...economicPlpgsqlFunctions, ...artisanPlpgsqlFunctions])];
+    const lintTargets = governedPlpgsqlFunctions.map((name) => `'${name}'`).join(", ");
     const lintErrors = await psql(["-tAc", `
       select count(*)
       from pg_catalog.pg_proc checked_function
@@ -547,11 +614,11 @@ try {
       `]);
       assert(false, `plpgsql_check found ${lintErrors.stdout.trim()} error-level findings in economic functions:\n${lintDetails.stdout.trim()}`);
     }
-    console.log(`plpgsql_check found no error-level findings across ${economicPlpgsqlFunctions.length} economic function names.`);
+    console.log(`plpgsql_check found no error-level findings across ${governedPlpgsqlFunctions.length} economic and Artisan function names.`);
   } else {
     console.log("plpgsql_check is not available in the disposable Supabase Postgres image; catalog integrity checks still passed.");
   }
-  console.log("Sandbox and economic database disposable migration and behavior checks ok.");
+  console.log("Sandbox, economic, and Artisan database disposable migration and behavior checks ok.");
 } finally {
   if (started) await run(containerRuntime, ["rm", "-f", container], { allowFailure: true });
 }

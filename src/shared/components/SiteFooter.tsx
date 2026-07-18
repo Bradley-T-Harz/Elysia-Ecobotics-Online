@@ -12,6 +12,8 @@ export default function SiteFooter() {
         <Link to="/mission">Mission</Link>
         <Link to="/marketplace/trust">Marketplace Trust</Link>
         <Link to="/commons-circle">Commons Circle</Link>
+        <Link to="/artisan-collective">Artisan Collective</Link>
+        <Link to="/story">Story</Link>
         <Link to="/support">Support Elysia</Link>
         <Link to="/commons-circle/support-billing">Support &amp; Billing</Link>
         <Link to="/legal">Legal</Link>

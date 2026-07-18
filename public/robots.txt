@@ -1,0 +1,16 @@
+User-agent: *
+Allow: /
+Disallow: /account/
+Disallow: /admin/
+Disallow: /api/
+Disallow: /commons-circle/admin-console
+Disallow: /commons-circle/saved-shelves
+Disallow: /commons-circle/setup/
+Disallow: /commons-circle/signals
+Disallow: /commons-circle/support-billing
+Disallow: /commune/moderation
+Disallow: /marketplace/account
+Disallow: /marketplace/admin
+Disallow: /marketplace/submit
+
+Sitemap: https://elysiaecobotics.com/sitemap.xml

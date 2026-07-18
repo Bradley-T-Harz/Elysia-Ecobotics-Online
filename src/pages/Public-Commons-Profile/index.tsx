@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router-dom";
+import { Navigate, useParams } from "react-router-dom";
 import { getCommonsBackgroundStyleOption, normalizeCommonsBackgroundStyle } from "../../shared/commonsBackgroundStyles";
 import { getCommonsDecorativeMarkerOption, normalizeCommonsDecorativeMarkerSet } from "../../shared/commonsDecorativeMarkers";
 import { getCommonsProfileLayoutOption, normalizeCommonsProfileLayout } from "../../shared/commonsProfileLayouts";
@@ -9,7 +9,8 @@ import CommonsBackgroundAtmosphere from "../../shared/components/CommonsBackgrou
 import CommonsAvatarViewer from "../../shared/components/CommonsAvatarViewer";
 import CommonsProfileLayoutFrame from "../../shared/components/CommonsProfileLayoutFrame";
 import PageHero from "../../shared/components/PageHero";
-import { loadPublicCommonsProfile } from "../The-Commons-Circle/commonsCircleApi";
+import { artisanProfileReportUrl } from "../../config/siteUrls";
+import { loadPublicCommonsProfile, resolvePublicCommonsProfileHandle } from "../The-Commons-Circle/commonsCircleApi";
 import type { PublicCommonsProfile, UserBadge } from "../The-Commons-Circle/commonsCircleApi";
 
 function PublicBadgeIcon({ badge }: { badge: UserBadge }) {
@@ -57,27 +58,40 @@ function publicUsernameFromHandle(publicHandle: string) {
   }
   if (!decoded.startsWith("@")) return null;
   const username = decoded.slice(1).trim();
-  return /^[a-z0-9][a-z0-9_-]{1,48}$/i.test(username) ? username : null;
+  return /^[a-z0-9][a-z0-9._-]{1,79}$/i.test(username) ? username : null;
 }
 
 export default function PublicCommonsProfilePage() {
   const { publicHandle = "" } = useParams();
   const username = publicUsernameFromHandle(publicHandle);
   const [profileData, setProfileData] = useState<PublicCommonsProfile | null>(null);
+  const [canonicalRedirectPath, setCanonicalRedirectPath] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setCanonicalRedirectPath(null);
     if (!username) {
       setProfileData(null);
       setWarnings([]);
       setLoading(false);
       return () => { active = false; };
     }
-    loadPublicCommonsProfile(username).then((result) => {
+    loadPublicCommonsProfile(username).then(async (result) => {
       if (!active) return;
+      if (!result.data) {
+        const resolution = await resolvePublicCommonsProfileHandle(username);
+        if (!active) return;
+        if (resolution) {
+          setCanonicalRedirectPath(`/commons-circle/@${resolution.currentHandle}`);
+          setProfileData(null);
+          setWarnings(result.warnings);
+          setLoading(false);
+          return;
+        }
+      }
       setProfileData(result.data);
       setWarnings(result.warnings);
       setLoading(false);
@@ -88,6 +102,8 @@ export default function PublicCommonsProfilePage() {
   if (loading) {
     return <div className="page-stack"><PageHero eyebrow="Commons Profile" title="Loading public profile"><p>Checking the public Commons profile visibility settings.</p></PageHero></div>;
   }
+
+  if (canonicalRedirectPath) return <Navigate replace to={canonicalRedirectPath} />;
 
   if (!profileData) {
     if (import.meta.env.DEV && warnings.length) console.warn("[Public Commons Profile]", warnings);
@@ -160,6 +176,7 @@ export default function PublicCommonsProfilePage() {
               </div>
               {!hasPublicIdentityDetails && <p>No public profile fields are visible yet.</p>}
               <p className="boundary-note commons-public-authority-note">Profile display, badges, medallions, donations, and self-selection do not grant administrator, moderator, reviewer, guardian, developer trust, or paid-role authority.</p>
+              {!isOwner && <p><a href={artisanProfileReportUrl(profile.username)}>Report a safety concern about this public profile</a></p>}
             </article>
           </section>
 

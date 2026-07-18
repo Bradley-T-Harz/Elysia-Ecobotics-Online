@@ -13,5 +13,5 @@
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true
   },
-  "include": ["functions/**/*.ts", "services/billing-worker/**/*.ts"]
+  "include": ["functions/**/*.ts", "services/billing-worker/**/*.ts", "services/identity-worker/**/*.ts"]
 }

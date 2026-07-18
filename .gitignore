@@ -7,6 +7,7 @@ dist/
 .dev.vars.*
 !.dev.vars.example
 !.dev.vars.billing.example
+!.dev.vars.identity.example
 .wrangler/
 services/sandbox-runner/runner.env
 services/sandbox-runner/deployment/containers/auth.json

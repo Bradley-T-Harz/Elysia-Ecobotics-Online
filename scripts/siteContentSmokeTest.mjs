@@ -32,6 +32,7 @@ function cssRuleIncludes(css, selector, requiredParts) {
 const nav = await read("src/shared/components/SiteNav.tsx");
 const footer = await read("src/shared/components/SiteFooter.tsx");
 const app = await read("src/App.tsx");
+const artisanPortal = await read("src/pages/Elysia-Artisan-Collective/index.tsx");
 const commons = await read("src/pages/The-Commons-Circle/index.tsx");
 const commonsApi = await read("src/pages/The-Commons-Circle/commonsCircleApi.ts");
 const commonsSetup = await read("src/pages/The-Commons-Circle/CommonsCircleSetupPage.tsx");
@@ -106,7 +107,7 @@ const authPanel = await read("src/pages/The-Elysia-Marketplace/components/AuthPa
 const safeInternalActionPath = await read("src/shared/navigation/safeInternalActionPath.ts");
 const authProvider = await read("src/shared/auth/AuthProvider.tsx");
 
-const expectedNav = ["Home", "Archive", "Marketplace", "Products", "Lab", "Developer Forge", "Living Library", "Commune", "Work With", "Commons Circle", "Story", "About", "Mission", "Support", "Legal"];
+const expectedNav = ["Home", "Archive", "Marketplace", "Products", "Lab", "Developer Forge", "Living Library", "Commune", "Work With", "Commons Circle", "Artisan Collective", "Story", "About", "Mission", "Support", "Legal"];
 let cursor = -1;
 for (const label of expectedNav) {
   const next = nav.indexOf(`label: "${label}"`);
@@ -121,6 +122,7 @@ assert(styles.includes(".site-footer { display: grid; grid-template-columns: min
 
 assert(footer.includes("Elysia Ecobotics™ is an EcoSyneva Commons LLC initiative."), "Footer initiative trademark text missing.");
 assert(footer.includes("Elysia Ecobotics™ is a trademark of EcoSyneva Commons LLC."), "Footer trademark owner text missing.");
+assert(footer.indexOf("Commons Circle") < footer.indexOf("Artisan Collective") && footer.indexOf("Artisan Collective") < footer.indexOf("Story"), "Footer should place Artisan Collective between Commons Circle and Story.");
 assert(pageBrandMark.includes("page-brand-mark__name") && pageBrandMark.includes("page-brand-mark__tm") && pageBrandMark.includes("<sup") && pageBrandMark.includes("TM"), "Page brand mark should render text plus a separate TM superscript element.");
 assert(pageHero.includes("{brandMark && <PageBrandMark") && pageHero.includes('<h1 className="hero-title-brand-font">{title}</h1>'), "PageHero should keep the brand mark separate from the H1 title.");
 for (const [label, source] of [
@@ -132,6 +134,7 @@ for (const [label, source] of [
   ["Commune", commune],
   ["Work With", workWithPage],
   ["Commons Circle", commons],
+  ["Artisan Collective", artisanPortal],
   ["Story", storyPage],
   ["About", aboutPage],
   ["Legal", legalIndex]
@@ -459,10 +462,11 @@ assert(commune.includes("`/commons-circle/@${encodeURIComponent(username)}`"), "
 assert(!commune.includes("to={`/commons/@${encodeURIComponent(username)}`"), "Commune author links should not use the old /commons/@username path.");
 assert(publicProfile.includes("publicUsernameFromHandle") && publicProfile.includes("publicHandle") && publicProfile.includes("Profile not found or not public"), "Public Commons profile should parse @handles and show a safe unavailable state.");
 assert(commonsApi.includes("loadPublicCommonsProfile") && !commonsApi.match(/loadPublicCommonsProfile[\s\S]*?select\("[^"]*is_admin/), "Public profile loader should not select admin/private authority fields.");
-assert(commonsApi.includes('select("id, username, display_name, bio, interests, website_url, github_url, avatar_url, commons_onboarding_completed_at")'), "Public profile loader should start from live-safe baseline profile fields.");
-assert(commonsApi.includes("Public profile fields") && commonsApi.includes("organization, headline, featured_public_links"), "Public profile optional fields should load separately from the baseline profile row.");
+assert(commonsApi.includes('rpc("get_public_commons_profile_presentation", { p_handle: cleanUsername })'), "Public profile loader should start from the visibility-aware database-enforced public presentation contract.");
+assert(commonsApi.includes("shortPublicBio") && commonsApi.includes("canonicalProfileUrl"), "Public Commons identity should be mapped only from the bounded visibility-aware presentation.");
 assert(commonsApi.includes('const selfBadgeAwardColumns = "badge_key, awarded_at, award_source, visibility, revoked_at"'), "Ordinary/self badge reads must request only columns still granted after badge hardening.");
 const publicProfileLoader = commonsApi.slice(commonsApi.indexOf("export async function loadPublicCommonsProfile"));
+assert(!publicProfileLoader.includes('from("profiles")'), "Public Commons profile rendering must not read another user's canonical profile row.");
 assert(publicProfileLoader.includes('from("visible_user_badges").select(publicBadgeAwardColumns)') && !publicProfileLoader.includes('from("user_badges")'), "Public Commons profiles must load badge presentation through the column-minimized visible_user_badges view.");
 for (const privateBadgeField of ["award_reason", "evidence_type", "evidence_id"]) {
   assert(!publicProfileLoader.includes(privateBadgeField), `Public profile badge loading must never request private award evidence field: ${privateBadgeField}`);
@@ -476,9 +480,9 @@ assert(commonsSetup.includes("logSetupDiagnostics") && !commonsSetup.includes("h
 assert(commonsSetup.includes("current.includes(trimmed)"), "Commons Profile setup messages should deduplicate repeated warnings while preserving order.");
 assert(commonsApi.includes('"Profile customization": "Profile customization is not configured yet."') && commonsApi.includes('`${label} is not configured yet.`'), "Commons Circle friendly backend messages should avoid incorrect plural grammar.");
 assert(commonsApi.includes("removeProfileMedia") && commonsApi.includes('status: "removed"'), "Commons Profile media removal helper missing.");
-assert(commonsApi.includes("profile-avatars") && commonsApi.includes("profile-banners") && commonsApi.includes("image/png") && commonsApi.includes("image/webp"), "Commons Profile media upload should use the public avatar/banner buckets and image MIME guard.");
+assert(commonsApi.includes("profile-avatars") && commonsApi.includes("profile-banners") && commonsApi.includes("image/png") && commonsApi.includes("image/webp") && commonsApi.includes("createSignedUrl"), "Commons Profile media upload should use private avatar/banner buckets, a short-lived owner preview, and an image MIME guard.");
 assert(commonsApi.includes("safeFileSuffix") && commonsApi.includes("safeStorageObjectId") && commonsApi.includes('const folder = mediaType === "avatar" ? "avatars" : "banners"'), "Commons Profile media uploads should sanitize filenames and use generated storage object paths.");
-assert(commonsApi.includes("avatar_media_id") && commonsApi.includes("profiles\").update({ avatar_url: publicUrl"), "Commons Profile avatar upload should keep active media and baseline public avatar URL in sync.");
+assert(commonsApi.includes("avatar_media_id") && commonsApi.includes('public_url: null') && commonsApi.includes('profiles").update({ avatar_url: null'), "Commons Profile avatar upload should retain only the active media identity and must not persist an unusable public original URL.");
 assert(commonsApi.includes("banner_media_id") && commonsApi.includes("mediaId") && commonsApi.includes("profile_media"), "Commons Profile banner upload should persist an active media row and customization pointer.");
 assert(commonsApi.includes("avatar_url: null") && commonsApi.includes("avatar_media_id\" : \"banner_media_id\""), "Commons Profile avatar removal should clear public avatar URL and customization media pointer.");
 assert(commons.includes("Remove profile picture") && commons.includes("Remove banner") && commons.includes("Avatar and banner media update immediately when selected"), "Commons Circle customization should expose public avatar/banner removal and boundary copy.");
@@ -540,7 +544,7 @@ assert(publicProfile.includes("commons-public-atmosphere-stage") && publicProfil
 assert(publicProfile.includes("commons-public-banner") && publicProfile.includes("commons-profile-banner-layer") && publicProfile.includes("customization.banner_url"), "Public Commons profile should render an uploaded public banner image layer when active.");
 assert(publicProfile.includes("commons-public-profile-mantle") && publicProfile.includes("commons-public-room-hero"), "Public Commons profile should render saved customization in the main public room hero.");
 assert(publicProfile.includes("commons-customization-badges"), "Public Commons profile should visibly summarize selected presentation settings.");
-assert(commonsApi.includes("Public customization") && commonsApi.includes("Public profile media") && commonsApi.includes('eq("status", "active")'), "Public profile loader should load safe customization and active public media only.");
+assert(commonsApi.includes("decodePublicProfilePresentation") && commonsApi.includes("avatarMediaId") && commonsApi.includes("bannerMediaId"), "Public profile loader should consume only safe customization and governed active-media identities from the bounded presentation RPC.");
 assert(commonsApi.includes("DEFAULT_COMMONS_BACKGROUND_STYLE") && commonsApi.includes("normalizeCommonsBackgroundStyle(merged.background_style)") && commonsApi.includes("background_style: normalized.background_style"), "Commons Circle API should save/load normalized Background style values.");
 assert(commonsApi.includes("DEFAULT_COMMONS_PROFILE_LAYOUT") && commonsApi.includes("normalizeCommonsProfileLayout(merged.profile_layout)") && commonsApi.includes("profile_layout: normalized.profile_layout"), "Commons Circle API should save/load normalized Profile layout values.");
 assert(styles.includes(".commons-public-banner") && styles.includes(".commons-profile-banner-layer") && styles.includes("object-fit: cover"), "Public Commons profile banner styling should render active banners safely.");

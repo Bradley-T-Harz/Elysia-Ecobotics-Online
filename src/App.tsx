@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 import SiteLayout from "./layouts/SiteLayout";
 import { AuthProvider } from "./shared/auth/AuthProvider";
+import { ParticipationProvider } from "./shared/participation/ParticipationProvider";
 
 const MarketplaceProvider = lazy(() => import("./pages/The-Elysia-Marketplace/MarketplaceProvider"));
 const OnlineMainPage = lazy(() => import("./pages/Elysia-Ecobotics-Online-MainPage"));
@@ -25,7 +26,10 @@ const SupportPage = lazy(() => import("./pages/Support"));
 const SupportThankYouPage = lazy(() => import("./pages/Support/SupportThankYouPage"));
 const AccountForgotPasswordPage = lazy(() => import("./pages/Account/AccountForgotPasswordPage"));
 const AccountRecoveryPage = lazy(() => import("./pages/Account/AccountRecoveryPage"));
+const AccountDataExportPage = lazy(() => import("./pages/Account/AccountDataExportPage"));
+const AccountDeletionPage = lazy(() => import("./pages/Account/AccountDeletionPage"));
 const CommonsCirclePage = lazy(() => import("./pages/The-Commons-Circle"));
+const ElysiaArtisanCollectivePage = lazy(() => import("./pages/Elysia-Artisan-Collective"));
 const CommonsCircleAdminConsolePage = lazy(() => import("./pages/The-Commons-Circle/CommonsCircleAdminConsolePage"));
 const CommonsCircleSetupPage = lazy(() => import("./pages/The-Commons-Circle/CommonsCircleSetupPage"));
 const SavedShelvesPage = lazy(() => import("./pages/The-Commons-Circle/SavedShelvesPage"));
@@ -65,9 +69,10 @@ function LegacySearchAlias({ target }: { target: string }) {
 export default function App() {
   return (
     <AuthProvider>
-      <BrowserRouter>
-        <Suspense fallback={<PageLoading />}>
-          <Routes>
+      <ParticipationProvider>
+        <BrowserRouter>
+          <Suspense fallback={<PageLoading />}>
+            <Routes>
             <Route element={<SiteLayout />}>
             <Route index element={<OnlineMainPage />} />
             <Route path="archive" element={<ArchivePage />} />
@@ -134,6 +139,8 @@ export default function App() {
             <Route path="support/thank-you" element={<SupportThankYouPage />} />
             <Route path="account/forgot-password" element={<AccountForgotPasswordPage />} />
             <Route path="account/recovery" element={<AccountRecoveryPage />} />
+            <Route path="account/export" element={<AccountDataExportPage />} />
+            <Route path="account/delete" element={<AccountDeletionPage />} />
             <Route path="commons-circle" element={<CommonsCirclePage />} />
             <Route path="commons-circle/admin-console" element={<CommonsCircleAdminConsolePage />} />
             <Route path="commons-circle/saved-shelves" element={<SavedShelvesPage />} />
@@ -143,6 +150,7 @@ export default function App() {
             <Route path="commons-circle/setup/:step" element={<CommonsCircleSetupPage />} />
             <Route path="commons-circle/:publicHandle" element={<PublicCommonsProfilePage />} />
             <Route path="commons/:publicHandle" element={<PublicCommonsProfilePage />} />
+            <Route path="artisan-collective" element={<ElysiaArtisanCollectivePage />} />
             <Route path="story" element={<StoryPage />} />
             <Route path="about" element={<AboutPage />} />
             <Route path="mission" element={<MissionPage />} />
@@ -174,9 +182,10 @@ export default function App() {
             <Route path="manifest-api" element={<Navigate to="/marketplace/manifest-api" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
-          </Routes>
-        </Suspense>
-      </BrowserRouter>
+            </Routes>
+          </Suspense>
+        </BrowserRouter>
+      </ParticipationProvider>
     </AuthProvider>
   );
 }

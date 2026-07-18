@@ -13,6 +13,7 @@ export const navItems = [
   { label: "Commune", to: "/commune" },
   { label: "Work With", to: "/work-with-elysia-ecobotics" },
   { label: "Commons Circle", to: "/commons-circle" },
+  { label: "Artisan Collective", to: "/artisan-collective" },
   { label: "Story", to: "/story" },
   { label: "About", to: "/about" },
   { label: "Mission", to: "/mission" },

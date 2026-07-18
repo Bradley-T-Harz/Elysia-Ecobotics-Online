@@ -16,6 +16,7 @@ import CommonsProfileLayoutFrame from "../../shared/components/CommonsProfileLay
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
 import { safeInternalActionPath } from "../../shared/navigation/safeInternalActionPath";
+import PublicProfilePublicationPanel from "../../shared/participation/PublicProfilePublicationPanel";
 import { loadCurrentRoleState } from "../../shared/review/reviewClient";
 import type { AppRole } from "../../shared/review/reviewClient";
 import { CommonsCircleAdminEntryCard, userCanOpenCommonsAdminConsole } from "./CommonsCircleAdminConsolePage";
@@ -334,7 +335,7 @@ export default function CommonsCirclePage() {
       setSavedCustomization((current) => ({ ...current, ...mediaPatch }));
       setMediaStatus(visibleMessages.length ? `${label} updated, but account sync reported: ${visibleMessages[0]}` : `${label} updated.`);
       visibleMessages.forEach(pushMessage);
-      pushMessage(`${label} uploaded as public profile media. Private files still never use this bucket.`);
+      pushMessage(`${label} uploaded to private profile storage. Public views receive only the governed transformed profile image.`);
       await refreshHomebase({ preserveCustomization: nextDraft });
       return;
     }
@@ -603,6 +604,8 @@ export default function CommonsCirclePage() {
         <p className="commons-empty-state">Decorative markers are public visual labels, not badges, rank, authority, or role claims.</p>
         <div className="button-row"><button className="button-primary" type="button" onClick={() => void saveProfileRoom()} disabled={!hasUnsavedCustomization}>Save customization</button>{hasUnsavedCustomization && <button type="button" onClick={revertCustomizationPreview}>Revert preview</button>}<span className="commons-empty-state">{hasUnsavedCustomization ? "Unsaved preview active" : "No unsaved style changes"}</span></div>
       </section>
+
+      <PublicProfilePublicationPanel />
 
       <section className="section-card commons-privacy" id="privacy-lanterns">
         <p className="eyebrow">Privacy Lanterns</p>

@@ -314,6 +314,134 @@ export type PublicCommonsProfile = {
   isOwner: boolean;
 };
 
+type PublicProfilePresentation = {
+  profile: {
+    userId: string;
+    handle: string;
+    displayName: string | null;
+    avatarUrl: string | null;
+    shortPublicBio: string | null;
+    canonicalProfileUrl: string;
+  };
+  visibility: VisibilitySettings;
+  customization: ProfileCustomization;
+};
+
+export type PublicProfileHandleResolution = {
+  requestedHandle: string;
+  currentHandle: string;
+  canonicalProfileUrl: string;
+  redirect: true;
+};
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PUBLIC_HANDLE_PATTERN = /^[a-z0-9](?:[a-z0-9._-]{0,78}[a-z0-9])?$/;
+
+function plainRecord(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : null;
+}
+
+function optionalBoundedText(value: unknown, maximumLength: number): string | null | undefined {
+  if (value === null) return null;
+  return typeof value === "string" && value.length <= maximumLength ? value : undefined;
+}
+
+function decodePublicProfilePresentation(value: unknown): PublicProfilePresentation | null {
+  const root = plainRecord(Array.isArray(value) ? value[0] : value);
+  if (!root || Object.keys(root).length === 0) return null;
+  const profile = plainRecord(root.profile);
+  const visibility = plainRecord(root.visibility);
+  const customization = plainRecord(root.customization);
+  const media = plainRecord(root.media);
+  if (!profile || !visibility || !customization || !media) return null;
+
+  const userId = profile.userId;
+  const handle = profile.handle;
+  const displayName = optionalBoundedText(profile.displayName, 120);
+  const shortPublicBio = optionalBoundedText(profile.shortPublicBio, 280);
+  const avatarUrl = optionalBoundedText(profile.avatarUrl, 100);
+  const bannerUrl = optionalBoundedText(media.bannerUrl, 100);
+  const avatarMediaId = optionalBoundedText(media.avatarMediaId, 36);
+  const bannerMediaId = optionalBoundedText(media.bannerMediaId, 36);
+  if (
+    typeof userId !== "string" || !UUID_PATTERN.test(userId)
+    || typeof handle !== "string" || !PUBLIC_HANDLE_PATTERN.test(handle)
+    || displayName === undefined || shortPublicBio === undefined
+    || avatarUrl === undefined || bannerUrl === undefined
+    || avatarMediaId === undefined || bannerMediaId === undefined
+    || profile.canonicalProfileUrl !== `https://elysiaecobotics.com/commons-circle/@${handle}`
+    || (avatarMediaId !== null && !UUID_PATTERN.test(avatarMediaId))
+    || (bannerMediaId !== null && !UUID_PATTERN.test(bannerMediaId))
+    || (avatarUrl !== null && avatarUrl !== `/api/public/profile-avatars/${avatarMediaId}`)
+    || (bannerUrl !== null && bannerUrl !== `/api/public/profile-banners/${bannerMediaId}`)
+  ) return null;
+
+  const visibilityMap: Array<[keyof VisibilitySettings, string]> = [
+    ["show_display_name", "showDisplayName"], ["show_bio", "showBio"],
+    ["show_interests", "showInterests"], ["show_website", "showWebsite"],
+    ["show_github", "showGithub"], ["show_badges", "showBadges"],
+    ["show_stewardship_recognition", "showStewardshipRecognition"],
+    ["show_saved_addons", "showSavedAddons"], ["show_saved_sources", "showSavedSources"],
+    ["show_source_collections", "showSourceCollections"], ["show_commune_posts", "showCommunePosts"],
+    ["show_work_with_status", "showWorkWithStatus"], ["show_developer_status", "showDeveloperStatus"],
+    ["show_member_tier", "showMemberTier"]
+  ];
+  const decodedVisibility = {} as VisibilitySettings;
+  for (const [target, source] of visibilityMap) {
+    if (typeof visibility[source] !== "boolean") return null;
+    decodedVisibility[target] = visibility[source] as boolean;
+  }
+
+  const accentColor = customization.accentColor;
+  if (
+    typeof customization.themeMode !== "string"
+    || typeof accentColor !== "string" || !/^#[0-9a-f]{6}$/i.test(accentColor)
+    || typeof customization.backgroundStyle !== "string"
+    || typeof customization.decalSet !== "string"
+    || typeof customization.profileLayout !== "string"
+    || typeof customization.bannerZoom !== "number"
+    || typeof customization.bannerPositionX !== "number"
+    || typeof customization.bannerPositionY !== "number"
+  ) return null;
+
+  return {
+    profile: { userId, handle, displayName, avatarUrl, shortPublicBio, canonicalProfileUrl: profile.canonicalProfileUrl as string },
+    visibility: decodedVisibility,
+    customization: normalizeProfileCustomization({
+      theme_mode: customization.themeMode as CommonsThemeModeKey,
+      accent_color: accentColor,
+      background_style: customization.backgroundStyle,
+      decal_set: customization.decalSet,
+      profile_layout: customization.profileLayout as CommonsProfileLayoutKey,
+      banner_zoom: customization.bannerZoom,
+      banner_position_x: customization.bannerPositionX,
+      banner_position_y: customization.bannerPositionY,
+      avatar_url: avatarUrl,
+      banner_url: bannerUrl,
+      avatar_media_id: avatarMediaId,
+      banner_media_id: bannerMediaId,
+      selected_decals: []
+    })
+  };
+}
+
+function decodePublicProfileHandleResolution(value: unknown): PublicProfileHandleResolution | null {
+  const record = plainRecord(Array.isArray(value) ? value[0] : value);
+  if (!record || Object.keys(record).length === 0) return null;
+  const requestedHandle = record.requestedHandle;
+  const currentHandle = record.currentHandle;
+  const canonicalProfileUrl = record.canonicalProfileUrl;
+  if (
+    typeof requestedHandle !== "string" || !PUBLIC_HANDLE_PATTERN.test(requestedHandle)
+    || typeof currentHandle !== "string" || !PUBLIC_HANDLE_PATTERN.test(currentHandle)
+    || requestedHandle === currentHandle || record.redirect !== true
+    || canonicalProfileUrl !== `https://elysiaecobotics.com/commons-circle/@${currentHandle}`
+  ) return null;
+  return { requestedHandle, currentHandle, canonicalProfileUrl, redirect: true };
+}
+
 type LocalCollection = { name?: string; title?: string; description?: string; sourceIds?: string[]; visibility?: string };
 type LocalCommuneDraft = { id?: string; title?: string; status?: string; postType?: string; createdAt?: string; updatedAt?: string };
 type LocalThread = { id?: string; title?: string; threadId?: string; muted?: boolean };
@@ -759,7 +887,7 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
   const [visibilityRows, customizationRows, mediaRows, prefRows, savedAddons, savedSources, savedCitations, collectionRows, collectionItems, savedCommuneRows, followedRows, notificationRows, definitions, awarded] = await Promise.all([
     safeQuery<VisibilitySettings[]>(warnings, "Visibility settings", supabase.from("profile_visibility_settings").select("*").eq("user_id", userId).limit(1), []),
     safeQuery<ProfileCustomization[]>(warnings, "Profile customization", supabase.from("profile_customization").select("*").eq("user_id", userId).limit(1), []),
-    safeQuery<Array<{ id?: string | null; media_type: string; public_url?: string | null; created_at?: string | null }>>(warnings, "Profile media", supabase.from("profile_media").select("id, media_type, public_url, created_at").eq("user_id", userId).eq("status", "active").order("created_at", { ascending: false }), []),
+    safeQuery<Array<{ id?: string | null; media_type: string; bucket?: string | null; storage_path?: string | null; created_at?: string | null }>>(warnings, "Profile media", supabase.from("profile_media").select("id, media_type, bucket, storage_path, created_at").eq("user_id", userId).eq("status", "active").order("created_at", { ascending: false }), []),
     safeQuery<NotificationPreferences[]>(warnings, "Notification preferences", supabase.from("notification_preferences").select("*").eq("user_id", userId).limit(1), []),
     safeQuery<SavedAddonPreview[]>(warnings, "Saved add-ons", supabase.from("user_saved_addons").select("addon_slug, addon_name, addon_version_id, saved_at, notes").eq("user_id", userId).order("saved_at", { ascending: false }).limit(200), []),
     safeQuery<SavedLivingSourcePreview[]>(warnings, "Saved Living Library sources", supabase.from("user_saved_living_sources").select("id, source_id, source_name, source_url, category, saved_at, notes").eq("user_id", userId).order("saved_at", { ascending: false }).limit(200), []),
@@ -775,8 +903,30 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
 
   const avatarMedia = mediaRows.find((row) => row.media_type === "avatar");
   const bannerMedia = mediaRows.find((row) => row.media_type === "banner");
-  const avatarUrl = avatarMedia?.public_url;
-  const bannerUrl = bannerMedia?.public_url;
+  const ownerProfileMediaUrl = async (row: typeof avatarMedia, mediaType: "avatar" | "banner") => {
+    if (!row || !supabase) return null;
+    const expectedBucket = mediaType === "avatar" ? "profile-avatars" : "profile-banners";
+    const expectedFolder = mediaType === "avatar" ? "avatars" : "banners";
+    if (
+      row.bucket !== expectedBucket
+      || typeof row.storage_path !== "string"
+      || !row.storage_path.startsWith(`${userId}/${expectedFolder}/`)
+    ) {
+      warnings.push(`${mediaType === "avatar" ? "Avatar" : "Banner"} preview: the private media reference was invalid.`);
+      return null;
+    }
+    const signed = await supabase.storage.from(expectedBucket).createSignedUrl(row.storage_path, 300);
+    if (signed.error || !signed.data?.signedUrl) {
+      if (signed.error) logBackendDetail(`${mediaType} owner preview`, signed.error.message);
+      warnings.push(`${mediaType === "avatar" ? "Avatar" : "Banner"} preview is temporarily unavailable.`);
+      return null;
+    }
+    return signed.data.signedUrl;
+  };
+  const [avatarUrl, bannerUrl] = await Promise.all([
+    ownerProfileMediaUrl(avatarMedia, "avatar"),
+    ownerProfileMediaUrl(bannerMedia, "banner")
+  ]);
   const canonicalFreeMemberCompletedAt = profile?.commons_onboarding_completed_at ?? null;
   const profileQualifiesForFreeMember = Boolean(canonicalFreeMemberCompletedAt);
   let badgeAwards: BadgeAwardRow[] = [...awarded];
@@ -1104,7 +1254,13 @@ function safeFileSuffix(fileName: string) {
 }
 
 function safeStorageObjectId() {
-  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  if (!globalThis.crypto?.getRandomValues) throw new Error("Secure profile-media randomness is unavailable.");
+  const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = [...bytes].map((value) => value.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 export async function uploadProfileMedia(file: File, mediaType: "avatar" | "banner"): Promise<{ publicUrl?: string; mediaId?: string | null; warnings: string[] }> {
@@ -1117,15 +1273,21 @@ export async function uploadProfileMedia(file: File, mediaType: "avatar" | "bann
   const bucket = mediaType === "avatar" ? "profile-avatars" : "profile-banners";
   const folder = mediaType === "avatar" ? "avatars" : "banners";
   const storagePath = `${auth.user.id}/${folder}/${safeStorageObjectId()}-${safeFileSuffix(file.name)}`;
-  const upload = await supabase.storage.from(bucket).upload(storagePath, file, { upsert: true, contentType: file.type });
+  const upload = await supabase.storage.from(bucket).upload(storagePath, file, { upsert: false, contentType: file.type });
   if (upload.error) return { warnings: [friendlyBackendMessage("Profile media", upload.error.message)] };
-  const { data } = supabase.storage.from(bucket).getPublicUrl(storagePath);
-  const publicUrl = data.publicUrl;
-  const previous = await supabase.from("profile_media").update({ status: "hidden" }).eq("user_id", auth.user.id).eq("media_type", mediaType).eq("status", "active");
-  if (previous.error) logBackendDetail("Profile media replacement", previous.error.message);
-  const { data: mediaRow, error } = await supabase.from("profile_media").insert({ user_id: auth.user.id, media_type: mediaType, bucket, storage_path: storagePath, public_url: publicUrl, status: "active" }).select("id").single();
+  const { data: mediaRow, error } = await supabase.from("profile_media").insert({ user_id: auth.user.id, media_type: mediaType, bucket, storage_path: storagePath, public_url: null, status: "active" }).select("id").single();
   const mediaId = (mediaRow as { id?: string } | null)?.id ?? null;
   const warnings = error ? [friendlyBackendMessage("Profile media", error.message)] : [];
+  if (error || !mediaId) {
+    const cleanup = await supabase.storage.from(bucket).remove([storagePath]);
+    if (cleanup.error) logBackendDetail("Unreferenced profile media cleanup", cleanup.error.message);
+    return { warnings };
+  }
+  const previous = await supabase.from("profile_media").update({ status: "hidden" }).eq("user_id", auth.user.id).eq("media_type", mediaType).eq("status", "active").neq("id", mediaId);
+  if (previous.error) logBackendDetail("Profile media replacement", previous.error.message);
+  const signed = await supabase.storage.from(bucket).createSignedUrl(storagePath, 300);
+  const ownerPreviewUrl = signed.data?.signedUrl;
+  if (signed.error || !ownerPreviewUrl) warnings.push(friendlyBackendMessage("Profile media preview", signed.error?.message ?? "Signed preview could not be created."));
   if (!error) {
     const customizationPatch = {
       [mediaType === "avatar" ? "avatar_media_id" : "banner_media_id"]: mediaId,
@@ -1134,11 +1296,11 @@ export async function uploadProfileMedia(file: File, mediaType: "avatar" | "bann
     const customizationResult = await supabase.from("profile_customization").upsert({ user_id: auth.user.id, ...customizationPatch }, { onConflict: "user_id" });
     if (customizationResult.error) warnings.push(friendlyBackendMessage("Profile customization", customizationResult.error.message));
     if (mediaType === "avatar") {
-      const profileResult = await supabase.from("profiles").update({ avatar_url: publicUrl, updated_at: new Date().toISOString() }).eq("id", auth.user.id);
+      const profileResult = await supabase.from("profiles").update({ avatar_url: null, updated_at: new Date().toISOString() }).eq("id", auth.user.id);
       if (profileResult.error) warnings.push(friendlyBackendMessage("Commons Profile avatar", profileResult.error.message));
     }
   }
-  return { publicUrl, mediaId, warnings };
+  return { publicUrl: ownerPreviewUrl, mediaId, warnings };
 }
 
 export async function removeProfileMedia(mediaType: "avatar" | "banner"): Promise<string[]> {
@@ -1301,19 +1463,47 @@ export async function unfollowCommuneThread(threadId: string): Promise<string[]>
   return error ? [friendlyBackendMessage("Followed Commune threads", error.message)] : ["Unfollowed thread."];
 }
 
+export async function resolvePublicCommonsProfileHandle(
+  username: string
+): Promise<PublicProfileHandleResolution | null> {
+  if (!hasSupabaseConfig || !supabase) return null;
+  const cleanUsername = username.replace(/^@/, "").trim().toLowerCase();
+  if (!PUBLIC_HANDLE_PATTERN.test(cleanUsername)) return null;
+  const { data, error } = await supabase.rpc("resolve_public_profile_handle", { p_handle: cleanUsername });
+  return error ? null : decodePublicProfileHandleResolution(data);
+}
+
 export async function loadPublicCommonsProfile(username: string): Promise<{ data: PublicCommonsProfile | null; warnings: string[] }> {
   const warnings: string[] = [];
   if (!hasSupabaseConfig || !supabase) return { data: null, warnings: [supabaseNotConfiguredMessage] };
-  const cleanUsername = username.replace(/^@/, "").trim();
-  const { data: profile, error } = await supabase.from("profiles").select("id, username, display_name, bio, interests, website_url, github_url, avatar_url, commons_onboarding_completed_at").eq("username", cleanUsername).maybeSingle();
+  const cleanUsername = username.replace(/^@/, "").trim().toLowerCase();
+  const { data: presentationResult, error } = await supabase.rpc("get_public_commons_profile_presentation", { p_handle: cleanUsername });
   if (error) return { data: null, warnings: [friendlyBackendMessage("Commons Profile", error.message)] };
-  if (!profile) return { data: null, warnings: [] };
-  const profileRow = { ...(profile as ProfileWithSetup), saved_addon_ids: [] };
-  const [publicFieldRows, visibilityRows, customizationRows, mediaRows, definitions, awarded, collections, publicPosts, publicComments] = await Promise.all([
-    safeQuery<Array<{ organization?: string | null; headline?: string | null; featured_public_links?: unknown }>>(warnings, "Public profile fields", supabase.from("profiles").select("organization, headline, featured_public_links").eq("id", profileRow.id).limit(1), []),
-    safeQuery<VisibilitySettings[]>(warnings, "Public visibility", supabase.from("profile_visibility_settings").select("*").eq("user_id", profileRow.id).limit(1), []),
-    safeQuery<ProfileCustomization[]>(warnings, "Public customization", supabase.from("profile_customization").select("*").eq("user_id", profileRow.id).limit(1), []),
-    safeQuery<Array<{ id?: string | null; media_type: string; public_url?: string | null; created_at?: string | null }>>(warnings, "Public profile media", supabase.from("profile_media").select("id, media_type, public_url, created_at").eq("user_id", profileRow.id).eq("status", "active").order("created_at", { ascending: false }), []),
+  const presentation = decodePublicProfilePresentation(presentationResult);
+  if (!presentation) {
+    const resultRecord = plainRecord(Array.isArray(presentationResult) ? presentationResult[0] : presentationResult);
+    return Object.keys(resultRecord ?? {}).length === 0
+      ? { data: null, warnings: [] }
+      : { data: null, warnings: ["Commons Profile: The public presentation contract returned an invalid record, so the profile was hidden safely."] };
+  }
+  const profileRow: ProfileWithSetup = {
+    id: presentation.profile.userId,
+    username: presentation.profile.handle,
+    display_name: presentation.profile.displayName ?? `@${presentation.profile.handle}`,
+    bio: presentation.profile.shortPublicBio ?? "",
+    interests: null,
+    website_url: null,
+    github_url: null,
+    avatar_url: presentation.profile.avatarUrl,
+    organization: null,
+    headline: null,
+    featured_public_links: [],
+    is_developer: false,
+    is_admin: false,
+    saved_addon_ids: [],
+    commons_onboarding_completed_at: null,
+  };
+  const [definitions, awarded, collections, publicPosts, publicComments] = await Promise.all([
     safeQuery<BadgeDefinition[]>(warnings, "Public badges", supabase.from("badge_definitions").select("badge_key, name, description, badge_type, icon_path, category, rarity, sort_order, authority_linked, award_mode, rule_summary, is_manual_only, is_active").eq("is_active", true).order("sort_order", { ascending: true }), plannedBadges),
     safeQuery<BadgeAwardRow[]>(warnings, "Public user badges", supabase.from("visible_user_badges").select(publicBadgeAwardColumns).eq("user_id", profileRow.id), []),
     safeQuery<Array<{ id: string; title: string; description?: string | null; visibility: string; created_at?: string | null }>>(warnings, "Public collections", supabase.from("user_source_collections").select("id, title, description, visibility, created_at").eq("user_id", profileRow.id).eq("visibility", "public").limit(12), []),
@@ -1331,33 +1521,15 @@ export async function loadPublicCommonsProfile(username: string): Promise<{ data
   const activeCommentPostById = await loadActivePublicCommunePostMap(publicComments.map((comment) => comment.post_id), warnings);
   const visiblePublicComments = publicComments.filter((comment) => activeCommentPostById.has(comment.post_id));
   const { data: auth } = await supabase.auth.getUser();
-  const avatarMedia = mediaRows.find((row) => row.media_type === "avatar");
-  const bannerMedia = mediaRows.find((row) => row.media_type === "banner");
-  const avatarUrl = avatarMedia?.public_url;
-  const bannerUrl = bannerMedia?.public_url;
-  const visibility = { ...defaultVisibility, ...(visibilityRows[0] ?? {}) };
-  const publicFields = publicFieldRows[0] ?? {};
-  const publicProfileRow = {
-    ...profileRow,
-    organization: publicFields.organization ?? profileRow.organization ?? null,
-    headline: publicFields.headline ?? profileRow.headline ?? null,
-    featured_public_links: safePublicLinks(publicFields.featured_public_links)
-  };
+  const visibility = presentation.visibility;
   return {
     data: {
-      profile: publicProfileRow,
+      profile: profileRow,
       visibility,
-      customization: normalizeProfileCustomization({
-        ...defaultCustomization,
-        ...(customizationRows[0] ?? {}),
-        avatar_url: avatarUrl ?? profileRow.avatar_url ?? null,
-        banner_url: bannerUrl ?? null,
-        avatar_media_id: avatarMedia?.id ?? customizationRows[0]?.avatar_media_id ?? null,
-        banner_media_id: bannerMedia?.id ?? customizationRows[0]?.banner_media_id ?? null,
-      }),
+      customization: presentation.customization,
       badges: visibility.show_badges ? mergeBadges(definitions.length ? definitions : plannedBadges, awarded).filter((badge) => badge.visibility === "public") : [],
       publicCollections: visibility.show_source_collections ? collections.map((collection) => ({ ...collection, source_count: 0 })) : [],
-      publicLinks: safePublicLinks(publicProfileRow.featured_public_links),
+      publicLinks: [],
       publicCommunePosts: visibility.show_commune_posts ? visiblePublicPosts : [],
       publicCommuneComments: visibility.show_commune_posts ? visiblePublicComments : [],
       isOwner: auth.user?.id === profileRow.id

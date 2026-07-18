@@ -1,5 +1,5 @@
 {
   "version": 1,
-  "include": ["/api/sandbox/*"],
+  "include": ["/api/sandbox/*", "/api/identity/*", "/api/public/profile-avatars/*", "/api/public/profile-banners/*"],
   "exclude": ["/api/sandbox/_shared/*"]
 }

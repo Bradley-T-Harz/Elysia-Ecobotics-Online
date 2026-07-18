@@ -17,6 +17,28 @@ assert(
   "The document shell must not leak guest order references or recovery URLs through browser referrers."
 );
 
+const staticHeaders = await fs.readFile("public/_headers", "utf8");
+for (const requiredHeader of [
+  "Content-Security-Policy:",
+  "frame-ancestors 'none'",
+  "object-src 'none'",
+  "Strict-Transport-Security:",
+  "X-Content-Type-Options: nosniff",
+  "Referrer-Policy: no-referrer",
+  "Permissions-Policy:"
+]) assert(staticHeaders.includes(requiredHeader), `Static Pages security header missing: ${requiredHeader}`);
+assert(!staticHeaders.includes("Access-Control-Allow-Origin: *"), "Static Pages headers must not introduce wildcard CORS.");
+
+const pagesRoutes = JSON.parse(await fs.readFile("public/_routes.json", "utf8"));
+assert(
+  pagesRoutes.include.length === 4
+    && pagesRoutes.include[0] === "/api/sandbox/*"
+    && pagesRoutes.include[1] === "/api/identity/*"
+    && pagesRoutes.include[2] === "/api/public/profile-avatars/*"
+    && pagesRoutes.include[3] === "/api/public/profile-banners/*",
+  "Pages Functions must remain limited to the sandbox and private identity-service proxies."
+);
+
 const checks = [
   { name: "service role key strings", pattern: /SERVICE_ROLE|SUPABASE_SERVICE|SUPABASE_SERVICE_ROLE|service_role/ },
   { name: "private key material", pattern: /BEGIN [A-Z ]*PRIVATE KEY/ },
@@ -42,6 +64,11 @@ const reviewedBillingServerBindingFiles = new Set([
   "functions/api/billing/_shared/config.ts",
   "functions/api/billing/_shared/types.ts"
 ]);
+const reviewedIdentityServerBindingFiles = new Set([
+  "services/identity-worker/_shared/auth.ts",
+  "services/identity-worker/_shared/types.ts",
+  "services/identity-worker/worker-configuration.d.ts"
+]);
 const reviewedEconomicServiceCredentialScripts = new Set([
   "scripts/billingStripeTestCatalog.mjs",
   "scripts/billingStripeFixedPriceTestCatalog.mjs",
@@ -63,9 +90,19 @@ const reviewed20260716ServiceRoleMigrations = new Set([
   "supabase/migrations/20260716070000_economic_projections_reporting_notifications_lifecycle.sql",
   "supabase/migrations/20260716071000_economic_route_kill_switch_boundaries.sql"
 ]);
+const reviewedArtisanServiceRoleMigrations = new Set([
+  "supabase/migrations/20260718010000_shared_identity_profile_governance.sql",
+  "supabase/migrations/20260718020000_artisan_core_content_and_media.sql",
+  "supabase/migrations/20260718030000_artisan_authorization_rpcs_and_storage.sql"
+]);
 
 function allowHit(file, line, checkName) {
   const normalized = file.replaceAll(path.sep, "/");
+  if (
+    normalized.includes("scripts/fixtures/") && normalized.endsWith(".sql")
+    && checkName === "service role key strings"
+    && /set_config\('request\.jwt\.claim\.role','service_role',true\)/.test(line)
+  ) return true;
   const controlledSpawnScripts = new Set([
     "scripts/packageSandboxRelease.mjs",
     "scripts/sandboxDatabaseMigrationTest.mjs",
@@ -90,6 +127,11 @@ function allowHit(file, line, checkName) {
       && /\bSUPABASE_SERVICE_ROLE_KEY\b|\bservice_role\b/.test(line)
     ) return true;
     if (
+      reviewedIdentityServerBindingFiles.has(normalized)
+      && /\bSUPABASE_SERVICE_ROLE_KEY\b|\bservice_role\b/.test(line)
+      && !/SUPABASE_SERVICE_ROLE_KEY\s*=/.test(line)
+    ) return true;
+    if (
       reviewedEconomicServiceCredentialScripts.has(normalized)
       && /process\.env\.SUPABASE_SERVICE_ROLE_KEY/.test(line)
     ) return true;
@@ -108,6 +150,11 @@ function allowHit(file, line, checkName) {
     if (
       reviewed20260716ServiceRoleMigrations.has(normalized)
       && /\bservice_role\b|economic_caller_is_service_role|economic_[a-z0-9_]*service_role_required/i.test(line)
+      && !/SUPABASE_SERVICE_ROLE_KEY\s*=|SERVICE_ROLE_KEY\s*=/.test(line)
+    ) return true;
+    if (
+      reviewedArtisanServiceRoleMigrations.has(normalized)
+      && /\bservice_role\b|community_caller_is_service_role|(?:community|artisan)_[a-z0-9_]*service_role_required/i.test(line)
       && !/SUPABASE_SERVICE_ROLE_KEY\s*=|SERVICE_ROLE_KEY\s*=/.test(line)
     ) return true;
     if (normalized === "supabase/migrations/20260714010000_remote_public_schema_baseline.sql" && /(?:GRANT|ALTER DEFAULT PRIVILEGES).*\bservice_role\b/i.test(line)) return true;

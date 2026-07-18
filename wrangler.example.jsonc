@@ -14,10 +14,19 @@
     "SANDBOX_SERVICE_URL": "https://sandbox.elysiaecobotics.com",
     "SUPABASE_URL": "REPLACE_IN_CLOUDFLARE_DASHBOARD",
     "SUPABASE_PUBLISHABLE_KEY": "REPLACE_IN_CLOUDFLARE_DASHBOARD"
-  }
-  // This Pages project owns only the website and /api/sandbox/* boundary.
+  },
+  "services": [
+    {
+      "binding": "IDENTITY_SERVICE",
+      "service": "elysia-shared-identity"
+    }
+  ]
+  // This Pages project owns only the website, /api/sandbox/* proxy, and
+  // /api/identity/* proxy. The identity service binding targets a private
+  // Worker with no public route.
   // Never add Stripe, webhook, payout, or Supabase service-role secrets here.
   // Configure SANDBOX_SERVICE_TOKEN, SANDBOX_DB_FINALIZER_TOKEN,
   // CLOUDFLARE_ACCESS_CLIENT_ID, and CLOUDFLARE_ACCESS_CLIENT_SECRET only as
   // encrypted environment-specific Pages secrets. Never put their values here.
+  // Never place SUPABASE_SERVICE_ROLE_KEY or identity-provider secrets on Pages.
 }
