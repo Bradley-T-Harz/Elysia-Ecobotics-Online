@@ -4,9 +4,11 @@ import { handlePublicAvatarProxy } from "../functions/api/public/profile-avatars
 import { handlePublicBannerProxy } from "../functions/api/public/profile-banners/[mediaId].ts";
 import { hmacSha256Text } from "../services/identity-worker/_shared/crypto.ts";
 import {
+  authenticateIdentityRequest,
   DESTRUCTIVE_MFA_MAX_AGE_SECONDS,
   mfaVerifiedAtFromAccessToken,
   requireFreshAal2,
+  safeIdentityJwtMetadata,
   STAFF_MFA_MAX_AGE_SECONDS,
 } from "../services/identity-worker/_shared/auth.ts";
 import { assertYouthFlagsSafe, identityFeatureState } from "../services/identity-worker/_shared/config.ts";
@@ -162,6 +164,85 @@ await rejectsCode(
 );
 
 assert(identityFeatureState(env).teen === false && identityFeatureState(env).under13 === false, "Youth flags did not default off.");
+
+const diagnosticNow = Math.floor(Date.now() / 1_000);
+const diagnosticToken = accessToken({
+  iss: "https://qwmcstyfegvpzjmjrylc.supabase.co/auth/v1",
+  aud: "authenticated",
+  exp: diagnosticNow + 3_600,
+  sub: requestId,
+});
+assert(
+  JSON.stringify(safeIdentityJwtMetadata(diagnosticToken, diagnosticNow)) === JSON.stringify({
+    tokenKind: "jwt",
+    issuerHostname: "qwmcstyfegvpzjmjrylc.supabase.co",
+    issuerProjectRef: "qwmcstyfegvpzjmjrylc",
+    audience: "authenticated",
+    expiresAt: diagnosticNow + 3_600,
+    expired: false,
+    subjectPresent: true,
+  }),
+  "Safe Identity JWT metadata did not retain only the reviewed non-identifying fields."
+);
+assert(
+  safeIdentityJwtMetadata("not-a-jwt", diagnosticNow).tokenKind === "non_jwt",
+  "Malformed bearer material did not remain opaque to diagnostics."
+);
+
+const originalFetch = globalThis.fetch;
+const originalConsoleInfo = console.info;
+const diagnosticLogs = [];
+const diagnosticPublishableKey = "sb_publishable_identity_smoke_test_browser_key";
+let verifiedOutboundHeaders = false;
+globalThis.fetch = async (input, init = {}) => {
+  const url = new URL(typeof input === "string" || input instanceof URL ? input : input.url);
+  const headers = new Headers(init.headers);
+  verifiedOutboundHeaders = url.hostname === "qwmcstyfegvpzjmjrylc.supabase.co"
+    && url.pathname === "/auth/v1/user"
+    && headers.get("apikey") === diagnosticPublishableKey
+    && headers.get("authorization") === `Bearer ${diagnosticToken}`;
+  return Response.json({ code: "bad_jwt", message: "fixture detail must not be logged" }, {
+    status: 401,
+    headers: { "x-supabase-api-version": "2024-01-01" },
+  });
+};
+console.info = (value) => diagnosticLogs.push(String(value));
+try {
+  await rejectsCode(
+    () => authenticateIdentityRequest(new Request(`${initialArtisanOrigin}/api/identity/v1/bootstrap`, {
+      headers: { authorization: `Bearer ${diagnosticToken}` },
+    }), {
+      SUPABASE_URL: "https://qwmcstyfegvpzjmjrylc.supabase.co",
+      SUPABASE_PUBLISHABLE_KEY: diagnosticPublishableKey,
+    }),
+    "authentication_invalid"
+  );
+} finally {
+  globalThis.fetch = originalFetch;
+  console.info = originalConsoleInfo;
+}
+assert(verifiedOutboundHeaders, "Identity authentication did not use the publishable apikey with the user JWT as bearer.");
+assert(diagnosticLogs.length === 1, "Identity authentication did not emit exactly one bounded failure diagnostic.");
+const diagnosticLog = JSON.parse(diagnosticLogs[0]);
+assert(
+  diagnosticLog.event === "identity.authentication"
+    && diagnosticLog.outcome === "rejected"
+    && diagnosticLog.stage === "supabase_user"
+    && diagnosticLog.upstreamStatus === 401
+    && diagnosticLog.upstreamCode === "bad_jwt"
+    && diagnosticLog.errorClass === "AuthApiError"
+    && diagnosticLog.jwtIssuerProjectRef === "qwmcstyfegvpzjmjrylc"
+    && diagnosticLog.jwtSubjectPresent === true
+    && diagnosticLog.keyKind === "sb_publishable",
+  "Identity authentication diagnostic omitted a reviewed safe field."
+);
+assert(
+  !diagnosticLogs[0].includes(diagnosticToken)
+    && !diagnosticLogs[0].includes(diagnosticPublishableKey)
+    && !diagnosticLogs[0].includes(requestId)
+    && !diagnosticLogs[0].includes("fixture detail"),
+  "Identity authentication diagnostic exposed bearer, key, user, or upstream body material."
+);
 await rejectsCode(() => Promise.resolve(assertLifecycleOperatorEnabled(env)), "lifecycle_operator_disabled");
 await rejectsCode(() => Promise.resolve(lifecycleExecutionProvider(env)), "lifecycle_execution_disabled");
 await rejectsCode(() => Promise.resolve(accountExportProvider(env)), "account_export_disabled");

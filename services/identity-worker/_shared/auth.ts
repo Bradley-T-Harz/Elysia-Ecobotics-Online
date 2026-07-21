@@ -5,6 +5,131 @@ import type { AuthenticatedIdentityRequest, IdentityEnv } from "./types.ts";
 export const STAFF_MFA_MAX_AGE_SECONDS = 15 * 60;
 export const DESTRUCTIVE_MFA_MAX_AGE_SECONDS = 5 * 60;
 
+export type SafeIdentityJwtMetadata = Readonly<{
+  tokenKind: "jwt" | "non_jwt";
+  issuerHostname: string | null;
+  issuerProjectRef: string | null;
+  audience: string | null;
+  expiresAt: number | null;
+  expired: boolean | null;
+  subjectPresent: boolean;
+}>;
+
+function safeAudience(value: unknown): string | null {
+  const values = typeof value === "string" ? [value] : Array.isArray(value) ? value : [];
+  if (
+    values.length < 1
+    || values.length > 4
+    || values.some((item) => typeof item !== "string" || !/^[A-Za-z0-9:._/-]{1,80}$/.test(item))
+  ) return null;
+  return (values as string[]).join(",");
+}
+
+export function safeIdentityJwtMetadata(
+  accessToken: string,
+  nowSeconds = Math.floor(Date.now() / 1_000),
+): SafeIdentityJwtMetadata {
+  const unavailable: SafeIdentityJwtMetadata = {
+    tokenKind: "non_jwt",
+    issuerHostname: null,
+    issuerProjectRef: null,
+    audience: null,
+    expiresAt: null,
+    expired: null,
+    subjectPresent: false,
+  };
+  const parts = accessToken.split(".");
+  if (parts.length !== 3) return unavailable;
+  try {
+    const encoded = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = encoded.padEnd(Math.ceil(encoded.length / 4) * 4, "=");
+    const payload = JSON.parse(atob(padded)) as Record<string, unknown>;
+    let issuerHostname: string | null = null;
+    let issuerProjectRef: string | null = null;
+    if (typeof payload.iss === "string" && payload.iss.length <= 300) {
+      try {
+        const issuer = new URL(payload.iss);
+        if (issuer.protocol === "https:" && /^[a-z0-9.-]+$/.test(issuer.hostname)) {
+          issuerHostname = issuer.hostname;
+          const hosted = /^([a-z0-9-]+)\.supabase\.co$/.exec(issuer.hostname);
+          issuerProjectRef = hosted?.[1] ?? null;
+        }
+      } catch {
+        // Invalid issuer metadata remains unavailable and is never echoed.
+      }
+    }
+    const expiresAt = typeof payload.exp === "number"
+      && Number.isInteger(payload.exp)
+      && payload.exp > 0
+      && payload.exp < 10_000_000_000
+      ? payload.exp
+      : null;
+    return {
+      tokenKind: "jwt",
+      issuerHostname,
+      issuerProjectRef,
+      audience: safeAudience(payload.aud),
+      expiresAt,
+      expired: expiresAt === null ? null : expiresAt <= nowSeconds,
+      subjectPresent: typeof payload.sub === "string" && payload.sub.length > 0,
+    };
+  } catch {
+    return unavailable;
+  }
+}
+
+function publishableKeyKind(key: string): "sb_publishable" | "legacy_anon_jwt" {
+  return key.startsWith("sb_publishable_") ? "sb_publishable" : "legacy_anon_jwt";
+}
+
+function safeAuthErrorMetadata(error: unknown): Readonly<{
+  upstreamStatus: number | null;
+  upstreamCode: string | null;
+  errorClass: string;
+}> {
+  const record = error && typeof error === "object" && !Array.isArray(error)
+    ? error as Record<string, unknown>
+    : {};
+  return {
+    upstreamStatus: typeof record.status === "number" && Number.isInteger(record.status)
+      ? record.status
+      : null,
+    upstreamCode: typeof record.code === "string" && /^[a-z][a-z0-9_]{1,80}$/.test(record.code)
+      ? record.code
+      : null,
+    errorClass: typeof record.name === "string" && /^Auth[A-Za-z]{1,60}Error$/.test(record.name)
+      ? record.name
+      : "unknown",
+  };
+}
+
+function logAuthenticationDiagnostic(
+  outcome: "verified" | "rejected",
+  stage: "token_shape" | "supabase_user",
+  supabaseUrl: string,
+  publishableKey: string,
+  jwt: SafeIdentityJwtMetadata,
+  upstream: ReturnType<typeof safeAuthErrorMetadata> | null,
+): void {
+  console.info(JSON.stringify({
+    event: "identity.authentication",
+    outcome,
+    stage,
+    supabaseHostname: new URL(supabaseUrl).hostname,
+    jwtIssuerHostname: jwt.issuerHostname,
+    jwtIssuerProjectRef: jwt.issuerProjectRef,
+    jwtAudience: jwt.audience,
+    jwtExpiresAt: jwt.expiresAt,
+    jwtExpired: jwt.expired,
+    jwtSubjectPresent: jwt.subjectPresent,
+    tokenKind: jwt.tokenKind,
+    keyKind: publishableKeyKind(publishableKey),
+    upstreamStatus: upstream?.upstreamStatus ?? null,
+    upstreamCode: upstream?.upstreamCode ?? null,
+    errorClass: upstream?.errorClass ?? null,
+  }));
+}
+
 export function mfaVerifiedAtFromAccessToken(accessToken: string): number | null {
   const parts = accessToken.split(".");
   if (parts.length !== 3) return null;
@@ -149,10 +274,20 @@ export async function authenticateIdentityRequest(request: Request, env: Identit
     throw new IdentityHttpError(401, "authentication_required");
   }
   const accessToken = authorization.slice(7);
-  if (!accessToken || /[\s,]/.test(accessToken)) throw new IdentityHttpError(401, "authentication_invalid");
-  const supabase = client(requiredSupabaseUrl(env.SUPABASE_URL), requiredPublishableKey(env), `Bearer ${accessToken}`);
+  const supabaseUrl = requiredSupabaseUrl(env.SUPABASE_URL);
+  const publishableKey = requiredPublishableKey(env);
+  const jwt = safeIdentityJwtMetadata(accessToken);
+  if (!accessToken || /[\s,]/.test(accessToken)) {
+    logAuthenticationDiagnostic("rejected", "token_shape", supabaseUrl, publishableKey, jwt, null);
+    throw new IdentityHttpError(401, "authentication_invalid");
+  }
+  const supabase = client(supabaseUrl, publishableKey, `Bearer ${accessToken}`);
   const { data, error } = await supabase.auth.getUser(accessToken);
-  if (error || !data.user) throw new IdentityHttpError(401, "authentication_invalid");
+  if (error || !data.user) {
+    logAuthenticationDiagnostic("rejected", "supabase_user", supabaseUrl, publishableKey, jwt, safeAuthErrorMetadata(error));
+    throw new IdentityHttpError(401, "authentication_invalid");
+  }
+  logAuthenticationDiagnostic("verified", "supabase_user", supabaseUrl, publishableKey, jwt, null);
 
   const confirmedEmail = typeof data.user.email === "string"
     && data.user.email.length > 3
