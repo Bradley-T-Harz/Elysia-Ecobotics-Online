@@ -540,6 +540,7 @@ assert(
 assert((await handleIdentityProxy(new Request(`${initialArtisanOrigin}/api/identity/v1/health`), {})).status === 503, "Missing service binding did not fail closed.");
 
 const workerConfig = await fs.readFile("wrangler.identity.example.jsonc", "utf8");
+const productionWorkerConfig = await fs.readFile("wrangler.identity.production.jsonc", "utf8");
 const pagesConfig = await fs.readFile("wrangler.example.jsonc", "utf8");
 const routeConfig = JSON.parse(await fs.readFile("public/_routes.json", "utf8"));
 assert(workerConfig.includes('"workers_dev": false'), "Privileged identity Worker must not use workers.dev.");
@@ -587,6 +588,40 @@ assert(
   workerConfig.includes('"binding": "COMMUNITY_EXPORTS"')
     && workerConfig.includes('"bucket_name": "elysia-community-account-exports"'),
   "Identity Worker lacks its dedicated private community-export bucket binding."
+);
+assert(
+  productionWorkerConfig.includes('"workers_dev": false')
+    && !productionWorkerConfig.includes('"routes"'),
+  "Production shared identity must remain private and route-less."
+);
+assert(
+  productionWorkerConfig.includes('"IDENTITY_ENABLED": "true"')
+    && productionWorkerConfig.includes('"IDENTITY_EDGE_RATE_LIMIT_CONFIRMED": "true"')
+    && productionWorkerConfig.includes('"TURNSTILE_REQUIRED": "true"'),
+  "Production account access must require the reviewed identity, rate-limit, and Turnstile boundaries."
+);
+for (const flag of [
+  "IDENTITY_ADULT_BETA_ENABLED",
+  "IDENTITY_TEEN_ENABLED",
+  "IDENTITY_UNDER_13_ENABLED",
+  "IDENTITY_UNDER13_SPONSORED_ACCOUNTS_ENABLED",
+  "IDENTITY_UNDER13_CONTENT_APPROVAL_ENABLED",
+  "IDENTITY_UNDER13_DEPENDENT_CONTROLS_ENABLED",
+  "IDENTITY_LIFECYCLE_OPERATOR_ENABLED",
+  "IDENTITY_LIFECYCLE_EXECUTION_ENABLED",
+  "IDENTITY_ACCOUNT_EXPORT_ENABLED",
+  "IDENTITY_STORAGE_CLEANUP_ENABLED",
+  "IDENTITY_AUTH_DELETION_ENABLED",
+  "IDENTITY_NOTIFICATION_DELIVERY_ENABLED",
+  "IDENTITY_EXPORT_RETENTION_ENABLED",
+]) {
+  assert(productionWorkerConfig.includes(`"${flag}": "false"`), `${flag} escaped the production account-access boundary.`);
+}
+assert(
+  productionWorkerConfig.includes('"AGE_ASSURANCE_PROVIDER": "disabled"')
+    && productionWorkerConfig.includes('"GUARDIAN_CONSENT_PROVIDER": "disabled"')
+    && !productionWorkerConfig.includes("REPLACE_IN_CLOUDFLARE_DASHBOARD"),
+  "Production account access must keep external providers disabled and use explicit browser-safe Supabase configuration."
 );
 assert(!pagesConfig.includes("COMMUNITY_EXPORTS"), "The private account-export bucket leaked into the Pages browser-facing configuration.");
 for (const route of [

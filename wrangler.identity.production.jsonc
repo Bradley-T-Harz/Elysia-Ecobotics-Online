@@ -1,0 +1,85 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "elysia-shared-identity",
+  "main": "services/identity-worker/worker.ts",
+  "compatibility_date": "2026-07-18",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
+  // Production account access only. This enables the verified, owner-scoped
+  // shared identity contract without opening adult membership, youth features,
+  // lifecycle execution, external providers, or notification delivery.
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": false
+    },
+    "traces": {
+      "enabled": false,
+      "head_sampling_rate": 0
+    }
+  },
+  "ratelimits": [
+    {
+      "name": "IDENTITY_RATE_LIMITER",
+      "namespace_id": "1001",
+      "simple": {
+        "limit": 10,
+        "period": 60
+      }
+    }
+  ],
+  "send_email": [
+    {
+      "name": "IDENTITY_EMAIL",
+      "allowed_sender_addresses": ["notifications@elysiaecobotics.com"]
+    }
+  ],
+  "images": { "binding": "IDENTITY_IMAGES" },
+  "r2_buckets": [
+    {
+      "binding": "COMMUNITY_EXPORTS",
+      "bucket_name": "elysia-community-account-exports"
+    }
+  ],
+  "vars": {
+    "IDENTITY_ENABLED": "true",
+    "IDENTITY_ALLOWED_ORIGINS": "https://elysiaecobotics.com,https://elysiaartisancollective.pages.dev,https://artisans.elysiaecobotics.com",
+    "IDENTITY_ADULT_BETA_ENABLED": "false",
+    "IDENTITY_TEEN_ENABLED": "false",
+    "IDENTITY_UNDER_13_ENABLED": "false",
+    "IDENTITY_UNDER13_SPONSORED_ACCOUNTS_ENABLED": "false",
+    "IDENTITY_UNDER13_CONTENT_APPROVAL_ENABLED": "false",
+    "IDENTITY_UNDER13_DEPENDENT_CONTROLS_ENABLED": "false",
+    "IDENTITY_LIFECYCLE_OPERATOR_ENABLED": "false",
+    "IDENTITY_LIFECYCLE_EXECUTION_ENABLED": "false",
+    "IDENTITY_LIFECYCLE_EXECUTION_PROVIDER": "disabled",
+    "IDENTITY_ACCOUNT_EXPORT_ENABLED": "false",
+    "IDENTITY_ACCOUNT_EXPORT_PROVIDER": "disabled",
+    "IDENTITY_ACCOUNT_EXPORT_TTL_DAYS": "7",
+    "IDENTITY_STORAGE_CLEANUP_ENABLED": "false",
+    "IDENTITY_STORAGE_CLEANUP_PROVIDER": "disabled",
+    "IDENTITY_AUTH_DELETION_ENABLED": "false",
+    "IDENTITY_AUTH_DELETION_PROVIDER": "disabled",
+    "IDENTITY_NOTIFICATION_DELIVERY_ENABLED": "false",
+    "IDENTITY_NOTIFICATION_DELIVERY_PROVIDER": "disabled",
+    "IDENTITY_NOTIFICATION_SENDER_EMAIL": "notifications@elysiaecobotics.com",
+    "IDENTITY_NOTIFICATION_SENDER_NAME": "Elysia Artisan Collective",
+    "IDENTITY_NOTIFICATION_PUBLIC_ORIGIN": "https://elysiaartisancollective.pages.dev",
+    "IDENTITY_EXPORT_RETENTION_ENABLED": "false",
+    "IDENTITY_EXPORT_RETENTION_PROVIDER": "disabled",
+    "IDENTITY_EDGE_RATE_LIMIT_CONFIRMED": "true",
+    "TURNSTILE_REQUIRED": "true",
+    "TURNSTILE_EXPECTED_HOSTNAMES": "elysiaecobotics.com,elysiaartisancollective.pages.dev,artisans.elysiaecobotics.com",
+    "AGE_ASSURANCE_PROVIDER": "disabled",
+    "GUARDIAN_CONSENT_PROVIDER": "disabled",
+    "SUPABASE_URL": "https://qwmcstyfegvpzjmjrylc.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_GNJEkifa3bGuXlcCA7HQdg_lq7u8HaH"
+  }
+  // SUPABASE_SERVICE_ROLE_KEY, TURNSTILE_SECRET_KEY, and
+  // GUARDIAN_SPONSORSHIP_CONTACT_HMAC_KEY remain encrypted Worker secrets.
+}

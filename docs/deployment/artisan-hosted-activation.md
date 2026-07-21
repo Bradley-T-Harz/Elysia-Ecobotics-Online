@@ -86,6 +86,15 @@ activation.
 6. Verify structured logs contain no bearer tokens, emails, request bodies,
    object keys, provider payloads, moderation evidence, or caught-error text.
 
+`wrangler.identity.example.jsonc` remains the all-off first-deployment template.
+After the exact bindings, encrypted secrets, allowed origins, rate limiter and
+Turnstile hostname are verified, deploy `wrangler.identity.production.jsonc`
+to open only the confirmed-account, owner-scoped profile and governance read
+contract. That production profile deliberately leaves adult membership, every
+youth gate, lifecycle execution, notification delivery and external provider
+off. Enabling the shared identity contract is not an Artisan invitation and
+does not change a database participation state or feature flag.
+
 Use encrypted secrets for the Supabase service role, Turnstile secret, provider
 keys, webhook secrets, and storage credentials. Public Supabase publishable and
 Turnstile site keys remain browser-visible by design.
