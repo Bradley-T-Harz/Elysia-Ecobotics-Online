@@ -261,6 +261,7 @@ assert(
   fetchFailureLog.event === "identity.upstream_fetch"
     && fetchFailureLog.outcome === "failed"
     && fetchFailureLog.errorClass === "TypeError"
+    && fetchFailureLog.errorCode === "UNCLASSIFIED_TYPE_ERROR"
     && fetchFailureLog.aborted === false
     && !fetchFailureLogs[0].includes("fixture detail")
     && !fetchFailureLogs[0].includes("diagnostic.invalid"),

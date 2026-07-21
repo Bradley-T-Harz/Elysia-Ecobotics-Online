@@ -129,6 +129,24 @@ export async function fetchWithTimeout(
     const cause = record.cause && typeof record.cause === "object" && !Array.isArray(record.cause)
       ? record.cause as Record<string, unknown>
       : {};
+    const message = typeof record.message === "string" ? record.message : "";
+    const classifiedCode = /different request|request context/i.test(message)
+      ? "CROSS_REQUEST_IO"
+      : /illegal invocation/i.test(message)
+        ? "ILLEGAL_INVOCATION"
+        : /immutable.*header|header.*immutable/i.test(message)
+          ? "IMMUTABLE_HEADERS"
+          : /redirect/i.test(message)
+            ? "REDIRECT_REJECTED"
+            : /invalid.*url|url.*invalid/i.test(message)
+              ? "INVALID_URL"
+              : /cache.*mode|cache.*not implemented/i.test(message)
+                ? "UNSUPPORTED_CACHE_MODE"
+                : /subrequest.*limit|too many subrequests/i.test(message)
+                  ? "SUBREQUEST_LIMIT"
+                  : /network|connection|dns|resolve|fetch failed/i.test(message)
+                    ? "NETWORK_FAILURE"
+                    : "UNCLASSIFIED_TYPE_ERROR";
     console.info(JSON.stringify({
       event: "identity.upstream_fetch",
       outcome: "failed",
@@ -137,7 +155,7 @@ export async function fetchWithTimeout(
         : "unknown",
       errorCode: typeof record.code === "string" && /^[A-Z0-9_]{1,80}$/.test(record.code)
         ? record.code
-        : null,
+        : classifiedCode,
       causeClass: typeof cause.name === "string" && /^[A-Za-z][A-Za-z0-9]{1,80}$/.test(cause.name)
         ? cause.name
         : null,
