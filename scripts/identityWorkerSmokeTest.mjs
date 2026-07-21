@@ -267,6 +267,30 @@ assert(
     && !fetchFailureLogs[0].includes("diagnostic.invalid"),
   "Identity upstream failure diagnostic exposed details or omitted its safe classification."
 );
+const redirectLogs = [];
+console.info = (value) => redirectLogs.push(String(value));
+try {
+  await rejectsCode(
+    () => fetchWithTimeout("https://project.supabase.co/auth/v1/user", {}, 1_000, async () => new Response(null, {
+      status: 307,
+      headers: { location: "https://other.supabase.co/auth/v1/user" },
+    })),
+    "identity_upstream_redirect"
+  );
+} finally {
+  console.info = originalConsoleInfo;
+}
+assert(redirectLogs.length === 1, "Identity redirect rejection did not emit one bounded diagnostic.");
+const redirectLog = JSON.parse(redirectLogs[0]);
+assert(
+  redirectLog.event === "identity.upstream_redirect"
+    && redirectLog.outcome === "rejected"
+    && redirectLog.upstreamStatus === 307
+    && redirectLog.sourceHostname === "project.supabase.co"
+    && redirectLog.targetHostname === "other.supabase.co"
+    && redirectLog.sameOrigin === false,
+  "Identity redirect diagnostic omitted its bounded origin classification."
+);
 await rejectsCode(() => Promise.resolve(assertLifecycleOperatorEnabled(env)), "lifecycle_operator_disabled");
 await rejectsCode(() => Promise.resolve(lifecycleExecutionProvider(env)), "lifecycle_execution_disabled");
 await rejectsCode(() => Promise.resolve(accountExportProvider(env)), "account_export_disabled");

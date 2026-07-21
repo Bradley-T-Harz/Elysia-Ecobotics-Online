@@ -120,8 +120,9 @@ export async function fetchWithTimeout(
 ): Promise<Response> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  let response: Response;
   try {
-    return await fetcher(input, { ...init, redirect: "error", signal: controller.signal });
+    response = await fetcher(input, { ...init, redirect: "manual", signal: controller.signal });
   } catch (error) {
     const record = error && typeof error === "object" && !Array.isArray(error)
       ? error as Record<string, unknown>
@@ -171,6 +172,32 @@ export async function fetchWithTimeout(
   } finally {
     clearTimeout(timeout);
   }
+  if (response.status >= 300 && response.status < 400) {
+    let sourceHostname: string | null = null;
+    let targetHostname: string | null = null;
+    let sameOrigin = false;
+    try {
+      const source = new URL(input instanceof Request ? input.url : input.toString());
+      const location = response.headers.get("location");
+      const target = location ? new URL(location, source) : null;
+      sourceHostname = source.hostname;
+      targetHostname = target?.hostname ?? null;
+      sameOrigin = target?.origin === source.origin;
+    } catch {
+      // Malformed redirect metadata remains unavailable and is never followed.
+    }
+    console.info(JSON.stringify({
+      event: "identity.upstream_redirect",
+      outcome: "rejected",
+      upstreamStatus: response.status,
+      sourceHostname,
+      targetHostname,
+      sameOrigin,
+    }));
+    await response.body?.cancel();
+    throw new IdentityHttpError(502, "identity_upstream_redirect");
+  }
+  return response;
 }
 
 export async function readBoundedResponseJson(response: Response, maximumBytes = 65_536): Promise<unknown> {
