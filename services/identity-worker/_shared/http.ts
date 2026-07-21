@@ -122,8 +122,34 @@ export async function fetchWithTimeout(
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetcher(input, { ...init, redirect: "error", signal: controller.signal });
-  } catch {
-    throw new IdentityHttpError(504, "identity_upstream_timeout");
+  } catch (error) {
+    const record = error && typeof error === "object" && !Array.isArray(error)
+      ? error as Record<string, unknown>
+      : {};
+    const cause = record.cause && typeof record.cause === "object" && !Array.isArray(record.cause)
+      ? record.cause as Record<string, unknown>
+      : {};
+    console.info(JSON.stringify({
+      event: "identity.upstream_fetch",
+      outcome: "failed",
+      errorClass: typeof record.name === "string" && /^[A-Za-z][A-Za-z0-9]{1,80}$/.test(record.name)
+        ? record.name
+        : "unknown",
+      errorCode: typeof record.code === "string" && /^[A-Z0-9_]{1,80}$/.test(record.code)
+        ? record.code
+        : null,
+      causeClass: typeof cause.name === "string" && /^[A-Za-z][A-Za-z0-9]{1,80}$/.test(cause.name)
+        ? cause.name
+        : null,
+      causeCode: typeof cause.code === "string" && /^[A-Z0-9_]{1,80}$/.test(cause.code)
+        ? cause.code
+        : null,
+      aborted: controller.signal.aborted,
+    }));
+    throw new IdentityHttpError(
+      controller.signal.aborted ? 504 : 502,
+      controller.signal.aborted ? "identity_upstream_timeout" : "identity_upstream_fetch_failed",
+    );
   } finally {
     clearTimeout(timeout);
   }

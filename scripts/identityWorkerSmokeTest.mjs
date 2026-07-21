@@ -12,7 +12,7 @@ import {
   STAFF_MFA_MAX_AGE_SECONDS,
 } from "../services/identity-worker/_shared/auth.ts";
 import { assertYouthFlagsSafe, identityFeatureState } from "../services/identity-worker/_shared/config.ts";
-import { allowedOrigins, IdentityHttpError, requireSameOriginMutation } from "../services/identity-worker/_shared/http.ts";
+import { allowedOrigins, fetchWithTimeout, IdentityHttpError, requireSameOriginMutation } from "../services/identity-worker/_shared/http.ts";
 import {
   accountExportProvider,
   accountExportTtlDays,
@@ -242,6 +242,29 @@ assert(
     && !diagnosticLogs[0].includes(requestId)
     && !diagnosticLogs[0].includes("fixture detail"),
   "Identity authentication diagnostic exposed bearer, key, user, or upstream body material."
+);
+const fetchFailureLogs = [];
+console.info = (value) => fetchFailureLogs.push(String(value));
+try {
+  await rejectsCode(
+    () => fetchWithTimeout("https://diagnostic.invalid", {}, 1_000, async () => {
+      throw new TypeError("fixture detail must not be logged");
+    }),
+    "identity_upstream_fetch_failed"
+  );
+} finally {
+  console.info = originalConsoleInfo;
+}
+assert(fetchFailureLogs.length === 1, "Identity upstream failure did not emit one bounded diagnostic.");
+const fetchFailureLog = JSON.parse(fetchFailureLogs[0]);
+assert(
+  fetchFailureLog.event === "identity.upstream_fetch"
+    && fetchFailureLog.outcome === "failed"
+    && fetchFailureLog.errorClass === "TypeError"
+    && fetchFailureLog.aborted === false
+    && !fetchFailureLogs[0].includes("fixture detail")
+    && !fetchFailureLogs[0].includes("diagnostic.invalid"),
+  "Identity upstream failure diagnostic exposed details or omitted its safe classification."
 );
 await rejectsCode(() => Promise.resolve(assertLifecycleOperatorEnabled(env)), "lifecycle_operator_disabled");
 await rejectsCode(() => Promise.resolve(lifecycleExecutionProvider(env)), "lifecycle_execution_disabled");
