@@ -14551,7 +14551,16 @@ begin
       and relationship.status = 'active'
       and (relationship.expires_at is null or relationship.expires_at > pg_catalog.now())
       and (p_before is null or approval.requested_at < p_before)
-    order by approval.requested_at desc, approval.id
+    order by
+      approval.requested_at desc,
+      (
+        approval.status = 'pending'
+        and approval.target_revision_sha256 =
+          private.artisan_guardian_target_revision_sha256(
+            approval.target_type, approval.target_id
+          )
+      ) desc,
+      approval.id desc
     limit v_limit
   ) as queued;
   return pg_catalog.jsonb_build_object(
@@ -17027,7 +17036,7 @@ begin
       and (p_cursor_published_at is null
         or (gallery.published_at, gallery.id) < (p_cursor_published_at, p_cursor_id))
       and (p_challenge_slug is null or challenge.slug = p_challenge_slug)
-      and (p_year is null or pg_catalog.extract(year from gallery.published_at)::integer = p_year)
+      and (p_year is null or pg_catalog.date_part('year', gallery.published_at)::integer = p_year)
       and (p_media_kind is null or exists (
         select 1 from artisan.media_assets as media
         join artisan.media_adapters as adapter on adapter.adapter_key = media.adapter_key
@@ -17063,7 +17072,7 @@ begin
         'challengeId', selected.challenge_id,
         'slug', selected.challenge_slug, 'title', selected.challenge_title
       ) end,
-    'year', pg_catalog.extract(year from selected.published_at)::integer,
+    'year', pg_catalog.date_part('year', selected.published_at)::integer,
     'mediaKinds', private.artisan_public_media_kinds(selected.artwork_id),
     'mediaPreview', private.artisan_public_media_card(selected.artwork_id),
     'collectionSlugs', private.artisan_public_collection_slugs(selected.artwork_id),
@@ -17985,7 +17994,7 @@ begin
         or (p_sort_direction = 'oldest' and
           (gallery.published_at, gallery.id) > (p_cursor_published_at, p_cursor_id)))
       and (p_challenge_slug is null or challenge.slug = p_challenge_slug)
-      and (p_year is null or pg_catalog.extract(year from gallery.published_at)::integer = p_year)
+      and (p_year is null or pg_catalog.date_part('year', gallery.published_at)::integer = p_year)
       and (p_creation_method is null or gallery.frozen_creation_method = p_creation_method)
       and (p_media_kind is null or exists (
         select 1 from artisan.media_assets as media
@@ -18026,7 +18035,7 @@ begin
         'challengeId', selected.challenge_id,
         'slug', selected.challenge_slug, 'title', selected.challenge_title
       ) end,
-    'year', pg_catalog.extract(year from selected.published_at)::integer,
+    'year', pg_catalog.date_part('year', selected.published_at)::integer,
     'mediaKinds', private.artisan_public_media_kinds(selected.artwork_id),
     'mediaPreview', private.artisan_public_media_card(selected.artwork_id),
     'collectionSlugs', private.artisan_public_collection_slugs(selected.artwork_id),

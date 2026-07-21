@@ -1217,7 +1217,7 @@ begin
   );
   v_gallery_discovery := public.artisan_public_gallery_discovery(
     'winner','fixture-challenge',
-    pg_catalog.extract(year from pg_catalog.now())::integer,
+    pg_catalog.date_part('year', pg_catalog.now())::integer,
     'human_created','image','fixtureadult','fixture-featured','newest',20,null,null
   );
   v_challenge_discovery := public.artisan_public_challenge_discovery(20,null,null);
@@ -1493,7 +1493,7 @@ declare
   v_owner_post jsonb;
   v_awards jsonb;
   v_rubric jsonb := '{"criteria":[{"key":"craft","label":"Craft","description":"Deliberate execution and material choices.","weight":40,"minimumScore":0,"maximumScore":10},{"key":"imagination","label":"Imagination","description":"Originality and response to the impossible prompt.","weight":35,"minimumScore":0,"maximumScore":10},{"key":"communication","label":"Communication","description":"Clarity, accessibility, and emotional resonance.","weight":25,"minimumScore":0,"maximumScore":10}]}'::jsonb;
-  v_score_client_request_id uuid := 'f3200000-0000-4000-8000-000000000001';
+  v_score_client_request_id uuid := 'f3500000-0000-4000-8000-000000000001';
 begin
   perform pg_catalog.set_config('request.jwt.claim.role','service_role',false);
   if private.recompute_community_participation(
@@ -1812,8 +1812,10 @@ begin
   );
   if v_owner_artwork ->> 'artworkId' <> 'f2000000-0000-4000-8000-000000000001'
      or v_owner_post ->> 'postId' <> 'f2300000-0000-4000-8000-000000000001'
-     or (v_owner_artwork ->> 'appreciationCount')::integer <> 1
-     or (v_owner_post ->> 'appreciationCount')::integer <> 1
+     -- Blocking permanently removes cross-user appreciations. Unblocking
+     -- restores future interaction permission, not the deleted interactions.
+     or (v_owner_artwork ->> 'appreciationCount')::integer <> 0
+     or (v_owner_post ->> 'appreciationCount')::integer <> 0
      or v_owner_artwork::text ~ 'ownerUserId|creditedUserId|collaboratorUserId|quarantineObjectKey|approvedObjectKey|thumbnailObjectKey'
      or v_owner_post::text ~ 'ownerUserId'
      or v_awards #>> '{items,0,actionPath}' <> '/account/activity?kind=awards'
@@ -1839,7 +1841,7 @@ begin
   perform pg_catalog.set_config('request.jwt.claim.role','service_role',true);
   v_guardian_start := public.start_community_guardian_relationship_by_handle(
     'f1000000-0000-4000-8000-000000000006','aal1',
-    'f3100000-0000-4000-8000-000000000005','fixture_provider',
+    'f3600000-0000-4000-8000-000000000005','fixture_provider',
     'fixtureteen16','parent',now()+interval '1 year',
     repeat('1',64),repeat('2',64),now()+interval '1 hour',
     'Synthetic handle-only guardian relationship start.'
@@ -1850,13 +1852,13 @@ begin
   end if;
   v_first := public.start_community_provider_transaction(
     'f1000000-0000-4000-8000-000000000009','aal1',
-    'f3100000-0000-4000-8000-000000000001','fixture_provider','age_assurance',
+    'f3600000-0000-4000-8000-000000000001','fixture_provider','age_assurance',
     'f1000000-0000-4000-8000-000000000009',null,null,null,null,null,null,null,null,
     repeat('d',64),repeat('e',64),now()+interval '1 hour','Synthetic age assurance start.'
   );
   v_replay := public.start_community_provider_transaction(
     'f1000000-0000-4000-8000-000000000009','aal1',
-    'f3100000-0000-4000-8000-000000000001','fixture_provider','age_assurance',
+    'f3600000-0000-4000-8000-000000000001','fixture_provider','age_assurance',
     'f1000000-0000-4000-8000-000000000009',null,null,null,null,null,null,null,null,
     repeat('d',64),repeat('e',64),now()+interval '1 hour','Synthetic age assurance start.'
   );
@@ -1864,7 +1866,7 @@ begin
   begin
     perform public.start_community_provider_transaction(
       'f1000000-0000-4000-8000-000000000009','aal1',
-      'f3100000-0000-4000-8000-000000000001','fixture_provider','age_assurance',
+      'f3600000-0000-4000-8000-000000000001','fixture_provider','age_assurance',
       'f1000000-0000-4000-8000-000000000009',null,null,null,null,null,null,null,null,
       repeat('f',64),repeat('e',64),now()+interval '1 hour','Synthetic age assurance start.'
     );
@@ -1872,7 +1874,7 @@ begin
   exception when sqlstate '22000' then null;
   end;
   v_callback := public.consume_community_provider_transaction(
-    'f3100000-0000-4000-8000-000000000002','fixture_provider',
+    'f3600000-0000-4000-8000-000000000002','fixture_provider',
     repeat('d',64),repeat('e',64),repeat('f',64),'verified','fixture_age_ok',
     '18_plus','age_verified',now()+interval '1 year','US','Synthetic provider callback.'
   );
@@ -1880,20 +1882,20 @@ begin
     raise exception 'verified adult callback bypassed exact current terms: %', v_callback;
   end if;
   if public.consume_community_provider_transaction(
-    'f3100000-0000-4000-8000-000000000002','fixture_provider',
+    'f3600000-0000-4000-8000-000000000002','fixture_provider',
     repeat('d',64),repeat('e',64),repeat('f',64),'verified','fixture_age_ok',
     '18_plus','age_verified',now()+interval '1 year','US','Synthetic provider callback.'
   ) <> v_callback then raise exception 'provider callback replay changed'; end if;
 
   perform public.start_community_provider_transaction(
     'f1000000-0000-4000-8000-000000000006','aal1',
-    'f3100000-0000-4000-8000-000000000003','fixture_provider','guardian_relationship',
+    'f3600000-0000-4000-8000-000000000003','fixture_provider','guardian_relationship',
     'f1000000-0000-4000-8000-000000000002','f1000000-0000-4000-8000-000000000006',
     null,'parent',null,null,null,null,now()+interval '1 year',
     repeat('6',64),repeat('7',64),now()+interval '1 hour','Synthetic guardian start.'
   );
   perform public.consume_community_provider_transaction(
-    'f3100000-0000-4000-8000-000000000004','fixture_provider',
+    'f3600000-0000-4000-8000-000000000004','fixture_provider',
     repeat('6',64),repeat('7',64),repeat('8',64),'failed','fixture_guardian_failed',
     null,null,null,null,'Synthetic failed guardian callback.'
   );
@@ -1902,7 +1904,7 @@ begin
   end if;
   v_under13_consent_start := public.start_community_provider_transaction(
     'f1000000-0000-4000-8000-000000000006','aal2',
-    'f3100000-0000-4000-8000-000000000006','fixture_provider','guardian_consent',
+    'f3600000-0000-4000-8000-000000000006','fixture_provider','guardian_consent',
     'f1000000-0000-4000-8000-000000000005','f1000000-0000-4000-8000-000000000006',
     'f1100000-0000-4000-8000-000000000005',null,'artisan_notifications',
     'guardian_consent_notice','fixture-v1',repeat('a',64),now()+interval '6 months',
@@ -1922,7 +1924,7 @@ begin
       v_under13_consent_start;
   end if;
   v_under13_consent_result := public.consume_community_provider_transaction(
-    'f3100000-0000-4000-8000-000000000007','fixture_provider',
+    'f3600000-0000-4000-8000-000000000007','fixture_provider',
     repeat('0',63)||'1',repeat('0',63)||'2',repeat('0',63)||'3',
     'verified','fixture_under13_consent_ok',null,null,null,null,
     'Synthetic exact child privacy provider consent callback.'

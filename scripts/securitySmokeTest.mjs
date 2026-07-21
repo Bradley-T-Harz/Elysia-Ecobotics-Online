@@ -123,6 +123,13 @@ function allowHit(file, line, checkName) {
   ) return true;
   if (checkName === "service role key strings") {
     if (
+      normalized === "scripts/fixtures/artisanDatabaseBehavior.sql"
+      && (
+        /set_config\(\s*['"]request\.jwt\.claim\.role['"]\s*,\s*['"]service_role['"]\s*,\s*(?:true|false)\s*\)/i.test(line)
+        || /has_(?:function|table|column|schema)_privilege\(\s*['"]service_role['"]/i.test(line)
+      )
+    ) return true;
+    if (
       reviewedBillingServerBindingFiles.has(normalized)
       && /\bSUPABASE_SERVICE_ROLE_KEY\b|\bservice_role\b/.test(line)
     ) return true;

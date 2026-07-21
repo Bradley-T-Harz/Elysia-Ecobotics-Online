@@ -811,7 +811,10 @@ begin
   end if;
   v_methods := p_eligibility_policy -> 'allowedCreationMethods';
   if p_creation_method_policy = 'challenge_specific' then
-    if pg_catalog.jsonb_typeof(v_methods) <> 'array'
+    if not pg_catalog.jsonb_exists(
+         p_eligibility_policy, 'allowedCreationMethods'
+       )
+       or pg_catalog.jsonb_typeof(v_methods) is distinct from 'array'
        or pg_catalog.jsonb_array_length(v_methods) not between 1 and 5
        or exists (
          select 1 from pg_catalog.jsonb_array_elements_text(v_methods) as method(value)

@@ -127,10 +127,26 @@ export async function fetchWithTimeout(
   fetcher: typeof fetch = fetch
 ): Promise<Response> {
   const controller = new AbortController();
+  const rejectRedirects = init.redirect === "error";
+  const requestInit: RequestInit = rejectRedirects
+    ? { ...init, redirect: "manual" }
+    : init;
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    return await fetcher(input, { ...init, signal: controller.signal });
-  } catch {
+    const response = await fetcher(input, {
+      ...requestInit,
+      signal: controller.signal
+    });
+    if (
+      rejectRedirects
+      && response.status >= 300
+      && response.status < 400
+    ) {
+      throw new PublicHttpError(502, "upstream_redirect_denied");
+    }
+    return response;
+  } catch (error) {
+    if (error instanceof PublicHttpError) throw error;
     throw new PublicHttpError(504, "upstream_timeout");
   } finally {
     clearTimeout(timeout);
