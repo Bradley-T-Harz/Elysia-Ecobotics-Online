@@ -1,7 +1,6 @@
 
-import Ajv from "ajv";
-import addFormats from "ajv-formats";
 import semver from "semver";
+import generatedManifestShapeValidator from "./developerForgeManifestValidator.generated";
 
 export type ValidationSeverity = "blocked" | "error" | "warning" | "needs_reviewer" | "info";
 
@@ -104,63 +103,8 @@ const reservedNamePattern = /\b(elysia|elysia ecobotics|ecosyneva|ecosyneva comm
 const dangerousShellPattern = /\b(postinstall|preinstall|install script|shell|curl\s|wget\s|bash\s|powershell|cmd\.exe|sudo\s|chmod\s|rm\s+-rf|scp\s|ssh\s|npm\s+install|pnpm\s+install|yarn\s+install)\b/i;
 const broadFilesystemPattern = /\b(read all files|write all files|whole home directory|entire disk|arbitrary filesystem|all local files|recursive home)\b/i;
 
-const manifestSchema = {
-  type: "object",
-  additionalProperties: true,
-  properties: {
-    schema_version: { type: "string", nullable: true },
-    addon_id: { type: "string", nullable: true },
-    name: { type: "string", nullable: true },
-    version: { type: "string", nullable: true },
-    description: { type: "string", nullable: true },
-    author: {
-      type: "object",
-      nullable: true,
-      additionalProperties: true,
-      properties: {
-        name: { type: "string", nullable: true },
-        url: { type: "string", format: "uri", nullable: true }
-      }
-    },
-    license: { type: "string", nullable: true },
-    entrypoints: { type: "array", nullable: true, items: {} },
-    permissions: { type: "array", nullable: true, items: { type: "string" } },
-    compatibility: {
-      type: "object",
-      nullable: true,
-      additionalProperties: true,
-      properties: {
-        elysia_min_version: { type: "string", nullable: true },
-        elysia_max_version: { type: "string", nullable: true },
-        addon_api_version: { type: "string", nullable: true }
-      }
-    },
-    runtime: {
-      type: "object",
-      nullable: true,
-      additionalProperties: true,
-      properties: {
-        kind: { type: "string", nullable: true },
-        requires_network: { type: "boolean", nullable: true },
-        requires_filesystem: { type: "boolean", nullable: true }
-      }
-    },
-    security: {
-      type: "object",
-      nullable: true,
-      additionalProperties: true,
-      properties: {
-        sandbox_required: { type: "boolean", nullable: true },
-        network_domains: { type: "array", nullable: true, items: { type: "string" } },
-        file_access: { type: "array", nullable: true, items: { type: "string" } }
-      }
-    }
-  }
-};
-
-const ajv = new Ajv({ allErrors: true, allowUnionTypes: true, strict: false });
-addFormats(ajv);
-const validateManifestShape = ajv.compile(manifestSchema);
+type ManifestShapeError = { instancePath?: string; message?: string };
+const validateManifestShape = generatedManifestShapeValidator as ((value: unknown) => boolean) & { errors?: ManifestShapeError[] | null };
 
 function add(results: ForgeValidationResult[], severity: ValidationSeverity, code: string, message: string, field_path?: string, fix_suggestion?: string) {
   results.push({ severity, code, message, field_path, fix_suggestion });

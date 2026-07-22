@@ -1,0 +1,65 @@
+{
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": { "type": "string", "nullable": true },
+    "addon_id": { "type": "string", "nullable": true },
+    "name": { "type": "string", "nullable": true },
+    "version": { "type": "string", "nullable": true },
+    "description": { "type": "string", "nullable": true },
+    "author": {
+      "type": "object",
+      "nullable": true,
+      "additionalProperties": true,
+      "properties": {
+        "name": { "type": "string", "nullable": true },
+        "url": { "type": "string", "format": "uri", "nullable": true }
+      }
+    },
+    "license": { "type": "string", "nullable": true },
+    "entrypoints": { "type": "array", "nullable": true, "items": {} },
+    "permissions": {
+      "type": "array",
+      "nullable": true,
+      "items": { "type": "string" }
+    },
+    "compatibility": {
+      "type": "object",
+      "nullable": true,
+      "additionalProperties": true,
+      "properties": {
+        "elysia_min_version": { "type": "string", "nullable": true },
+        "elysia_max_version": { "type": "string", "nullable": true },
+        "addon_api_version": { "type": "string", "nullable": true }
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "nullable": true,
+      "additionalProperties": true,
+      "properties": {
+        "kind": { "type": "string", "nullable": true },
+        "requires_network": { "type": "boolean", "nullable": true },
+        "requires_filesystem": { "type": "boolean", "nullable": true }
+      }
+    },
+    "security": {
+      "type": "object",
+      "nullable": true,
+      "additionalProperties": true,
+      "properties": {
+        "sandbox_required": { "type": "boolean", "nullable": true },
+        "network_domains": {
+          "type": "array",
+          "nullable": true,
+          "items": { "type": "string" }
+        },
+        "file_access": {
+          "type": "array",
+          "nullable": true,
+          "items": { "type": "string" }
+        }
+      }
+    }
+  }
+}

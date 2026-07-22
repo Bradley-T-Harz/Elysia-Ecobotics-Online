@@ -56,6 +56,8 @@ const communityVotePolicyDoc = await read("docs/commune/community-voting-room-po
 const communityVoteBoundaryDoc = await read("docs/security/community-voting-room-boundary.md");
 const communityVoteContractDoc = await read("docs/api/community-vote-contract.md");
 const forgeValidator = await read("src/pages/The-Developer-Forge/developerForgeValidator.ts");
+const forgeValidatorGenerator = await read("scripts/generateDeveloperForgeManifestValidator.mjs");
+const forgeGeneratedValidator = await read("src/pages/The-Developer-Forge/developerForgeManifestValidator.generated.ts");
 const forgeTemplates = await read("src/pages/The-Developer-Forge/developerForgeTemplates.ts");
 const forgeApi = await read("src/pages/The-Developer-Forge/developerForgeApi.ts");
 const forgeWorkbench = await read("src/pages/The-Developer-Forge/ForgeWorkbench.tsx");
@@ -571,7 +573,9 @@ for (const blocked of ["vault_access", "credential_access", "private_memory_acce
 for (const scannerTerm of ["SUPABASE_SERVICE_ROLE", "AWS_ACCESS_KEY_ID", "reserved_name", "broad_filesystem_claim", "dangerousShellPattern"]) {
   assert(forgeValidator.includes(scannerTerm), `Developer Forge scanner coverage missing: ${scannerTerm}`);
 }
-assert(forgeValidator.includes("Ajv") && forgeValidator.includes("addFormats") && forgeValidator.includes("semver.valid"), "Developer Forge manifest validation should use Ajv, format checks, and semver validation.");
+assert(forgeValidatorGenerator.includes('from "ajv"') && forgeValidatorGenerator.includes('from "ajv-formats"') && forgeValidatorGenerator.includes("standaloneCode"), "Developer Forge manifest validation should be generated from AJV with format checks.");
+assert(forgeValidator.includes("generatedManifestShapeValidator") && forgeValidator.includes("semver.valid"), "Developer Forge should use its standalone manifest-shape validator and semantic version validation.");
+assert(!forgeGeneratedValidator.includes("new Function") && !forgeGeneratedValidator.includes("eval(") && !forgeGeneratedValidator.includes("require("), "Generated Developer Forge validation must remain CSP-safe and browser-native.");
 assert(forgeValidator.includes('"blocked"') && forgeValidator.includes('"needs_reviewer"'), "Developer Forge validation should classify blocked and reviewer-needed findings.");
 assert(forgeWorkbench.includes("@monaco-editor/react") && forgeWorkbench.includes("react-markdown") && forgeWorkbench.includes("remark-gfm") && forgeWorkbench.includes("rehype-sanitize"), "Developer Forge workbench should wire Monaco and sanitized Markdown preview.");
 assert(forgeWorkbench.includes("prettier/standalone") && forgeWorkbench.includes("cmdk") && forgeWorkbench.includes("ForgeCommandPalette"), "Developer Forge workbench should wire Prettier formatting and a safe command palette.");
