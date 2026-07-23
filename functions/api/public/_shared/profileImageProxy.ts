@@ -53,9 +53,12 @@ export async function handlePublicProfileImageProxy(
         accept: "image/webp,image/png,image/jpeg",
         "x-request-id": request.headers.get("x-request-id") ?? crypto.randomUUID()
       },
-      redirect: "error"
+      redirect: "manual"
     }));
   } catch {
+    return failure(502, "identity_service_unavailable");
+  }
+  if (upstream.status >= 300 && upstream.status < 400) {
     return failure(502, "identity_service_unavailable");
   }
 

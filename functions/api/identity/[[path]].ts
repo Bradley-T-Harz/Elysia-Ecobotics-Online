@@ -78,8 +78,9 @@ export async function handleIdentityProxy(request: Request, env: IdentityProxyEn
       method: request.method,
       headers,
       body,
-      redirect: "error"
+      redirect: "manual"
     }));
+    if (upstream.status >= 300 && upstream.status < 400) return unavailable();
     const returned = new Headers();
     upstream.headers.forEach((value, name) => {
       if (RETURNED_HEADERS.has(name.toLowerCase())) returned.set(name, value);
