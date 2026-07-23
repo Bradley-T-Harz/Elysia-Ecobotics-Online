@@ -94,7 +94,8 @@ const reviewedArtisanServiceRoleMigrations = new Set([
   "supabase/migrations/20260718010000_shared_identity_profile_governance.sql",
   "supabase/migrations/20260718020000_artisan_core_content_and_media.sql",
   "supabase/migrations/20260718030000_artisan_authorization_rpcs_and_storage.sql",
-  "supabase/migrations/20260722010000_public_commons_profile_legacy_compatibility.sql"
+  "supabase/migrations/20260722010000_public_commons_profile_legacy_compatibility.sql",
+  "supabase/migrations/20260723010000_public_commons_profile_cutover_marker_correction.sql"
 ]);
 
 function allowHit(file, line, checkName) {
@@ -292,7 +293,10 @@ const jobMigration = await fs.readFile("supabase/legacy-migrations/2026_06_26_jo
 const iterationMigration = await fs.readFile("supabase/legacy-migrations/2026_06_26_elysia_iteration_showcase_structured_metadata.sql", "utf8");
 const officialUpdateMigration = await fs.readFile("supabase/legacy-migrations/2026_06_26_official_update_structured_workflow.sql", "utf8");
 const badgeSecurityMigration = await fs.readFile("supabase/migrations/20260716010000_badge_security_and_semantics_hardening.sql", "utf8");
-const onlinePublicProfileMigration = await fs.readFile("supabase/migrations/20260722010000_public_commons_profile_legacy_compatibility.sql", "utf8");
+const onlinePublicProfileMigration = [
+  await fs.readFile("supabase/migrations/20260722010000_public_commons_profile_legacy_compatibility.sql", "utf8"),
+  await fs.readFile("supabase/migrations/20260723010000_public_commons_profile_cutover_marker_correction.sql", "utf8"),
+].join("\n");
 const commonsCircleApi = await fs.readFile("src/pages/The-Commons-Circle/commonsCircleApi.ts", "utf8");
 const communeAccountApi = await fs.readFile("src/pages/The-Elysia-Commune/communeAccountApi.ts", "utf8");
 const communePage = await fs.readFile("src/pages/The-Elysia-Commune/index.tsx", "utf8");

@@ -1,13 +1,21 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 
-const migration = await fs.readFile(
+const initialMigration = await fs.readFile(
   new URL(
     "../supabase/migrations/20260722010000_public_commons_profile_legacy_compatibility.sql",
     import.meta.url,
   ),
   "utf8",
 );
+const correctionMigration = await fs.readFile(
+  new URL(
+    "../supabase/migrations/20260723010000_public_commons_profile_cutover_marker_correction.sql",
+    import.meta.url,
+  ),
+  "utf8",
+);
+const migration = `${initialMigration}\n${correctionMigration}`;
 const api = await fs.readFile(
   new URL("../src/pages/The-Commons-Circle/commonsCircleApi.ts", import.meta.url),
   "utf8",
@@ -19,7 +27,6 @@ const database = await fs.readFile(
 
 for (const preservationBoundary of [
   "commons_onboarding_completed_at",
-  "2026-07-18 01:00:00+00",
   "private.profile_publication_events",
   "private.community_account_is_recoverable",
   "commons_profile_publication",
@@ -30,6 +37,16 @@ for (const preservationBoundary of [
     `Online legacy compatibility must retain ${preservationBoundary}.`,
   );
 }
+assert.match(
+  correctionMigration,
+  /profile\.commons_onboarding_completed_at is not null/,
+  "legacy Commons onboarding must remain the explicit Online publication choice.",
+);
+assert.doesNotMatch(
+  correctionMigration,
+  /2026-07-18 01:00:00|commons_onboarding_completed_at\s*</,
+  "migration ordering timestamps must not be treated as hosted cutover time.",
+);
 assert.match(
   migration,
   /participation\.participation_state not in \(\s*'restricted', 'suspended', 'blocked',\s*'deletion_pending', 'deactivated'/s,

@@ -55,6 +55,7 @@ const artisanPaths = [
 
 const onlineCompatibilityPaths = [
   "supabase/migrations/20260722010000_public_commons_profile_legacy_compatibility.sql",
+  "supabase/migrations/20260723010000_public_commons_profile_cutover_marker_correction.sql",
 ];
 
 const activePaths = [

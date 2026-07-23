@@ -23,7 +23,7 @@ values (
   'fa000000-0000-4000-8000-000000000001',
   'fixture-online-public',
   'Fixture Online Public',
-  'Synthetic pre-cutover Online Commons Profile.',
+  'Synthetic legacy Online Commons Profile.',
   'Fixture ecological systems builder',
   'Fixture Commons',
   'Ecological robotics',
@@ -31,7 +31,7 @@ values (
   'https://example.invalid/code',
   '[{"label":"Fixture work","url":"https://example.invalid/work","kind":"website","ignored":"must-not-leak"}]'::jsonb,
   true,
-  '2026-07-17 23:59:59+00'
+  '2026-07-21 12:00:00+00'
 );
 
 insert into private.account_participation(
@@ -83,7 +83,7 @@ begin
   if v_presentation #>> '{profile,handle}' <> 'fixture-online-public'
      or v_presentation #>> '{profile,displayName}' <> 'Fixture Online Public'
      or v_presentation #>> '{profile,shortPublicBio}'
-          <> 'Synthetic pre-cutover Online Commons Profile.'
+          <> 'Synthetic legacy Online Commons Profile.'
      or v_presentation #>> '{profile,headline}'
           <> 'Fixture ecological systems builder'
      or v_presentation #>> '{profile,organization}' <> 'Fixture Commons'
