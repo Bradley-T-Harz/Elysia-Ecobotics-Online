@@ -93,7 +93,8 @@ const reviewed20260716ServiceRoleMigrations = new Set([
 const reviewedArtisanServiceRoleMigrations = new Set([
   "supabase/migrations/20260718010000_shared_identity_profile_governance.sql",
   "supabase/migrations/20260718020000_artisan_core_content_and_media.sql",
-  "supabase/migrations/20260718030000_artisan_authorization_rpcs_and_storage.sql"
+  "supabase/migrations/20260718030000_artisan_authorization_rpcs_and_storage.sql",
+  "supabase/migrations/20260722010000_public_commons_profile_legacy_compatibility.sql"
 ]);
 
 function allowHit(file, line, checkName) {
@@ -163,6 +164,10 @@ function allowHit(file, line, checkName) {
       reviewedArtisanServiceRoleMigrations.has(normalized)
       && /\bservice_role\b|community_caller_is_service_role|(?:community|artisan)_[a-z0-9_]*service_role_required/i.test(line)
       && !/SUPABASE_SERVICE_ROLE_KEY\s*=|SERVICE_ROLE_KEY\s*=/.test(line)
+    ) return true;
+    if (
+      normalized === "scripts/publicCommonsProfileSmokeTest.mjs"
+      && /service_role|mediaFunction|grant execute|revoke all privileges/i.test(line)
     ) return true;
     if (normalized === "supabase/migrations/20260714010000_remote_public_schema_baseline.sql" && /(?:GRANT|ALTER DEFAULT PRIVILEGES).*\bservice_role\b/i.test(line)) return true;
     if ([
@@ -287,6 +292,7 @@ const jobMigration = await fs.readFile("supabase/legacy-migrations/2026_06_26_jo
 const iterationMigration = await fs.readFile("supabase/legacy-migrations/2026_06_26_elysia_iteration_showcase_structured_metadata.sql", "utf8");
 const officialUpdateMigration = await fs.readFile("supabase/legacy-migrations/2026_06_26_official_update_structured_workflow.sql", "utf8");
 const badgeSecurityMigration = await fs.readFile("supabase/migrations/20260716010000_badge_security_and_semantics_hardening.sql", "utf8");
+const onlinePublicProfileMigration = await fs.readFile("supabase/migrations/20260722010000_public_commons_profile_legacy_compatibility.sql", "utf8");
 const commonsCircleApi = await fs.readFile("src/pages/The-Commons-Circle/commonsCircleApi.ts", "utf8");
 const communeAccountApi = await fs.readFile("src/pages/The-Elysia-Commune/communeAccountApi.ts", "utf8");
 const communePage = await fs.readFile("src/pages/The-Elysia-Commune/index.tsx", "utf8");
@@ -401,10 +407,10 @@ const softDeleteCleanupSecurity = [
   ["Detail page suppresses deleted parent and navigates", /handlePostDeleted[\s\S]*navigate\("\/commune", \{ replace: true \}\)[\s\S]*locallyDeletedPostId === postId \? null : state\.posts\[0\][\s\S]*onDeleted=\{handlePostDeleted\}/i],
   ["Commons loaders have active parent filter", /isActivePublicCommunePost[\s\S]*loadActivePublicCommunePostMap[\s\S]*filterNotificationsByActiveCommunePost/i],
   ["Signal Console sidecars use visible filtered rows", /visibleMyCommunityVoteRows[\s\S]*visibleReviewCommunityVoteRows[\s\S]*officialPostById/i],
-  ["Public profile comments filtered by parent", /visiblePublicComments[\s\S]*activeCommentPostById/i]
+  ["Public profile comments filtered by parent", /'publicCommuneComments'[\s\S]*join public\.commune_posts as parent_post[\s\S]*parent_post\.status::text = 'published'[\s\S]*parent_post\.removed_at is null/i]
 ];
 const softDeleteFailures = softDeleteCleanupSecurity
-  .filter(([, pattern]) => !pattern.test(softDeleteCleanupMigration + "\n" + communityVoteSoftDeleteRepairMigration + "\n" + communityVoteDeleteFilterMigration + "\n" + communeAccountApi + "\n" + communePage + "\n" + commonsCircleApi))
+  .filter(([, pattern]) => !pattern.test(softDeleteCleanupMigration + "\n" + communityVoteSoftDeleteRepairMigration + "\n" + communityVoteDeleteFilterMigration + "\n" + onlinePublicProfileMigration + "\n" + communeAccountApi + "\n" + communePage + "\n" + commonsCircleApi))
   .map(([name]) => name);
 if (softDeleteFailures.length) {
   console.error(`Commune soft-delete cleanup security checks failed:\n${softDeleteFailures.join("\n")}`);

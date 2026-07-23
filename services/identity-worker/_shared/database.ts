@@ -15,11 +15,11 @@ export function loadPublicProfileCard(client: SupabaseClient, handle: string): P
 }
 
 export function loadPublicProfileAvatarAsset(client: SupabaseClient, mediaId: string): Promise<unknown> {
-  return rpc(client, "get_public_profile_avatar_asset", { p_media_id: mediaId });
+  return rpc(client, "get_online_public_profile_avatar_asset", { p_media_id: mediaId });
 }
 
 export function loadPublicProfileBannerAsset(client: SupabaseClient, mediaId: string): Promise<unknown> {
-  return rpc(client, "get_public_profile_banner_asset", { p_media_id: mediaId });
+  return rpc(client, "get_online_public_profile_banner_asset", { p_media_id: mediaId });
 }
 
 export function loadCurrentUserBootstrap(client: SupabaseClient): Promise<unknown> {

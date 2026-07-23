@@ -65,7 +65,7 @@ assert.match(turnstile, /VITE_TURNSTILE_SITE_KEY/, "Turnstile must use a public 
 assert.match(turnstile, /onTokenChange\(null\)/, "expired or failed Turnstile state must invalidate the token");
 
 const commonsApi = read("src/pages/The-Commons-Circle/commonsCircleApi.ts");
-assert.match(commonsApi, /rpc\("resolve_public_profile_handle"/, "retired public handles must use the bounded canonical-resolution RPC");
+assert.match(commonsApi, /rpc\("resolve_online_public_profile_handle"/, "retired Online handles must use the bounded Online canonical-resolution RPC");
 assert.match(commonsApi, /canonicalProfileUrl !== `https:\/\/elysiaecobotics\.com\/commons-circle\/@\$\{currentHandle\}`/, "handle resolution must reject noncanonical redirect destinations");
 const publicLoaderStart = commonsApi.indexOf("export async function loadPublicCommonsProfile");
 assert.ok(publicLoaderStart >= 0, "public Commons profile loader must exist");
@@ -73,7 +73,14 @@ const publicLoader = commonsApi.slice(publicLoaderStart);
 assert.match(publicLoader, /rpc\("get_public_commons_profile_presentation"/, "public profile identity and presentation must come from the bounded presentation RPC");
 assert.doesNotMatch(publicLoader, /from\("profiles"\)/, "public profile loading must not read the canonical private profile row");
 assert.doesNotMatch(publicLoader, /from\("profile_(?:visibility_settings|customization|media)"\)/, "public profile loading must not bypass the bounded presentation contract");
-assert.doesNotMatch(publicLoader, /select\([^)]*(?:is_admin|is_developer|featured_public_links)/, "public card loading must not request internal authority or legacy link fields");
+assert.doesNotMatch(publicLoader, /\.eq\("user_id"/, "public profile loading must not issue account-UUID-keyed follow-up queries");
+assert.doesNotMatch(publicLoader, /auth\.getUser\(\)/, "the bounded public presentation must compute owner state without exposing an account UUID");
+assert.doesNotMatch(publicLoader, /profile\.userId|profileRow\.id/, "the browser public-profile contract must not contain an account UUID");
+for (const decoderBoundary of [
+  "exactRecordKeys", "decodeFeaturedPublicLinks", "decodePublicBadgeAwards",
+  "decodePublicCollections", "decodePublicCommunePosts",
+  "decodePublicCommuneComments",
+]) assert.ok(commonsApi.includes(decoderBoundary), `public presentation decoder must enforce ${decoderBoundary}`);
 
 const publicProfilePage = read("src/pages/Public-Commons-Profile/index.tsx");
 assert.match(publicProfilePage, /\[a-z0-9\._-\]\{1,79\}/i, "public route parser must accept the canonical handle contract");

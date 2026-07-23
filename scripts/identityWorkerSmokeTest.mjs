@@ -87,6 +87,13 @@ const encodeTokenPart = (value) => Buffer.from(JSON.stringify(value)).toString("
 const accessToken = (payload) => `${encodeTokenPart({ alg: "HS256", typ: "JWT" })}.${encodeTokenPart(payload)}.${"s".repeat(48)}`;
 const identityWorkerSource = await fs.readFile(new URL("../services/identity-worker/worker.ts", import.meta.url), "utf8");
 const identityDatabaseSource = await fs.readFile(new URL("../services/identity-worker/_shared/database.ts", import.meta.url), "utf8");
+assert(
+  identityDatabaseSource.includes('"get_online_public_profile_avatar_asset"')
+    && identityDatabaseSource.includes('"get_online_public_profile_banner_asset"')
+    && !identityDatabaseSource.includes('"get_public_profile_avatar_asset"')
+    && !identityDatabaseSource.includes('"get_public_profile_banner_asset"'),
+  "Online public media delivery must use the Online visibility projection without broadening the shared card."
+);
 const localSupabaseConfig = await fs.readFile(new URL("../supabase/config.toml", import.meta.url), "utf8");
 const localTotpConfig = localSupabaseConfig.match(/\[auth\.mfa\.totp\]([\s\S]*?)(?=\n\[|$)/)?.[1] ?? "";
 const localPhoneMfaConfig = localSupabaseConfig.match(/\[auth\.mfa\.phone\]([\s\S]*?)(?=\n\[|$)/)?.[1] ?? "";

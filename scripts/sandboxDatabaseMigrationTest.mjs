@@ -53,7 +53,16 @@ const artisanPaths = [
   "supabase/migrations/20260718030000_artisan_authorization_rpcs_and_storage.sql",
 ];
 
-const activePaths = [...baselinePaths, ...economicPaths, ...artisanPaths];
+const onlineCompatibilityPaths = [
+  "supabase/migrations/20260722010000_public_commons_profile_legacy_compatibility.sql",
+];
+
+const activePaths = [
+  ...baselinePaths,
+  ...economicPaths,
+  ...artisanPaths,
+  ...onlineCompatibilityPaths,
+];
 
 const legacyHashes = new Map(Object.entries({
   "2026_06_02_profile_bootstrap_for_saved_addons.sql": "8750ff6eec1865b10543353131654843411b1ceea27bef19f3933671edf99364",
@@ -134,6 +143,9 @@ const [baseline, reactionMigration, repositoryMigration, sandboxMigration, schem
 
 const economicMigrations = await Promise.all(economicPaths.map((file) => fs.readFile(file, "utf8")));
 const artisanMigrations = await Promise.all(artisanPaths.map((file) => fs.readFile(file, "utf8")));
+const onlineCompatibilityMigrations = await Promise.all(
+  onlineCompatibilityPaths.map((file) => fs.readFile(file, "utf8"))
+);
 const routeKillSwitchMigration = economicMigrations.at(-1);
 assert(routeKillSwitchMigration, "Economic route kill-switch migration is missing.");
 const economicBehaviorFixture = await fs.readFile("scripts/fixtures/economicDatabaseBehavior.sql", "utf8");
@@ -151,6 +163,13 @@ for (const [index, migration] of artisanMigrations.entries()) {
   assert(!/postgres(?:ql)?:\/\//i.test(migration), `${artisanPaths[index]} contains a connection string.`);
   assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${artisanPaths[index]} contains a token-like value.`);
 }
+for (const [index, migration] of onlineCompatibilityMigrations.entries()) {
+  assert(migration.startsWith("--"), `${onlineCompatibilityPaths[index]} needs an explanatory header.`);
+  assert(/^begin;/im.test(migration), `${onlineCompatibilityPaths[index]} must start a transaction.`);
+  assert(/commit;\s*$/i.test(migration), `${onlineCompatibilityPaths[index]} must commit atomically.`);
+  assert(!/postgres(?:ql)?:\/\//i.test(migration), `${onlineCompatibilityPaths[index]} contains a connection string.`);
+  assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${onlineCompatibilityPaths[index]} contains a token-like value.`);
+}
 const artisanSource = artisanMigrations.join("\n");
 for (const marker of [
   "private.community_profile_is_public",
@@ -166,6 +185,22 @@ for (const marker of [
 ]) assert(artisanSource.includes(marker), `Artisan migration chain omits ${marker}.`);
 const artisanPlpgsqlFunctions = [...new Set(
   [...artisanSource.matchAll(/create or replace function\s+(public|private)\.([a-z0-9_]+)\s*\(/gi)]
+    .map((match) => `${match[1].toLowerCase()}.${match[2].toLowerCase()}`),
+)];
+const onlineCompatibilitySource = onlineCompatibilityMigrations.join("\n");
+for (const marker of [
+  "private.community_legacy_online_profile_is_public",
+  "private.community_safe_online_public_profile_cards",
+  "public.get_public_commons_profile_presentation",
+  "public.resolve_online_public_profile_handle",
+  "public.get_online_public_profile_avatar_asset",
+  "public.get_online_public_profile_banner_asset",
+]) assert(
+  onlineCompatibilitySource.includes(marker),
+  `Online profile compatibility migration omits ${marker}.`
+);
+const onlineCompatibilityPlpgsqlFunctions = [...new Set(
+  [...onlineCompatibilitySource.matchAll(/create or replace function\s+(public|private)\.([a-z0-9_]+)\s*\(/gi)]
     .map((match) => `${match[1].toLowerCase()}.${match[2].toLowerCase()}`),
 )];
 const economicSource = economicMigrations.join("\n");
@@ -451,6 +486,7 @@ try {
     "scripts/fixtures/sandboxDatabaseBehavior.sql",
     "scripts/fixtures/economicDatabaseBehavior.sql",
     "scripts/fixtures/artisanDatabaseBehavior.sql",
+    "scripts/fixtures/onlinePublicProfileBehavior.sql",
   ]) {
     await run(containerRuntime, ["cp", file, `${container}:/tmp/${path.basename(file)}`]);
   }
@@ -563,8 +599,16 @@ try {
   for (const file of artisanPaths) {
     await psql(["-f", `/tmp/${path.basename(file)}`]);
   }
+  for (const file of onlineCompatibilityPaths) {
+    await psql(["-f", `/tmp/${path.basename(file)}`]);
+  }
   const artisanBehavior = await psql(["-f", "/tmp/artisanDatabaseBehavior.sql"]);
   assert(artisanBehavior.stdout.includes("Artisan database behavior checks ok."), "Artisan database behavior marker missing.");
+  const onlineProfileBehavior = await psql(["-f", "/tmp/onlinePublicProfileBehavior.sql"]);
+  assert(
+    onlineProfileBehavior.stdout.includes("Online public profile compatibility behavior checks ok."),
+    "Online public profile compatibility behavior marker missing."
+  );
 
   const catalogIntegrity = await psql(["-tAc", `
     select
@@ -584,7 +628,11 @@ try {
   const plpgsqlCheckAvailable = await psql(["-tAc", "select exists (select 1 from pg_catalog.pg_available_extensions where name = 'plpgsql_check');"]);
   if (plpgsqlCheckAvailable.stdout.trim() === "t") {
     await psql(["-c", "create extension if not exists plpgsql_check;"]);
-    const governedPlpgsqlFunctions = [...new Set([...economicPlpgsqlFunctions, ...artisanPlpgsqlFunctions])];
+    const governedPlpgsqlFunctions = [...new Set([
+      ...economicPlpgsqlFunctions,
+      ...artisanPlpgsqlFunctions,
+      ...onlineCompatibilityPlpgsqlFunctions,
+    ])];
     const lintTargets = governedPlpgsqlFunctions.map((name) => `'${name}'`).join(", ");
     const lintErrors = await psql(["-tAc", `
       select count(*)
@@ -618,7 +666,7 @@ try {
   } else {
     console.log("plpgsql_check is not available in the disposable Supabase Postgres image; catalog integrity checks still passed.");
   }
-  console.log("Sandbox, economic, and Artisan database disposable migration and behavior checks ok.");
+  console.log("Sandbox, economic, Artisan, and Online profile database disposable migration and behavior checks ok.");
 } finally {
   if (started) await run(containerRuntime, ["rm", "-f", container], { allowFailure: true });
 }

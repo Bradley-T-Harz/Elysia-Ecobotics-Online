@@ -218,7 +218,6 @@ export type BadgeDefinition = { badge_key: string; name: string; description: st
 // Ordinary/self and public reads below deliberately request only presentation-safe columns.
 export type BadgeAwardRow = { badge_key: string; awarded_at?: string | null; award_reason?: string | null; award_source?: string | null; evidence_type?: string | null; evidence_id?: string | null; visibility?: "public" | "private" | null; revoked_at?: string | null };
 const selfBadgeAwardColumns = "badge_key, awarded_at, award_source, visibility, revoked_at";
-const publicBadgeAwardColumns = "badge_key, awarded_at, award_source, visibility";
 export type UserBadge = BadgeDefinition & BadgeAwardRow & { visibility?: "public" | "private" | null; earned: true };
 export type PublicCommunePostPreview = { id: string; title: string; post_type?: string | null; excerpt?: string | null; published_at?: string | null; created_at?: string | null };
 export type PublicCommuneCommentPreview = { id: string; post_id: string; parent_comment_id?: string | null; body: string; published_at?: string | null; created_at?: string | null };
@@ -316,15 +315,26 @@ export type PublicCommonsProfile = {
 
 type PublicProfilePresentation = {
   profile: {
-    userId: string;
     handle: string;
     displayName: string | null;
     avatarUrl: string | null;
     shortPublicBio: string | null;
+    headline: string | null;
+    organization: string | null;
+    interests: string | null;
+    websiteUrl: string | null;
+    githubUrl: string | null;
+    isDeveloper: boolean;
     canonicalProfileUrl: string;
   };
   visibility: VisibilitySettings;
   customization: ProfileCustomization;
+  publicBadges: BadgeAwardRow[];
+  publicLinks: FeaturedPublicLink[];
+  publicCollections: SourceCollectionPreview[];
+  publicCommunePosts: PublicCommunePostPreview[];
+  publicCommuneComments: PublicCommuneCommentPreview[];
+  isOwner: boolean;
 };
 
 export type PublicProfileHandleResolution = {
@@ -348,30 +358,194 @@ function optionalBoundedText(value: unknown, maximumLength: number): string | nu
   return typeof value === "string" && value.length <= maximumLength ? value : undefined;
 }
 
+function exactRecordKeys(record: Record<string, unknown>, expected: readonly string[]) {
+  const keys = Object.keys(record);
+  return keys.length === expected.length && expected.every((key) => key in record);
+}
+
+function safePublicTimestamp(value: unknown): string | null | undefined {
+  if (value === null) return null;
+  return typeof value === "string" && !Number.isNaN(Date.parse(value)) ? value : undefined;
+}
+
+function decodePublicBadgeAwards(value: unknown): BadgeAwardRow[] | null {
+  if (!Array.isArray(value) || value.length > 100) return null;
+  const decoded: BadgeAwardRow[] = [];
+  for (const item of value) {
+    const row = plainRecord(item);
+    if (!row || !exactRecordKeys(row, ["badgeKey", "awardedAt", "awardSource", "visibility"])) return null;
+    const awardedAt = safePublicTimestamp(row.awardedAt);
+    const awardSource = optionalBoundedText(row.awardSource, 120);
+    if (
+      typeof row.badgeKey !== "string" || !/^[a-z][a-z0-9_]{1,79}$/.test(row.badgeKey)
+      || awardedAt === undefined || awardSource === undefined
+      || row.visibility !== "public"
+    ) return null;
+    decoded.push({
+      badge_key: row.badgeKey,
+      awarded_at: awardedAt,
+      award_source: awardSource,
+      visibility: "public"
+    });
+  }
+  return decoded;
+}
+
+function decodeFeaturedPublicLinks(value: unknown): FeaturedPublicLink[] | null {
+  if (!Array.isArray(value) || value.length > 8) return null;
+  const decoded: FeaturedPublicLink[] = [];
+  for (const item of value) {
+    const row = plainRecord(item);
+    if (!row || !exactRecordKeys(row, ["label", "url", "kind"])) return null;
+    const kind = optionalBoundedText(row.kind, 32);
+    if (
+      typeof row.label !== "string" || row.label.length < 1
+      || row.label.length > 80
+      || typeof row.url !== "string" || row.url.length > 2048
+      || !/^https?:\/\/[^\s<>"']+$/i.test(row.url)
+      || kind === undefined
+    ) return null;
+    decoded.push({ label: row.label, url: row.url, kind: kind ?? undefined });
+  }
+  return decoded;
+}
+
+function decodePublicCollections(value: unknown): SourceCollectionPreview[] | null {
+  if (!Array.isArray(value) || value.length > 12) return null;
+  const decoded: SourceCollectionPreview[] = [];
+  for (const item of value) {
+    const row = plainRecord(item);
+    if (!row || !exactRecordKeys(row, ["collectionId", "title", "description", "visibility", "sourceCount", "createdAt"])) return null;
+    const description = optionalBoundedText(row.description, 4_000);
+    const createdAt = safePublicTimestamp(row.createdAt);
+    if (
+      typeof row.collectionId !== "string" || !UUID_PATTERN.test(row.collectionId)
+      || typeof row.title !== "string" || row.title.length < 1 || row.title.length > 240
+      || description === undefined || row.visibility !== "public"
+      || typeof row.sourceCount !== "number" || !Number.isSafeInteger(row.sourceCount)
+      || row.sourceCount < 0 || row.sourceCount > 100_000
+      || createdAt === undefined
+    ) return null;
+    decoded.push({
+      id: row.collectionId,
+      title: row.title,
+      description,
+      visibility: "public",
+      source_count: row.sourceCount,
+      created_at: createdAt
+    });
+  }
+  return decoded;
+}
+
+function decodePublicCommunePosts(value: unknown): PublicCommunePostPreview[] | null {
+  if (!Array.isArray(value) || value.length > 6) return null;
+  const decoded: PublicCommunePostPreview[] = [];
+  for (const item of value) {
+    const row = plainRecord(item);
+    if (!row || !exactRecordKeys(row, ["postId", "title", "postType", "excerpt", "publishedAt", "createdAt"])) return null;
+    const postType = optionalBoundedText(row.postType, 80);
+    const excerpt = optionalBoundedText(row.excerpt, 2_000);
+    const publishedAt = safePublicTimestamp(row.publishedAt);
+    const createdAt = safePublicTimestamp(row.createdAt);
+    if (
+      typeof row.postId !== "string" || !UUID_PATTERN.test(row.postId)
+      || typeof row.title !== "string" || row.title.length < 1 || row.title.length > 300
+      || postType === undefined || excerpt === undefined
+      || publishedAt === undefined || createdAt === undefined
+    ) return null;
+    decoded.push({
+      id: row.postId,
+      title: row.title,
+      post_type: postType,
+      excerpt,
+      published_at: publishedAt,
+      created_at: createdAt
+    });
+  }
+  return decoded;
+}
+
+function decodePublicCommuneComments(value: unknown): PublicCommuneCommentPreview[] | null {
+  if (!Array.isArray(value) || value.length > 6) return null;
+  const decoded: PublicCommuneCommentPreview[] = [];
+  for (const item of value) {
+    const row = plainRecord(item);
+    if (!row || !exactRecordKeys(row, ["commentId", "postId", "parentCommentId", "body", "publishedAt", "createdAt"])) return null;
+    const parentCommentId = optionalBoundedText(row.parentCommentId, 36);
+    const publishedAt = safePublicTimestamp(row.publishedAt);
+    const createdAt = safePublicTimestamp(row.createdAt);
+    if (
+      typeof row.commentId !== "string" || !UUID_PATTERN.test(row.commentId)
+      || typeof row.postId !== "string" || !UUID_PATTERN.test(row.postId)
+      || parentCommentId === undefined
+      || (parentCommentId !== null && !UUID_PATTERN.test(parentCommentId))
+      || typeof row.body !== "string" || row.body.length < 1 || row.body.length > 50_000
+      || publishedAt === undefined || createdAt === undefined
+    ) return null;
+    decoded.push({
+      id: row.commentId,
+      post_id: row.postId,
+      parent_comment_id: parentCommentId,
+      body: row.body,
+      published_at: publishedAt,
+      created_at: createdAt
+    });
+  }
+  return decoded;
+}
+
 function decodePublicProfilePresentation(value: unknown): PublicProfilePresentation | null {
   const root = plainRecord(Array.isArray(value) ? value[0] : value);
-  if (!root || Object.keys(root).length === 0) return null;
+  if (
+    !root || Object.keys(root).length === 0
+    || !exactRecordKeys(root, [
+      "profile", "visibility", "customization", "media", "isOwner",
+      "publicBadges", "publicLinks", "publicSourceCollections", "publicCommunePosts",
+      "publicCommuneComments"
+    ])
+  ) return null;
   const profile = plainRecord(root.profile);
   const visibility = plainRecord(root.visibility);
   const customization = plainRecord(root.customization);
   const media = plainRecord(root.media);
-  if (!profile || !visibility || !customization || !media) return null;
+  if (
+    !profile || !visibility || !customization || !media
+    || !exactRecordKeys(profile, [
+      "handle", "displayName", "avatarUrl", "shortPublicBio",
+      "headline", "organization", "interests", "websiteUrl", "githubUrl",
+      "isDeveloper",
+      "canonicalProfileUrl", "updatedAt"
+    ])
+    || !exactRecordKeys(media, [
+      "avatarMediaId", "avatarUrl", "bannerMediaId", "bannerUrl"
+    ])
+  ) return null;
 
-  const userId = profile.userId;
   const handle = profile.handle;
   const displayName = optionalBoundedText(profile.displayName, 120);
   const shortPublicBio = optionalBoundedText(profile.shortPublicBio, 280);
+  const headline = optionalBoundedText(profile.headline, 240);
+  const organization = optionalBoundedText(profile.organization, 240);
+  const interests = optionalBoundedText(profile.interests, 2_000);
+  const websiteUrl = optionalBoundedText(profile.websiteUrl, 2_048);
+  const githubUrl = optionalBoundedText(profile.githubUrl, 2_048);
   const avatarUrl = optionalBoundedText(profile.avatarUrl, 100);
   const bannerUrl = optionalBoundedText(media.bannerUrl, 100);
   const avatarMediaId = optionalBoundedText(media.avatarMediaId, 36);
   const bannerMediaId = optionalBoundedText(media.bannerMediaId, 36);
   if (
-    typeof userId !== "string" || !UUID_PATTERN.test(userId)
-    || typeof handle !== "string" || !PUBLIC_HANDLE_PATTERN.test(handle)
+    typeof handle !== "string" || !PUBLIC_HANDLE_PATTERN.test(handle)
     || displayName === undefined || shortPublicBio === undefined
+    || headline === undefined || organization === undefined
+    || interests === undefined || websiteUrl === undefined
+    || githubUrl === undefined || typeof profile.isDeveloper !== "boolean"
+    || (websiteUrl !== null && !/^https?:\/\/[^\s<>"']+$/i.test(websiteUrl))
+    || (githubUrl !== null && !/^https?:\/\/[^\s<>"']+$/i.test(githubUrl))
     || avatarUrl === undefined || bannerUrl === undefined
     || avatarMediaId === undefined || bannerMediaId === undefined
     || profile.canonicalProfileUrl !== `https://elysiaecobotics.com/commons-circle/@${handle}`
+    || safePublicTimestamp(profile.updatedAt) === undefined
     || (avatarMediaId !== null && !UUID_PATTERN.test(avatarMediaId))
     || (bannerMediaId !== null && !UUID_PATTERN.test(bannerMediaId))
     || (avatarUrl !== null && avatarUrl !== `/api/public/profile-avatars/${avatarMediaId}`)
@@ -393,10 +567,15 @@ function decodePublicProfilePresentation(value: unknown): PublicProfilePresentat
     if (typeof visibility[source] !== "boolean") return null;
     decodedVisibility[target] = visibility[source] as boolean;
   }
+  if (!exactRecordKeys(visibility, visibilityMap.map(([, source]) => source))) return null;
 
   const accentColor = customization.accentColor;
   if (
-    typeof customization.themeMode !== "string"
+    !exactRecordKeys(customization, [
+      "themeMode", "accentColor", "backgroundStyle", "decalSet",
+      "profileLayout", "bannerZoom", "bannerPositionX", "bannerPositionY"
+    ])
+    || typeof customization.themeMode !== "string"
     || typeof accentColor !== "string" || !/^#[0-9a-f]{6}$/i.test(accentColor)
     || typeof customization.backgroundStyle !== "string"
     || typeof customization.decalSet !== "string"
@@ -406,8 +585,24 @@ function decodePublicProfilePresentation(value: unknown): PublicProfilePresentat
     || typeof customization.bannerPositionY !== "number"
   ) return null;
 
+  const publicBadges = decodePublicBadgeAwards(root.publicBadges);
+  const publicLinks = decodeFeaturedPublicLinks(root.publicLinks);
+  const publicCollections = decodePublicCollections(root.publicSourceCollections);
+  const publicCommunePosts = decodePublicCommunePosts(root.publicCommunePosts);
+  const publicCommuneComments = decodePublicCommuneComments(root.publicCommuneComments);
+  if (
+    typeof root.isOwner !== "boolean"
+    || !publicBadges || !publicLinks || !publicCollections
+    || !publicCommunePosts || !publicCommuneComments
+  ) return null;
+
   return {
-    profile: { userId, handle, displayName, avatarUrl, shortPublicBio, canonicalProfileUrl: profile.canonicalProfileUrl as string },
+    profile: {
+      handle, displayName, avatarUrl, shortPublicBio,
+      headline, organization, interests, websiteUrl, githubUrl,
+      isDeveloper: profile.isDeveloper,
+      canonicalProfileUrl: profile.canonicalProfileUrl as string
+    },
     visibility: decodedVisibility,
     customization: normalizeProfileCustomization({
       theme_mode: customization.themeMode as CommonsThemeModeKey,
@@ -423,7 +618,13 @@ function decodePublicProfilePresentation(value: unknown): PublicProfilePresentat
       avatar_media_id: avatarMediaId,
       banner_media_id: bannerMediaId,
       selected_decals: []
-    })
+    }),
+    publicBadges,
+    publicLinks,
+    publicCollections,
+    publicCommunePosts,
+    publicCommuneComments,
+    isOwner: root.isOwner
   };
 }
 
@@ -1469,7 +1670,7 @@ export async function resolvePublicCommonsProfileHandle(
   if (!hasSupabaseConfig || !supabase) return null;
   const cleanUsername = username.replace(/^@/, "").trim().toLowerCase();
   if (!PUBLIC_HANDLE_PATTERN.test(cleanUsername)) return null;
-  const { data, error } = await supabase.rpc("resolve_public_profile_handle", { p_handle: cleanUsername });
+  const { data, error } = await supabase.rpc("resolve_online_public_profile_handle", { p_handle: cleanUsername });
   return error ? null : decodePublicProfileHandleResolution(data);
 }
 
@@ -1487,52 +1688,45 @@ export async function loadPublicCommonsProfile(username: string): Promise<{ data
       : { data: null, warnings: ["Commons Profile: The public presentation contract returned an invalid record, so the profile was hidden safely."] };
   }
   const profileRow: ProfileWithSetup = {
-    id: presentation.profile.userId,
     username: presentation.profile.handle,
     display_name: presentation.profile.displayName ?? `@${presentation.profile.handle}`,
     bio: presentation.profile.shortPublicBio ?? "",
-    interests: null,
-    website_url: null,
-    github_url: null,
+    interests: presentation.profile.interests,
+    website_url: presentation.profile.websiteUrl,
+    github_url: presentation.profile.githubUrl,
     avatar_url: presentation.profile.avatarUrl,
-    organization: null,
-    headline: null,
-    featured_public_links: [],
-    is_developer: false,
+    organization: presentation.profile.organization,
+    headline: presentation.profile.headline,
+    featured_public_links: presentation.publicLinks,
+    is_developer: presentation.profile.isDeveloper,
     is_admin: false,
     saved_addon_ids: [],
     commons_onboarding_completed_at: null,
   };
-  const [definitions, awarded, collections, publicPosts, publicComments] = await Promise.all([
-    safeQuery<BadgeDefinition[]>(warnings, "Public badges", supabase.from("badge_definitions").select("badge_key, name, description, badge_type, icon_path, category, rarity, sort_order, authority_linked, award_mode, rule_summary, is_manual_only, is_active").eq("is_active", true).order("sort_order", { ascending: true }), plannedBadges),
-    safeQuery<BadgeAwardRow[]>(warnings, "Public user badges", supabase.from("visible_user_badges").select(publicBadgeAwardColumns).eq("user_id", profileRow.id), []),
-    safeQuery<Array<{ id: string; title: string; description?: string | null; visibility: string; created_at?: string | null }>>(warnings, "Public collections", supabase.from("user_source_collections").select("id, title, description, visibility, created_at").eq("user_id", profileRow.id).eq("visibility", "public").limit(12), []),
-    safeQuery<Array<PublicCommunePostPreview & ActivePublicCommunePost>>(warnings, "Public Commune posts", supabase.from("commune_posts").select("id, title, post_type, excerpt, status, visibility, visibility_state, hidden_at, removed_at, archived_at, published_at, created_at").eq("user_id", profileRow.id).eq("status", "published").eq("visibility", "public").order("published_at", { ascending: false }).limit(6), []),
-    safeQuery<PublicCommuneCommentPreview[]>(warnings, "Public Commune comments", supabase.from("commune_comments").select("id, post_id, parent_comment_id, body, published_at, created_at").eq("user_id", profileRow.id).eq("status", "published").eq("visibility_state", "published").order("published_at", { ascending: false }).limit(6), [])
-  ]);
-  const visiblePublicPosts = publicPosts.filter(isActivePublicCommunePost).map((post) => ({
-    id: post.id,
-    title: post.title,
-    post_type: post.post_type,
-    excerpt: post.excerpt,
-    published_at: post.published_at,
-    created_at: post.created_at
-  }));
-  const activeCommentPostById = await loadActivePublicCommunePostMap(publicComments.map((comment) => comment.post_id), warnings);
-  const visiblePublicComments = publicComments.filter((comment) => activeCommentPostById.has(comment.post_id));
-  const { data: auth } = await supabase.auth.getUser();
+  const definitions = await safeQuery<BadgeDefinition[]>(
+    warnings,
+    "Public badges",
+    supabase.from("badge_definitions")
+      .select("badge_key, name, description, badge_type, icon_path, category, rarity, sort_order, authority_linked, award_mode, rule_summary, is_manual_only, is_active")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true }),
+    plannedBadges
+  );
   const visibility = presentation.visibility;
   return {
     data: {
       profile: profileRow,
       visibility,
       customization: presentation.customization,
-      badges: visibility.show_badges ? mergeBadges(definitions.length ? definitions : plannedBadges, awarded).filter((badge) => badge.visibility === "public") : [],
-      publicCollections: visibility.show_source_collections ? collections.map((collection) => ({ ...collection, source_count: 0 })) : [],
-      publicLinks: [],
-      publicCommunePosts: visibility.show_commune_posts ? visiblePublicPosts : [],
-      publicCommuneComments: visibility.show_commune_posts ? visiblePublicComments : [],
-      isOwner: auth.user?.id === profileRow.id
+      badges: visibility.show_badges ? mergeBadges(
+        definitions.length ? definitions : plannedBadges,
+        presentation.publicBadges
+      ).filter((badge) => badge.visibility === "public") : [],
+      publicCollections: visibility.show_source_collections ? presentation.publicCollections : [],
+      publicLinks: presentation.publicLinks,
+      publicCommunePosts: visibility.show_commune_posts ? presentation.publicCommunePosts : [],
+      publicCommuneComments: visibility.show_commune_posts ? presentation.publicCommuneComments : [],
+      isOwner: presentation.isOwner
     },
     warnings
   };
