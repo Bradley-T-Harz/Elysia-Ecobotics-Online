@@ -778,4 +778,47 @@ assert((await handlePublicAvatarProxy(new Request(`${initialArtisanOrigin}/api/p
 assert((await handlePublicBannerProxy(new Request(`${initialArtisanOrigin}/api/public/profile-banners/not-a-uuid`), {}, "not-a-uuid")).status === 404, "Banner proxy accepted an invalid media identifier.");
 assert((await handlePublicBannerProxy(new Request(`${initialArtisanOrigin}/api/public/profile-banners/${validMediaId}`), {}, validMediaId)).status === 503, "Banner proxy did not fail closed without its private service binding.");
 
+const serviceTargets = [];
+const identityService = {
+  fetch: async (request) => {
+    serviceTargets.push(request.url);
+    if (new URL(request.url).pathname.startsWith("/v1/public-profile-")) {
+      return new Response(new Uint8Array([137, 80, 78, 71]), {
+        status: 200,
+        headers: { "content-type": "image/png" },
+      });
+    }
+    return Response.json({ ok: true, data: { enabled: true } });
+  },
+};
+assert(
+  (await handleIdentityProxy(
+    new Request(`${onlineOrigin}/api/identity/v1/health`),
+    { IDENTITY_SERVICE: identityService },
+  )).status === 200,
+  "Identity proxy rejected its private service binding.",
+);
+assert(
+  (await handlePublicAvatarProxy(
+    new Request(`${onlineOrigin}/api/public/profile-avatars/${validMediaId}`),
+    { IDENTITY_SERVICE: identityService },
+    validMediaId,
+  )).status === 200,
+  "Avatar proxy rejected its private service binding.",
+);
+assert(
+  (await handlePublicBannerProxy(
+    new Request(`${onlineOrigin}/api/public/profile-banners/${validMediaId}`),
+    { IDENTITY_SERVICE: identityService },
+    validMediaId,
+  )).status === 200,
+  "Banner proxy rejected its private service binding.",
+);
+assert(
+  serviceTargets[0] === "https://identity-service.internal/api/identity/v1/health"
+    && serviceTargets[1] === `https://identity-service.internal/v1/public-profile-avatars/${validMediaId}`
+    && serviceTargets[2] === `https://identity-service.internal/v1/public-profile-banners/${validMediaId}`,
+  "Online identity proxies must target the private service origin instead of a public Pages host.",
+);
+
 console.log("Identity Worker smoke test passed: exact origins, fail-closed youth/providers, Turnstile, private bindings, safe profile images, and response hardening verified.");

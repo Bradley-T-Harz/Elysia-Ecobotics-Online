@@ -41,9 +41,10 @@ export async function handlePublicProfileImageProxy(
   if (!UUID.test(mediaId)) return failure(404, missingCode);
   if (!env.IDENTITY_SERVICE) return failure(503, "identity_service_unavailable");
 
-  const url = new URL(request.url);
-  url.pathname = `/v1/public-profile-${kind === "avatar" ? "avatars" : "banners"}/${mediaId.toLowerCase()}`;
-  url.search = "";
+  const url = new URL(
+    `/v1/public-profile-${kind === "avatar" ? "avatars" : "banners"}/${mediaId.toLowerCase()}`,
+    "https://identity-service.internal"
+  );
   let upstream: Response;
   try {
     upstream = await env.IDENTITY_SERVICE.fetch(new Request(url, {
@@ -67,4 +68,3 @@ export async function handlePublicProfileImageProxy(
   headers.set("x-content-type-options", "nosniff");
   return new Response(upstream.body, { status: upstream.status, headers });
 }
-

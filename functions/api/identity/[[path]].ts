@@ -71,7 +71,10 @@ export async function handleIdentityProxy(request: Request, env: IdentityProxyEn
   });
   headers.delete("cookie");
   try {
-    const upstream = await env.IDENTITY_SERVICE.fetch(new Request(request.url, {
+    const upstreamUrl = new URL(request.url);
+    upstreamUrl.protocol = "https:";
+    upstreamUrl.host = "identity-service.internal";
+    const upstream = await env.IDENTITY_SERVICE.fetch(new Request(upstreamUrl, {
       method: request.method,
       headers,
       body,
