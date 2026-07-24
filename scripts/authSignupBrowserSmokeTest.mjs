@@ -98,16 +98,36 @@ const fixtureSession = {
   user: fixtureUser,
 };
 
-async function runCase(mode, viewport = { width: 1280, height: 900 }) {
+const routeCases = [
+  {
+    path: "/commons-circle",
+    redirectPath: "/commons-circle",
+    canVerifySignedOutProfileGate: false,
+  },
+  {
+    path: "/commons-circle/setup/profile",
+    redirectPath: "/commons-circle/setup/profile",
+    canVerifySignedOutProfileGate: true,
+  },
+];
+
+async function runCase(routeCase, mode, viewport = { width: 1280, height: 900 }) {
   const context = await browser.newContext({ viewport });
   const page = await context.newPage();
   const signupRequests = [];
   const signInRequests = [];
+  const ageAssuranceRequests = [];
   const pageErrors = [];
   const consoleErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
+  });
+  page.on("request", (request) => {
+    const pathname = new URL(request.url()).pathname;
+    if (/\/(?:age-assurance|guardian-relationship|guardian-consent|guardian-sponsored-account)(?:\/|$)/.test(pathname)) {
+      ageAssuranceRequests.push(pathname);
+    }
   });
 
   await context.route(/^https:\/\/[^/]+\.supabase\.co\//, async (route) => {
@@ -173,7 +193,7 @@ async function runCase(mode, viewport = { width: 1280, height: 900 }) {
     await route.fulfill({ status: 404, headers: corsHeaders, body: '{"message":"unexpected fixture request"}' });
   });
 
-  const response = await page.goto(`${origin}/commons-circle/setup/profile`, {
+  const response = await page.goto(`${origin}${routeCase.path}`, {
     waitUntil: "networkidle",
     timeout: 45_000,
   });
@@ -192,9 +212,24 @@ async function runCase(mode, viewport = { width: 1280, height: 900 }) {
     const email = page.getByLabel("Email");
     const password = page.getByLabel("Create password");
     const submit = page.locator("form.auth-form button[type='submit']");
+    const modeSwitch = page.getByRole("button", { name: "Use existing account" });
     await email.fill(`  ${fixtureEmail}  `);
     await password.fill(fixturePassword);
     assert.equal(await submit.isEnabled(), true);
+    const clickedElement = await submit.evaluate((button) => {
+      const rect = button.getBoundingClientRect();
+      const target = document.elementFromPoint(
+        rect.left + (rect.width / 2),
+        rect.top + (rect.height / 2),
+      );
+      return target === button || Boolean(target && button.contains(target));
+    });
+    assert.equal(clickedElement, true, `${routeCase.path} must deliver the click to its visible signup button`);
+    assert.notDeepEqual(
+      await submit.boundingBox(),
+      await modeSwitch.boundingBox(),
+      `${routeCase.path} signup and auth-mode controls must remain distinct`,
+    );
     await submit.click();
 
     if (mode === "error") {
@@ -204,10 +239,12 @@ async function runCase(mode, viewport = { width: 1280, height: 900 }) {
       await page.getByText("The password does not meet the current Website Account requirements. Use a longer, unique password.").first().waitFor();
       assert.equal(await password.inputValue(), fixturePassword, "signup error must preserve password");
       assert.equal(signupRequests.length, 1, "pending signup must block duplicate submission");
-      await page.getByLabel("Username").fill("fixture-member");
-      await page.getByRole("button", { name: "4. Final confirmation" }).click();
-      await page.getByRole("button", { name: "Create Commons Profile", exact: true }).click();
-      await page.getByText("Sign in to a Website Account before creating your Commons Profile.", { exact: true }).first().waitFor();
+      if (routeCase.canVerifySignedOutProfileGate) {
+        await page.getByLabel("Username").fill("fixture-member");
+        await page.getByRole("button", { name: "4. Final confirmation" }).click();
+        await page.getByRole("button", { name: "Create Commons Profile", exact: true }).click();
+        await page.getByText("Sign in to a Website Account before creating your Commons Profile.", { exact: true }).first().waitFor();
+      }
     } else if (mode === "confirmation") {
       await page.getByText("Account created. Check your email to confirm it.", { exact: true }).first().waitFor();
       assert.equal(await password.inputValue(), "", "confirmation success must clear password");
@@ -221,12 +258,13 @@ async function runCase(mode, viewport = { width: 1280, height: 900 }) {
     assert.equal(signupRequests[0].body.password, fixturePassword, "signup must use the captured current password");
     assert.equal(
       signupRequests[0].redirectTo,
-      `${origin}/commons-circle/setup/profile`,
-      "signup must preserve the Commons Profile confirmation handoff",
+      `${origin}${routeCase.redirectPath}`,
+      `${routeCase.path} signup must preserve its intended Commons confirmation handoff`,
     );
     assert.equal(signInRequests.length, 0);
   }
 
+  assert.deepEqual(ageAssuranceRequests, [], `${routeCase.path} base signup must not invoke age-assurance or guardian enrollment`);
   assert.deepEqual(pageErrors, [], "signup browser case must not throw");
   const unexpectedConsoleErrors = consoleErrors.filter(
     (message) => !(mode === "error" && /Failed to load resource:.*status of 400/.test(message)),
@@ -238,9 +276,13 @@ async function runCase(mode, viewport = { width: 1280, height: 900 }) {
 }
 
 try {
-  for (const mode of ["error", "confirmation", "session", "sign_in"]) await runCase(mode);
-  await runCase("error", { width: 390, height: 844 });
-  console.log("Website Account signup browser regression passed for desktop/mobile error, confirmation, session, duplicate, signed-out profile gate, and existing-account sign-in states.");
+  for (const routeCase of routeCases) {
+    for (const mode of ["error", "confirmation", "session", "sign_in"]) {
+      await runCase(routeCase, mode);
+    }
+    await runCase(routeCase, "error", { width: 390, height: 844 });
+  }
+  console.log("Website Account signup browser regression passed on /commons-circle and /commons-circle/setup/profile for desktop/mobile error, confirmation, session, duplicate, age-assurance non-invocation, signed-out profile gate, and existing-account sign-in states.");
 } finally {
   await browser.close();
   await new Promise((resolve, reject) =>
