@@ -56,6 +56,7 @@ const artisanPaths = [
 const onlineCompatibilityPaths = [
   "supabase/migrations/20260722010000_public_commons_profile_legacy_compatibility.sql",
   "supabase/migrations/20260723010000_public_commons_profile_cutover_marker_correction.sql",
+  "supabase/migrations/20260724010000_commune_canonical_author_attribution.sql",
 ];
 
 const activePaths = [
@@ -196,6 +197,7 @@ for (const marker of [
   "public.resolve_online_public_profile_handle",
   "public.get_online_public_profile_avatar_asset",
   "public.get_online_public_profile_banner_asset",
+  "public.resolve_public_commune_attributions",
 ]) assert(
   onlineCompatibilitySource.includes(marker),
   `Online profile compatibility migration omits ${marker}.`
@@ -488,6 +490,7 @@ try {
     "scripts/fixtures/economicDatabaseBehavior.sql",
     "scripts/fixtures/artisanDatabaseBehavior.sql",
     "scripts/fixtures/onlinePublicProfileBehavior.sql",
+    "scripts/fixtures/communeCanonicalAttributionBehavior.sql",
   ]) {
     await run(containerRuntime, ["cp", file, `${container}:/tmp/${path.basename(file)}`]);
   }
@@ -609,6 +612,11 @@ try {
   assert(
     onlineProfileBehavior.stdout.includes("Online public profile compatibility behavior checks ok."),
     "Online public profile compatibility behavior marker missing."
+  );
+  const communeAttributionBehavior = await psql(["-f", "/tmp/communeCanonicalAttributionBehavior.sql"]);
+  assert(
+    communeAttributionBehavior.stdout.includes("Canonical Commune attribution behavior checks ok."),
+    "Canonical Commune attribution behavior marker missing."
   );
 
   const catalogIntegrity = await psql(["-tAc", `

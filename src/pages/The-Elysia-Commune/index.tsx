@@ -3760,7 +3760,7 @@ function TroubleshootingResolutionControls({ post, troubleshooting, comments, us
   const [summary, setSummary] = useState(troubleshooting?.accepted_summary ?? "");
   const [resolutionKind, setResolutionKind] = useState<TroubleshootingResolutionKind>(troubleshooting?.accepted_resolution_kind ?? "manual_note");
   const [commentId, setCommentId] = useState(troubleshooting?.accepted_comment_id ?? "");
-  const canManage = Boolean(troubleshooting && userId && (isModerator || troubleshooting.author_user_id === userId || post.user_id === userId));
+  const canManage = Boolean(troubleshooting && userId && (isModerator || post.viewer_is_owner));
   useEffect(() => {
     setStatus(troubleshooting?.troubleshooting_status ?? "open");
     setSummary(troubleshooting?.accepted_summary ?? "");
@@ -4015,7 +4015,7 @@ function JobPostDetail({ post, jobPost, parsedBody, userId, accessToken, isModer
     </div>
     <RoomNativeDetails label="Structured job listing" fields={fields} className="commune-job-native-details" />
     <WarningCallout title="Anti-scam and privacy safety"><p>Do not share SSNs, bank details, identity documents, resumes/CVs, private addresses, private phone numbers, tax forms, contracts, private application packets, Work With uploads, or sensitive personal data in public Job Post comments. Use a safe public contact path or the private Work With intake when appropriate.</p></WarningCallout>
-    {jobPost && accessToken && userId && (jobPost.author_user_id === userId || post.user_id === userId) && <JobPostEconomicOwnerPanel jobPostId={jobPost.id} accessToken={accessToken} />}
+    {jobPost && accessToken && userId && post.viewer_is_owner && <JobPostEconomicOwnerPanel jobPostId={jobPost.id} accessToken={accessToken} />}
     <section className="commune-room-native-field commune-job-work-with"><h3>Private application path</h3><p>{jobPrivateApplicationSystemNotice}</p>{adminApplicationClarification && <p className="boundary-note">Admin clarification: {adminApplicationClarification}</p>}<div className="button-row"><Link className="button-link" to="/work-with-elysia-ecobotics">Open Work With Elysia Ecobotics</Link></div></section>
     <JobPostReviewControls jobPost={jobPost} postId={post.id} isModerator={isModerator} onMessage={onMessage} onChanged={onChanged} />
   </div>;
@@ -4444,7 +4444,7 @@ function PostDetail({ postId }: { postId: string }) {
   const isTroubleshooting = post.post_type === "troubleshooting";
   const isResearchNotes = post.post_type === "research_note";
   const isJobPost = post.post_type === "job_post";
-  const isPrivateOwnerJobPreview = isJobPost && Boolean(state.userId && post.user_id === state.userId) && (post.status !== "published" || post.visibility !== "public");
+  const isPrivateOwnerJobPreview = isJobPost && Boolean(state.userId && post.viewer_is_owner) && (post.status !== "published" || post.visibility !== "public");
   const commentsLocked = (isOfficialUpdate && officialUpdate?.comments_enabled === false) || (isCommunityVote && communityVote?.vote.allow_comments === false);
   const bodyMarkdown = bodyMarkdownForPost(post);
   const genericRoomNativeDetails = post.post_type === "community_network" ? legacyCommunityNetworkDetails(parsedBody) : [];
@@ -4927,7 +4927,7 @@ function RealtimeFoundationPanel() {
           {messages.map((message) => {
             const form = reportForms[message.id] ?? { reason: realtimeReportReasons[0], detail: "" };
             return <article className="commune-chat-message" key={message.id}>
-              <div className="addon-card__topline"><strong>{message.author_username ? `@${message.author_username}` : "Community member"}</strong><span>{new Date(message.created_at).toLocaleString()}</span></div>
+              <div className="addon-card__topline"><strong>{authorLink(message.author_username)}</strong><span>{new Date(message.created_at).toLocaleString()}</span></div>
               <p className="commune-chat-body">{message.body_plain ?? message.body}</p>
               <details><summary>Report message</summary><label><span>Reason</span><select value={form.reason} onChange={(event) => setReportForms((current) => ({ ...current, [message.id]: { ...form, reason: event.target.value } }))}>{realtimeReportReasons.map((reason) => <option key={reason} value={reason}>{reason.replace(/_/g, " ")}</option>)}</select></label><label><span>Optional detail</span><input value={form.detail} onChange={(event) => setReportForms((current) => ({ ...current, [message.id]: { ...form, detail: event.target.value } }))} placeholder="Private to moderators" /></label><button type="button" onClick={() => void report(message)}>Send private report</button></details>
               {account.isModerator && <div className="commune-moderator-controls"><button type="button" onClick={() => void moderate(message, "hide")}>Hide</button><button type="button" onClick={() => void moderate(message, "remove")}>Remove</button></div>}

@@ -1,14 +1,15 @@
 import { createReviewHistoryItem, createReviewItem, loadCurrentRoleState, type AppRole } from "../../shared/review/reviewClient";
 import { jobPostReviewResultMessage, resolveCommuneJobPostId, reviewCommuneJobPost, type JobPostReviewAction, type JobPostReviewResult } from "../../shared/review/jobPostReviewClient";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
+import { attributionMap, loadPublicCommuneAttributions } from "./communeAttribution";
 import { communeFallbackCategories, communeReportReasons, parseCommuneTags, scanCommuneTextForSecrets, validateCommuneMediaFile } from "./communeSafety";
 
 export type CommunePostType = "media_garden" | "troubleshooting" | "code_sharing" | "repository_showcase" | "community_network" | "job_post" | "research_note" | "elysia_iteration_showcase" | "community_vote" | "official_update";
 export type CommunePostStatus = "draft" | "pending_review" | "in_review" | "needs_information" | "approved" | "published" | "rejected" | "hidden" | "archived" | "deleted_by_user" | "removed_by_moderator";
 export type CommuneRoom = { id: string; slug: string; name: string; description?: string | null; room_type: string; requires_moderation: boolean };
-export type CommunePost = { id: string; user_id?: string; author_username?: string | null; post_type: CommunePostType; title: string; body: string; excerpt?: string | null; tags?: string[] | null; links?: string[] | null; repository_url?: string | null; status: CommunePostStatus; visibility: string; visibility_state?: string | null; hidden_at?: string | null; removed_at?: string | null; archived_at?: string | null; published_at?: string | null; last_activity_at?: string | null; created_at?: string | null };
+export type CommunePost = { id: string; user_id?: string; author_username?: string | null; author_profile_url?: string | null; viewer_is_owner?: boolean; post_type: CommunePostType; title: string; body: string; excerpt?: string | null; tags?: string[] | null; links?: string[] | null; repository_url?: string | null; status: CommunePostStatus; visibility: string; visibility_state?: string | null; hidden_at?: string | null; removed_at?: string | null; archived_at?: string | null; published_at?: string | null; last_activity_at?: string | null; created_at?: string | null };
 export type CommuneThread = { id: string; post_id?: string | null; room_id?: string | null; title: string; status: string; visibility: string; last_reply_at?: string | null };
-export type CommuneComment = { id: string; thread_id: string; post_id?: string | null; parent_comment_id?: string | null; user_id?: string; author_username?: string | null; body: string; status: string; created_at?: string | null; published_at?: string | null };
+export type CommuneComment = { id: string; thread_id: string; post_id?: string | null; parent_comment_id?: string | null; user_id?: string; author_username?: string | null; author_profile_url?: string | null; viewer_is_owner?: boolean; body: string; status: string; created_at?: string | null; published_at?: string | null };
 export type CommuneMediaAttachment = { id: string; post_id: string; file_name: string; mime_type?: string | null; file_size?: number | null; media_kind: "image" | "document" | "code_text" | "archive" | "other"; visibility_state: string; storage_bucket?: string | null; storage_path?: string | null; signed_url?: string | null; created_at?: string | null };
 export type OfficialUpdateType = "release_note" | "roadmap_update" | "governance_update" | "security_notice" | "maintenance_notice" | "incident_update" | "community_notice" | "developer_notice" | "marketplace_notice" | "policy_update" | "migration_notice" | "official_statement";
 export type OfficialUpdateStatus = "draft" | "published" | "updated" | "corrected" | "retracted" | "archived" | "resolved" | "monitoring";
@@ -300,7 +301,7 @@ export type CommuneCategory = { id: string; slug: string; title: string; descrip
 export type CommuneCodeSnippet = {
   id: string;
   post_id: string;
-  author_user_id: string;
+  author_user_id?: string;
   language?: string | null;
   file_name?: string | null;
   code_text: string;
@@ -553,19 +554,19 @@ async function finalizeGovernedJobPostPublication(result: JobPostReviewResult, t
   await publishPostAttachments(result.postId);
 }
 
-const repositoryShowcaseSelect = "id,user_id,post_id,repository_url,repository_host,project_name,project_summary,provider,default_branch,commit_sha,license,manifest_status,elysia_compatibility,short_description,readme_preview,file_tree_preview,screenshot_notes_or_urls,risk_flags,sandbox_review_requested,sandbox_review_status,sandbox_review_request_id,status,import_source,imported_metadata,imported_at,redaction_notes,created_at,updated_at";
-const repositoryShowcaseFallbackSelect = "id,user_id,post_id,repository_url,repository_host,project_name,project_summary,license,sandbox_review_requested,status,created_at,updated_at";
-const troubleshootingSelect = "id,post_id,thread_id,author_user_id,issue_type,affected_area,environment_os,environment_browser,app_version,environment_notes,steps_to_reproduce,expected_result,actual_result,error_message,redacted_logs,workaround,troubleshooting_status,accepted_comment_id,accepted_proposal_id,accepted_resolution_kind,accepted_summary,accepted_by,accepted_at,resolved_at,closed_at,archived_at,created_at,updated_at";
-const jobPostSelect = "id,post_id,thread_id,author_user_id,role_title,organization_project,role_type,paid_volunteer_status,location_mode,location_text,time_commitment,deadline,compensation_clarity,contact_path,requirements_skills,safety_notes,role_summary,application_status,anti_scam_review_status,work_with_link_enabled,private_application_note,public_correction_note,reviewed_by,reviewed_at,filled_at,closed_at,archived_at,created_at,updated_at";
-const researchNotesSelect = "id,post_id,thread_id,author_user_id,research_question,domain,evidence_strength,living_library_source_link,related_living_library_source_id,citation_notes,evidence_summary,observation,interpretation,uncertainty,context_discussion,source_links,geographic_scope,ecological_subsystem,method_type,data_type,ethics_note,review_status,correction_note,reviewed_by,reviewed_at,corrected_at,archived_at,created_at,updated_at";
-const iterationShowcaseSelect = "id,post_id,author_user_id,iteration_type,version_build_label,what_changed,why_it_matters,known_limitations,next_step,related_repo_url,provider,branch,commit_sha,release_tag,pull_request_url,developer_forge_link,marketplace_link,testing_status,compatibility_note,sandbox_review_requested,sandbox_review_status,sandbox_review_request_id,risk_flags,import_source,imported_metadata,imported_at,redaction_notes,status,created_at,updated_at";
-const iterationShowcaseFallbackSelect = "id,post_id,author_user_id,iteration_type,version_build_label,what_changed,why_it_matters,known_limitations,next_step,sandbox_review_requested,status,created_at,updated_at";
-const officialUpdateSelect = "id,post_id,admin_user_id,brand_author_name,update_type,official_status,severity,audience,summary,effective_date,release_version,affected_systems,related_room_slug,related_repo_url,related_migration,related_links,known_limitations,migration_required,user_action_required,pinned,important,comments_enabled,correction_note,correction_status,supersedes_update_id,superseded_by_update_id,published_at,corrected_at,retracted_at,archived_at,created_at,updated_at";
-const officialCodeSelect = "id,official_update_id,post_id,admin_user_id,language,file_name,code_text,context_note,correction_note,sort_order,public_visible,edited_by,edited_at,created_at,updated_at";
-const communityVotePostSelect = "post_id,created_by,question,context,decision_type,vote_status,visibility,opens_at,closes_at,results_visibility,allow_comments,admin_outcome_summary,official_update_post_id,created_at,updated_at";
+const repositoryShowcaseSelect = "id,post_id,repository_url,repository_host,project_name,project_summary,provider,default_branch,commit_sha,license,manifest_status,elysia_compatibility,short_description,readme_preview,file_tree_preview,screenshot_notes_or_urls,risk_flags,sandbox_review_requested,sandbox_review_status,sandbox_review_request_id,status,import_source,imported_metadata,imported_at,redaction_notes,created_at,updated_at";
+const repositoryShowcaseFallbackSelect = "id,post_id,repository_url,repository_host,project_name,project_summary,license,sandbox_review_requested,status,created_at,updated_at";
+const troubleshootingSelect = "id,post_id,thread_id,issue_type,affected_area,environment_os,environment_browser,app_version,environment_notes,steps_to_reproduce,expected_result,actual_result,error_message,redacted_logs,workaround,troubleshooting_status,accepted_comment_id,accepted_proposal_id,accepted_resolution_kind,accepted_summary,accepted_at,resolved_at,closed_at,archived_at,created_at,updated_at";
+const jobPostSelect = "id,post_id,thread_id,role_title,organization_project,role_type,paid_volunteer_status,location_mode,location_text,time_commitment,deadline,compensation_clarity,contact_path,requirements_skills,safety_notes,role_summary,application_status,anti_scam_review_status,work_with_link_enabled,public_correction_note,reviewed_at,filled_at,closed_at,archived_at,created_at,updated_at";
+const researchNotesSelect = "id,post_id,thread_id,research_question,domain,evidence_strength,living_library_source_link,related_living_library_source_id,citation_notes,evidence_summary,observation,interpretation,uncertainty,context_discussion,source_links,geographic_scope,ecological_subsystem,method_type,data_type,ethics_note,review_status,correction_note,reviewed_at,corrected_at,archived_at,created_at,updated_at";
+const iterationShowcaseSelect = "id,post_id,iteration_type,version_build_label,what_changed,why_it_matters,known_limitations,next_step,related_repo_url,provider,branch,commit_sha,release_tag,pull_request_url,developer_forge_link,marketplace_link,testing_status,compatibility_note,sandbox_review_requested,sandbox_review_status,sandbox_review_request_id,risk_flags,import_source,imported_metadata,imported_at,redaction_notes,status,created_at,updated_at";
+const iterationShowcaseFallbackSelect = "id,post_id,iteration_type,version_build_label,what_changed,why_it_matters,known_limitations,next_step,sandbox_review_requested,status,created_at,updated_at";
+const officialUpdateSelect = "id,post_id,brand_author_name,update_type,official_status,severity,audience,summary,effective_date,release_version,affected_systems,related_room_slug,related_repo_url,related_migration,related_links,known_limitations,migration_required,user_action_required,pinned,important,comments_enabled,correction_note,correction_status,supersedes_update_id,superseded_by_update_id,published_at,corrected_at,retracted_at,archived_at,created_at,updated_at";
+const officialCodeSelect = "id,official_update_id,post_id,language,file_name,code_text,context_note,correction_note,sort_order,public_visible,edited_at,created_at,updated_at";
+const communityVotePostSelect = "post_id,question,context,decision_type,vote_status,visibility,opens_at,closes_at,results_visibility,allow_comments,admin_outcome_summary,official_update_post_id,created_at,updated_at";
 const communityVoteOptionSelect = "id,vote_post_id,option_label,option_description,display_order,created_at,updated_at";
 const communityVoteBallotSelect = "id,vote_post_id,option_id,voter_user_id,created_at,updated_at";
-const communityVoteEventSelect = "id,vote_post_id,actor_user_id,event_type,event_note,event_visibility,created_at";
+const communityVoteEventSelect = "id,vote_post_id,event_type,event_note,event_visibility,created_at";
 
 const troubleshootingIssueTypes: TroubleshootingIssueType[] = ["bug", "install_issue", "account_auth", "deployment", "supabase_rls", "cloudflare", "frontend_ui", "backend_api", "sandbox_runner", "marketplace", "commune", "profile", "documentation", "other"];
 const troubleshootingStatuses: TroubleshootingStatus[] = ["open", "needs_information", "in_progress", "workaround_found", "fix_proposed", "resolved", "closed", "archived"];
@@ -1143,8 +1144,9 @@ export async function loadCommuneData(roomSlug?: string, postId?: string, postTy
   if (roomError) warnings.push(roomError.message);
   const candidateRoomSlugs = roomSlugCandidates(roomSlug);
   const selectedRoom = candidateRoomSlugs.length ? (rooms ?? []).find((room) => candidateRoomSlugs.includes(room.slug)) as CommuneRoom | undefined : undefined;
-  const postSelect = "id,user_id,author_username,post_type,title,body,excerpt,tags,links,repository_url,status,visibility,visibility_state,hidden_at,removed_at,archived_at,published_at,last_activity_at,created_at";
-  let postQuery = supabase.from(canonicalCommuneTables.posts).select(postSelect).eq("status", "published").eq("visibility", "public").order("last_activity_at", { ascending: false });
+  const publicPostSelect = "id,post_type,title,body,excerpt,tags,links,repository_url,status,visibility,visibility_state,hidden_at,removed_at,archived_at,published_at,last_activity_at,created_at";
+  const ownerJobPostSelect = "id,user_id,post_type,title,body,excerpt,tags,links,repository_url,status,visibility,visibility_state,hidden_at,removed_at,archived_at,published_at,last_activity_at,created_at";
+  let postQuery = supabase.from(canonicalCommuneTables.posts).select(publicPostSelect).eq("status", "published").eq("visibility", "public").order("last_activity_at", { ascending: false });
   if (postId) postQuery = postQuery.eq("id", postId);
   if (postType) postQuery = postQuery.eq("post_type", postType);
   if (!postId && !postType) postQuery = postQuery.limit(50);
@@ -1157,7 +1159,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string, postTy
   if (postError) warnings.push(postError.message);
   let candidatePosts = (posts ?? []) as CommunePost[];
   if (postId && candidatePosts.length === 0 && account.userId) {
-    const ownerResult = await supabase.from(canonicalCommuneTables.posts).select(postSelect).eq("id", postId).eq("user_id", account.userId).eq("post_type", "job_post").maybeSingle();
+    const ownerResult = await supabase.from(canonicalCommuneTables.posts).select(ownerJobPostSelect).eq("id", postId).eq("user_id", account.userId).eq("post_type", "job_post").maybeSingle();
     if (ownerResult.error) warnings.push(ownerResult.error.message);
     else if (ownerResult.data) candidatePosts = [ownerResult.data as CommunePost];
   }
@@ -1172,10 +1174,47 @@ export async function loadCommuneData(roomSlug?: string, postId?: string, postTy
   const { data: threads, error: threadError } = await threadQuery;
   if (threadError) warnings.push(threadError.message);
   const threadIds = (threads ?? []).map((thread) => thread.id);
-  let commentQuery = supabase.from(canonicalCommuneTables.comments).select("id,thread_id,post_id,parent_comment_id,user_id,author_username,body,status,created_at,published_at").eq("status", "published").order("created_at");
+  let commentQuery = supabase.from(canonicalCommuneTables.comments).select("id,thread_id,post_id,parent_comment_id,body,status,created_at,published_at").eq("status", "published").order("created_at");
   if (threadIds.length) commentQuery = commentQuery.in("thread_id", threadIds); else commentQuery = commentQuery.eq("thread_id", "00000000-0000-0000-0000-000000000000");
   const { data: comments, error: commentError } = await commentQuery;
   if (commentError) warnings.push(commentError.message);
+  const rawComments = (comments ?? []) as CommuneComment[];
+  const attributionResult = await loadPublicCommuneAttributions({
+    postIds,
+    commentIds: rawComments.map((comment) => comment.id)
+  });
+  warnings.push(...attributionResult.warnings);
+  const postAttributions = attributionMap(attributionResult.attributions, "post");
+  const commentAttributions = attributionMap(attributionResult.attributions, "comment");
+  const hydratedPosts = activePosts.map((post) => {
+    const attribution = postAttributions.get(post.id);
+    const privateOwnerPreview = Boolean(
+      account.userId && post.user_id === account.userId
+      && post.post_type === "job_post"
+      && (post.status !== "published" || post.visibility !== "public")
+    );
+    return {
+      ...post,
+      user_id: privateOwnerPreview ? post.user_id : undefined,
+      author_username: attribution?.author_handle
+        ?? (privateOwnerPreview ? account.username : null),
+      author_profile_url: attribution?.canonical_profile_url
+        ?? (privateOwnerPreview && account.username
+          ? `https://elysiaecobotics.com/commons-circle/@${account.username.toLowerCase()}`
+          : null),
+      viewer_is_owner: attribution?.viewer_is_owner ?? privateOwnerPreview
+    };
+  });
+  const hydratedComments = rawComments.map((comment) => {
+    const attribution = commentAttributions.get(comment.id);
+    return {
+      ...comment,
+      user_id: undefined,
+      author_username: attribution?.author_handle ?? null,
+      author_profile_url: attribution?.canonical_profile_url ?? null,
+      viewer_is_owner: attribution?.viewer_is_owner ?? false
+    };
+  });
   const media = await loadPublishedMediaForPosts(postIds);
   const troubleshootingPosts = await loadTroubleshootingForPosts(postIds);
   const jobPosts = await loadJobPostsForPosts(postIds);
@@ -1195,7 +1234,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string, postTy
     savedPostIds = (saves ?? []).map((row) => row.post_id).filter(Boolean) as string[];
     followedThreadIds = (follows ?? []).map((row) => row.thread_id).filter(Boolean) as string[];
   }
-  return { rooms: (rooms ?? []) as CommuneRoom[], posts: activePosts, comments: (comments ?? []) as CommuneComment[], threads: (threads ?? []) as CommuneThread[], media, troubleshootingPosts, jobPosts, researchNotes, repositoryShowcases, iterationShowcases, officialUpdates, officialCodeSnippets, votePosts, savedPostIds, followedThreadIds, account, warnings };
+  return { rooms: (rooms ?? []) as CommuneRoom[], posts: hydratedPosts, comments: hydratedComments, threads: (threads ?? []) as CommuneThread[], media, troubleshootingPosts, jobPosts, researchNotes, repositoryShowcases, iterationShowcases, officialUpdates, officialCodeSnippets, votePosts, savedPostIds, followedThreadIds, account, warnings };
 }
 
 export async function ensureCommuneThreadForPost(post: CommunePost): Promise<{ ok: boolean; thread?: CommuneThread; message: string }> {
@@ -2943,7 +2982,11 @@ export async function createCodeSnippet(input: { postId: string; language: strin
 
 export async function loadCodeSnippets(postId: string): Promise<{ snippets: CommuneCodeSnippet[]; warnings: string[] }> {
   if (!supabase) return { snippets: [], warnings: [supabaseNotConfiguredMessage] };
-  const { data, error } = await supabase.from("commune_code_snippets").select("*").eq("post_id", postId).order("created_at");
+  const { data, error } = await supabase
+    .from("commune_code_snippets")
+    .select("id,post_id,language,file_name,code_text,secret_scan_status,sandbox_warning_acknowledged,accepted_revision_id,accepted_version_number,accepted_revision_summary,accepted_at,created_at,updated_at")
+    .eq("post_id", postId)
+    .order("created_at");
   return { snippets: (data ?? []) as CommuneCodeSnippet[], warnings: error ? [friendlyError(error.message, "Code snippets are not active yet.")] : [] };
 }
 

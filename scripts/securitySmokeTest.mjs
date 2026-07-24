@@ -95,7 +95,8 @@ const reviewedArtisanServiceRoleMigrations = new Set([
   "supabase/migrations/20260718020000_artisan_core_content_and_media.sql",
   "supabase/migrations/20260718030000_artisan_authorization_rpcs_and_storage.sql",
   "supabase/migrations/20260722010000_public_commons_profile_legacy_compatibility.sql",
-  "supabase/migrations/20260723010000_public_commons_profile_cutover_marker_correction.sql"
+  "supabase/migrations/20260723010000_public_commons_profile_cutover_marker_correction.sql",
+  "supabase/migrations/20260724010000_commune_canonical_author_attribution.sql"
 ]);
 
 function allowHit(file, line, checkName) {
@@ -296,9 +297,12 @@ const badgeSecurityMigration = await fs.readFile("supabase/migrations/2026071601
 const onlinePublicProfileMigration = [
   await fs.readFile("supabase/migrations/20260722010000_public_commons_profile_legacy_compatibility.sql", "utf8"),
   await fs.readFile("supabase/migrations/20260723010000_public_commons_profile_cutover_marker_correction.sql", "utf8"),
+  await fs.readFile("supabase/migrations/20260724010000_commune_canonical_author_attribution.sql", "utf8"),
 ].join("\n");
 const commonsCircleApi = await fs.readFile("src/pages/The-Commons-Circle/commonsCircleApi.ts", "utf8");
 const communeAccountApi = await fs.readFile("src/pages/The-Elysia-Commune/communeAccountApi.ts", "utf8");
+const communeAttributionApi = await fs.readFile("src/pages/The-Elysia-Commune/communeAttribution.ts", "utf8");
+const communeRealtimeApi = await fs.readFile("src/pages/The-Elysia-Commune/communeRealtimeApi.ts", "utf8");
 const communePage = await fs.readFile("src/pages/The-Elysia-Commune/index.tsx", "utf8");
 const communeSafety = await fs.readFile("src/pages/The-Elysia-Commune/communeSafety.ts", "utf8");
 const badgeVisibilityUpdate = commonsCircleApi.match(/export async function updateBadgeVisibility[\s\S]*?\n}/)?.[0] ?? "";
@@ -321,6 +325,22 @@ assert(
 );
 const secretSafetyWarningFixture = "Do not upload .env files, API keys, tokens, credentials, private logs, or vault data.";
 assert(secretSafetyWarningFixture.includes(".env") && secretSafetyWarningFixture.includes("API keys") && secretSafetyWarningFixture.includes("credentials"), "Security fixture should cover .env warning language without secret assignments.");
+assert(
+  /security definer[\s\S]*set search_path = ''[\s\S]*private\.community_safe_online_public_profile_cards/i.test(onlinePublicProfileMigration)
+    && /revoke all privileges on function[\s\S]*resolve_public_commune_attributions\(uuid\[\], uuid\[\], uuid\[\]\)[\s\S]*from public, anon, authenticated, service_role/i.test(onlinePublicProfileMigration),
+  "Canonical Commune attribution must be a locked, explicitly granted safe projection."
+);
+assert(
+  communeAttributionApi.includes("canonicalProfileUrl")
+    || communeAttributionApi.includes("canonical_profile_url"),
+  "Commune attribution decoder must validate the canonical profile URL."
+);
+assert(
+  !communeAccountApi.includes('select("id,user_id,author_username,post_type')
+    && !communeAccountApi.includes('select("id,thread_id,post_id,parent_comment_id,user_id,author_username')
+    && communeRealtimeApi.includes('.select("id,room_id,room_slug,body,body_plain,visibility_state,report_count,created_at,edited_at,flagged_at,hidden_at,removed_at")'),
+  "Public Commune reads must not request account UUIDs or historical handle snapshots."
+);
 const realSecretAssignmentFixtures = [
   "fixture SUPABASE_SERVICE_ROLE_KEY=...",
   "fixture OPENAI_API_KEY=...",

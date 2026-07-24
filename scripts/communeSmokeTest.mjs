@@ -15,12 +15,14 @@ const app = await read("src/App.tsx");
 const page = await read("src/pages/The-Elysia-Commune/index.tsx");
 const safety = await read("src/pages/The-Elysia-Commune/communeSafety.ts");
 const accountApi = await read("src/pages/The-Elysia-Commune/communeAccountApi.ts");
+const attributionApi = await read("src/pages/The-Elysia-Commune/communeAttribution.ts");
 const adminPage = await read("src/pages/Admin/index.tsx");
 const reviewClient = await read("src/shared/review/reviewClient.ts");
 const jobPostReviewClient = await read("src/shared/review/jobPostReviewClient.ts");
 const migration = await read("supabase/legacy-migrations/2026_06_12_commune_full_system.sql");
 const realtimeMigration = await read("supabase/legacy-migrations/2026_06_14_commune_realtime_chat_moderation.sql");
 const realtimeApi = await read("src/pages/The-Elysia-Commune/communeRealtimeApi.ts");
+const canonicalAttributionMigration = await read("supabase/migrations/20260724010000_commune_canonical_author_attribution.sql");
 const codeReviewMigration = await read("supabase/legacy-migrations/2026_06_14_commune_collaborative_code_review.sql");
 const codeReviewApi = await read("src/pages/The-Elysia-Commune/communeCodeReviewApi.ts");
 const sandboxHandoffMigration = await read("supabase/legacy-migrations/2026_06_14_sandbox_request_local_handoff.sql");
@@ -702,6 +704,49 @@ assert(communityVoteDeleteFilterMigration.includes("public reads published publi
 assert(commonsApi.includes("isActivePublicCommunePost") && commonsApi.includes("loadActivePublicCommunePostMap") && commonsApi.includes("extractCommunePostIdFromActionUrl") && commonsApi.includes("filterNotificationsByActiveCommunePost"), "Commons Circle loaders should filter Commune ghost references through active public parent posts.");
 assert(commonsApi.includes("visibleSavedCommuneRows") && commonsApi.includes("visibleNotificationRows") && commonsApi.includes("filterFollowedThreadsByActiveCommunePost"), "Homebase/Saved Shelves should filter saved posts, notifications, and followed threads tied to deleted Commune posts.");
 assert(commonsApi.includes("visibleMyCommunityVoteRows") && commonsApi.includes("visibleReviewCommunityVoteRows") && commonsApi.includes("officialPostById") && commonsApi.includes("decodePublicCommuneComments"), "Signal Console and bounded public-profile Commune contribution surfaces should filter sidecars/comments through active parent posts.");
+assert(accountApi.includes('rpc(\n    "resolve_public_commune_attributions"') || attributionApi.includes('"resolve_public_commune_attributions"'), "Commune public authored content must hydrate through the canonical attribution RPC.");
+assert(!accountApi.includes('select("id,user_id,author_username,post_type') && !accountApi.includes('select("id,thread_id,post_id,parent_comment_id,user_id,author_username'), "Public post/comment reads must not consume snapshot handles or account UUIDs.");
+for (const selectName of [
+  "repositoryShowcaseSelect",
+  "repositoryShowcaseFallbackSelect",
+  "troubleshootingSelect",
+  "jobPostSelect",
+  "researchNotesSelect",
+  "iterationShowcaseSelect",
+  "iterationShowcaseFallbackSelect",
+  "officialUpdateSelect",
+  "officialCodeSelect",
+  "communityVotePostSelect",
+  "communityVoteEventSelect"
+]) {
+  const publicSelect = accountApi.match(new RegExp(`const ${selectName} = "([^"]+)"`))?.[1] ?? "";
+  assert(publicSelect, `Missing public structured Commune select: ${selectName}.`);
+  for (const forbiddenField of [
+    "user_id",
+    "author_user_id",
+    "accepted_by",
+    "reviewed_by",
+    "admin_user_id",
+    "edited_by",
+    "created_by",
+    "actor_user_id",
+    "private_application_note"
+  ]) {
+    assert(!publicSelect.split(",").includes(forbiddenField), `${selectName} exposes private attribution field ${forbiddenField}.`);
+  }
+}
+assert(accountApi.includes('.select("id,post_id,language,file_name,code_text,secret_scan_status,sandbox_warning_acknowledged,accepted_revision_id,accepted_version_number,accepted_revision_summary,accepted_at,created_at,updated_at")'), "Public code snippets must use an explicit projection without author/proposer account UUIDs.");
+assert(realtimeApi.includes("loadPublicCommuneAttributions") && realtimeApi.includes('.select("id,room_id,room_slug,body,body_plain,visibility_state,report_count,created_at,edited_at,flagged_at,hidden_at,removed_at")'), "Realtime public history must hydrate current canonical attribution without selecting account UUID or snapshot handle.");
+for (const marker of [
+  "private.community_safe_online_public_profile_cards",
+  "public.resolve_public_commune_attributions",
+  "commune_attribution_request_too_large",
+  "post.revoked_at is null",
+  "comment.archived_at is null",
+  "room.visibility_state = 'published'",
+]) assert(canonicalAttributionMigration.includes(marker), `Canonical Commune attribution migration omits ${marker}.`);
+assert(/revoke all privileges on function[\s\S]*resolve_public_commune_attributions\(uuid\[\], uuid\[\], uuid\[\]\)[\s\S]*from public, anon, authenticated, service_role/i.test(canonicalAttributionMigration), "Canonical attribution RPC must remove implicit function execution before narrow grants.");
+assert(!/update\s+public\.(commune_posts|commune_comments|commune_realtime_messages)/i.test(canonicalAttributionMigration), "Canonical attribution migration must not rewrite historical authored rows.");
 assert(reviewClient.includes('"moderated"') && reviewClient.includes("moderatedContentStates"), "Admin review should include a moderated recovery filter for hidden/removed Commune content.");
 assert(reviewClient.includes("enrichCommuneReviewItems"), "Admin review should enrich Commune review items with source moderation state.");
 assert(reviewClient.includes("restoreCommuneReviewSubject") && reviewClient.includes("restore_to_public"), "Admin review should support restoring hidden/flagged Commune content.");

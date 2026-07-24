@@ -1,5 +1,6 @@
 import { loadCurrentRoleState, type AppRole } from "../../shared/review/reviewClient";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
+import { attributionMap, loadPublicCommuneAttributions } from "./communeAttribution";
 
 export type RealtimePostingMode = "open_signed_in" | "members_only" | "read_only" | "moderated" | "disabled";
 export type RealtimeVisibilityState = "published" | "flagged" | "hidden" | "removed" | "archived";
@@ -21,8 +22,10 @@ export type RealtimeMessage = {
   id: string;
   room_id: string;
   room_slug?: string | null;
-  author_user_id: string;
+  author_user_id?: string;
   author_username?: string | null;
+  author_profile_url?: string | null;
+  viewer_is_owner?: boolean;
   body: string;
   body_plain?: string | null;
   visibility_state: RealtimeVisibilityState;
@@ -140,8 +143,29 @@ export async function listRealtimeRooms(): Promise<{ rooms: RealtimeRoom[]; warn
 
 export async function listRecentMessages(roomId: string, limit = 60): Promise<{ messages: RealtimeMessage[]; warnings: string[] }> {
   if (!hasSupabaseConfig || !supabase) return { messages: [], warnings: [supabaseNotConfiguredMessage] };
-  const { data, error } = await supabase.from("commune_realtime_messages").select("id,room_id,room_slug,author_user_id,author_username,body,body_plain,visibility_state,report_count,created_at,edited_at,flagged_at,hidden_at,removed_at,moderation_reason").eq("room_id", roomId).eq("visibility_state", "published").order("created_at", { ascending: false }).limit(limit);
-  return { messages: ((data ?? []) as RealtimeMessage[]).reverse(), warnings: error ? [formatSafeChatError(error)] : [] };
+  const { data, error } = await supabase.from("commune_realtime_messages").select("id,room_id,room_slug,body,body_plain,visibility_state,report_count,created_at,edited_at,flagged_at,hidden_at,removed_at").eq("room_id", roomId).eq("visibility_state", "published").order("created_at", { ascending: false }).limit(limit);
+  if (error) return { messages: [], warnings: [formatSafeChatError(error)] };
+  const messages = (data ?? []) as RealtimeMessage[];
+  const attributionResult = await loadPublicCommuneAttributions({
+    realtimeMessageIds: messages.map((message) => message.id)
+  });
+  const attributions = attributionMap(
+    attributionResult.attributions,
+    "realtime_message"
+  );
+  return {
+    messages: messages.map((message) => {
+      const attribution = attributions.get(message.id);
+      return {
+        ...message,
+        author_user_id: undefined,
+        author_username: attribution?.author_handle ?? null,
+        author_profile_url: attribution?.canonical_profile_url ?? null,
+        viewer_is_owner: attribution?.viewer_is_owner ?? false
+      };
+    }).reverse(),
+    warnings: attributionResult.warnings
+  };
 }
 
 export function subscribeToRoomMessages(roomId: string, callbacks: { onInsert: (message: RealtimeMessage) => void; onStatus?: (status: RealtimeConnectionStatus) => void; onError?: (message: string) => void }) {
@@ -153,7 +177,29 @@ export function subscribeToRoomMessages(roomId: string, callbacks: { onInsert: (
   const channel = client.channel(`commune-room-${roomId}`)
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "commune_realtime_messages", filter: `room_id=eq.${roomId}` }, (payload) => {
       const message = payload.new as RealtimeMessage;
-      if (message.visibility_state === "published") callbacks.onInsert(message);
+      if (message.visibility_state === "published") {
+        void loadPublicCommuneAttributions({
+          realtimeMessageIds: [message.id]
+        }).then(({ attributions }) => {
+          const attribution = attributionMap(
+            attributions,
+            "realtime_message"
+          ).get(message.id);
+          callbacks.onInsert({
+            ...message,
+            author_user_id: undefined,
+            author_username: attribution?.author_handle ?? null,
+            author_profile_url: attribution?.canonical_profile_url ?? null,
+            viewer_is_owner: attribution?.viewer_is_owner ?? false
+          });
+        }).catch(() => callbacks.onInsert({
+          ...message,
+          author_user_id: undefined,
+          author_username: null,
+          author_profile_url: null,
+          viewer_is_owner: false
+        }));
+      }
     })
     .subscribe((status) => {
       if (status === "SUBSCRIBED") callbacks.onStatus?.("live");
@@ -178,10 +224,22 @@ export async function sendRealtimeMessage(room: RealtimeRoom, body: string): Pro
   if (!["open_signed_in", "members_only"].includes(room.posting_mode)) return { ok: false, message: `This room is currently ${room.posting_mode.replace(/_/g, " ")}.` };
   const validation = validateChatMessageInput(body);
   if (!validation.ok) return { ok: false, message: validation.message ?? "Message blocked.", row: undefined };
-  const { data, error } = await supabase.from("commune_realtime_messages").insert({ room_id: room.id, room_slug: room.slug, author_user_id: account.userId, author_username: account.username, body: validation.sanitized, body_plain: validation.sanitized, visibility_state: "published" }).select("id,room_id,room_slug,author_user_id,author_username,body,body_plain,visibility_state,report_count,created_at,edited_at,flagged_at,hidden_at,removed_at,moderation_reason").single();
+  const { data, error } = await supabase.from("commune_realtime_messages").insert({ room_id: room.id, room_slug: room.slug, author_user_id: account.userId, author_username: account.username, body: validation.sanitized, body_plain: validation.sanitized, visibility_state: "published" }).select("id,room_id,room_slug,body,body_plain,visibility_state,report_count,created_at,edited_at,flagged_at,hidden_at,removed_at").single();
   if (error) return { ok: false, message: formatSafeChatError(error) };
   await writeRealtimeEvent({ roomId: room.id, messageId: (data as RealtimeMessage).id, action: "message_created", metadata: { source: "commune_realtime_ui" } });
-  return { ok: true, message: "Message posted as public/community cloud chat data.", row: data as RealtimeMessage };
+  return {
+    ok: true,
+    message: "Message posted as public/community cloud chat data.",
+    row: {
+      ...(data as RealtimeMessage),
+      author_user_id: undefined,
+      author_username: account.username?.toLowerCase() ?? null,
+      author_profile_url: account.username
+        ? `https://elysiaecobotics.com/commons-circle/@${account.username.toLowerCase()}`
+        : null,
+      viewer_is_owner: true
+    }
+  };
 }
 
 export async function reportRealtimeMessage(message: RealtimeMessage, reason: string, detail: string): Promise<{ ok: boolean; message: string }> {
