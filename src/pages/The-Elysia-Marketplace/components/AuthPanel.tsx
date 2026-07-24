@@ -1,7 +1,8 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import type { Session } from "@supabase/supabase-js";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../lib/supabase";
+import { requestWebsiteAccountSignup } from "./authSignup";
 
 type AuthPanelCopy = {
   eyebrow?: string;
@@ -25,6 +26,7 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
   const [session, setSession] = useState<Session | null>(null);
   const [localStatus, setLocalStatus] = useState("");
   const [authMode, setAuthMode] = useState<"sign_in" | "sign_up">("sign_in");
+  const signupPendingRef = useRef(false);
 
   useEffect(() => {
     if (!supabase) return;
@@ -78,24 +80,48 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
   }
 
   async function signUp() {
-    if (!supabase) { emit("Demo mode: signup form is visible, but no remote account is created."); return; }
-    setBusy(true);
+    if (signupPendingRef.current) return;
+    const submittedEmail = email.trim();
+    const submittedPassword = password;
     const emailRedirectTo = `${window.location.origin}${copy?.confirmationPath ?? "/account"}`;
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: { emailRedirectTo }
-    });
-    setBusy(false);
-    if (error) { emit(safeAuthError("sign-up", error.message)); return; }
-    if (data.session?.user.email) {
-      setSession(data.session);
-      emit(`Signed in as ${data.session.user.email}.`);
+    signupPendingRef.current = true;
+    setBusy(true);
+    try {
+      const result = await requestWebsiteAccountSignup({
+        client: hasSupabaseConfig ? supabase : null,
+        email: submittedEmail,
+        password: submittedPassword,
+        emailRedirectTo
+      });
+      if (result.status === "invalid_input") {
+        emit("Enter a valid email and a password of at least 6 characters before creating a Website Account.");
+        return;
+      }
+      if (result.status === "configuration_unavailable") {
+        emit("Website Account creation is temporarily unavailable because authentication is not configured. Your password was not cleared.");
+        return;
+      }
+      if (result.status === "provider_error") {
+        emit(safeAuthError("sign-up", result.message));
+        return;
+      }
+      if (result.status === "unexpected_error") {
+        emit("The Website Account sign-up request could not start safely. Your password was not cleared; please try again.");
+        return;
+      }
+      if (result.status === "confirmation_required") {
+        setPassword("");
+        emit("Account created. Check your email to confirm it.");
+        return;
+      }
+      setSession(result.session);
+      setPassword("");
+      emit(`Signed in as ${result.session.user.email ?? submittedEmail}.`);
       await onAuthChanged();
-    } else {
-      emit("Sign-up request sent. Check your email if confirmation is required.");
+    } finally {
+      signupPendingRef.current = false;
+      setBusy(false);
     }
-    setPassword("");
   }
 
   async function signIn(event?: FormEvent<HTMLFormElement>) {
