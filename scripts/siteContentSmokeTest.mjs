@@ -41,6 +41,7 @@ const commonsAvatarViewer = await read("src/shared/components/CommonsAvatarViewe
 const commonsAdminConsole = await read("src/pages/The-Commons-Circle/CommonsCircleAdminConsolePage.tsx");
 const publicProfileFieldsMigration = await read("supabase/legacy-migrations/2026_06_22_commons_public_profile_fields.sql");
 const commonsBannerFramingMigration = await read("supabase/legacy-migrations/2026_07_02_commons_banner_framing.sql");
+const profileStorageAuthorizationMigration = await read("supabase/migrations/20260718030000_artisan_authorization_rpcs_and_storage.sql");
 const supabaseSchema = await read("supabase/schema.sql");
 const softDeleteCleanupMigration = await read("supabase/legacy-migrations/2026_07_07_commune_soft_delete_cleanup.sql");
 const communityVoteDeleteFilterMigration = await read("supabase/legacy-migrations/2026_07_08_commune_vote_delete_parent_filter.sql");
@@ -477,13 +478,17 @@ assert(publicProfileFieldsMigration.includes("add column if not exists organizat
 assert(commons.includes("Shape your public profile room") && commonsSetup.includes("Organization, optional"), "Commons Circle should still expose public profile customization/editing paths.");
 assert(commonsSetup.includes("Headline, optional") && commonsSetup.includes("Featured public links, optional"), "Commons Profile setup should include newly rendered public fields.");
 assert(commonsSetup.includes("Choose profile picture") && commonsSetup.includes("Remove profile picture"), "Commons Profile setup should expose public avatar upload/remove controls.");
+assert(commonsSetup.includes("avatarInputRef.current?.click()") && commonsSetup.includes("disabled={busy}") && commonsSetup.includes('aria-label="Choose profile picture file"'), "Commons Profile setup chooser should be a keyboard-operable button bound to its private file input and disabled only while media work is active.");
+assert(cssRuleIncludes(styles, ".commons-profile-mantle::after", ["pointer-events: none"]), "The decorative Commons Profile mantle scrim must never intercept profile controls.");
 assert(commonsSetup.includes("This image is public") && commonsSetup.includes("does not import or sync a private local Elysia identity photo"), "Commons Profile setup should explain avatar public/local boundary.");
 assert(commonsSetup.includes("logSetupDiagnostics") && !commonsSetup.includes("homebaseResult.warnings.forEach(pushMessage)"), "Commons Profile setup should not surface broad homebase diagnostics as setup warnings.");
 assert(commonsSetup.includes("current.includes(trimmed)"), "Commons Profile setup messages should deduplicate repeated warnings while preserving order.");
 assert(commonsApi.includes('"Profile customization": "Profile customization is not configured yet."') && commonsApi.includes('`${label} is not configured yet.`'), "Commons Circle friendly backend messages should avoid incorrect plural grammar.");
 assert(commonsApi.includes("removeProfileMedia") && commonsApi.includes('status: "removed"'), "Commons Profile media removal helper missing.");
 assert(commonsApi.includes("profile-avatars") && commonsApi.includes("profile-banners") && commonsApi.includes("image/png") && commonsApi.includes("image/webp") && commonsApi.includes("createSignedUrl"), "Commons Profile media upload should use private avatar/banner buckets, a short-lived owner preview, and an image MIME guard.");
+assert(commonsApi.includes("validateProfileImageFile") && commonsApi.includes("detectedProfileImageMime") && commonsApi.includes("maximumProfileImagePixels"), "Commons Profile media upload should reject declared-MIME mismatches, malformed images, and unsafe image dimensions before storage.");
 assert(commonsApi.includes("safeFileSuffix") && commonsApi.includes("safeStorageObjectId") && commonsApi.includes('const folder = mediaType === "avatar" ? "avatars" : "banners"'), "Commons Profile media uploads should sanitize filenames and use generated storage object paths.");
+assert(profileStorageAuthorizationMigration.includes("insert into storage.buckets") && profileStorageAuthorizationMigration.includes("set public = false") && profileStorageAuthorizationMigration.includes("pg_catalog.split_part(name, '/', 1) = auth.uid()::text"), "Active profile-media storage authorization should keep original buckets private and mutations owner-folder scoped.");
 assert(commonsApi.includes("avatar_media_id") && commonsApi.includes('public_url: null') && commonsApi.includes('profiles").update({ avatar_url: null'), "Commons Profile avatar upload should retain only the active media identity and must not persist an unusable public original URL.");
 assert(commonsApi.includes("banner_media_id") && commonsApi.includes("mediaId") && commonsApi.includes("profile_media"), "Commons Profile banner upload should persist an active media row and customization pointer.");
 assert(commonsApi.includes("avatar_url: null") && commonsApi.includes("avatar_media_id\" : \"banner_media_id\""), "Commons Profile avatar removal should clear public avatar URL and customization media pointer.");

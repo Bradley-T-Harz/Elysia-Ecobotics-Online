@@ -2307,6 +2307,7 @@ code { color: var(--teal); overflow-wrap: anywhere; }
   position: absolute;
   inset: 0;
   z-index: 0;
+  pointer-events: none;
   background: linear-gradient(90deg, rgba(0,0,0,.52), rgba(0,0,0,.18) 52%, rgba(0,0,0,.46));
 }
 

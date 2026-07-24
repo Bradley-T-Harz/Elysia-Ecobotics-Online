@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
 import CommonsAvatarViewer from "../../shared/components/CommonsAvatarViewer";
@@ -262,6 +262,7 @@ export default function CommonsCircleSetupPage() {
   const [messages, setMessages] = useState<string[]>([]);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const groupedOrganizations = useMemo(groupOrganizations, []);
   const stepIndex = Math.max(0, setupSteps.indexOf(step as SetupStep));
 
@@ -679,7 +680,18 @@ export default function CommonsCircleSetupPage() {
               <p className="eyebrow">Public profile picture</p>
               <p className="boundary-note">This image is public on your Commons Profile. Choose an online profile picture explicitly; this does not import or sync a private local Elysia identity photo.</p>
               <div className="button-row">
-                <label className="button-link"><span>Choose profile picture</span><input style={{ display: "none" }} type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => void handleAvatarUpload(event.target.files?.[0] ?? null)} /></label>
+                <button type="button" onClick={() => avatarInputRef.current?.click()} disabled={busy}>Choose profile picture</button>
+                <input
+                  ref={avatarInputRef}
+                  hidden
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  aria-label="Choose profile picture file"
+                  onChange={(event) => {
+                    void handleAvatarUpload(event.target.files?.[0] ?? null);
+                    event.currentTarget.value = "";
+                  }}
+                />
                 <button type="button" onClick={() => void handleAvatarRemove()} disabled={!avatarUrl || busy}>Remove profile picture</button>
               </div>
             </div>

@@ -1464,13 +1464,72 @@ function safeStorageObjectId() {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
+const profileImageMimeTypes = new Set(["image/png", "image/jpeg", "image/webp"]);
+const maximumProfileImageBytes = 5 * 1024 * 1024;
+const maximumProfileImageDimension = 8_192;
+const maximumProfileImagePixels = 33_554_432;
+
+function detectedProfileImageMime(bytes: Uint8Array): "image/png" | "image/jpeg" | "image/webp" | null {
+  if (
+    bytes.length >= 8
+    && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47
+    && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a
+  ) return "image/png";
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return "image/jpeg";
+  if (
+    bytes.length >= 12
+    && String.fromCharCode(...bytes.slice(0, 4)) === "RIFF"
+    && String.fromCharCode(...bytes.slice(8, 12)) === "WEBP"
+  ) return "image/webp";
+  return null;
+}
+
+async function profileImageDimensions(file: File): Promise<{ width: number; height: number } | null> {
+  if (typeof createImageBitmap === "function") {
+    try {
+      const image = await createImageBitmap(file);
+      const dimensions = { width: image.width, height: image.height };
+      image.close();
+      return dimensions;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof Image !== "function" || typeof URL?.createObjectURL !== "function") return null;
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    return await new Promise((resolve) => {
+      const image = new Image();
+      image.onload = () => resolve({ width: image.naturalWidth, height: image.naturalHeight });
+      image.onerror = () => resolve(null);
+      image.src = objectUrl;
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+export async function validateProfileImageFile(file: File): Promise<string | null> {
+  if (!profileImageMimeTypes.has(file.type)) return "Avatar and banner uploads must be PNG, JPG, JPEG, or WebP.";
+  if (file.size < 1 || file.size > maximumProfileImageBytes) return "Avatar and banner uploads must be non-empty and 5 MB or smaller.";
+  const detectedMime = detectedProfileImageMime(new Uint8Array(await file.slice(0, 16).arrayBuffer()));
+  if (detectedMime !== file.type) return "The selected profile image does not match its declared image type.";
+  const dimensions = await profileImageDimensions(file);
+  if (
+    !dimensions
+    || dimensions.width < 1 || dimensions.height < 1
+    || dimensions.width > maximumProfileImageDimension || dimensions.height > maximumProfileImageDimension
+    || dimensions.width * dimensions.height > maximumProfileImagePixels
+  ) return "The selected profile image is malformed or its dimensions are not supported.";
+  return null;
+}
+
 export async function uploadProfileMedia(file: File, mediaType: "avatar" | "banner"): Promise<{ publicUrl?: string; mediaId?: string | null; warnings: string[] }> {
   if (!supabase) return { warnings: [supabaseNotConfiguredMessage] };
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return { warnings: ["Sign in before uploading profile media."] };
-  const allowed = ["image/png", "image/jpeg", "image/webp"];
-  if (!allowed.includes(file.type)) return { warnings: ["Avatar and banner uploads must be PNG, JPG, JPEG, or WebP."] };
-  if (file.size > 5 * 1024 * 1024) return { warnings: ["Avatar and banner uploads must be 5 MB or smaller."] };
+  const validationMessage = await validateProfileImageFile(file);
+  if (validationMessage) return { warnings: [validationMessage] };
   const bucket = mediaType === "avatar" ? "profile-avatars" : "profile-banners";
   const folder = mediaType === "avatar" ? "avatars" : "banners";
   const storagePath = `${auth.user.id}/${folder}/${safeStorageObjectId()}-${safeFileSuffix(file.name)}`;
