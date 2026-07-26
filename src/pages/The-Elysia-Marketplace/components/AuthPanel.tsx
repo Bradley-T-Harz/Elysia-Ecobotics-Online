@@ -69,8 +69,10 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
     onMessage(message);
   }
 
-  function safeAuthError(action: "sign-up" | "sign-in" | "sign-out", message: string) {
-    if (/rate|too many|seconds/i.test(message)) return "Too many authentication requests were made. Wait before trying again.";
+  function safeAuthError(action: "sign-up" | "sign-in" | "sign-out", message: string, code = "", providerStatus?: number) {
+    if (providerStatus === 429 || /rate|too many|seconds/i.test(`${code} ${message}`)) return "Too many authentication requests were made. Wait before trying again.";
+    if (/captcha/i.test(`${code} ${message}`)) return "The Website Account safety check could not be completed. Refresh the page and try again.";
+    if (/email_address_not_authorized|email address.*authorized|email.*provider|smtp/i.test(`${code} ${message}`)) return "Website Account confirmation email delivery is temporarily unavailable. Please try again later.";
     if (/already registered|already exists/i.test(message)) return "A Website Account may already use that email. Sign in or recover the password instead.";
     if (/invalid login|invalid credentials/i.test(message)) return "The email or password was not accepted. Confirm the email if required, or use password recovery.";
     if (/email.*confirm|not confirmed/i.test(message)) return "Confirm the Website Account email before signing in.";
@@ -102,16 +104,19 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
         return;
       }
       if (result.status === "provider_error") {
-        emit(safeAuthError("sign-up", result.message));
+        emit(safeAuthError("sign-up", result.message, result.code, result.providerStatus));
         return;
       }
       if (result.status === "unexpected_error") {
         emit("The Website Account sign-up request could not start safely. Your password was not cleared; please try again.");
         return;
       }
-      if (result.status === "confirmation_required") {
-        setPassword("");
-        emit("Account created. Check your email to confirm it.");
+      if (result.status === "unexpected_response") {
+        emit("The Website Account sign-up response could not be verified safely. Your password was not cleared; please try again later.");
+        return;
+      }
+      if (result.status === "confirmation_required" || result.status === "confirmation_or_existing") {
+        emit("If this address can create a new account, check its inbox. Otherwise, sign in or recover the account.");
         return;
       }
       setSession(result.session);

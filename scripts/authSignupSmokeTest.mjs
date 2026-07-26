@@ -21,7 +21,10 @@ function clientReturning(result) {
 }
 
 {
-  const fixture = clientReturning({ data: { session: null }, error: null });
+  const fixture = clientReturning({
+    data: { session: null, user: { identities: [{ id: "fixture-email-identity" }] } },
+    error: null,
+  });
   const result = await requestWebsiteAccountSignup({
     client: fixture.client,
     email: `  ${submittedEmail}  `,
@@ -39,8 +42,8 @@ function clientReturning(result) {
 
 {
   const fixture = clientReturning({
-    data: { session: null },
-    error: { message: "fixture provider error" },
+    data: { session: null, user: { identities: [] } },
+    error: null,
   });
   const result = await requestWebsiteAccountSignup({
     client: fixture.client,
@@ -48,7 +51,41 @@ function clientReturning(result) {
     password: submittedPassword,
     emailRedirectTo,
   });
-  assert.deepEqual(result, { status: "provider_error", message: "fixture provider error" });
+  assert.deepEqual(result, { status: "confirmation_or_existing" });
+  assert.equal(fixture.calls.length, 1, "obfuscated existing-user response must not retry signup");
+}
+
+{
+  const fixture = clientReturning({
+    data: { session: null, user: null },
+    error: null,
+  });
+  const result = await requestWebsiteAccountSignup({
+    client: fixture.client,
+    email: submittedEmail,
+    password: submittedPassword,
+    emailRedirectTo,
+  });
+  assert.deepEqual(result, { status: "unexpected_response" });
+}
+
+{
+  const fixture = clientReturning({
+    data: { session: null, user: null },
+    error: { message: "fixture provider error", code: "captcha_failed", status: 400 },
+  });
+  const result = await requestWebsiteAccountSignup({
+    client: fixture.client,
+    email: submittedEmail,
+    password: submittedPassword,
+    emailRedirectTo,
+  });
+  assert.deepEqual(result, {
+    status: "provider_error",
+    message: "fixture provider error",
+    code: "captcha_failed",
+    providerStatus: 400,
+  });
   assert.equal(fixture.calls.length, 1);
 }
 
@@ -70,7 +107,7 @@ function clientReturning(result) {
     token_type: "bearer",
     user: { email: submittedEmail },
   };
-  const fixture = clientReturning({ data: { session: fixtureSession }, error: null });
+  const fixture = clientReturning({ data: { session: fixtureSession, user: fixtureSession.user }, error: null });
   const result = await requestWebsiteAccountSignup({
     client: fixture.client,
     email: submittedEmail,
@@ -107,7 +144,7 @@ function clientReturning(result) {
       auth: {
         async signUp() {
           calls += 1;
-          return { data: { session: null }, error: null };
+          return { data: { session: null, user: null }, error: null };
         },
       },
     },
@@ -119,4 +156,4 @@ function clientReturning(result) {
   assert.equal(calls, 0);
 }
 
-console.log("Website Account signup request smoke test passed.");
+console.log("Mocked Website Account signup request contract test passed.");

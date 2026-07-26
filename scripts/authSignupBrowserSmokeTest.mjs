@@ -85,7 +85,7 @@ const fixtureUser = {
   email_confirmed_at: "2026-07-24T12:00:00.000Z",
   app_metadata: { provider: "email", providers: ["email"] },
   user_metadata: {},
-  identities: [],
+  identities: [{ id: "f1800000-0000-4000-8000-000000000002", provider: "email" }],
   created_at: "2026-07-24T12:00:00.000Z",
   updated_at: "2026-07-24T12:00:00.000Z",
 };
@@ -93,7 +93,7 @@ const fixtureSession = {
   access_token: "fixture-signup-access-token",
   refresh_token: "fixture-signup-refresh-token",
   expires_in: 3_600,
-  expires_at: 1_785_000_000,
+  expires_at: Math.floor(Date.now() / 1_000) + 3_600,
   token_type: "bearer",
   user: fixtureUser,
 };
@@ -110,6 +110,33 @@ const routeCases = [
     canVerifySignedOutProfileGate: true,
   },
 ];
+
+const providerErrorFixtures = {
+  error: {
+    status: 400,
+    code: "weak_password",
+    message: "Password should contain a stronger fixture value.",
+    expectedMessage: "The password does not meet the current Website Account requirements. Use a longer, unique password.",
+  },
+  rate_limit: {
+    status: 429,
+    code: "over_email_send_rate_limit",
+    message: "Email rate limit exceeded.",
+    expectedMessage: "Too many authentication requests were made. Wait before trying again.",
+  },
+  captcha: {
+    status: 400,
+    code: "captcha_failed",
+    message: "Captcha verification process failed.",
+    expectedMessage: "The Website Account safety check could not be completed. Refresh the page and try again.",
+  },
+  smtp: {
+    status: 500,
+    code: "email_address_not_authorized",
+    message: "Email address is not authorized.",
+    expectedMessage: "Website Account confirmation email delivery is temporarily unavailable. Please try again later.",
+  },
+};
 
 async function runCase(routeCase, mode, viewport = { width: 1280, height: 900 }) {
   const context = await browser.newContext({ viewport });
@@ -148,12 +175,21 @@ async function runCase(routeCase, mode, viewport = { width: 1280, height: 900 })
         body: request.postDataJSON(),
         redirectTo: url.searchParams.get("redirect_to"),
       });
-      if (mode === "error") {
-        await new Promise((resolve) => setTimeout(resolve, 250));
+      const providerError = providerErrorFixtures[mode];
+      if (providerError) {
+        if (mode === "error") await new Promise((resolve) => setTimeout(resolve, 250));
         await route.fulfill({
-          status: 400,
+          status: providerError.status,
           headers: corsHeaders,
-          body: JSON.stringify({ message: "Password should contain a stronger fixture value." }),
+          body: JSON.stringify({ message: providerError.message, code: providerError.code }),
+        });
+        return;
+      }
+      if (mode === "obfuscated") {
+        await route.fulfill({
+          status: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({ user: { ...fixtureUser, identities: [] } }),
         });
         return;
       }
@@ -232,22 +268,24 @@ async function runCase(routeCase, mode, viewport = { width: 1280, height: 900 })
     );
     await submit.click();
 
-    if (mode === "error") {
-      await page.getByRole("button", { name: "Working..." }).waitFor();
-      assert.equal(await submit.isDisabled(), true, "pending signup must disable the submit control");
-      await submit.evaluate((button) => button.click());
-      await page.getByText("The password does not meet the current Website Account requirements. Use a longer, unique password.").first().waitFor();
+    if (providerErrorFixtures[mode]) {
+      if (mode === "error") {
+        await page.getByRole("button", { name: "Working..." }).waitFor();
+        assert.equal(await submit.isDisabled(), true, "pending signup must disable the submit control");
+        await submit.evaluate((button) => button.click());
+      }
+      await page.getByText(providerErrorFixtures[mode].expectedMessage, { exact: true }).first().waitFor();
       assert.equal(await password.inputValue(), fixturePassword, "signup error must preserve password");
-      assert.equal(signupRequests.length, 1, "pending signup must block duplicate submission");
+      if (mode === "error") assert.equal(signupRequests.length, 1, "pending signup must block duplicate submission");
       if (routeCase.canVerifySignedOutProfileGate) {
         await page.getByLabel("Username").fill("fixture-member");
         await page.getByRole("button", { name: "4. Final confirmation" }).click();
         await page.getByRole("button", { name: "Create Commons Profile", exact: true }).click();
         await page.getByText("Sign in to a Website Account before creating your Commons Profile.", { exact: true }).first().waitFor();
       }
-    } else if (mode === "confirmation") {
-      await page.getByText("Account created. Check your email to confirm it.", { exact: true }).first().waitFor();
-      assert.equal(await password.inputValue(), "", "confirmation success must clear password");
+    } else if (mode === "confirmation" || mode === "obfuscated") {
+      await page.getByText("If this address can create a new account, check its inbox. Otherwise, sign in or recover the account.", { exact: true }).first().waitFor();
+      assert.equal(await password.inputValue(), fixturePassword, "no-session signup responses must retain the password without exposing whether an account exists");
     } else {
       await page.getByText(`Signed in as ${fixtureEmail}.`, { exact: true }).first().waitFor();
       assert.equal(await page.getByLabel("Create password").count(), 0, "session success must enter signed-in state");
@@ -267,7 +305,7 @@ async function runCase(routeCase, mode, viewport = { width: 1280, height: 900 })
   assert.deepEqual(ageAssuranceRequests, [], `${routeCase.path} base signup must not invoke age-assurance or guardian enrollment`);
   assert.deepEqual(pageErrors, [], "signup browser case must not throw");
   const unexpectedConsoleErrors = consoleErrors.filter(
-    (message) => !(mode === "error" && /Failed to load resource:.*status of 400/.test(message)),
+    (message) => !(providerErrorFixtures[mode] && /Failed to load resource:.*status of (?:400|429|500)/.test(message)),
   );
   assert.deepEqual(unexpectedConsoleErrors, [], "signup browser case must not emit unexpected console errors");
   assert.equal(await page.locator("header.site-header").count(), 1);
@@ -277,12 +315,12 @@ async function runCase(routeCase, mode, viewport = { width: 1280, height: 900 })
 
 try {
   for (const routeCase of routeCases) {
-    for (const mode of ["error", "confirmation", "session", "sign_in"]) {
+    for (const mode of ["error", "rate_limit", "captcha", "smtp", "confirmation", "obfuscated", "session", "sign_in"]) {
       await runCase(routeCase, mode);
     }
     await runCase(routeCase, "error", { width: 390, height: 844 });
   }
-  console.log("Website Account signup browser regression passed on /commons-circle and /commons-circle/setup/profile for desktop/mobile error, confirmation, session, duplicate, age-assurance non-invocation, signed-out profile gate, and existing-account sign-in states.");
+  console.log("Mocked production-build Website Account browser regression passed on /commons-circle and /commons-circle/setup/profile for desktop/mobile provider errors, confirmation, obfuscated existing-user, session, duplicate, age-assurance non-invocation, signed-out profile gate, and existing-account sign-in states.");
 } finally {
   await browser.close();
   await new Promise((resolve, reject) =>

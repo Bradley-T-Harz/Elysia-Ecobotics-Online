@@ -7,8 +7,11 @@ type WebsiteAccountSignupClient = {
       password: string;
       options: { emailRedirectTo: string };
     }): Promise<{
-      data: { session: Session | null };
-      error: { message: string } | null;
+      data: {
+        session: Session | null;
+        user: { identities?: unknown[] | null } | null;
+      };
+      error: { message: string; code?: string; status?: number } | null;
     }>;
   };
 };
@@ -16,9 +19,11 @@ type WebsiteAccountSignupClient = {
 export type WebsiteAccountSignupResult =
   | { status: "configuration_unavailable" }
   | { status: "invalid_input" }
-  | { status: "provider_error"; message: string }
+  | { status: "provider_error"; message: string; code?: string; providerStatus?: number }
   | { status: "unexpected_error" }
+  | { status: "unexpected_response" }
   | { status: "confirmation_required" }
+  | { status: "confirmation_or_existing" }
   | { status: "signed_in"; session: Session };
 
 export async function requestWebsiteAccountSignup(input: {
@@ -38,8 +43,17 @@ export async function requestWebsiteAccountSignup(input: {
       password: submittedPassword,
       options: { emailRedirectTo: input.emailRedirectTo }
     });
-    if (error) return { status: "provider_error", message: error.message };
+    if (error) {
+      return {
+        status: "provider_error",
+        message: error.message,
+        code: error.code,
+        providerStatus: error.status
+      };
+    }
     if (data.session) return { status: "signed_in", session: data.session };
+    if (!data.user || !Array.isArray(data.user.identities)) return { status: "unexpected_response" };
+    if (data.user.identities.length === 0) return { status: "confirmation_or_existing" };
     return { status: "confirmation_required" };
   } catch {
     return { status: "unexpected_error" };
