@@ -20,6 +20,50 @@ import {
   type AuthSignupPasswordClearReason
 } from "./authSignupDiagnostics";
 
+type AuthMode = "sign_in" | "sign_up";
+
+type AuthFormInteractionDiagnostic = {
+  modeSwitchReceived: boolean;
+  modeSwitchPasswordClearReason: "none";
+  domEmailPresent: boolean;
+  domPasswordPresent: boolean;
+  reactEmailPresent: boolean;
+  reactPasswordPresent: boolean;
+  formValid: boolean;
+  emailValid: boolean;
+  passwordValid: boolean;
+  invalidEventFired: boolean;
+  pointerReceived: boolean;
+  clickReceived: boolean;
+  buttonDisabled: boolean;
+  disabledReason: "none" | "pending";
+  submitReceived: boolean;
+  formDataEmailPresent: boolean;
+  formDataPasswordPresent: boolean;
+};
+
+function initialAuthFormInteraction(): AuthFormInteractionDiagnostic {
+  return {
+    modeSwitchReceived: false,
+    modeSwitchPasswordClearReason: "none",
+    domEmailPresent: false,
+    domPasswordPresent: false,
+    reactEmailPresent: false,
+    reactPasswordPresent: false,
+    formValid: false,
+    emailValid: false,
+    passwordValid: false,
+    invalidEventFired: false,
+    pointerReceived: false,
+    clickReceived: false,
+    buttonDisabled: false,
+    disabledReason: "none",
+    submitReceived: false,
+    formDataEmailPresent: false,
+    formDataPasswordPresent: false
+  };
+}
+
 type AuthPanelCopy = {
   eyebrow?: string;
   title?: string;
@@ -37,12 +81,15 @@ type AuthPanelProps = {
 
 export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelProps) {
   const [signupDiagnostic, setSignupDiagnostic] = useState<AuthSignupDiagnostic | null>(() => getAuthSignupDiagnostic());
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [reactEmailPresent, setReactEmailPresent] = useState(false);
+  const [reactPasswordPresent, setReactPasswordPresent] = useState(false);
+  const [formInteraction, setFormInteraction] = useState<AuthFormInteractionDiagnostic>(initialAuthFormInteraction);
   const [busy, setBusy] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [localStatus, setLocalStatus] = useState(() => restoredAuthSignupMessage(signupDiagnostic));
-  const [authMode, setAuthMode] = useState<"sign_in" | "sign_up">("sign_in");
+  const [authMode, setAuthMode] = useState<AuthMode>("sign_in");
+  const emailInputRef = useRef<HTMLInputElement | null>(null);
+  const passwordInputRef = useRef<HTMLInputElement | null>(null);
   const signupPendingRef = useRef(false);
   const signupAttemptIdRef = useRef<string | null>(null);
   const currentSignupRoute = authSignupRouteForPath(window.location.pathname);
@@ -99,22 +146,72 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
   }
 
   function clearPassword(reason: AuthSignupPasswordClearReason, attemptId?: string) {
-    setPassword("");
+    if (passwordInputRef.current) passwordInputRef.current.value = "";
+    setReactPasswordPresent(false);
     if (attemptId) updateAuthSignupDiagnostic(attemptId, { passwordClearReason: reason });
   }
 
   function restoreSubmittedPassword(submittedPassword: string, attemptId: string) {
-    setPassword(submittedPassword);
+    if (passwordInputRef.current) passwordInputRef.current.value = submittedPassword;
+    setReactPasswordPresent(Boolean(submittedPassword));
     updateAuthSignupDiagnostic(attemptId, { passwordRestored: true });
   }
 
   function changePassword(nextPassword: string) {
-    setPassword(nextPassword);
+    setReactPasswordPresent(Boolean(nextPassword));
     if (!nextPassword && signupAttemptIdRef.current) {
       updateAuthSignupDiagnostic(signupAttemptIdRef.current, {
         passwordClearReason: "input_event_during_pending"
       });
     }
+  }
+
+  function readAuthFormSnapshot(mode = authMode) {
+    const emailInput = emailInputRef.current;
+    const passwordInput = passwordInputRef.current;
+    const domEmailPresent = Boolean(emailInput?.value.trim());
+    const domPasswordPresent = Boolean(passwordInput?.value);
+    const emailValid = Boolean(emailInput?.validity.valid && domEmailPresent);
+    const passwordValid = Boolean(
+      passwordInput?.validity.valid
+      && domPasswordPresent
+      && (mode !== "sign_up" || passwordInput.value.length >= 6)
+    );
+    return {
+      domEmailPresent,
+      domPasswordPresent,
+      reactEmailPresent,
+      reactPasswordPresent,
+      emailValid,
+      passwordValid,
+      formValid: emailValid && passwordValid,
+      buttonDisabled: busy,
+      disabledReason: busy ? "pending" as const : "none" as const
+    };
+  }
+
+  function recordAuthFormInteraction(
+    update: Partial<AuthFormInteractionDiagnostic>,
+    mode = authMode
+  ) {
+    const snapshot = readAuthFormSnapshot(mode);
+    setFormInteraction((current) => ({ ...current, ...snapshot, ...update }));
+  }
+
+  function selectAuthMode(nextMode: AuthMode) {
+    if (busy || nextMode === authMode) return;
+    setAuthMode(nextMode);
+    setLocalStatus("");
+    recordAuthFormInteraction({
+      modeSwitchReceived: true,
+      modeSwitchPasswordClearReason: "none",
+      invalidEventFired: false,
+      pointerReceived: false,
+      clickReceived: false,
+      submitReceived: false,
+      formDataEmailPresent: false,
+      formDataPasswordPresent: false
+    }, nextMode);
   }
 
   function safeAuthError(action: "sign-up" | "sign-in" | "sign-out", message: string, code = "", providerStatus?: number) {
@@ -130,15 +227,20 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
     return `The Website Account ${action} request could not be completed safely. Please try again later.`;
   }
 
-  async function signUp(submission: {
+  async function signUp(input: {
+    email: string;
+    password: string;
     submitEventReceived: boolean;
     preventDefaultCalled: boolean;
   }) {
     if (signupPendingRef.current) return;
-    const submittedEmail = email.trim();
-    const submittedPassword = password;
+    const submittedEmail = input.email.trim();
+    const submittedPassword = input.password;
     const emailRedirectTo = `${window.location.origin}${copy?.confirmationPath ?? "/account"}`;
-    const attempt = beginAuthSignupDiagnostic(submission);
+    const attempt = beginAuthSignupDiagnostic({
+      submitEventReceived: input.submitEventReceived,
+      preventDefaultCalled: input.preventDefaultCalled
+    });
     signupAttemptIdRef.current = attempt.attemptId;
     signupPendingRef.current = true;
     setBusy(true);
@@ -223,17 +325,25 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
     }
   }
 
-  async function signIn(event?: FormEvent<HTMLFormElement>) {
-    event?.preventDefault();
+  async function signIn(submittedEmail: string, submittedPassword: string) {
     if (!supabase) { emit("Demo mode: sign-in form is visible, but no remote session is created."); return; }
     setBusy(true);
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    setBusy(false);
-    if (error) { emit(safeAuthError("sign-in", error.message)); return; }
-    const signedInEmail = data.session?.user.email ?? email;
-    emit(`Signed in as ${signedInEmail}.`);
-    setPassword("");
-    await onAuthChanged();
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: submittedEmail.trim(),
+        password: submittedPassword
+      });
+      if (error) { emit(safeAuthError("sign-in", error.message)); return; }
+      const signedInEmail = data.session?.user.email ?? submittedEmail.trim();
+      emit(`Signed in as ${signedInEmail}.`);
+      if (passwordInputRef.current) passwordInputRef.current.value = "";
+      setReactPasswordPresent(false);
+      await onAuthChanged();
+    } catch {
+      emit("The Website Account sign-in request could not reach authentication. Your password was not cleared; check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function signOut() {
@@ -249,13 +359,26 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const submittedForm = event.currentTarget;
+    const formData = new FormData(submittedForm);
+    const emailEntry = formData.get("email");
+    const passwordEntry = formData.get("password");
+    const submittedEmail = typeof emailEntry === "string" ? emailEntry.trim() : "";
+    const submittedPassword = typeof passwordEntry === "string" ? passwordEntry : "";
+    recordAuthFormInteraction({
+      submitReceived: true,
+      formDataEmailPresent: Boolean(submittedEmail),
+      formDataPasswordPresent: Boolean(submittedPassword)
+    });
     if (authMode === "sign_up") {
       await signUp({
+        email: submittedEmail,
+        password: submittedPassword,
         submitEventReceived: true,
         preventDefaultCalled: event.defaultPrevented
       });
     } else {
-      await signIn();
+      await signIn(submittedEmail, submittedPassword);
     }
   }
 
@@ -269,8 +392,25 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
       data-auth-signup-route={currentSignupRoute}
       data-auth-signup-browser={currentBrowserFamily}
       data-auth-signup-mode={session ? "signed_in" : authMode}
+      data-auth-signup-mode-switch-received={String(formInteraction.modeSwitchReceived)}
+      data-auth-signup-mode-switch-password-clear={formInteraction.modeSwitchPasswordClearReason}
+      data-auth-signup-dom-email-present={String(formInteraction.domEmailPresent)}
+      data-auth-signup-dom-password-present={String(formInteraction.domPasswordPresent)}
+      data-auth-signup-react-email-present={String(reactEmailPresent)}
+      data-auth-signup-react-password-present={String(reactPasswordPresent)}
+      data-auth-signup-form-valid={String(formInteraction.formValid)}
+      data-auth-signup-email-valid={String(formInteraction.emailValid)}
+      data-auth-signup-password-valid={String(formInteraction.passwordValid)}
+      data-auth-signup-invalid-event={String(formInteraction.invalidEventFired)}
+      data-auth-signup-pointer-received={String(formInteraction.pointerReceived)}
+      data-auth-signup-click-received={String(formInteraction.clickReceived)}
+      data-auth-signup-button-disabled={String(busy)}
+      data-auth-signup-disabled-reason={busy ? "pending" : formInteraction.disabledReason}
+      data-auth-signup-form-submit-received={String(formInteraction.submitReceived)}
+      data-auth-signup-formdata-email-present={String(formInteraction.formDataEmailPresent)}
+      data-auth-signup-formdata-password-present={String(formInteraction.formDataPasswordPresent)}
       data-auth-signup-handler-started={String(signupDiagnostic?.handlerStarted ?? false)}
-      data-auth-signup-submit-received={String(signupDiagnostic?.submitEventReceived ?? false)}
+      data-auth-signup-submit-received={String(signupDiagnostic?.submitEventReceived ?? formInteraction.submitReceived)}
       data-auth-signup-prevent-default={String(signupDiagnostic?.preventDefaultCalled ?? false)}
       data-auth-signup-validation-passed={String(signupDiagnostic?.validationPassed ?? false)}
       data-auth-signup-called={String(signupDiagnostic?.signupCalled ?? false)}
@@ -304,19 +444,72 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
         aria-live="polite"
         aria-atomic="true"
       >{authSignupDiagnosticSummary(signupDiagnostic)}</p>}
-      {!session ? <form className="auth-form" onSubmit={submitAuth} noValidate>
-        <label><span>Email</span><input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="builder@example.com" autoComplete="email" inputMode="email" disabled={busy} required /></label>
-        <label><span>{authMode === "sign_up" ? "Create password" : "Password"}</span><input value={password} onChange={(event) => changePassword(event.target.value)} type="password" autoComplete={authMode === "sign_up" ? "new-password" : "current-password"} minLength={authMode === "sign_up" ? 6 : undefined} disabled={busy} required />{authMode === "sign_up" && <small>At least 6 characters are accepted for compatibility; 12 or more unique characters are strongly recommended.</small>}</label>
+      {!session ? <>
+        <div className="button-row auth-mode-selector" role="group" aria-label="Website Account mode">
+          <button
+            id="website-account-sign-in-mode"
+            type="button"
+            className={authMode === "sign_in" ? "button-primary" : ""}
+            aria-label="Use sign-in mode"
+            aria-pressed={authMode === "sign_in"}
+            disabled={busy}
+            onClick={() => selectAuthMode("sign_in")}
+          >Sign in</button>
+          <button
+            id="website-account-create-mode"
+            type="button"
+            className={authMode === "sign_up" ? "button-primary" : ""}
+            aria-label="Use create-account mode"
+            aria-pressed={authMode === "sign_up"}
+            disabled={busy}
+            onClick={() => selectAuthMode("sign_up")}
+          >Create account</button>
+        </div>
+        <form
+          id="website-account-auth-form"
+          name="website-account-auth"
+          className="auth-form"
+          onSubmit={submitAuth}
+          onInvalidCapture={() => {
+            recordAuthFormInteraction({ invalidEventFired: true });
+            setLocalStatus("Enter a valid email and password before continuing.");
+          }}
+        >
+        <label htmlFor="website-account-email"><span>Email</span><input
+          ref={emailInputRef}
+          id="website-account-email"
+          name="email"
+          type="email"
+          placeholder="builder@example.com"
+          autoComplete="email"
+          inputMode="email"
+          disabled={busy}
+          required
+          onChange={(event) => setReactEmailPresent(Boolean(event.currentTarget.value.trim()))}
+        /></label>
+        <label htmlFor={authMode === "sign_up" ? "website-account-new-password" : "website-account-password"}><span>{authMode === "sign_up" ? "Create password" : "Password"}</span><input
+          ref={passwordInputRef}
+          id={authMode === "sign_up" ? "website-account-new-password" : "website-account-password"}
+          name="password"
+          type="password"
+          autoComplete={authMode === "sign_up" ? "new-password" : "current-password"}
+          minLength={authMode === "sign_up" ? 6 : undefined}
+          disabled={busy}
+          required
+          onChange={(event) => changePassword(event.currentTarget.value)}
+        />{authMode === "sign_up" && <small>At least 6 characters are accepted for compatibility; 12 or more unique characters are strongly recommended.</small>}</label>
         <div className="button-row">
-          <button type="submit" disabled={busy || !email.trim() || !password || (authMode === "sign_up" && password.length < 6)}>{busy ? "Working..." : authMode === "sign_up" ? "Create Website Account" : "Sign in"}</button>
-          <button type="button" disabled={busy} onClick={() => {
-            setAuthMode((current) => current === "sign_in" ? "sign_up" : "sign_in");
-            clearPassword("mode_change", signupDiagnostic?.attemptId);
-            setLocalStatus("");
-          }}>{authMode === "sign_up" ? "Use existing account" : "Create an account instead"}</button>
+          <button
+            id="website-account-submit"
+            type="submit"
+            disabled={busy}
+            onPointerDown={() => recordAuthFormInteraction({ pointerReceived: true })}
+            onClick={() => recordAuthFormInteraction({ clickReceived: true })}
+          >{busy ? "Working..." : authMode === "sign_up" ? "Create Website Account" : "Sign in"}</button>
           {authMode === "sign_in" && <Link className="button-link" to="/account/forgot-password">Forgot password?</Link>}
         </div>
-      </form> : <div className="button-row"><button type="button" disabled={busy} onClick={signOut}>{busy ? "Working..." : "Sign out"}</button></div>}
+      </form>
+      </> : <div className="button-row"><button type="button" disabled={busy} onClick={signOut}>{busy ? "Working..." : "Sign out"}</button></div>}
       <p className="boundary-note">{copy?.confirmationCopy ?? "If Supabase email confirmation is enabled, open the confirmation link to return to /account; the session should appear after Supabase completes the redirect."}</p>
     </section>
   );

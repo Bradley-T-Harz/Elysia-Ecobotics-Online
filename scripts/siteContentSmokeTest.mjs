@@ -684,7 +684,17 @@ assert(economicOperations.includes("not a Stripe checkout, payment, charge, cust
 assert(forgotPassword.includes("resetPasswordForEmail") && forgotPassword.includes("does not confirm whether an account exists"), "Forgot-password flow must send a privacy-preserving recovery request.");
 assert(accountRecovery.includes('autoComplete="new-password"') && accountRecovery.includes("minLength={6}") && /Twelve or more unique characters/i.test(accountRecovery), "Recovery form must preserve the repository 6-character compatibility minimum while recommending stronger passwords.");
 assert(authProvider.includes('event === "PASSWORD_RECOVERY"') && authProvider.includes("recoveryMode") && accountRecovery.includes("!recoveryMode"), "Password update must require an actual Supabase recovery event, not any ordinary signed-in session or a user-controlled URL hint.");
-assert(authPanel.includes('autoComplete={authMode === "sign_up" ? "new-password" : "current-password"}') && authPanel.includes('to="/account/forgot-password"') && authPanel.includes("password.length < 6"), "Website Account form must preserve password-manager and recovery behavior without raising the current minimum.");
+assert(
+  authPanel.includes('id="website-account-email"')
+    && authPanel.includes('name="email"')
+    && authPanel.includes('name="password"')
+    && authPanel.includes('autoComplete={authMode === "sign_up" ? "new-password" : "current-password"}')
+    && authPanel.includes("new FormData(submittedForm)")
+    && authPanel.includes('disabled={busy}')
+    && authPanel.includes('to="/account/forgot-password"')
+    && authPanel.includes("passwordInput.value.length >= 6"),
+  "Website Account form must preserve standard autofill, FormData submission, recovery, and the current password minimum without stale React-state gating."
+);
 assert(safeInternalActionPath.includes('value.startsWith("//")') && safeInternalActionPath.includes("parsed.origin"), "Database-backed notification actions must be constrained to safe internal paths.");
 assert(signalConsole.includes("Support & Billing") && signalConsole.includes("safeInternalActionPath"), "Signal Console must categorize economic notices and constrain their actions.");
 assert(commons.includes('to="/commons-circle/support-billing"') && commons.includes("Private economic account room"), "Commons Circle must expose the private Support & Billing room without changing membership.");

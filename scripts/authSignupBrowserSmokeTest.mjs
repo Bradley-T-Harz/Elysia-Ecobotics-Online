@@ -150,6 +150,7 @@ async function runCase(
   const providerErrorForMode = mode === "browser_clear"
     ? providerErrorFixtures.error
     : providerErrorFixtures[mode];
+  const confirmationMode = ["autofill", "mode_after_entry", "enter_key", "confirmation"].includes(mode);
   const page = await context.newPage();
   const signupRequests = [];
   const signInRequests = [];
@@ -288,7 +289,7 @@ async function runCase(
   await page.getByText("No active website session.", { exact: true }).waitFor();
   assert.equal(
     await page.locator("section.account-card#account").getAttribute("data-auth-signup-contract"),
-    "2026-07-28.1",
+    "2026-07-28.2",
     `${routeCase.path} must expose the deployed signup diagnostic contract before an attempt`,
   );
   const initialSentinel = page.locator("[data-auth-signup-attempt]");
@@ -306,24 +307,84 @@ async function runCase(
   assert.equal(await initialSentinel.getAttribute("data-auth-signup-navigation"), "false");
   assert.equal(await initialSentinel.getAttribute("data-auth-signup-result"), "not_started");
   assert.equal(await initialSentinel.getAttribute("data-auth-signup-pending"), "idle");
+  assert.equal(await initialSentinel.getAttribute("data-auth-signup-button-disabled"), "false");
+  assert.equal(await initialSentinel.getAttribute("data-auth-signup-disabled-reason"), "none");
+  const initialEmail = page.getByLabel("Email");
+  const initialPassword = page.getByLabel("Password");
+  const initialSubmit = page.locator("form.auth-form button[type='submit']");
+  assert.equal(await initialEmail.getAttribute("id"), "website-account-email");
+  assert.equal(await initialEmail.getAttribute("name"), "email");
+  assert.equal(await initialEmail.getAttribute("autocomplete"), "email");
+  assert.equal(await initialPassword.getAttribute("id"), "website-account-password");
+  assert.equal(await initialPassword.getAttribute("name"), "password");
+  assert.equal(await initialPassword.getAttribute("autocomplete"), "current-password");
+  assert.equal(await initialSubmit.isEnabled(), true, "empty auth form must rely on native validation, not stale React state");
 
-  if (mode === "sign_in") {
-    await page.getByLabel("Email").fill(fixtureEmail);
-    await page.getByLabel("Password").fill(fixturePassword);
+  if (mode === "sign_in" || mode === "sign_in_autofill") {
+    const signInEmail = page.getByLabel("Email");
+    const signInPassword = page.getByLabel("Password");
+    if (mode === "sign_in_autofill") {
+      await signInEmail.evaluate((input, value) => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+        setter?.call(input, value);
+      }, fixtureEmail);
+      await signInPassword.evaluate((input, value) => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+        setter?.call(input, value);
+      }, fixturePassword);
+    } else {
+      await signInEmail.fill(fixtureEmail);
+      await signInPassword.fill(fixturePassword);
+    }
     await page.getByRole("button", { name: "Sign in", exact: true }).click();
     await page.getByText(`Signed in as ${fixtureEmail}.`, { exact: true }).first().waitFor();
     assert.equal(signInRequests.length, 1, "existing-account sign-in must remain intact");
     assert.equal(signupRequests.length, 0, "sign-in must not invoke signup");
   } else {
-    await page.getByRole("button", { name: "Create an account instead" }).click();
+    const signInPassword = page.getByLabel("Password");
+    if (mode === "mode_after_entry") {
+      await page.getByLabel("Email").fill(fixtureEmail);
+      await signInPassword.fill(fixturePassword);
+    }
+    await page.getByRole("button", { name: "Use create-account mode" }).click();
     assert.equal(await initialSentinel.getAttribute("data-auth-signup-mode"), "sign_up");
+    assert.equal(await initialSentinel.getAttribute("data-auth-signup-mode-switch-received"), "true");
+    assert.equal(await initialSentinel.getAttribute("data-auth-signup-mode-switch-password-clear"), "none");
     const email = page.getByLabel("Email");
     const password = page.getByLabel("Create password");
     const submit = page.locator("form.auth-form button[type='submit']");
-    const modeSwitch = page.getByRole("button", { name: "Use existing account" });
-    await email.fill(`  ${fixtureEmail}  `);
-    await password.fill(fixturePassword);
+    const modeSwitch = page.getByRole("button", { name: "Use sign-in mode" });
+    assert.equal(await password.getAttribute("id"), "website-account-new-password");
+    assert.equal(await password.getAttribute("name"), "password");
+    assert.equal(await password.getAttribute("autocomplete"), "new-password");
+    assert.equal(await password.getAttribute("minlength"), "6");
+    if (mode === "mode_after_entry") {
+      assert.equal(await email.inputValue(), fixtureEmail, "choosing create-account mode after entry must preserve email");
+      assert.equal(await password.inputValue(), fixturePassword, "choosing create-account mode after entry must preserve password");
+      await modeSwitch.click();
+      assert.equal(await page.getByLabel("Password").inputValue(), fixturePassword, "returning to sign-in mode must preserve the entered password");
+      await page.getByRole("button", { name: "Use create-account mode" }).click();
+      assert.equal(await password.inputValue(), fixturePassword, "a complete mode round trip must preserve the entered password");
+    } else if (mode === "autofill") {
+      await email.evaluate((input, value) => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+        setter?.call(input, value);
+      }, fixtureEmail);
+      await password.evaluate((input, value) => {
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+        setter?.call(input, value);
+      }, fixturePassword);
+      assert.equal(await initialSentinel.getAttribute("data-auth-signup-react-email-present"), "false");
+      assert.equal(await initialSentinel.getAttribute("data-auth-signup-react-password-present"), "false");
+    } else if (mode === "invalid") {
+      await email.fill("not-an-email");
+      await password.fill("short");
+    } else {
+      await email.fill(fixtureEmail);
+      await password.fill(fixturePassword);
+    }
     assert.equal(await submit.isEnabled(), true);
+    await submit.scrollIntoViewIfNeeded();
     const clickedElement = await submit.evaluate((button) => {
       const rect = button.getBoundingClientRect();
       const target = document.elementFromPoint(
@@ -339,7 +400,26 @@ async function runCase(
       `${routeCase.path} signup and auth-mode controls must remain distinct`,
     );
     const navigationCountBeforeSubmit = navigations.length;
-    await submit.click();
+    if (mode === "enter_key") {
+      await password.press("Enter");
+    } else {
+      await submit.click();
+    }
+    if (mode === "invalid") {
+      await page.getByText("Enter a valid email and password before continuing.", { exact: true }).first().waitFor();
+      assert.equal(signupRequests.length, 0, "native-invalid credentials must not invoke signup");
+      assert.equal(await password.inputValue(), "short", "native validation must preserve the password");
+      assert.equal(await submit.isEnabled(), true, "native validation must keep the form retryable");
+      assert.equal(await initialSentinel.getAttribute("data-auth-signup-pointer-received"), "true");
+      assert.equal(await initialSentinel.getAttribute("data-auth-signup-click-received"), "true");
+      assert.equal(await initialSentinel.getAttribute("data-auth-signup-invalid-event"), "true");
+      assert.equal(await initialSentinel.getAttribute("data-auth-signup-form-submit-received"), "false");
+      assert.equal(await initialSentinel.getAttribute("data-auth-signup-request-started"), "false");
+      assert.deepEqual(ageAssuranceRequests, []);
+      assert.deepEqual(pageErrors, []);
+      await context.close();
+      return;
+    }
     if (mode === "pending_navigation") {
       await page.getByRole("button", { name: "Working..." }).waitFor();
       const attemptId = await initialSentinel.getAttribute("data-auth-signup-attempt");
@@ -424,7 +504,7 @@ async function runCase(
       if (mode === "error" || mode === "browser_clear") {
         assert.equal(signupRequests.length, 1, "pending signup must block duplicate submission");
       }
-    } else if (mode === "confirmation") {
+    } else if (confirmationMode) {
       await page.getByText("Account created. Check your email to confirm it before signing in.", { exact: true }).first().waitFor();
       assert.equal(await password.inputValue(), "", "verified new-user response must clear the password only after success");
     } else if (mode === "obfuscated") {
@@ -450,7 +530,7 @@ async function runCase(
     await page.waitForFunction(() =>
       document.querySelector("[data-auth-signup-attempt]")?.getAttribute("data-auth-signup-pending") === "settled"
     );
-    assert.equal(await diagnostic.getAttribute("data-auth-signup-contract"), "2026-07-28.1");
+    assert.equal(await diagnostic.getAttribute("data-auth-signup-contract"), "2026-07-28.2");
     assert.equal(await diagnostic.getAttribute("data-auth-signup-route"), routeCase.path);
     const expectedMode = mode === "session" ? "signed_in" : "sign_up";
     assert.equal(await diagnostic.getAttribute("data-auth-signup-mode"), expectedMode);
@@ -463,19 +543,43 @@ async function runCase(
     assert.equal(await diagnostic.getAttribute("data-auth-signup-sdk-called"), "true");
     assert.equal(await diagnostic.getAttribute("data-auth-signup-request-started"), "true");
     assert.equal(await diagnostic.getAttribute("data-auth-signup-request-completed"), "true");
+    assert.equal(
+      await diagnostic.getAttribute("data-auth-signup-pointer-received"),
+      mode === "enter_key" ? "false" : "true",
+    );
+    assert.equal(
+      await diagnostic.getAttribute("data-auth-signup-click-received"),
+      "true",
+    );
+    assert.equal(await diagnostic.getAttribute("data-auth-signup-button-disabled"), "false");
+    assert.equal(await diagnostic.getAttribute("data-auth-signup-disabled-reason"), "none");
+    assert.equal(await diagnostic.getAttribute("data-auth-signup-form-submit-received"), "true");
+    assert.equal(await diagnostic.getAttribute("data-auth-signup-dom-email-present"), "true");
+    assert.equal(await diagnostic.getAttribute("data-auth-signup-dom-password-present"), "true");
+    assert.equal(
+      await diagnostic.getAttribute("data-auth-signup-react-email-present"),
+      mode === "autofill" ? "false" : "true",
+    );
+    assert.equal(
+      await diagnostic.getAttribute("data-auth-signup-react-password-present"),
+      mode === "autofill" || confirmationMode || mode === "session" ? "false" : "true",
+    );
+    assert.equal(await diagnostic.getAttribute("data-auth-signup-form-valid"), "true");
+    assert.equal(await diagnostic.getAttribute("data-auth-signup-formdata-email-present"), "true");
+    assert.equal(await diagnostic.getAttribute("data-auth-signup-formdata-password-present"), "true");
     assert.equal(await diagnostic.getAttribute("data-auth-signup-pagehide"), "false");
     assert.equal(await diagnostic.getAttribute("data-auth-signup-beforeunload"), "false");
     assert.equal(await diagnostic.getAttribute("data-auth-signup-navigation"), "false");
     assert.equal(await diagnostic.getAttribute("data-auth-signup-pending"), "settled");
     assert.equal(
       await diagnostic.getAttribute("data-auth-signup-password-restored"),
-      mode === "confirmation" || mode === "session" ? "false" : "true",
+      confirmationMode || mode === "session" ? "false" : "true",
     );
     const expectedResult = mode === "network_failure"
       ? "network_error"
       : providerErrorForMode
         ? "provider_error"
-        : mode === "confirmation"
+        : confirmationMode
           ? "confirmation_required"
           : mode === "obfuscated"
             ? "confirmation_or_existing"
@@ -483,7 +587,7 @@ async function runCase(
     assert.equal(await diagnostic.getAttribute("data-auth-signup-result"), expectedResult);
     assert.equal(
       await diagnostic.getAttribute("data-auth-signup-password-clear"),
-      mode === "confirmation"
+      confirmationMode
         ? "confirmed_new_user"
         : mode === "session"
           ? "immediate_session"
@@ -596,7 +700,7 @@ try {
   await runBrowserSuite({
     browserType: chromium,
     expectedBrowserFamily: "chromium",
-    modes: ["pending_navigation", "network_failure", "browser_clear", "error", "rate_limit", "captcha", "smtp", "confirmation", "obfuscated", "session", "sign_in"],
+    modes: ["invalid", "autofill", "mode_after_entry", "enter_key", "pending_navigation", "network_failure", "browser_clear", "error", "rate_limit", "captcha", "smtp", "confirmation", "obfuscated", "session", "sign_in", "sign_in_autofill"],
     includeMobile: true,
   });
   const braveExecutable = process.env.ELYSIA_BRAVE_EXECUTABLE ?? "/usr/bin/brave-browser-stable";
@@ -605,7 +709,7 @@ try {
       browserType: chromium,
       launchOptions: { executablePath: braveExecutable },
       expectedBrowserFamily: "brave",
-      modes: ["pending_navigation", "network_failure", "browser_clear", "error", "confirmation", "obfuscated", "session", "sign_in"],
+      modes: ["invalid", "autofill", "mode_after_entry", "enter_key", "pending_navigation", "network_failure", "browser_clear", "error", "confirmation", "obfuscated", "session", "sign_in", "sign_in_autofill"],
       includeMobile: true,
     });
   } else if (requireCrossBrowser) {
@@ -618,7 +722,7 @@ try {
     await runBrowserSuite({
       browserType: firefox,
       expectedBrowserFamily: "firefox",
-      modes: ["pending_navigation", "network_failure", "browser_clear", "error", "confirmation", "obfuscated", "session", "sign_in"],
+      modes: ["invalid", "autofill", "mode_after_entry", "enter_key", "pending_navigation", "network_failure", "browser_clear", "error", "confirmation", "obfuscated", "session", "sign_in", "sign_in_autofill"],
       includeMobile: true,
     });
   } else if (requireCrossBrowser) {
@@ -626,7 +730,7 @@ try {
   } else {
     console.warn(`Firefox browser regression skipped because ${firefoxExecutable} is unavailable.`);
   }
-  console.log("Mocked production-build Website Account browser regression passed in Chromium, Brave, and Firefox on /commons-circle and /commons-circle/setup/profile for desktop/mobile navigation prevention, interrupted-navigation persistence, network/provider errors, confirmation, obfuscated existing-user, session, duplicate, age-assurance non-invocation, signed-out profile gate, and existing-account sign-in states.");
+  console.log("Mocked production-build Website Account browser regression passed in Chromium, Brave, and Firefox on /commons-circle and /commons-circle/setup/profile for standard form semantics, native invalidity, direct-DOM autofill, mode changes, Enter/click submission, navigation prevention, interrupted-navigation persistence, network/provider errors, confirmation, obfuscated existing-user, session, duplicate, age-assurance non-invocation, signed-out profile gate, and existing-account sign-in states.");
 } finally {
   if (activeBrowser) await activeBrowser.close();
   await new Promise((resolve, reject) =>

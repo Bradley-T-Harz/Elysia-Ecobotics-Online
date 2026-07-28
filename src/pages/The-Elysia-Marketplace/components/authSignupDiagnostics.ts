@@ -1,4 +1,4 @@
-export const AUTH_SIGNUP_DIAGNOSTIC_CONTRACT = "2026-07-28.1";
+export const AUTH_SIGNUP_DIAGNOSTIC_CONTRACT = "2026-07-28.2";
 
 export type AuthSignupResultCategory =
   | "not_started"
@@ -17,8 +17,7 @@ export type AuthSignupPasswordClearReason =
   | "none"
   | "confirmed_new_user"
   | "immediate_session"
-  | "input_event_during_pending"
-  | "mode_change";
+  | "input_event_during_pending";
 
 export type AuthSignupMessageCategory =
   | "none"
