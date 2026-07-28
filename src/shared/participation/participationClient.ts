@@ -12,6 +12,11 @@ import type {
   VerifiedLifecycleExportDownload,
 } from "./participationTypes";
 
+// Zod's default object-schema optimizer probes Function("") before using its
+// generated parser. Keep the shared Identity decoder in Zod's supported
+// interpreter-only mode so strict CSP never needs or attempts unsafe-eval.
+z.config({ jitless: true });
+
 const IDENTITY_API_ROOT = "/api/identity/v1";
 const MAX_IDENTITY_RESPONSE_BYTES = 256 * 1024;
 const PUBLIC_AVATAR_PATH = /^\/api\/public\/profile-avatars\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;

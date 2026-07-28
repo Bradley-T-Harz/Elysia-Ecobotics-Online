@@ -156,6 +156,16 @@ async function runCase(
   const ageAssuranceRequests = [];
   const pageErrors = [];
   const consoleErrors = [];
+  await page.addInitScript(() => {
+    window.__elysiaCspViolations = [];
+    window.addEventListener("securitypolicyviolation", (event) => {
+      window.__elysiaCspViolations.push({
+        blockedUri: event.blockedURI,
+        directive: event.effectiveDirective,
+        sourceFile: event.sourceFile,
+      });
+    });
+  });
   page.on("pageerror", (error) => pageErrors.push(error.message));
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
@@ -260,6 +270,15 @@ async function runCase(
     "2026-07-27.1",
     `${routeCase.path} must expose the deployed signup diagnostic contract before an attempt`,
   );
+  const initialSentinel = page.locator("[data-auth-signup-attempt]");
+  assert.equal(await initialSentinel.count(), 1, `${routeCase.path} must always render exactly one signup diagnostic sentinel`);
+  assert.equal(await initialSentinel.getAttribute("data-auth-signup-attempt"), "none");
+  assert.equal(await initialSentinel.getAttribute("data-auth-signup-route"), routeCase.path);
+  assert.equal(await initialSentinel.getAttribute("data-auth-signup-mode"), "sign_in");
+  assert.equal(await initialSentinel.getAttribute("data-auth-signup-handler-started"), "false");
+  assert.equal(await initialSentinel.getAttribute("data-auth-signup-request-started"), "false");
+  assert.equal(await initialSentinel.getAttribute("data-auth-signup-result"), "not_started");
+  assert.equal(await initialSentinel.getAttribute("data-auth-signup-pending"), "idle");
 
   if (mode === "sign_in") {
     await page.getByLabel("Email").fill(fixtureEmail);
@@ -270,6 +289,7 @@ async function runCase(
     assert.equal(signupRequests.length, 0, "sign-in must not invoke signup");
   } else {
     await page.getByRole("button", { name: "Create an account instead" }).click();
+    assert.equal(await initialSentinel.getAttribute("data-auth-signup-mode"), "sign_up");
     const email = page.getByLabel("Email");
     const password = page.getByLabel("Create password");
     const submit = page.locator("form.auth-form button[type='submit']");
@@ -318,12 +338,6 @@ async function runCase(
       if (mode === "error" || mode === "browser_clear") {
         assert.equal(signupRequests.length, 1, "pending signup must block duplicate submission");
       }
-      if (routeCase.canVerifySignedOutProfileGate) {
-        await page.getByLabel("Username").fill("fixture-member");
-        await page.getByRole("button", { name: "4. Final confirmation" }).click();
-        await page.getByRole("button", { name: "Create Commons Profile", exact: true }).click();
-        await page.getByText("Sign in to a Website Account before creating your Commons Profile.", { exact: true }).first().waitFor();
-      }
     } else if (mode === "confirmation") {
       await page.getByText("Account created. Check your email to confirm it before signing in.", { exact: true }).first().waitFor();
       assert.equal(await password.inputValue(), "", "verified new-user response must clear the password only after success");
@@ -351,6 +365,9 @@ async function runCase(
       document.querySelector("[data-auth-signup-attempt]")?.getAttribute("data-auth-signup-pending") === "settled"
     );
     assert.equal(await diagnostic.getAttribute("data-auth-signup-contract"), "2026-07-27.1");
+    assert.equal(await diagnostic.getAttribute("data-auth-signup-route"), routeCase.path);
+    const expectedMode = mode === "session" ? "signed_in" : "sign_up";
+    assert.equal(await diagnostic.getAttribute("data-auth-signup-mode"), expectedMode);
     assert.equal(await diagnostic.getAttribute("data-auth-signup-browser"), expectedBrowserFamily);
     assert.equal(await diagnostic.getAttribute("data-auth-signup-handler-started"), "true");
     assert.equal(await diagnostic.getAttribute("data-auth-signup-validation-passed"), "true");
@@ -393,6 +410,13 @@ async function runCase(
       );
     }
 
+    if ((providerErrorForMode || mode === "network_failure") && routeCase.canVerifySignedOutProfileGate) {
+      await page.getByLabel("Username").fill("fixture-member");
+      await page.getByRole("button", { name: "4. Final confirmation" }).click();
+      await page.getByRole("button", { name: "Create Commons Profile", exact: true }).click();
+      await page.getByText("Sign in to a Website Account before creating your Commons Profile.", { exact: true }).first().waitFor();
+    }
+
     if (mode === "network_failure" && routeCase.canVerifySignedOutProfileGate) {
       const attemptId = await diagnostic.getAttribute("data-auth-signup-attempt");
       await page.reload({ waitUntil: "networkidle" });
@@ -425,10 +449,15 @@ async function runCase(
       (providerErrorForMode && /Failed to load resource:.*status of (?:400|429|500)/.test(message))
       || (mode === "network_failure" && /(?:Failed to load resource:.*(?:ERR_FAILED|NS_ERROR_FAILURE)|TypeError: Failed to fetch)/.test(message))
       || (mode === "network_failure" && expectedBrowserFamily === "firefox" && /(?:JSHandle@object|Cross-Origin Request Blocked:.*CORS request did not succeed)/.test(message))
-      || (expectedBrowserFamily === "firefox" && /Content-Security-Policy:.*blocked a JavaScript eval.*Missing 'unsafe-eval'/i.test(message))
     ),
   );
   assert.deepEqual(unexpectedConsoleErrors, [], "signup browser case must not emit unexpected console errors");
+  const cspViolations = await page.evaluate(() => window.__elysiaCspViolations);
+  assert.equal(
+    cspViolations.some((violation) => violation.blockedUri === "eval"),
+    false,
+    "strict-CSP signup pages must not attempt eval-like execution",
+  );
   assert.equal(await page.locator("header.site-header").count(), 1);
   assert.equal(await page.locator("footer.site-footer").count(), 1);
   await context.close();

@@ -50,14 +50,13 @@ let memoryDiagnostic: AuthSignupDiagnostic | null = null;
 let activeAttemptId: string | null = null;
 const nativeFetch = globalThis.fetch.bind(globalThis);
 
-function routeCategory(): AuthSignupDiagnostic["route"] {
-  if (typeof window === "undefined") return "other";
-  if (window.location.pathname === "/commons-circle") return "/commons-circle";
-  if (window.location.pathname === "/commons-circle/setup/profile") return "/commons-circle/setup/profile";
+export function authSignupRouteForPath(pathname: string): AuthSignupDiagnostic["route"] {
+  if (pathname === "/commons-circle") return "/commons-circle";
+  if (pathname === "/commons-circle/setup/profile") return "/commons-circle/setup/profile";
   return "other";
 }
 
-function browserFamily(): AuthSignupDiagnostic["browserFamily"] {
+export function currentAuthSignupBrowserFamily(): AuthSignupDiagnostic["browserFamily"] {
   if (typeof navigator === "undefined") return "other";
   const browserNavigator = navigator as Navigator & { brave?: unknown };
   if (browserNavigator.brave) return "brave";
@@ -123,8 +122,8 @@ export function beginAuthSignupDiagnostic(): AuthSignupDiagnostic {
   const diagnostic: AuthSignupDiagnostic = {
     contract: AUTH_SIGNUP_DIAGNOSTIC_CONTRACT,
     attemptId: safeAttemptId(),
-    route: routeCategory(),
-    browserFamily: browserFamily(),
+    route: authSignupRouteForPath(typeof window === "undefined" ? "" : window.location.pathname),
+    browserFamily: currentAuthSignupBrowserFamily(),
     handlerStarted: true,
     validationPassed: false,
     signupCalled: false,

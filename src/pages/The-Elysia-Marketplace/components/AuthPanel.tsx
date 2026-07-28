@@ -5,6 +5,7 @@ import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../li
 import { requestWebsiteAccountSignup } from "./authSignup";
 import {
   AUTH_SIGNUP_DIAGNOSTIC_CONTRACT,
+  authSignupRouteForPath,
   authSignupDiagnosticSummary,
   beginAuthSignupDiagnostic,
   finishAuthSignupDiagnostic,
@@ -12,6 +13,7 @@ import {
   restoredAuthSignupMessage,
   safeAuthDiagnosticCode,
   subscribeToAuthSignupDiagnostic,
+  currentAuthSignupBrowserFamily,
   updateAuthSignupDiagnostic,
   type AuthSignupDiagnostic,
   type AuthSignupMessageCategory,
@@ -43,6 +45,8 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
   const [authMode, setAuthMode] = useState<"sign_in" | "sign_up">("sign_in");
   const signupPendingRef = useRef(false);
   const signupAttemptIdRef = useRef<string | null>(null);
+  const currentSignupRoute = authSignupRouteForPath(window.location.pathname);
+  const currentBrowserFamily = signupDiagnostic?.browserFamily ?? currentAuthSignupBrowserFamily();
 
   useEffect(() => {
     if (!supabase) return;
@@ -246,7 +250,28 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
   }
 
   return (
-    <section className="account-card" id="account" data-auth-signup-contract={AUTH_SIGNUP_DIAGNOSTIC_CONTRACT}>
+    <section
+      className="account-card"
+      id="account"
+      data-auth-signup-version={AUTH_SIGNUP_DIAGNOSTIC_CONTRACT}
+      data-auth-signup-contract={AUTH_SIGNUP_DIAGNOSTIC_CONTRACT}
+      data-auth-signup-attempt={signupDiagnostic?.attemptId ?? "none"}
+      data-auth-signup-route={currentSignupRoute}
+      data-auth-signup-browser={currentBrowserFamily}
+      data-auth-signup-mode={session ? "signed_in" : authMode}
+      data-auth-signup-handler-started={String(signupDiagnostic?.handlerStarted ?? false)}
+      data-auth-signup-validation-passed={String(signupDiagnostic?.validationPassed ?? false)}
+      data-auth-signup-called={String(signupDiagnostic?.signupCalled ?? false)}
+      data-auth-signup-request-started={String(signupDiagnostic?.requestStarted ?? false)}
+      data-auth-signup-request-completed={String(signupDiagnostic?.requestCompleted ?? false)}
+      data-auth-signup-http-status={signupDiagnostic?.httpStatus ?? ""}
+      data-auth-signup-safe-code={signupDiagnostic?.safeCode ?? ""}
+      data-auth-signup-result={signupDiagnostic?.resultCategory ?? "not_started"}
+      data-auth-signup-pending={signupDiagnostic?.pendingState ?? "idle"}
+      data-auth-signup-password-clear={signupDiagnostic?.passwordClearReason ?? "none"}
+      data-auth-signup-password-restored={String(signupDiagnostic?.passwordRestored ?? false)}
+      data-auth-signup-message={signupDiagnostic?.renderedMessageCategory ?? "none"}
+    >
       <p className="eyebrow">{copy?.eyebrow ?? "Marketplace Account"}</p>
       <h2>{copy?.title ?? "Auth"}</h2>
       {!hasSupabaseConfig && <p className="demo-banner">{supabaseNotConfiguredMessage}</p>}
@@ -258,21 +283,7 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
       {localStatus && <p className="inline-status">{localStatus}</p>}
       {signupDiagnostic && <p
         className="boundary-note"
-        data-auth-signup-contract={AUTH_SIGNUP_DIAGNOSTIC_CONTRACT}
-        data-auth-signup-attempt={signupDiagnostic.attemptId}
-        data-auth-signup-browser={signupDiagnostic.browserFamily}
-        data-auth-signup-handler-started={String(signupDiagnostic.handlerStarted)}
-        data-auth-signup-validation-passed={String(signupDiagnostic.validationPassed)}
-        data-auth-signup-called={String(signupDiagnostic.signupCalled)}
-        data-auth-signup-request-started={String(signupDiagnostic.requestStarted)}
-        data-auth-signup-request-completed={String(signupDiagnostic.requestCompleted)}
-        data-auth-signup-http-status={signupDiagnostic.httpStatus ?? ""}
-        data-auth-signup-safe-code={signupDiagnostic.safeCode ?? ""}
-        data-auth-signup-result={signupDiagnostic.resultCategory}
-        data-auth-signup-pending={signupDiagnostic.pendingState}
-        data-auth-signup-password-clear={signupDiagnostic.passwordClearReason}
-        data-auth-signup-password-restored={String(signupDiagnostic.passwordRestored)}
-        data-auth-signup-message={signupDiagnostic.renderedMessageCategory}
+        data-auth-signup-summary={signupDiagnostic.resultCategory}
         role="status"
         aria-live="polite"
         aria-atomic="true"
