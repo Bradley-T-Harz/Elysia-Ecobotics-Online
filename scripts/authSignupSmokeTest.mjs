@@ -1,5 +1,12 @@
 import assert from "node:assert/strict";
 import { requestWebsiteAccountSignup } from "../src/pages/The-Elysia-Marketplace/components/authSignup.ts";
+import {
+  beginAuthSignupDiagnostic,
+  finishAuthSignupDiagnostic,
+  getAuthSignupDiagnostic,
+  safeAuthDiagnosticCode,
+  updateAuthSignupDiagnostic,
+} from "../src/pages/The-Elysia-Marketplace/components/authSignupDiagnostics.ts";
 
 const emailRedirectTo = "https://elysiaecobotics.com/commons-circle/setup/profile";
 const submittedEmail = "member@example.invalid";
@@ -156,4 +163,28 @@ function clientReturning(result) {
   assert.equal(calls, 0);
 }
 
-console.log("Mocked Website Account signup request contract test passed.");
+{
+  const diagnostic = beginAuthSignupDiagnostic();
+  updateAuthSignupDiagnostic(diagnostic.attemptId, {
+    validationPassed: true,
+    signupCalled: true,
+    requestStarted: true,
+    requestCompleted: true,
+    httpStatus: 429,
+    safeCode: safeAuthDiagnosticCode("OVER_EMAIL_SEND_RATE_LIMIT"),
+    resultCategory: "provider_error",
+    renderedMessageCategory: "provider_error",
+  });
+  finishAuthSignupDiagnostic(diagnostic.attemptId);
+  const stored = getAuthSignupDiagnostic();
+  assert(stored);
+  assert.equal(stored.pendingState, "settled");
+  assert.equal(stored.safeCode, "over_email_send_rate_limit");
+  assert.equal(safeAuthDiagnosticCode("unsafe code with private detail"), "unclassified");
+  const serialized = JSON.stringify(stored);
+  assert.equal(serialized.includes(submittedEmail), false);
+  assert.equal(serialized.includes(submittedPassword), false);
+  assert.equal(/access_token|refresh_token|authorization|apikey|user_id/i.test(serialized), false);
+}
+
+console.log("Mocked Website Account signup request and privacy-safe diagnostic contract tests passed.");
