@@ -15,9 +15,25 @@ assert(!script.includes("console.log(configured)"), "Inventory tooling must neve
 assert(/begin transaction read only;/i.test(sql), "Inventory SQL must start a read-only transaction.");
 assert(/rollback;/i.test(sql), "Inventory SQL must explicitly roll back.");
 assert(!/\b(?:insert|update|delete|truncate|alter|create|drop|grant|revoke)\b\s+(?:table|into|from|on|schema|function|policy|role)/i.test(sql), "Inventory SQL contains a mutation statement.");
-for (const required of ["pg_policies", "role_table_grants", "role_column_grants", "role_routine_grants", "pg_trigger", "schema_migrations", "storage.buckets", "definition_sha256"]) {
+for (const required of [
+  "pg_policies",
+  "role_table_grants",
+  "role_column_grants",
+  "role_routine_grants",
+  "pg_trigger",
+  "schema_migrations",
+  "storage.buckets",
+  "definition_sha256",
+  "auth_user_foreign_keys",
+  "auth_user_triggers",
+  "storage_object_ownership_columns",
+]) {
   assert(sql.includes(required), `Inventory SQL omits ${required}.`);
 }
+assert(
+  sql.includes("'public', 'private', 'artisan', 'storage'"),
+  "Inventory SQL must cover the complete Online and Artisan application schema set."
+);
 assert(!sql.includes("pg_get_functiondef(p.oid) as definition"), "Raw function bodies must not be emitted by default.");
 
 console.log("Supabase read-only inventory smoke test ok.");

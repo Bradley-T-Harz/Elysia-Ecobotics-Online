@@ -59,11 +59,16 @@ const onlineCompatibilityPaths = [
   "supabase/migrations/20260724010000_commune_canonical_author_attribution.sql",
 ];
 
+const accountLifecyclePaths = [
+  "supabase/migrations/20260728010000_auth_user_deletion_lifecycle.sql",
+];
+
 const activePaths = [
   ...baselinePaths,
   ...economicPaths,
   ...artisanPaths,
   ...onlineCompatibilityPaths,
+  ...accountLifecyclePaths,
 ];
 
 const legacyHashes = new Map(Object.entries({
@@ -148,6 +153,9 @@ const artisanMigrations = await Promise.all(artisanPaths.map((file) => fs.readFi
 const onlineCompatibilityMigrations = await Promise.all(
   onlineCompatibilityPaths.map((file) => fs.readFile(file, "utf8"))
 );
+const accountLifecycleMigrations = await Promise.all(
+  accountLifecyclePaths.map((file) => fs.readFile(file, "utf8"))
+);
 const routeKillSwitchMigration = economicMigrations.at(-1);
 assert(routeKillSwitchMigration, "Economic route kill-switch migration is missing.");
 const economicBehaviorFixture = await fs.readFile("scripts/fixtures/economicDatabaseBehavior.sql", "utf8");
@@ -172,6 +180,42 @@ for (const [index, migration] of onlineCompatibilityMigrations.entries()) {
   assert(!/postgres(?:ql)?:\/\//i.test(migration), `${onlineCompatibilityPaths[index]} contains a connection string.`);
   assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${onlineCompatibilityPaths[index]} contains a token-like value.`);
 }
+for (const [index, migration] of accountLifecycleMigrations.entries()) {
+  assert(migration.startsWith("--"), `${accountLifecyclePaths[index]} needs an explanatory header.`);
+  assert(/^begin;/im.test(migration), `${accountLifecyclePaths[index]} must start a transaction.`);
+  assert(/commit;\s*$/i.test(migration), `${accountLifecyclePaths[index]} must commit atomically.`);
+  assert(!/postgres(?:ql)?:\/\//i.test(migration), `${accountLifecyclePaths[index]} contains a connection string.`);
+  assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${accountLifecyclePaths[index]} contains a token-like value.`);
+}
+const accountLifecycleSource = accountLifecycleMigrations.join("\n");
+for (const marker of [
+  "account_participation_user_id_fkey",
+  "community_notification_preferences_user_id_fkey",
+  "on delete cascade",
+  "auth_user_deletion_lifecycle_prerequisite_drift",
+  "auth_user_deletion_lifecycle_constraints_missing",
+]) assert(accountLifecycleSource.includes(marker), `Account Auth deletion lifecycle migration omits ${marker}.`);
+assert(
+  (accountLifecycleSource.match(/on delete cascade/gi) || []).length === 2,
+  "Account Auth deletion lifecycle migration must change exactly the two automatically bootstrapped constraints."
+);
+for (const protectedRelation of [
+  "age_assurance_events",
+  "guardian_relationships",
+  "guardian_consents",
+  "account_legal_holds",
+  "community_audit_events",
+  "commune_posts",
+  "commune_comments",
+  "artisan.artworks",
+  "artisan.comments",
+  "economic_orders",
+]) assert(
+  !accountLifecycleSource.includes(`alter table ${protectedRelation}`)
+    && !accountLifecycleSource.includes(`alter table private.${protectedRelation}`)
+    && !accountLifecycleSource.includes(`alter table public.${protectedRelation}`),
+  `Account Auth deletion lifecycle migration must not broaden deletion semantics for ${protectedRelation}.`
+);
 const artisanSource = artisanMigrations.join("\n");
 for (const marker of [
   "private.community_profile_is_public",
@@ -491,6 +535,8 @@ try {
     "scripts/fixtures/artisanDatabaseBehavior.sql",
     "scripts/fixtures/onlinePublicProfileBehavior.sql",
     "scripts/fixtures/communeCanonicalAttributionBehavior.sql",
+    "scripts/fixtures/accountAuthDeletionLifecycleBehavior.sql",
+    "scripts/sql/supabase_read_only_inventory.sql",
   ]) {
     await run(containerRuntime, ["cp", file, `${container}:/tmp/${path.basename(file)}`]);
   }
@@ -606,6 +652,9 @@ try {
   for (const file of onlineCompatibilityPaths) {
     await psql(["-f", `/tmp/${path.basename(file)}`]);
   }
+  for (const file of accountLifecyclePaths) {
+    await psql(["-f", `/tmp/${path.basename(file)}`]);
+  }
   const artisanBehavior = await psql(["-f", "/tmp/artisanDatabaseBehavior.sql"]);
   assert(artisanBehavior.stdout.includes("Artisan database behavior checks ok."), "Artisan database behavior marker missing.");
   const onlineProfileBehavior = await psql(["-f", "/tmp/onlinePublicProfileBehavior.sql"]);
@@ -617,6 +666,61 @@ try {
   assert(
     communeAttributionBehavior.stdout.includes("Canonical Commune attribution behavior checks ok."),
     "Canonical Commune attribution behavior marker missing."
+  );
+  const accountAuthDeletionLifecycleBehavior = await psql([
+    "-f",
+    "/tmp/accountAuthDeletionLifecycleBehavior.sql",
+  ]);
+  assert(
+    accountAuthDeletionLifecycleBehavior.stdout.includes("Account Auth deletion lifecycle behavior checks ok."),
+    "Account Auth deletion lifecycle behavior marker missing."
+  );
+  // Hosted Supabase owns this ledger. The database-only image omits it, so
+  // provide the catalog shape required by the read-only inventory rehearsal.
+  await psql(["-c", `
+    create schema if not exists supabase_migrations;
+    create table if not exists supabase_migrations.schema_migrations (
+      version text primary key,
+      statements text[],
+      name text
+    );
+  `]);
+  const readOnlyInventory = await psql(["-f", "/tmp/supabase_read_only_inventory.sql"]);
+  const parsedReadOnlyInventory = JSON.parse(readOnlyInventory.stdout.trim());
+  assert(
+    Array.isArray(parsedReadOnlyInventory.auth_user_foreign_keys)
+      && parsedReadOnlyInventory.auth_user_foreign_keys.length >= 299,
+    "Read-only inventory omitted direct auth.users dependencies."
+  );
+  assert(
+    parsedReadOnlyInventory.auth_user_foreign_keys.some((constraint) =>
+      constraint.constraint_name === "account_participation_user_id_fkey"
+      && constraint.on_delete === "CASCADE"
+      && constraint.validated === true
+    ),
+    "Read-only inventory did not confirm the account_participation Auth lifecycle constraint."
+  );
+  assert(
+    parsedReadOnlyInventory.auth_user_foreign_keys.some((constraint) =>
+      constraint.constraint_name === "community_notification_preferences_user_id_fkey"
+      && constraint.on_delete === "CASCADE"
+      && constraint.validated === true
+    ),
+    "Read-only inventory did not confirm the notification-preferences Auth lifecycle constraint."
+  );
+  assert(
+    parsedReadOnlyInventory.auth_user_triggers.some((trigger) =>
+      trigger.trigger_name === "bootstrap_community_account_state"
+      && /AFTER INSERT ON users/i.test(trigger.definition)
+      && !/\bDELETE\b/i.test(trigger.definition)
+    ),
+    "Read-only inventory did not prove the Auth bootstrap trigger remains INSERT-only."
+  );
+  assert(
+    parsedReadOnlyInventory.storage_object_ownership_columns.some((column) =>
+      column.column_name === "owner_id"
+    ),
+    "Read-only inventory omitted Storage object ownership."
   );
 
   const catalogIntegrity = await psql(["-tAc", `
