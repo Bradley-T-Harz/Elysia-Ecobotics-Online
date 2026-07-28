@@ -1,4 +1,4 @@
-export const AUTH_SIGNUP_DIAGNOSTIC_CONTRACT = "2026-07-27.1";
+export const AUTH_SIGNUP_DIAGNOSTIC_CONTRACT = "2026-07-28.1";
 
 export type AuthSignupResultCategory =
   | "not_started"
@@ -28,13 +28,20 @@ export type AuthSignupMessageCategory =
 export type AuthSignupDiagnostic = {
   contract: typeof AUTH_SIGNUP_DIAGNOSTIC_CONTRACT;
   attemptId: string;
+  startedAtEpochMs: number;
+  documentGeneration: string;
   route: "/commons-circle" | "/commons-circle/setup/profile" | "other";
   browserFamily: "brave" | "chromium" | "firefox" | "other";
   handlerStarted: boolean;
+  submitEventReceived: boolean;
+  preventDefaultCalled: boolean;
   validationPassed: boolean;
   signupCalled: boolean;
   requestStarted: boolean;
   requestCompleted: boolean;
+  pagehideFired: boolean;
+  beforeunloadFired: boolean;
+  navigationDetected: boolean;
   httpStatus?: number;
   safeCode?: string;
   resultCategory: AuthSignupResultCategory;
@@ -49,6 +56,7 @@ const eventName = "elysia:website-account-signup-diagnostic";
 let memoryDiagnostic: AuthSignupDiagnostic | null = null;
 let activeAttemptId: string | null = null;
 const nativeFetch = globalThis.fetch.bind(globalThis);
+const currentDocumentGeneration = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
 export function authSignupRouteForPath(pathname: string): AuthSignupDiagnostic["route"] {
   if (pathname === "/commons-circle") return "/commons-circle";
@@ -82,6 +90,9 @@ function readStoredDiagnostic(): AuthSignupDiagnostic | null {
       parsed.contract !== AUTH_SIGNUP_DIAGNOSTIC_CONTRACT
       || typeof parsed.attemptId !== "string"
       || parsed.attemptId.length > 64
+      || typeof parsed.startedAtEpochMs !== "number"
+      || typeof parsed.documentGeneration !== "string"
+      || parsed.documentGeneration.length > 32
     ) {
       return memoryDiagnostic;
     }
@@ -118,17 +129,27 @@ export function subscribeToAuthSignupDiagnostic(listener: (diagnostic: AuthSignu
   return () => window.removeEventListener(eventName, handleDiagnostic);
 }
 
-export function beginAuthSignupDiagnostic(): AuthSignupDiagnostic {
+export function beginAuthSignupDiagnostic(submission?: {
+  submitEventReceived: boolean;
+  preventDefaultCalled: boolean;
+}): AuthSignupDiagnostic {
   const diagnostic: AuthSignupDiagnostic = {
     contract: AUTH_SIGNUP_DIAGNOSTIC_CONTRACT,
     attemptId: safeAttemptId(),
+    startedAtEpochMs: Date.now(),
+    documentGeneration: currentDocumentGeneration,
     route: authSignupRouteForPath(typeof window === "undefined" ? "" : window.location.pathname),
     browserFamily: currentAuthSignupBrowserFamily(),
     handlerStarted: true,
+    submitEventReceived: submission?.submitEventReceived ?? false,
+    preventDefaultCalled: submission?.preventDefaultCalled ?? false,
     validationPassed: false,
     signupCalled: false,
     requestStarted: false,
     requestCompleted: false,
+    pagehideFired: false,
+    beforeunloadFired: false,
+    navigationDetected: false,
     resultCategory: "pending",
     pendingState: "pending",
     passwordClearReason: "none",
@@ -152,6 +173,27 @@ export function updateAuthSignupDiagnostic(
 export function finishAuthSignupDiagnostic(attemptId: string) {
   updateAuthSignupDiagnostic(attemptId, { pendingState: "settled" });
   if (activeAttemptId === attemptId) activeAttemptId = null;
+}
+
+function recordPendingNavigation(event: "pagehide" | "beforeunload") {
+  const current = readStoredDiagnostic();
+  if (!current || current.pendingState !== "pending") return;
+  publishDiagnostic({
+    ...current,
+    pagehideFired: current.pagehideFired || event === "pagehide",
+    beforeunloadFired: current.beforeunloadFired || event === "beforeunload",
+    navigationDetected: true
+  });
+}
+
+function reconcileRecentDocumentNavigation() {
+  const current = readStoredDiagnostic();
+  if (!current) return;
+  if (current.documentGeneration === currentDocumentGeneration) return;
+  const attemptAgeMs = Date.now() - current.startedAtEpochMs;
+  if (attemptAgeMs < 0 || attemptAgeMs > 5 * 60_000) return;
+  if (current.route !== authSignupRouteForPath(window.location.pathname)) return;
+  publishDiagnostic({ ...current, navigationDetected: true });
 }
 
 function isSignupRequest(input: RequestInfo | URL, init?: RequestInit) {
@@ -236,4 +278,10 @@ export function restoredAuthSignupMessage(diagnostic: AuthSignupDiagnostic | nul
     default:
       return "";
   }
+}
+
+if (typeof window !== "undefined") {
+  reconcileRecentDocumentNavigation();
+  window.addEventListener("beforeunload", () => recordPendingNavigation("beforeunload"), { capture: true });
+  window.addEventListener("pagehide", () => recordPendingNavigation("pagehide"), { capture: true });
 }

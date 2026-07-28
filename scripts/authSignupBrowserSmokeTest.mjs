@@ -154,6 +154,7 @@ async function runCase(
   const signupRequests = [];
   const signInRequests = [];
   const ageAssuranceRequests = [];
+  const navigations = [];
   const pageErrors = [];
   const consoleErrors = [];
   await page.addInitScript(() => {
@@ -167,6 +168,9 @@ async function runCase(
     });
   });
   page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("framenavigated", (frame) => {
+    if (frame === page.mainFrame()) navigations.push(frame.url());
+  });
   page.on("console", (message) => {
     if (message.type() === "error") consoleErrors.push(message.text());
   });
@@ -197,6 +201,23 @@ async function runCase(
       });
       if (mode === "network_failure") {
         await route.abort("failed");
+        return;
+      }
+      if (mode === "pending_navigation") {
+        await new Promise((resolve) => setTimeout(resolve, 1_000));
+        try {
+          await route.fulfill({
+            status: providerErrorFixtures.error.status,
+            headers: corsHeaders,
+            body: JSON.stringify({
+              message: providerErrorFixtures.error.message,
+              code: providerErrorFixtures.error.code,
+              error_code: providerErrorFixtures.error.code,
+            }),
+          });
+        } catch {
+          // The deliberate full-document reload can cancel this pending fixture.
+        }
         return;
       }
       const providerError = providerErrorForMode;
@@ -267,7 +288,7 @@ async function runCase(
   await page.getByText("No active website session.", { exact: true }).waitFor();
   assert.equal(
     await page.locator("section.account-card#account").getAttribute("data-auth-signup-contract"),
-    "2026-07-27.1",
+    "2026-07-28.1",
     `${routeCase.path} must expose the deployed signup diagnostic contract before an attempt`,
   );
   const initialSentinel = page.locator("[data-auth-signup-attempt]");
@@ -276,7 +297,13 @@ async function runCase(
   assert.equal(await initialSentinel.getAttribute("data-auth-signup-route"), routeCase.path);
   assert.equal(await initialSentinel.getAttribute("data-auth-signup-mode"), "sign_in");
   assert.equal(await initialSentinel.getAttribute("data-auth-signup-handler-started"), "false");
+  assert.equal(await initialSentinel.getAttribute("data-auth-signup-submit-received"), "false");
+  assert.equal(await initialSentinel.getAttribute("data-auth-signup-prevent-default"), "false");
+  assert.equal(await initialSentinel.getAttribute("data-auth-signup-sdk-called"), "false");
   assert.equal(await initialSentinel.getAttribute("data-auth-signup-request-started"), "false");
+  assert.equal(await initialSentinel.getAttribute("data-auth-signup-pagehide"), "false");
+  assert.equal(await initialSentinel.getAttribute("data-auth-signup-beforeunload"), "false");
+  assert.equal(await initialSentinel.getAttribute("data-auth-signup-navigation"), "false");
   assert.equal(await initialSentinel.getAttribute("data-auth-signup-result"), "not_started");
   assert.equal(await initialSentinel.getAttribute("data-auth-signup-pending"), "idle");
 
@@ -311,7 +338,66 @@ async function runCase(
       await modeSwitch.boundingBox(),
       `${routeCase.path} signup and auth-mode controls must remain distinct`,
     );
+    const navigationCountBeforeSubmit = navigations.length;
     await submit.click();
+    if (mode === "pending_navigation") {
+      await page.getByRole("button", { name: "Working..." }).waitFor();
+      const attemptId = await initialSentinel.getAttribute("data-auth-signup-attempt");
+      assert(attemptId && attemptId !== "none", "pending navigation fixture must begin a diagnostic attempt");
+      assert.equal(await initialSentinel.getAttribute("data-auth-signup-request-started"), "true");
+      await page.reload({ waitUntil: "networkidle" });
+      assert(
+        navigations.length > navigationCountBeforeSubmit,
+        "the pending navigation fixture must deliberately navigate the document",
+      );
+      const restoredDiagnostic = page.locator("[data-auth-signup-attempt]");
+      await restoredDiagnostic.waitFor();
+      assert.equal(
+        await restoredDiagnostic.getAttribute("data-auth-signup-attempt"),
+        attemptId,
+        "pending signup diagnostics must survive a forced document navigation",
+      );
+      assert.equal(
+        await restoredDiagnostic.getAttribute("data-auth-signup-navigation"),
+        "true",
+        "a forced navigation during signup must remain recorded after reload",
+      );
+      assert.match(
+        await restoredDiagnostic.getAttribute("data-auth-signup-pagehide") ?? "",
+        /^(?:true|false)$/,
+        "the browser-specific pagehide result must remain available after reload",
+      );
+      assert.match(
+        await restoredDiagnostic.getAttribute("data-auth-signup-beforeunload") ?? "",
+        /^(?:true|false)$/,
+        "the browser-specific beforeunload result must remain available after reload",
+      );
+      assert.equal(
+        await restoredDiagnostic.getAttribute("data-auth-signup-request-started"),
+        "true",
+        "the interrupted request start must remain recorded after reload",
+      );
+      const persistedDiagnostic = await page.evaluate(() =>
+        window.sessionStorage.getItem("elysia.website-account-signup.diagnostic.v1")
+      );
+      assert(persistedDiagnostic, "interrupted signup diagnostics must remain in the current tab");
+      assert.equal(persistedDiagnostic.includes(fixtureEmail), false);
+      assert.equal(persistedDiagnostic.includes(fixturePassword), false);
+      assert.equal(/access_token|refresh_token|authorization|apikey|user_id/i.test(persistedDiagnostic), false);
+      assert.deepEqual(ageAssuranceRequests, []);
+      assert.deepEqual(pageErrors, []);
+      const cspViolations = await page.evaluate(() => window.__elysiaCspViolations);
+      assert.equal(cspViolations.some((violation) => violation.blockedUri === "eval"), false);
+      assert.equal(await page.locator("header.site-header").count(), 1);
+      assert.equal(await page.locator("footer.site-footer").count(), 1);
+      await context.close();
+      return;
+    }
+    assert.equal(
+      navigations.length,
+      navigationCountBeforeSubmit,
+      "visible signup submission must not navigate the document",
+    );
 
     if (providerErrorForMode || mode === "network_failure") {
       if (mode === "error" || mode === "browser_clear") {
@@ -364,16 +450,22 @@ async function runCase(
     await page.waitForFunction(() =>
       document.querySelector("[data-auth-signup-attempt]")?.getAttribute("data-auth-signup-pending") === "settled"
     );
-    assert.equal(await diagnostic.getAttribute("data-auth-signup-contract"), "2026-07-27.1");
+    assert.equal(await diagnostic.getAttribute("data-auth-signup-contract"), "2026-07-28.1");
     assert.equal(await diagnostic.getAttribute("data-auth-signup-route"), routeCase.path);
     const expectedMode = mode === "session" ? "signed_in" : "sign_up";
     assert.equal(await diagnostic.getAttribute("data-auth-signup-mode"), expectedMode);
     assert.equal(await diagnostic.getAttribute("data-auth-signup-browser"), expectedBrowserFamily);
     assert.equal(await diagnostic.getAttribute("data-auth-signup-handler-started"), "true");
+    assert.equal(await diagnostic.getAttribute("data-auth-signup-submit-received"), "true");
+    assert.equal(await diagnostic.getAttribute("data-auth-signup-prevent-default"), "true");
     assert.equal(await diagnostic.getAttribute("data-auth-signup-validation-passed"), "true");
     assert.equal(await diagnostic.getAttribute("data-auth-signup-called"), "true");
+    assert.equal(await diagnostic.getAttribute("data-auth-signup-sdk-called"), "true");
     assert.equal(await diagnostic.getAttribute("data-auth-signup-request-started"), "true");
     assert.equal(await diagnostic.getAttribute("data-auth-signup-request-completed"), "true");
+    assert.equal(await diagnostic.getAttribute("data-auth-signup-pagehide"), "false");
+    assert.equal(await diagnostic.getAttribute("data-auth-signup-beforeunload"), "false");
+    assert.equal(await diagnostic.getAttribute("data-auth-signup-navigation"), "false");
     assert.equal(await diagnostic.getAttribute("data-auth-signup-pending"), "settled");
     assert.equal(
       await diagnostic.getAttribute("data-auth-signup-password-restored"),
@@ -426,6 +518,11 @@ async function runCase(
         await restoredDiagnostic.getAttribute("data-auth-signup-attempt"),
         attemptId,
         "safe attempt status must survive a component/page remount",
+      );
+      assert.equal(
+        await restoredDiagnostic.getAttribute("data-auth-signup-navigation"),
+        "true",
+        "a recent reload must remain visible even when the request had already settled",
       );
       await page.getByText(
         "The Website Account sign-up request could not reach authentication. Enter your password to retry after checking your connection.",
@@ -499,7 +596,7 @@ try {
   await runBrowserSuite({
     browserType: chromium,
     expectedBrowserFamily: "chromium",
-    modes: ["network_failure", "browser_clear", "error", "rate_limit", "captcha", "smtp", "confirmation", "obfuscated", "session", "sign_in"],
+    modes: ["pending_navigation", "network_failure", "browser_clear", "error", "rate_limit", "captcha", "smtp", "confirmation", "obfuscated", "session", "sign_in"],
     includeMobile: true,
   });
   const braveExecutable = process.env.ELYSIA_BRAVE_EXECUTABLE ?? "/usr/bin/brave-browser-stable";
@@ -508,7 +605,7 @@ try {
       browserType: chromium,
       launchOptions: { executablePath: braveExecutable },
       expectedBrowserFamily: "brave",
-      modes: ["network_failure", "browser_clear", "error", "confirmation", "obfuscated", "session", "sign_in"],
+      modes: ["pending_navigation", "network_failure", "browser_clear", "error", "confirmation", "obfuscated", "session", "sign_in"],
       includeMobile: true,
     });
   } else if (requireCrossBrowser) {
@@ -521,7 +618,7 @@ try {
     await runBrowserSuite({
       browserType: firefox,
       expectedBrowserFamily: "firefox",
-      modes: ["network_failure", "browser_clear", "error", "confirmation", "obfuscated", "session", "sign_in"],
+      modes: ["pending_navigation", "network_failure", "browser_clear", "error", "confirmation", "obfuscated", "session", "sign_in"],
       includeMobile: true,
     });
   } else if (requireCrossBrowser) {
@@ -529,7 +626,7 @@ try {
   } else {
     console.warn(`Firefox browser regression skipped because ${firefoxExecutable} is unavailable.`);
   }
-  console.log("Mocked production-build Website Account browser regression passed in Chromium, Brave, and Firefox on /commons-circle and /commons-circle/setup/profile for desktop/mobile network/provider errors, confirmation, obfuscated existing-user, session, duplicate, diagnostic persistence, age-assurance non-invocation, signed-out profile gate, and existing-account sign-in states.");
+  console.log("Mocked production-build Website Account browser regression passed in Chromium, Brave, and Firefox on /commons-circle and /commons-circle/setup/profile for desktop/mobile navigation prevention, interrupted-navigation persistence, network/provider errors, confirmation, obfuscated existing-user, session, duplicate, age-assurance non-invocation, signed-out profile gate, and existing-account sign-in states.");
 } finally {
   if (activeBrowser) await activeBrowser.close();
   await new Promise((resolve, reject) =>

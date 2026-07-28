@@ -130,12 +130,15 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
     return `The Website Account ${action} request could not be completed safely. Please try again later.`;
   }
 
-  async function signUp() {
+  async function signUp(submission: {
+    submitEventReceived: boolean;
+    preventDefaultCalled: boolean;
+  }) {
     if (signupPendingRef.current) return;
     const submittedEmail = email.trim();
     const submittedPassword = password;
     const emailRedirectTo = `${window.location.origin}${copy?.confirmationPath ?? "/account"}`;
-    const attempt = beginAuthSignupDiagnostic();
+    const attempt = beginAuthSignupDiagnostic(submission);
     signupAttemptIdRef.current = attempt.attemptId;
     signupPendingRef.current = true;
     setBusy(true);
@@ -246,7 +249,14 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (authMode === "sign_up") await signUp(); else await signIn();
+    if (authMode === "sign_up") {
+      await signUp({
+        submitEventReceived: true,
+        preventDefaultCalled: event.defaultPrevented
+      });
+    } else {
+      await signIn();
+    }
   }
 
   return (
@@ -260,10 +270,16 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
       data-auth-signup-browser={currentBrowserFamily}
       data-auth-signup-mode={session ? "signed_in" : authMode}
       data-auth-signup-handler-started={String(signupDiagnostic?.handlerStarted ?? false)}
+      data-auth-signup-submit-received={String(signupDiagnostic?.submitEventReceived ?? false)}
+      data-auth-signup-prevent-default={String(signupDiagnostic?.preventDefaultCalled ?? false)}
       data-auth-signup-validation-passed={String(signupDiagnostic?.validationPassed ?? false)}
       data-auth-signup-called={String(signupDiagnostic?.signupCalled ?? false)}
+      data-auth-signup-sdk-called={String(signupDiagnostic?.signupCalled ?? false)}
       data-auth-signup-request-started={String(signupDiagnostic?.requestStarted ?? false)}
       data-auth-signup-request-completed={String(signupDiagnostic?.requestCompleted ?? false)}
+      data-auth-signup-pagehide={String(signupDiagnostic?.pagehideFired ?? false)}
+      data-auth-signup-beforeunload={String(signupDiagnostic?.beforeunloadFired ?? false)}
+      data-auth-signup-navigation={String(signupDiagnostic?.navigationDetected ?? false)}
       data-auth-signup-http-status={signupDiagnostic?.httpStatus ?? ""}
       data-auth-signup-safe-code={signupDiagnostic?.safeCode ?? ""}
       data-auth-signup-result={signupDiagnostic?.resultCategory ?? "not_started"}

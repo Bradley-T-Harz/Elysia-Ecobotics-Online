@@ -178,7 +178,14 @@ function clientReturning(result) {
   finishAuthSignupDiagnostic(diagnostic.attemptId);
   const stored = getAuthSignupDiagnostic();
   assert(stored);
+  assert(Number.isFinite(stored.startedAtEpochMs));
+  assert.match(stored.documentGeneration, /^[a-z0-9-]{3,32}$/);
   assert.equal(stored.pendingState, "settled");
+  assert.equal(stored.submitEventReceived, false);
+  assert.equal(stored.preventDefaultCalled, false);
+  assert.equal(stored.pagehideFired, false);
+  assert.equal(stored.beforeunloadFired, false);
+  assert.equal(stored.navigationDetected, false);
   assert.equal(stored.safeCode, "over_email_send_rate_limit");
   assert.equal(safeAuthDiagnosticCode("unsafe code with private detail"), "unclassified");
   const serialized = JSON.stringify(stored);
