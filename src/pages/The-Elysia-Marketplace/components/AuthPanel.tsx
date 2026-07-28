@@ -10,7 +10,6 @@ import {
   beginAuthSignupDiagnostic,
   finishAuthSignupDiagnostic,
   getAuthSignupDiagnostic,
-  restoredAuthSignupMessage,
   safeAuthDiagnosticCode,
   subscribeToAuthSignupDiagnostic,
   currentAuthSignupBrowserFamily,
@@ -86,7 +85,8 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
   const [formInteraction, setFormInteraction] = useState<AuthFormInteractionDiagnostic>(initialAuthFormInteraction);
   const [busy, setBusy] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
-  const [localStatus, setLocalStatus] = useState(() => restoredAuthSignupMessage(signupDiagnostic));
+  const [localStatus, setLocalStatus] = useState("");
+  const [visibleSignupAttemptId, setVisibleSignupAttemptId] = useState<string | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>("sign_in");
   const emailInputRef = useRef<HTMLInputElement | null>(null);
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
@@ -94,6 +94,9 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
   const signupAttemptIdRef = useRef<string | null>(null);
   const currentSignupRoute = authSignupRouteForPath(window.location.pathname);
   const currentBrowserFamily = signupDiagnostic?.browserFamily ?? currentAuthSignupBrowserFamily();
+  const visibleSignupDiagnostic = signupDiagnostic?.attemptId === visibleSignupAttemptId
+    ? signupDiagnostic
+    : null;
 
   useEffect(() => {
     if (!supabase) return;
@@ -242,6 +245,7 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
       preventDefaultCalled: input.preventDefaultCalled
     });
     signupAttemptIdRef.current = attempt.attemptId;
+    setVisibleSignupAttemptId(attempt.attemptId);
     signupPendingRef.current = true;
     setBusy(true);
     emit("Submitting the Website Account request…", "pending", attempt.attemptId);
@@ -437,33 +441,36 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
         <span>{session?.user.email ?? (hasSupabaseConfig ? (copy?.signedOutText ?? "No active Marketplace session.") : "Remote auth disabled until env vars are configured.")}</span>
       </div>
       {localStatus && <p className="inline-status">{localStatus}</p>}
-      {signupDiagnostic && <p
+      {visibleSignupDiagnostic && <p
         className="boundary-note"
-        data-auth-signup-summary={signupDiagnostic.resultCategory}
+        data-auth-signup-summary={visibleSignupDiagnostic.resultCategory}
         role="status"
         aria-live="polite"
         aria-atomic="true"
-      >{authSignupDiagnosticSummary(signupDiagnostic)}</p>}
+      >{authSignupDiagnosticSummary(visibleSignupDiagnostic)}</p>}
       {!session ? <>
-        <div className="button-row auth-mode-selector" role="group" aria-label="Website Account mode">
-          <button
-            id="website-account-sign-in-mode"
-            type="button"
-            className={authMode === "sign_in" ? "button-primary" : ""}
-            aria-label="Use sign-in mode"
-            aria-pressed={authMode === "sign_in"}
-            disabled={busy}
-            onClick={() => selectAuthMode("sign_in")}
-          >Sign in</button>
-          <button
-            id="website-account-create-mode"
-            type="button"
-            className={authMode === "sign_up" ? "button-primary" : ""}
-            aria-label="Use create-account mode"
-            aria-pressed={authMode === "sign_up"}
-            disabled={busy}
-            onClick={() => selectAuthMode("sign_up")}
-          >Create account</button>
+        <div className="auth-mode-picker">
+          <p className="auth-mode-picker__label" id="website-account-mode-label">Account mode</p>
+          <div className="auth-mode-selector" role="group" aria-labelledby="website-account-mode-label">
+            <button
+              id="website-account-sign-in-mode"
+              type="button"
+              className={`auth-mode-selector__option${authMode === "sign_in" ? " auth-mode-selector__option--active" : ""}`}
+              aria-label="Use sign-in mode"
+              aria-pressed={authMode === "sign_in"}
+              disabled={busy}
+              onClick={() => selectAuthMode("sign_in")}
+            >Sign in</button>
+            <button
+              id="website-account-create-mode"
+              type="button"
+              className={`auth-mode-selector__option${authMode === "sign_up" ? " auth-mode-selector__option--active" : ""}`}
+              aria-label="Use create-account mode"
+              aria-pressed={authMode === "sign_up"}
+              disabled={busy}
+              onClick={() => selectAuthMode("sign_up")}
+            >Create Account</button>
+          </div>
         </div>
         <form
           id="website-account-auth-form"
@@ -501,6 +508,7 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
         <div className="button-row">
           <button
             id="website-account-submit"
+            className="button-primary auth-submit-action"
             type="submit"
             disabled={busy}
             onPointerDown={() => recordAuthFormInteraction({ pointerReceived: true })}

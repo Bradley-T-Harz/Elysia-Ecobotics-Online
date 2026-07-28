@@ -312,6 +312,22 @@ async function runCase(
   const initialEmail = page.getByLabel("Email");
   const initialPassword = page.getByLabel("Password");
   const initialSubmit = page.locator("form.auth-form button[type='submit']");
+  const modeSelector = page.getByRole("group", { name: "Account mode" });
+  const signInMode = page.getByRole("button", { name: "Use sign-in mode" });
+  const createAccountMode = page.getByRole("button", { name: "Use create-account mode" });
+  assert.equal(await modeSelector.count(), 1, "the account mode selector must be one labeled segmented control");
+  assert.equal(await signInMode.getAttribute("type"), "button");
+  assert.equal(await createAccountMode.getAttribute("type"), "button");
+  assert.equal(await signInMode.getAttribute("aria-pressed"), "true");
+  assert.equal(await createAccountMode.getAttribute("aria-pressed"), "false");
+  assert.equal(await createAccountMode.textContent(), "Create Account");
+  assert.doesNotMatch(await signInMode.getAttribute("class") ?? "", /\bbutton-primary\b/);
+  assert.match(await initialSubmit.getAttribute("class") ?? "", /\bbutton-primary\b/);
+  assert.equal(
+    await page.locator("form.auth-form button[type='submit']").count(),
+    1,
+    "each auth mode must expose exactly one actual submit action",
+  );
   assert.equal(await initialEmail.getAttribute("id"), "website-account-email");
   assert.equal(await initialEmail.getAttribute("name"), "email");
   assert.equal(await initialEmail.getAttribute("autocomplete"), "email");
@@ -319,6 +335,9 @@ async function runCase(
   assert.equal(await initialPassword.getAttribute("name"), "password");
   assert.equal(await initialPassword.getAttribute("autocomplete"), "current-password");
   assert.equal(await initialSubmit.isEnabled(), true, "empty auth form must rely on native validation, not stale React state");
+  await signInMode.click();
+  assert.equal(signInRequests.length, 0, "selecting sign-in mode must not submit the form");
+  assert.equal(signupRequests.length, 0, "selecting sign-in mode must not invoke signup");
 
   if (mode === "sign_in" || mode === "sign_in_autofill") {
     const signInEmail = page.getByLabel("Email");
@@ -347,7 +366,11 @@ async function runCase(
       await signInPassword.fill(fixturePassword);
     }
     await page.getByRole("button", { name: "Use create-account mode" }).click();
+    assert.equal(signupRequests.length, 0, "selecting create-account mode must not submit the form");
+    assert.equal(signInRequests.length, 0, "selecting create-account mode must not invoke sign-in");
     assert.equal(await initialSentinel.getAttribute("data-auth-signup-mode"), "sign_up");
+    assert.equal(await createAccountMode.getAttribute("aria-pressed"), "true");
+    assert.equal(await signInMode.getAttribute("aria-pressed"), "false");
     assert.equal(await initialSentinel.getAttribute("data-auth-signup-mode-switch-received"), "true");
     assert.equal(await initialSentinel.getAttribute("data-auth-signup-mode-switch-password-clear"), "none");
     const email = page.getByLabel("Email");
@@ -456,6 +479,11 @@ async function runCase(
         await restoredDiagnostic.getAttribute("data-auth-signup-request-started"),
         "true",
         "the interrupted request start must remain recorded after reload",
+      );
+      assert.equal(
+        await page.locator("[data-auth-signup-summary]").count(),
+        0,
+        "a full reload must not render a persisted attempt as current user-facing status",
       );
       const persistedDiagnostic = await page.evaluate(() =>
         window.sessionStorage.getItem("elysia.website-account-signup.diagnostic.v1")
@@ -572,6 +600,11 @@ async function runCase(
     assert.equal(await diagnostic.getAttribute("data-auth-signup-navigation"), "false");
     assert.equal(await diagnostic.getAttribute("data-auth-signup-pending"), "settled");
     assert.equal(
+      await page.locator("[data-auth-signup-summary]").count(),
+      1,
+      "the current attempt must remain visible during the current page view",
+    );
+    assert.equal(
       await diagnostic.getAttribute("data-auth-signup-password-restored"),
       confirmationMode || mode === "session" ? "false" : "true",
     );
@@ -628,10 +661,56 @@ async function runCase(
         "true",
         "a recent reload must remain visible even when the request had already settled",
       );
-      await page.getByText(
-        "The Website Account sign-up request could not reach authentication. Enter your password to retry after checking your connection.",
-        { exact: true },
-      ).first().waitFor();
+      assert.equal(
+        await page.locator("[data-auth-signup-summary]").count(),
+        0,
+        "settled diagnostic history must not reappear as visible status after refresh",
+      );
+      assert.equal(
+        await page.getByText(
+          "The Website Account sign-up request could not reach authentication. Enter your password to retry after checking your connection.",
+          { exact: true },
+        ).count(),
+        0,
+        "settled error copy must not rehydrate after refresh",
+      );
+    }
+
+    if (mode === "confirmation") {
+      const attemptId = await diagnostic.getAttribute("data-auth-signup-attempt");
+      assert(attemptId && attemptId !== "none");
+      await page.reload({ waitUntil: "networkidle" });
+      const restoredDiagnostic = page.locator("[data-auth-signup-attempt]");
+      await restoredDiagnostic.waitFor();
+      assert.equal(
+        await restoredDiagnostic.getAttribute("data-auth-signup-attempt"),
+        attemptId,
+        "privacy-safe internal diagnostics must remain available after refresh",
+      );
+      assert.equal(await page.locator("[data-auth-signup-summary]").count(), 0);
+      assert.equal(
+        await page.getByText(
+          "Account created. Check your email to confirm it before signing in.",
+          { exact: true },
+        ).count(),
+        0,
+        "confirmation success must not rehydrate as visible status after refresh",
+      );
+      await page.goto(`${origin}/support`, { waitUntil: "networkidle" });
+      await page.goto(`${origin}${routeCase.path}`, { waitUntil: "networkidle" });
+      assert.equal(
+        await page.locator("[data-auth-signup-summary]").count(),
+        0,
+        "attempt text must remain absent after navigating away and returning",
+      );
+      assert.equal(
+        await page.getByText(
+          "Account created. Check your email to confirm it before signing in.",
+          { exact: true },
+        ).count(),
+        0,
+        "confirmation copy must remain absent after navigating away and returning",
+      );
     }
 
     const persistedDiagnostic = await page.evaluate(() =>

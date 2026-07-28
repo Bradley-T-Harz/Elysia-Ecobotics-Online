@@ -4935,6 +4935,74 @@ button.commune-vote-option-card:disabled {
   max-width: 42rem;
 }
 
+.auth-mode-picker {
+  display: grid;
+  gap: 0.4rem;
+  width: fit-content;
+  max-width: 100%;
+  margin: 0.9rem 0 1rem;
+}
+
+.account-card p.auth-mode-picker__label {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.auth-mode-selector {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.2rem;
+  width: fit-content;
+  max-width: 100%;
+  padding: 0.24rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(8, 11, 16, 0.56);
+}
+
+.auth-mode-selector .auth-mode-selector__option {
+  min-width: 8.5rem;
+  justify-content: center;
+  border-color: transparent;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  box-shadow: none;
+}
+
+.auth-mode-selector .auth-mode-selector__option:hover {
+  border-color: transparent;
+  background: rgba(126, 215, 209, 0.06);
+  transform: none;
+}
+
+.auth-mode-selector .auth-mode-selector__option--active {
+  border-color: var(--line-bright);
+  background: rgba(126, 215, 209, 0.13);
+  color: var(--teal);
+  box-shadow: inset 0 0 0 1px rgba(126, 215, 209, 0.08);
+}
+
+.auth-submit-action {
+  min-width: 12rem;
+  justify-content: center;
+}
+
+@media (max-width: 520px) {
+  .auth-mode-picker,
+  .auth-mode-selector {
+    width: 100%;
+  }
+
+  .auth-mode-selector .auth-mode-selector__option {
+    min-width: 0;
+  }
+}
+
 .account-lifecycle-stack,
 .account-lifecycle-list,
 .account-lifecycle-list article {

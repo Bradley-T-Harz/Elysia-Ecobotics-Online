@@ -249,36 +249,6 @@ export function authSignupDiagnosticSummary(diagnostic: AuthSignupDiagnostic) {
   return `Attempt ${reference}: ${status}.`;
 }
 
-export function restoredAuthSignupMessage(diagnostic: AuthSignupDiagnostic | null) {
-  if (!diagnostic) return "";
-  switch (diagnostic.renderedMessageCategory) {
-    case "pending":
-      return diagnostic.pendingState === "pending"
-        ? "A Website Account request was interrupted before its result could be displayed. Your password was not retained; check for an account email before retrying."
-        : "";
-    case "invalid_input":
-      return "Enter a valid email and a password of at least 6 characters before creating a Website Account.";
-    case "configuration_unavailable":
-      return "Website Account creation is temporarily unavailable because authentication is not configured.";
-    case "provider_error":
-      return "The Website Account sign-up request was not accepted. Enter your password to retry after checking the attempt status below.";
-    case "network_error":
-      return "The Website Account sign-up request could not reach authentication. Enter your password to retry after checking your connection.";
-    case "unexpected_error":
-      return "The Website Account sign-up request could not finish safely. Enter your password to retry.";
-    case "unexpected_response":
-      return "The Website Account sign-up response could not be verified safely. Check the attempt status below before retrying.";
-    case "confirmation_required":
-      return "Account created. Check your email to confirm it before signing in.";
-    case "confirmation_or_existing":
-      return "If this address can create a new account, check its inbox. Otherwise, sign in or recover the account.";
-    case "signed_in":
-      return "The Website Account sign-up completed with a session.";
-    default:
-      return "";
-  }
-}
-
 if (typeof window !== "undefined") {
   reconcileRecentDocumentNavigation();
   window.addEventListener("beforeunload", () => recordPendingNavigation("beforeunload"), { capture: true });

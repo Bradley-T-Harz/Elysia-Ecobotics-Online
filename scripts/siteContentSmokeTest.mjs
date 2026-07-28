@@ -692,7 +692,12 @@ assert(
     && authPanel.includes("new FormData(submittedForm)")
     && authPanel.includes('disabled={busy}')
     && authPanel.includes('to="/account/forgot-password"')
-    && authPanel.includes("passwordInput.value.length >= 6"),
+    && authPanel.includes("passwordInput.value.length >= 6")
+    && authPanel.includes('role="group" aria-labelledby="website-account-mode-label"')
+    && authPanel.includes(">Create Account</button>")
+    && authPanel.includes('className="button-primary auth-submit-action"')
+    && authPanel.includes("signupDiagnostic?.attemptId === visibleSignupAttemptId")
+    && !authPanel.includes("restoredAuthSignupMessage"),
   "Website Account form must preserve standard autofill, FormData submission, recovery, and the current password minimum without stale React-state gating."
 );
 assert(safeInternalActionPath.includes('value.startsWith("//")') && safeInternalActionPath.includes("parsed.origin"), "Database-backed notification actions must be constrained to safe internal paths.");
