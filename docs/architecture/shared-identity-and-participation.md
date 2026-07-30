@@ -45,6 +45,17 @@ browser that owns the verifier. Sessions remain origin-local; cookies,
 `localStorage`, bearer tokens, recovery tokens, and PKCE codes are never copied
 between the two sites or embedded in cross-origin links.
 
+Signup, password sign-in, password-reset email requests, and Artisan's
+existing-account password/OTP requests share one dedicated Supabase Auth
+Turnstile widget. This Auth widget is separate from the existing
+governance/lifecycle widget and its Identity Worker secret. Browser tokens are
+held only in memory, consumed by one Supabase Auth request, and reset after
+every outcome. Supabase-native validation is anti-abuse verification only: it
+does not grant participation, legal acceptance, age assurance, guardian
+consent, a role, or database authority. Confirmation callbacks, recovery
+completion, session refresh, profile work, MFA, and Worker-governed lifecycle
+operations do not receive this Auth token.
+
 After Auth succeeds, UI code loads `current_user_artisan_bootstrap()`. An Auth
 session alone never means the user may participate. Database predicates and
 Worker RPCs remain authoritative for current legal versions, assurance state,

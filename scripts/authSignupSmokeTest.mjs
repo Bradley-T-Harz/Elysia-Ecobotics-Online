@@ -48,6 +48,28 @@ function clientReturning(result) {
 }
 
 {
+  const captchaToken = "synthetic-ephemeral-auth-captcha-token";
+  const fixture = clientReturning({
+    data: { session: null, user: { identities: [{ id: "fixture-email-identity" }] } },
+    error: null,
+  });
+  const result = await requestWebsiteAccountSignup({
+    client: fixture.client,
+    email: submittedEmail,
+    password: submittedPassword,
+    emailRedirectTo,
+    captchaToken,
+  });
+  assert.deepEqual(result, { status: "confirmation_required" });
+  assert.equal(fixture.calls.length, 1, "captcha-capable signup must still call Supabase exactly once");
+  assert.deepEqual(fixture.calls[0], {
+    email: submittedEmail,
+    password: submittedPassword,
+    options: { emailRedirectTo, captchaToken },
+  });
+}
+
+{
   const fixture = clientReturning({
     data: { session: null, user: { identities: [] } },
     error: null,

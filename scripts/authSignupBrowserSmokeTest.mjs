@@ -547,6 +547,11 @@ async function runCase(
     assert.equal(signupRequests[0].body.email, fixtureEmail, "signup must trim submitted email");
     assert.equal(signupRequests[0].body.password, fixturePassword, "signup must use the captured current password");
     assert.equal(
+      signupRequests[0].body.gotrue_meta_security?.captcha_token,
+      undefined,
+      "off-mode signup must preserve the pre-CAPTCHA request shape",
+    );
+    assert.equal(
       signupRequests[0].redirectTo,
       `${origin}${routeCase.redirectPath}`,
       `${routeCase.path} signup must preserve its intended Commons confirmation handoff`,

@@ -20,9 +20,20 @@ Create `.env.local` for local Supabase testing:
 ```bash
 VITE_SUPABASE_URL=
 VITE_SUPABASE_ANON_KEY=
+VITE_AUTH_CAPTCHA_MODE=off
+VITE_AUTH_TURNSTILE_SITE_KEY=
 ```
 
 Never put a Supabase service-role key in frontend code.
+
+`VITE_AUTH_CAPTCHA_MODE` accepts only `off`, `preflight`, or `required`;
+missing and invalid values resolve to `off`. The Auth Turnstile site key is
+public, but production uses the dedicated Auth widget rather than
+`VITE_TURNSTILE_SITE_KEY`, which remains assigned to existing
+participation/lifecycle flows. Local and automated verification uses
+Cloudflare's official test key, never the production key or secret. See
+`docs/deployment/auth-turnstile-rollout.md` for the deployment, preview,
+browser, privacy, and rollback contract.
 
 ## Development
 
