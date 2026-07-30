@@ -5,7 +5,7 @@ type WebsiteAccountSignupClient = {
     signUp(input: {
       email: string;
       password: string;
-      options: { emailRedirectTo: string };
+      options: { emailRedirectTo: string; captchaToken?: string };
     }): Promise<{
       data: {
         session: Session | null;
@@ -31,6 +31,7 @@ export async function requestWebsiteAccountSignup(input: {
   email: string;
   password: string;
   emailRedirectTo: string;
+  captchaToken?: string;
 }): Promise<WebsiteAccountSignupResult> {
   const submittedEmail = input.email.trim();
   const submittedPassword = input.password;
@@ -41,7 +42,10 @@ export async function requestWebsiteAccountSignup(input: {
     const { data, error } = await input.client.auth.signUp({
       email: submittedEmail,
       password: submittedPassword,
-      options: { emailRedirectTo: input.emailRedirectTo }
+      options: {
+        emailRedirectTo: input.emailRedirectTo,
+        ...(input.captchaToken ? { captchaToken: input.captchaToken } : {})
+      }
     });
     if (error) {
       return {

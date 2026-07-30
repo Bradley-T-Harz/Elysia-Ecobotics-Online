@@ -4992,6 +4992,34 @@ button.commune-vote-option-card:disabled {
   justify-content: center;
 }
 
+.auth-turnstile-field {
+  display: grid;
+  gap: 0.65rem;
+  width: min(100%, 32rem);
+  padding: 0.8rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(8, 11, 16, 0.42);
+}
+
+.auth-turnstile-field:focus {
+  outline: 3px solid rgba(126, 215, 209, 0.7);
+  outline-offset: 3px;
+}
+
+.auth-turnstile-widget {
+  min-width: 0;
+  overflow: hidden;
+}
+
+.auth-turnstile-field > p {
+  margin: 0;
+}
+
+.auth-turnstile-retry {
+  width: fit-content;
+}
+
 @media (max-width: 520px) {
   .auth-mode-picker,
   .auth-mode-selector {
@@ -5000,6 +5028,11 @@ button.commune-vote-option-card:disabled {
 
   .auth-mode-selector .auth-mode-selector__option {
     min-width: 0;
+  }
+
+  .auth-turnstile-field {
+    width: 100%;
+    padding: 0.65rem;
   }
 }
 

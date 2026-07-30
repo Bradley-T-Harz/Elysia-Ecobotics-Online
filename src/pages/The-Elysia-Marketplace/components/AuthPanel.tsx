@@ -1,6 +1,14 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import type { Session } from "@supabase/supabase-js";
+import {
+  AuthTurnstile,
+  type AuthTurnstileHandle
+} from "../../../shared/auth/AuthTurnstile";
+import {
+  authCaptchaConfig,
+  onlineAuthHostPolicy
+} from "../../../shared/auth/authCaptcha";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../lib/supabase";
 import { requestWebsiteAccountSignup } from "./authSignup";
 import {
@@ -88,10 +96,15 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
   const [localStatus, setLocalStatus] = useState("");
   const [visibleSignupAttemptId, setVisibleSignupAttemptId] = useState<string | null>(null);
   const [authMode, setAuthMode] = useState<AuthMode>("sign_in");
+  const [authCaptchaReady, setAuthCaptchaReady] = useState(false);
+  const [authCaptchaResetKey, setAuthCaptchaResetKey] = useState(0);
   const emailInputRef = useRef<HTMLInputElement | null>(null);
   const passwordInputRef = useRef<HTMLInputElement | null>(null);
+  const authCaptchaTokenRef = useRef<string | null>(null);
+  const authTurnstileRef = useRef<AuthTurnstileHandle | null>(null);
   const signupPendingRef = useRef(false);
   const signupAttemptIdRef = useRef<string | null>(null);
+  const authHostPolicy = onlineAuthHostPolicy();
   const currentSignupRoute = authSignupRouteForPath(window.location.pathname);
   const currentBrowserFamily = signupDiagnostic?.browserFamily ?? currentAuthSignupBrowserFamily();
   const visibleSignupDiagnostic = signupDiagnostic?.attemptId === visibleSignupAttemptId
@@ -169,6 +182,33 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
     }
   }
 
+  function setAuthCaptchaToken(token: string | null) {
+    authCaptchaTokenRef.current = token;
+    setAuthCaptchaReady(Boolean(token));
+  }
+
+  function resetAuthChallenge() {
+    authCaptchaTokenRef.current = null;
+    setAuthCaptchaReady(false);
+    if (authCaptchaConfig.mode !== "off") {
+      setAuthCaptchaResetKey((value) => value + 1);
+    }
+  }
+
+  function consumeAuthCaptchaToken(): string | undefined {
+    const token = authCaptchaTokenRef.current ?? undefined;
+    authCaptchaTokenRef.current = null;
+    setAuthCaptchaReady(false);
+    return token;
+  }
+
+  function requireAuthCaptchaToken(): boolean {
+    if (authCaptchaConfig.mode !== "required" || authCaptchaTokenRef.current) return true;
+    setLocalStatus("Complete the account safety verification before continuing. Your password was not cleared.");
+    requestAnimationFrame(() => authTurnstileRef.current?.focus());
+    return false;
+  }
+
   function readAuthFormSnapshot(mode = authMode) {
     const emailInput = emailInputRef.current;
     const passwordInput = passwordInputRef.current;
@@ -203,6 +243,7 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
 
   function selectAuthMode(nextMode: AuthMode) {
     if (busy || nextMode === authMode) return;
+    resetAuthChallenge();
     setAuthMode(nextMode);
     setLocalStatus("");
     recordAuthFormInteraction({
@@ -235,6 +276,7 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
     password: string;
     submitEventReceived: boolean;
     preventDefaultCalled: boolean;
+    captchaToken?: string;
   }) {
     if (signupPendingRef.current) return;
     const submittedEmail = input.email.trim();
@@ -259,7 +301,8 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
         client: hasSupabaseConfig ? supabase : null,
         email: submittedEmail,
         password: submittedPassword,
-        emailRedirectTo
+        emailRedirectTo,
+        captchaToken: input.captchaToken
       });
       const networkError = result.status === "provider_error"
         && /failed to fetch|fetch failed|network|load failed/i.test(`${result.code ?? ""} ${result.message}`);
@@ -326,18 +369,27 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
       signupAttemptIdRef.current = null;
       setBusy(false);
       finishAuthSignupDiagnostic(attempt.attemptId);
+      resetAuthChallenge();
     }
   }
 
-  async function signIn(submittedEmail: string, submittedPassword: string) {
-    if (!supabase) { emit("Demo mode: sign-in form is visible, but no remote session is created."); return; }
+  async function signIn(submittedEmail: string, submittedPassword: string, captchaToken?: string) {
+    if (!supabase) {
+      emit("Demo mode: sign-in form is visible, but no remote session is created.");
+      resetAuthChallenge();
+      return;
+    }
     setBusy(true);
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
         email: submittedEmail.trim(),
-        password: submittedPassword
+        password: submittedPassword,
+        ...(captchaToken ? { options: { captchaToken } } : {})
       });
-      if (error) { emit(safeAuthError("sign-in", error.message)); return; }
+      if (error) {
+        emit(safeAuthError("sign-in", error.message, error.code, error.status));
+        return;
+      }
       const signedInEmail = data.session?.user.email ?? submittedEmail.trim();
       emit(`Signed in as ${signedInEmail}.`);
       if (passwordInputRef.current) passwordInputRef.current.value = "";
@@ -347,6 +399,7 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
       emit("The Website Account sign-in request could not reach authentication. Your password was not cleared; check your connection and try again.");
     } finally {
       setBusy(false);
+      resetAuthChallenge();
     }
   }
 
@@ -374,16 +427,34 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
       formDataEmailPresent: Boolean(submittedEmail),
       formDataPasswordPresent: Boolean(submittedPassword)
     });
+    if (!requireAuthCaptchaToken()) return;
+    const captchaToken = consumeAuthCaptchaToken();
     if (authMode === "sign_up") {
       await signUp({
         email: submittedEmail,
         password: submittedPassword,
         submitEventReceived: true,
-        preventDefaultCalled: event.defaultPrevented
+        preventDefaultCalled: event.defaultPrevented,
+        captchaToken
       });
     } else {
-      await signIn(submittedEmail, submittedPassword);
+      await signIn(submittedEmail, submittedPassword, captchaToken);
     }
+  }
+
+  if (!authHostPolicy.allowed) {
+    return (
+      <section className="account-card" id="account">
+        <p className="eyebrow">{copy?.eyebrow ?? "Website Account"}</p>
+        <h2>Use the canonical Website Account page</h2>
+        <p>Account requests are not available from this deployment hostname.</p>
+        <p>
+          <a className="button-link" href={authHostPolicy.canonicalUrl}>
+            Continue securely on elysiaecobotics.com
+          </a>
+        </p>
+      </section>
+    );
   }
 
   return (
@@ -505,6 +576,17 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
           required
           onChange={(event) => changePassword(event.currentTarget.value)}
         />{authMode === "sign_up" && <small>At least 6 characters are accepted for compatibility; 12 or more unique characters are strongly recommended.</small>}</label>
+        <AuthTurnstile
+          ref={authTurnstileRef}
+          action={authMode === "sign_up" ? "online_signup" : "online_signin"}
+          onTokenChange={setAuthCaptchaToken}
+          resetKey={authCaptchaResetKey}
+        />
+        {authCaptchaConfig.mode === "preflight" && (
+          <p className="boundary-note">
+            This verification is in client-readiness preflight. Server enforcement is not active yet.
+          </p>
+        )}
         <div className="button-row">
           <button
             id="website-account-submit"
@@ -513,9 +595,18 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
             disabled={busy}
             onPointerDown={() => recordAuthFormInteraction({ pointerReceived: true })}
             onClick={() => recordAuthFormInteraction({ clickReceived: true })}
-          >{busy ? "Working..." : authMode === "sign_up" ? "Create Website Account" : "Sign in"}</button>
+          >{busy
+            ? "Working..."
+            : authMode === "sign_up"
+              ? "Create Website Account"
+              : "Sign in"}</button>
           {authMode === "sign_in" && <Link className="button-link" to="/account/forgot-password">Forgot password?</Link>}
         </div>
+        {authCaptchaConfig.mode !== "off" && (
+          <span className="visually-hidden" aria-live="polite">
+            {authCaptchaReady ? "Account safety verification ready." : "Account safety verification not ready."}
+          </span>
+        )}
       </form>
       </> : <div className="button-row"><button type="button" disabled={busy} onClick={signOut}>{busy ? "Working..." : "Sign out"}</button></div>}
       <p className="boundary-note">{copy?.confirmationCopy ?? "If Supabase email confirmation is enabled, open the confirmation link to return to /account; the session should appear after Supabase completes the redirect."}</p>
