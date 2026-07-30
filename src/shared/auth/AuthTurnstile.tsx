@@ -51,6 +51,7 @@ type AuthTurnstileProps = {
 
 const SCRIPT_SOURCE = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 const SCRIPT_TIMEOUT_MS = 12_000;
+const CLIENT_CONTRACT = "auth-turnstile-2026-07-30.1";
 let authScriptPromise: Promise<TurnstileApi> | null = null;
 
 function currentApi(): TurnstileApi | undefined {
@@ -102,6 +103,7 @@ function loadTurnstile(): Promise<TurnstileApi> {
     timeoutId = window.setTimeout(fail, SCRIPT_TIMEOUT_MS);
     if (!existing) {
       script.id = "elysia-auth-turnstile-script";
+      script.dataset.elysiaAuthContract = CLIENT_CONTRACT;
       script.src = SCRIPT_SOURCE;
       script.async = true;
       script.defer = true;
