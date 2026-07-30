@@ -165,3 +165,28 @@ Record non-secret evidence only: widget name, public site key, mode, exact
 hostnames, creation date, final commits/deployments/bundle hashes, browser
 results, enforcement date, sanitized Supabase state, tests, monitoring results,
 and rollback owner. Never record the widget secret.
+
+### Recorded rollout state
+
+- Dedicated widget: `Elysia Shared Auth Production`
+- Public site key: `0x4AAAAAAECNSZYyGXT8LPJC`
+- Mode/region: Managed / world
+- Hostnames: `elysiaecobotics.com`,
+  `elysiaartisancollective.pages.dev`
+- Created: 2026-07-30 21:06:43 UTC
+- Online off-mode deployment:
+  `4bd86c7b-7711-49e3-a57d-1d206d775dfa`
+- Online off-mode commit: `3a7d50f4771dfa94b5ac0fa1c4721e80390115e6`
+- Online off-mode Commons bundle: `commons-circle-C--ozHSC.js`
+- Online off-mode Commons SHA-256:
+  `e5d4ed847559959f460696fd5c6de851cfa1285c0c8c18f78ec12b80bb18241b`
+- Artisan off-mode deployment:
+  `325c165e-30a2-44d2-8e78-2b15210373e3`
+- Artisan off-mode commit: `cf451b62275a163b03abd2d64449f28deeff897e`
+- Artisan off-mode entry bundle: `index-DA_QYh7k.js`
+- Artisan off-mode entry SHA-256:
+  `4b66de804fa7fc8490a49700ad6267402e6f133918f5df897f0780517d8522f9`
+
+The original governance widget remained unchanged after creation. Supabase
+CAPTCHA enforcement remained disabled. Preflight and required deployment
+records are added only after their production verification.
