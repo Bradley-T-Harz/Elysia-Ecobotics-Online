@@ -200,6 +200,20 @@ and rollback owner. Never record the widget secret.
 - Artisan preflight entry bundle: `index-C1ajn0EI.js`
 - Artisan preflight entry SHA-256:
   `cf92a88555130432df7299704ef450da893c43418f10f4b2c463aa3384cd6b29`
+- Online required-mode deployment:
+  `154b57c1-05d2-4468-9f65-f79ab295d874`
+- Online required-mode commit:
+  `14088c4e404367e23628fa0e094ee03813816987`
+- Online required-mode Commons bundle: `commons-circle-DvP6N_Qx.js`
+- Online required-mode Commons SHA-256:
+  `67a83882e9e9ef9404afa99fb1b475ffeb919a3b2de826bd5f6bd9aa94151956`
+- Artisan required-mode deployment:
+  `537e1cd4-cc26-4af6-9256-565a96ea692c`
+- Artisan required-mode commit:
+  `63a8a0bd4037c03695326857ab76a9ab35775a39`
+- Artisan required-mode entry bundle: `index-iwVqhxB0.js`
+- Artisan required-mode entry SHA-256:
+  `2eed941b25194d91cad2d50e70a2bb253ff508caee0077f2ed551d5ca457db89`
 
 Preflight inspection observed one real challenge script and frame on each
 canonical production form, challenge-network activity without a Turnstile CSP
@@ -210,5 +224,11 @@ public key; Preview retained only the governance key. This is automated
 client-readiness evidence, not human-browser acceptance or server validation.
 
 The original governance widget remained unchanged after creation. Supabase
-CAPTCHA enforcement remained disabled. Required deployment records are added
-only after production verification.
+CAPTCHA enforcement remained disabled. With the challenge script blocked and
+all Supabase Auth endpoints intercepted locally, production signup, sign-in,
+recovery, Artisan password, and Artisan OTP each retained their entered
+credentials, re-enabled their action, and made zero Auth requests. With the
+real script available, each canonical form rendered one script, one widget
+region, and one challenge frame without a Turnstile CSP error or 390-pixel
+overflow. These results prove the required client gate, not human-browser
+acceptance or Supabase server validation.
