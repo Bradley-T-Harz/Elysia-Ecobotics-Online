@@ -186,7 +186,29 @@ and rollback owner. Never record the widget secret.
 - Artisan off-mode entry bundle: `index-DA_QYh7k.js`
 - Artisan off-mode entry SHA-256:
   `4b66de804fa7fc8490a49700ad6267402e6f133918f5df897f0780517d8522f9`
+- Online preflight deployment:
+  `673c4b62-b15c-4f73-b22d-57200b37dc72`
+- Online preflight commit:
+  `aafc0103c1d1806c6babe4eb61553cb597bab660`
+- Online preflight Commons bundle: `commons-circle-KNuN_1y5.js`
+- Online preflight Commons SHA-256:
+  `9b1f497c1c3491a53d0626326b48071c514f9a87b401ad8a75e079414d4a41c1`
+- Artisan preflight deployment:
+  `1ef46fce-ad71-41e3-ba3f-b30c10e6fa56`
+- Artisan preflight commit:
+  `72aabbe5f9c8d4b14e624ade0b6fc4e4b09253b9`
+- Artisan preflight entry bundle: `index-C1ajn0EI.js`
+- Artisan preflight entry SHA-256:
+  `cf92a88555130432df7299704ef450da893c43418f10f4b2c463aa3384cd6b29`
+
+Preflight inspection observed one real challenge script and frame on each
+canonical production form, challenge-network activity without a Turnstile CSP
+error, no 390-pixel overflow, and canonical boundaries with no Auth form on
+Online's unique deployment host and Artisan Preview. The Artisan production
+bundle retained both the dedicated Auth public key and the existing governance
+public key; Preview retained only the governance key. This is automated
+client-readiness evidence, not human-browser acceptance or server validation.
 
 The original governance widget remained unchanged after creation. Supabase
-CAPTCHA enforcement remained disabled. Preflight and required deployment
-records are added only after their production verification.
+CAPTCHA enforcement remained disabled. Required deployment records are added
+only after production verification.
