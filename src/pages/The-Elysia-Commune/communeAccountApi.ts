@@ -3,6 +3,7 @@ import { jobPostReviewResultMessage, resolveCommuneJobPostId, reviewCommuneJobPo
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
 import { attributionMap, loadPublicCommuneAttributions } from "./communeAttribution";
 import { communeFallbackCategories, communeReportReasons, parseCommuneTags, scanCommuneTextForSecrets, validateCommuneMediaFile } from "./communeSafety";
+import type { ParentPublicationState } from "./codeRevisionDraftState";
 
 export type CommunePostType = "media_garden" | "troubleshooting" | "code_sharing" | "repository_showcase" | "community_network" | "job_post" | "research_note" | "elysia_iteration_showcase" | "community_vote" | "official_update";
 export type CommunePostStatus = "draft" | "pending_review" | "in_review" | "needs_information" | "approved" | "published" | "rejected" | "hidden" | "archived" | "deleted_by_user" | "removed_by_moderator";
@@ -1057,6 +1058,27 @@ export function isActivePublicCommunePost(post?: Pick<CommunePost, "status" | "v
     && !post.hidden_at
     && !post.removed_at
     && !post.archived_at;
+}
+
+export async function loadCommunePostPublicationState(postId: string): Promise<{ parentPublicationState: ParentPublicationState; warnings: string[] }> {
+  if (!supabase) return { parentPublicationState: "attached", warnings: [supabaseNotConfiguredMessage] };
+  const { data, error } = await supabase
+    .from(canonicalCommuneTables.posts)
+    .select("id,status,visibility,visibility_state,hidden_at,removed_at,archived_at")
+    .eq("id", postId)
+    .maybeSingle();
+  if (error) {
+    return {
+      parentPublicationState: "attached",
+      warnings: [friendlyError(error.message, "The parent post publication state could not be verified.")],
+    };
+  }
+  return {
+    parentPublicationState: isActivePublicCommunePost(data as Pick<CommunePost, "status" | "visibility" | "visibility_state" | "hidden_at" | "removed_at" | "archived_at"> | null)
+      ? "published"
+      : "attached",
+    warnings: [],
+  };
 }
 
 export async function loadVotePostsForPosts(postIds: string[], account?: CommuneAccountState): Promise<CommunityVoteView[]> {

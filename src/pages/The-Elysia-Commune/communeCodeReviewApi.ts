@@ -127,7 +127,7 @@ export async function submitCodeRevisionProposal(input: { postId: string; codeSn
     p_explanation: input.explanation?.trim() || null
   });
   if (error) return { ok: false, message: formatSafeCodeReviewError(error) };
-  return { ok: true, message: "Revision proposal submitted. The public attached code stays unchanged until the original post author accepts it.", proposalId: data as string };
+  return { ok: true, message: "Revision proposal submitted. The attached code stays unchanged until the original post author accepts it.", proposalId: data as string };
 }
 
 export async function decideCodeRevisionProposal(proposalId: string, decision: Extract<CodeRevisionProposalStatus, "accepted" | "rejected" | "needs_changes" | "hidden_by_moderation">, decisionNote?: string): Promise<{ ok: boolean; message: string }> {
@@ -141,12 +141,12 @@ export async function decideCodeRevisionProposal(proposalId: string, decision: E
   return {
     ok: true,
     message: decision === "accepted"
-      ? "Revision accepted. The public attached code now uses the accepted snapshot, with version history preserved."
+      ? "Revision accepted. The current attached code now uses the accepted revision, with version history preserved."
       : decision === "needs_changes"
-        ? "Changes requested. The public attached code remains unchanged."
+        ? "Changes requested. The attached code remains unchanged."
         : decision === "hidden_by_moderation"
-          ? "Proposal hidden by moderation. The public attached code remains unchanged."
-          : "Revision rejected. The public attached code remains unchanged."
+          ? "Proposal hidden by moderation. The attached code remains unchanged."
+          : "Revision rejected. The attached code remains unchanged."
   };
 }
 
@@ -155,7 +155,7 @@ export async function withdrawCodeRevisionProposal(proposalId: string): Promise<
   const account = await accountState();
   if (!account.userId) return { ok: false, message: "Sign in before withdrawing a proposal." };
   const { error } = await supabase.from("commune_code_revision_proposals").update({ proposal_status: "withdrawn", withdrawn_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", proposalId).eq("proposer_user_id", account.userId);
-  return error ? { ok: false, message: formatSafeCodeReviewError(error) } : { ok: true, message: "Revision proposal withdrawn. The public attached code remains unchanged." };
+  return error ? { ok: false, message: formatSafeCodeReviewError(error) } : { ok: true, message: "Revision proposal withdrawn. The attached code remains unchanged." };
 }
 
 async function accountState(): Promise<CodeReviewAccount> {

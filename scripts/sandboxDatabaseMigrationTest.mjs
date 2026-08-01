@@ -531,6 +531,7 @@ try {
   for (const file of [
     ...activePaths,
     "scripts/fixtures/sandboxDatabaseBehavior.sql",
+    "scripts/fixtures/codeRevisionProposalBehavior.sql",
     "scripts/fixtures/economicDatabaseBehavior.sql",
     "scripts/fixtures/artisanDatabaseBehavior.sql",
     "scripts/fixtures/onlinePublicProfileBehavior.sql",
@@ -612,6 +613,8 @@ try {
   await psql(["-f", `/tmp/${path.basename(activePaths[3])}`]);
   const behavior = await psql(["-f", "/tmp/sandboxDatabaseBehavior.sql"]);
   assert(behavior.stdout.includes("sandbox_database_behavior_ok"), "Disposable database behavior marker missing.");
+  const proposalBehavior = await psql(["-f", "/tmp/codeRevisionProposalBehavior.sql"]);
+  assert(proposalBehavior.stdout.includes("code_revision_proposal_behavior_ok"), "Disposable Coding Workbench proposal lifecycle behavior marker missing.");
   for (const file of economicPaths) {
     await psql(["-f", `/tmp/${path.basename(file)}`]);
   }
