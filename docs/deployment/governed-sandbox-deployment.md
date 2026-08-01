@@ -4,11 +4,13 @@ This is the canonical repository, deployment, operations, and incident-entry con
 
 Never paste a secret into source control, command history, chat, logs, or a deployment transcript. Enter values directly in the relevant masked dashboard field or root-owned mode-`0640` server file. The required secret names are listed at the end of this runbook; their values are deliberately absent.
 
-## Current checkpoint and activation prohibition
+## Current production checkpoint and release-preservation rule
 
 As of 2026-07-14, the four governed database migration versions are installed and aligned locally and remotely. The reaction-count, Repository Showcase, and sandbox database layers were verified after their individual installation gates. Do not reapply or edit those migrations, and **never execute the baseline SQL against existing production**.
 
-Repository readiness is not infrastructure readiness. The external runner, immutable runtime images, Hetzner service account, Tunnel, Access application/service token, and finalizer credential have not been provisioned by this repository-side pass. The production finalizer hash remains NULL, `SANDBOX_ENABLED=false`, and the public health endpoint returns HTTP 503 with `{"ok":false,"error":"sandbox_disabled"}` and `Cache-Control: no-store`. Preserve that state until every live acceptance item in section 10 passes.
+The externally operated production sandbox has since completed its separate infrastructure and activation process. Its normal Pages control-plane state is `SANDBOX_ENABLED=true`; preview remains disabled. An anonymous health request must fail authentication and an authorized signed-in request may reach the governed runner. HTTP 503 with `{"ok":false,"error":"sandbox_disabled"}` is reserved for a deliberate emergency or maintenance shutdown, not a routine release baseline.
+
+A routine application release must preserve the current production variable and binding inventory. Never infer that a live `SANDBOX_ENABLED=true` value is drift merely because an older repository-readiness report, example file, or deployment transcript recorded a pre-activation `false` value. Before a release, compare the active production configuration with the immediately preceding known-good production deployment. If live state differs from the operator-approved release expectation, stop and reconcile it; do not automatically change a feature switch, binding, or secret. Changing `SANDBOX_ENABLED` is a separate control-plane action requiring an explicit activation or incident-response decision.
 
 ## Architecture, trust boundaries, and exact routes
 
@@ -234,6 +236,8 @@ First verify the exact existing Pages project name and current build/deployment 
 
 For the production environment only, set ordinary variables and encrypted secrets described below. Preview must retain `SANDBOX_ENABLED=false` and `SANDBOX_DEPLOYMENT_ENV=preview`, and production secrets must not be added to preview. The production origin must be exactly `https://elysiaecobotics.com`; the service URL must be the Access-protected tunnel hostname.
 
+Routine Pages deployments must not write environment variables. Snapshot the live production variable/binding names and types plus secret names (never secret values), compare them with the preceding known-good deployment, and deploy the reviewed artifact without altering control-plane state. The normal production contract is `SANDBOX_ENABLED=true` with `SANDBOX_DEPLOYMENT_ENV=production`; an unexpected mismatch is a stop-and-investigate condition. The checked-in `.dev.vars.example` and `wrangler.example.jsonc` are disabled development/preview scaffolds and are not evidence that production should be disabled.
+
 Deploy the already verified clean application build through the established Pages workflow. Confirm `public/_routes.json` includes `/api/sandbox/*`, excludes the shared module path, and does not include `/api/billing/*`. This Pages project is website/sandbox-only: never configure `BILLING_*`, `STRIPE_*`, payment, webhook, payout, or `SUPABASE_SERVICE_ROLE_KEY` bindings here. The same-origin billing namespace belongs to the separately deployed billing Worker described in `stripe-test-mode-economic-system.md`; sharing a hostname does not permit sharing secret bindings. Cloudflare binding references:
 
 - <https://developers.cloudflare.com/pages/functions/bindings/>
@@ -253,11 +257,11 @@ sudo ss -ltnp
 systemctl status cloudflared
 ```
 
-Only after every proof passes should the operator initialize the narrow finalizer credential, set both runner switches and the production Pages switch true, restart the user runner service, and deploy the production Pages binding change. Disconnect the ThinkPad, wait, then verify an authenticated health request and bounded run from an independent client. Until that one controlled checkpoint, all switches remain false and the finalizer hash remains NULL.
+For a new environment, only after every proof passes should the operator initialize the narrow finalizer credential, set both runner switches and the production Pages switch true, restart the user runner service, and deploy the production Pages binding change. Disconnect the administrator client, wait, then verify an authenticated health request and bounded run from an independent client. For the already activated production environment, repeat the authenticated health and bounded-run checks after releases while preserving the existing enabled state. Do not replay the initial activation procedure or rotate credentials during a routine application release.
 
 ## 11. Rollback and kill switches
 
-Disable Pages execution first (`SANDBOX_ENABLED=false`), then set either runner execution switch false and restart the user service. Terminate any active container and confirm removal. To roll back code, repoint `/opt/elysia-sandbox-runner/current` atomically to a previously verified root-owned release and restart; never modify a release directory in place. Database migrations are additive and should be remediated with a new reviewed migration, not destructive down-migration against run history.
+For a deliberate sandbox incident or maintenance shutdown, disable Pages execution first (`SANDBOX_ENABLED=false`), then set either runner execution switch false and restart the user service. Do not perform this kill-switch sequence as part of an ordinary website rollback or release. Terminate any active container and confirm removal. To roll back code, repoint `/opt/elysia-sandbox-runner/current` atomically to a previously verified root-owned release and restart; never modify a release directory in place. Database migrations are additive and should be remediated with a new reviewed migration, not destructive down-migration against run history.
 
 Follow `docs/security/governed-sandbox-incident-response.md` for containment and credential rotation.
 

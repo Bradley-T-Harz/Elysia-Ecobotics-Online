@@ -206,6 +206,14 @@ assert(
 );
 const deploymentGuide = await read("docs/deployment/governed-sandbox-deployment.md");
 assert(deploymentGuide.includes("-m 0640 -o root -g elysia-sandbox") && deploymentGuide.includes("-m 0755 -o root -g root /home/elysia-sandbox/.config/systemd"), "Service environment and user-unit paths must remain root-controlled rather than writable by the runner account.");
+assert(
+  deploymentGuide.includes("normal Pages control-plane state is `SANDBOX_ENABLED=true`")
+    && deploymentGuide.includes("A routine application release must preserve the current production variable and binding inventory")
+    && deploymentGuide.includes("stop and reconcile it; do not automatically change a feature switch, binding, or secret")
+    && deploymentGuide.includes("Preview must retain `SANDBOX_ENABLED=false`")
+    && deploymentGuide.includes('HTTP 503 with `{"ok":false,"error":"sandbox_disabled"}` is reserved for a deliberate emergency or maintenance shutdown'),
+  "The deployment contract must preserve the enabled production sandbox, keep preview disabled, and forbid stale-baseline control-plane changes."
+);
 const legalPages = await read("src/pages/Legal/legalPolicyPages.ts");
 const communePage = await read("src/pages/The-Elysia-Commune/index.tsx");
 assert(legalPages.includes("Governed code sandbox processing") && legalPages.includes("Cloudflare") && legalPages.includes("Hetzner") && legalPages.includes("Supabase may retain bounded metadata"), "Privacy and terms must disclose governed sandbox processing truthfully.");

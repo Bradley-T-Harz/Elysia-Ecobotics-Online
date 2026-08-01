@@ -28,5 +28,8 @@
   // Configure SANDBOX_SERVICE_TOKEN, SANDBOX_DB_FINALIZER_TOKEN,
   // CLOUDFLARE_ACCESS_CLIENT_ID, and CLOUDFLARE_ACCESS_CLIENT_SECRET only as
   // encrypted environment-specific Pages secrets. Never put their values here.
+  // SANDBOX_ENABLED=false is a preview-safe scaffold, not the production
+  // baseline. Routine deployments must preserve the verified live production
+  // value and must never apply this example over the existing Pages project.
   // Never place SUPABASE_SERVICE_ROLE_KEY or identity-provider secrets on Pages.
 }
