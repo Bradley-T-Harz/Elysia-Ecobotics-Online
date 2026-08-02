@@ -25,7 +25,7 @@ export async function handleSandboxHealth(
     const healthy = await dependencies.health(env);
     return healthy
       ? jsonResponse({ ok: true, status: "available" })
-      : jsonResponse({ ok: false, status: "unavailable" }, 503);
+      : jsonResponse({ ok: false, error: "runner_unavailable", status: "unavailable" }, 503);
   } catch (error) {
     return safeErrorResponse(error);
   }

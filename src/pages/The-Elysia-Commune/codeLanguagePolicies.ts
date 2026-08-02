@@ -168,7 +168,7 @@ export function codingLanguageOptions() {
 }
 
 export function codingLanguageStatusLabel(status: CodingLanguageStatus) {
-  if (status === "active_sandbox") return "Sandbox execution eligible";
+  if (status === "active_sandbox") return "Sandbox language supported";
   if (status === "static_diagnostics") return "Static diagnostics only";
   if (status === "future") return "Future sandbox support";
   return "Disabled";

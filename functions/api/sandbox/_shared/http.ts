@@ -21,6 +21,64 @@ export class PublicHttpError extends Error {
   }
 }
 
+const PUBLIC_ERROR_CODES = new Set([
+  "authentication_required",
+  "authentication_invalid",
+  "profile_required",
+  "account_inactive",
+  "sandbox_not_authorized",
+  "source_unauthorized",
+  "origin_denied",
+  "sandbox_disabled",
+  "sandbox_service_unavailable",
+  "runner_unavailable",
+  "internal_failure",
+  "method_not_allowed",
+  "json_required",
+  "request_too_large",
+  "request_encoding_invalid",
+  "request_schema_invalid",
+  "client_request_id_invalid",
+  "snapshot_id_invalid",
+  "source_type_invalid",
+  "source_id_invalid",
+  "language_invalid",
+  "code_required",
+  "code_invalid",
+  "code_too_large",
+  "file_name_invalid",
+  "json_invalid",
+  "source_snapshot_changed",
+  "sandbox_credits_required",
+  "sandbox_credit_summary_invalid",
+  "sandbox_quota_exceeded",
+  "sandbox_busy",
+  "idempotent_request_pending"
+]);
+
+const PUBLIC_ERROR_ALIASES: Record<string, string> = {
+  account_disabled: "account_inactive",
+  authorization_unavailable: "sandbox_service_unavailable",
+  sandbox_misconfigured: "sandbox_service_unavailable",
+  reservation_failed: "sandbox_service_unavailable",
+  reservation_unavailable: "sandbox_service_unavailable",
+  reservation_start_failed: "sandbox_service_unavailable",
+  reservation_start_invalid: "sandbox_service_unavailable",
+  source_file_unauthorized: "source_unauthorized",
+  source_language_unauthorized: "source_unauthorized",
+  source_code_invalid: "source_unauthorized",
+  sandbox_upstream_failed: "runner_unavailable",
+  sandbox_upstream_invalid: "runner_unavailable",
+  upstream_redirect_denied: "runner_unavailable",
+  upstream_response_invalid: "runner_unavailable",
+  upstream_timeout: "runner_unavailable"
+};
+
+export function publicErrorCode(code: string): string {
+  const aliased = PUBLIC_ERROR_ALIASES[code] ?? code;
+  return PUBLIC_ERROR_CODES.has(aliased) ? aliased : "internal_failure";
+}
+
 export function jsonResponse(body: unknown, status = 200, retryAfter: number | null = null): Response {
   const headers = new Headers(JSON_HEADERS);
   if (retryAfter !== null) headers.set("retry-after", String(Math.max(1, Math.ceil(retryAfter))));
@@ -29,9 +87,24 @@ export function jsonResponse(body: unknown, status = 200, retryAfter: number | n
 
 export function safeErrorResponse(error: unknown): Response {
   if (error instanceof PublicHttpError) {
-    return jsonResponse({ ok: false, error: error.code }, error.status, error.retryAfter);
+    const code = publicErrorCode(error.code);
+    const stableStatus: Record<string, number> = {
+      authentication_required: 401,
+      authentication_invalid: 401,
+      profile_required: 403,
+      account_inactive: 403,
+      sandbox_not_authorized: 403,
+      source_unauthorized: 403,
+      origin_denied: 403,
+      sandbox_disabled: 503,
+      sandbox_service_unavailable: 503,
+      runner_unavailable: 503,
+      internal_failure: 500
+    };
+    const status = stableStatus[code] ?? error.status;
+    return jsonResponse({ ok: false, error: code }, status, error.retryAfter);
   }
-  return jsonResponse({ ok: false, error: "sandbox_request_failed" }, 502);
+  return jsonResponse({ ok: false, error: "internal_failure" }, 500);
 }
 
 export function assertSandboxReadConfigured(request: Request, env: Env): void {

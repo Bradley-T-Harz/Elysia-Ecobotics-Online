@@ -49,6 +49,13 @@ function requiredPublishableKey(value: string | undefined): string {
   return key;
 }
 
+export function sandboxAccessDeniedError(reason: unknown): PublicHttpError {
+  if (reason === "authentication_required") return new PublicHttpError(401, "authentication_required");
+  if (reason === "profile_required") return new PublicHttpError(403, "profile_required");
+  if (reason === "account_disabled") return new PublicHttpError(403, "account_inactive");
+  return new PublicHttpError(403, "sandbox_not_authorized");
+}
+
 export async function authenticateRequest(request: Request, env: Env): Promise<AuthenticatedRequest> {
   const authorization = request.headers.get("authorization") ?? "";
   if (authorization.length > 4_096 || !authorization.startsWith("Bearer ")) {
@@ -79,7 +86,7 @@ export async function authenticateRequest(request: Request, env: Env): Promise<A
     throw new PublicHttpError(503, "authorization_unavailable");
   }
   const access = accessData as Record<string, unknown>;
-  if (access.authorized !== true) throw new PublicHttpError(403, "sandbox_not_authorized");
+  if (access.authorized !== true) throw sandboxAccessDeniedError(access.reason);
   const accessTier = access.tier;
   if (accessTier !== "member" && accessTier !== "reviewer" && accessTier !== "admin") {
     throw new PublicHttpError(503, "authorization_unavailable");

@@ -1,5 +1,10 @@
 import { type CodingDiagnostic, type SandboxRunResult } from "./codeDiagnosticTypes";
 import { getCodingLanguagePolicy, normalizeCodingLanguage } from "./codeLanguagePolicies";
+import {
+  parseSandboxPublicErrorCode,
+  sandboxRunErrorMessage,
+  type SandboxPublicErrorCode
+} from "./sandboxEligibilityClient";
 
 export type SandboxSourceType =
   | "commune_post_snippet"
@@ -86,7 +91,13 @@ function fallbackDiagnostic(message: string, language: string, category: CodingD
   };
 }
 
-function failedResult(request: SandboxRunRequest, status: SandboxRunResult["status"], message: string, category: CodingDiagnostic["category"] = "sandbox_internal_failure"): SandboxRunResult {
+function failedResult(
+  request: SandboxRunRequest,
+  status: SandboxRunResult["status"],
+  message: string,
+  category: CodingDiagnostic["category"] = "sandbox_internal_failure",
+  errorCode?: SandboxPublicErrorCode
+): SandboxRunResult {
   const language = normalizeCodingLanguage(request.language);
   return {
     ok: false,
@@ -95,8 +106,19 @@ function failedResult(request: SandboxRunRequest, status: SandboxRunResult["stat
     file: request.fileName ?? null,
     snapshotId: request.snapshotId,
     diagnostics: [fallbackDiagnostic(message, language, category)],
-    message
+    message,
+    errorCode
   };
+}
+
+function resultForPublicError(request: SandboxRunRequest, code: SandboxPublicErrorCode): SandboxRunResult {
+  const unavailable = new Set<SandboxPublicErrorCode>(["sandbox_disabled", "sandbox_service_unavailable", "runner_unavailable"]);
+  const status: SandboxRunResult["status"] = unavailable.has(code)
+    ? "sandbox_unavailable"
+    : code === "internal_failure"
+      ? "failed"
+      : "denied";
+  return failedResult(request, status, sandboxRunErrorMessage(code), code, code);
 }
 
 function isSandboxRunResult(value: unknown): value is SandboxRunResult {
@@ -145,6 +167,8 @@ export async function requestSandboxRun(request: SandboxRunRequest, accessToken:
           "content-type": "application/json"
         },
         body,
+        credentials: "same-origin",
+        cache: "no-store",
         signal: controller.signal
       });
     } catch {
@@ -158,7 +182,10 @@ export async function requestSandboxRun(request: SandboxRunRequest, accessToken:
     const payload = responseText !== null ? (() => { try { return JSON.parse(responseText) as unknown; } catch { return null; } })() : null;
     if (response.ok && isSandboxRunResult(payload)) return payload;
     if (attempt === 0 && [502, 504].includes(response.status)) continue;
-    if (response.status === 401 || response.status === 403) return failedResult(request, "denied", "This sandbox request was not authorized.");
+    const safeError = parseSandboxPublicErrorCode(payload);
+    if (safeError) return resultForPublicError(request, safeError);
+    if (response.status === 401) return resultForPublicError(request, "authentication_invalid");
+    if (response.status === 403) return resultForPublicError(request, "sandbox_not_authorized");
     if (response.status === 402) return failedResult(
       request,
       "denied",
@@ -167,6 +194,7 @@ export async function requestSandboxRun(request: SandboxRunRequest, accessToken:
     );
     if (response.status === 422) return failedResult(request, "policy_blocked", "This sandbox request was blocked by policy.");
     if (response.status === 429) return failedResult(request, "sandbox_unavailable", "The sandbox is busy or the current quota is exhausted. Please wait before retrying.");
+    if (response.status >= 500) return resultForPublicError(request, "sandbox_service_unavailable");
     return failedResult(request, "sandbox_unavailable", "The governed sandbox is temporarily unavailable.");
   }
   return failedResult(request, "sandbox_unavailable", "The governed sandbox is temporarily unavailable.");

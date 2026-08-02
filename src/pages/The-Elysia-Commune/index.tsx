@@ -168,6 +168,13 @@ import { runStaticCodingDiagnostics, type CodingDiagnostic, type SandboxRunResul
 import { requestSandboxRun, sandboxEndpointState, type SandboxSourceType } from "./codingSandboxClient";
 import { loadSandboxCreditSummary, sandboxCreditClientMessage, type SandboxCreditSourceCategory, type SandboxCreditSummary } from "./sandboxCreditsClient";
 import {
+  initialSandboxEligibility,
+  requestSandboxEligibility,
+  SANDBOX_PROFILE_SETUP_PATH,
+  sandboxEligibilityCanBeRefreshed,
+  sandboxEligibilityFromCode
+} from "./sandboxEligibilityClient";
+import {
   createPublishedSnapshot,
   currentSnapshotHeading,
   currentSnapshotRunLabel,
@@ -616,11 +623,25 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
   const [running, setRunning] = useState(false);
   const [runState, setRunState] = useState<SandboxRunUiState>("idle");
   const [recordMessage, setRecordMessage] = useState("");
+  const eligibilityRequestId = useRef(0);
+  const [eligibility, setEligibility] = useState(() => initialSandboxEligibility(signedIn, accessToken));
+  const refreshEligibility = useCallback(async () => {
+    const requestId = eligibilityRequestId.current + 1;
+    eligibilityRequestId.current = requestId;
+    if (!signedIn || !accessToken) {
+      setEligibility(sandboxEligibilityFromCode("authentication_required"));
+      return;
+    }
+    setEligibility(sandboxEligibilityFromCode("checking"));
+    const nextEligibility = await requestSandboxEligibility(accessToken);
+    if (eligibilityRequestId.current === requestId) setEligibility(nextEligibility);
+  }, [accessToken, signedIn]);
+  useEffect(() => { void refreshEligibility(); }, [refreshEligibility]);
   const [creditSummary, setCreditSummary] = useState<SandboxCreditSummary | null>(null);
   const [creditLoading, setCreditLoading] = useState(false);
   const [creditMessage, setCreditMessage] = useState("");
   const refreshCreditSummary = useCallback(async (force = false) => {
-    if (!signedIn || !accessToken) {
+    if (!signedIn || !accessToken || !eligibility.available) {
       setCreditSummary(null);
       setCreditMessage("");
       setCreditLoading(false);
@@ -635,7 +656,7 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
     } finally {
       setCreditLoading(false);
     }
-  }, [accessToken, signedIn]);
+  }, [accessToken, eligibility.available, signedIn]);
   useEffect(() => { void refreshCreditSummary(); }, [refreshCreditSummary]);
   useEffect(() => {
     setResult(null);
@@ -653,7 +674,9 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
           ? "Add code before requesting sandbox diagnostics."
           : !policyEligible
             ? `${policy.label} is not executable in V1. Static review remains available; shell and native-code policies stay disabled/future until hardened.`
-            : "";
+            : !eligibility.available
+              ? eligibility.message
+              : "";
   const canRun = !disabledReason;
 
   async function runSnapshot() {
@@ -666,6 +689,18 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
       const runResult = await requestSandboxRun({ snapshotId, sourceType, sourceId, language: normalizedLanguage, fileName, code }, accessToken);
       setResult(runResult);
       setRunState(runResult.status);
+      if (runResult.errorCode && [
+        "authentication_required",
+        "authentication_invalid",
+        "profile_required",
+        "account_inactive",
+        "sandbox_not_authorized",
+        "sandbox_disabled",
+        "sandbox_service_unavailable",
+        "runner_unavailable"
+      ].includes(runResult.errorCode)) {
+        setEligibility(sandboxEligibilityFromCode(runResult.errorCode));
+      }
       setRecordMessage(runResult.recordingStatus === "failed"
         ? "Execution evidence was returned, but Supabase finalization failed. The execution result is not recorded yet."
         : runResult.recordingStatus === "recorded"
@@ -682,7 +717,7 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
         diagnostics: [{
           severity: "error",
           phase: "sandbox",
-          category: "sandbox_internal_failure",
+          category: "internal_failure",
           language: normalizedLanguage,
           file: fileName ?? null,
           line: null,
@@ -690,7 +725,8 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
           source: "Coding Cornucopia sandbox client",
           message: "The governed sandbox request failed safely."
         }],
-        message: "Sandbox request failed before a run result was returned."
+        message: "Sandbox request failed before a run result was returned.",
+        errorCode: "internal_failure"
       };
       setResult(failedResult);
       setRunState("failed");
@@ -715,7 +751,15 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
     <p className="boundary-note">{endpoint.message}</p>
     <p className="boundary-note">Submitted code crosses Cloudflare and the Hetzner sandbox host. Bounded run metadata and output previews may be stored privately in Supabase. No browser execution, terminal, package install, repo clone, Local Elysia handoff, trust label, or approval is created by a successful run.</p>
     <StatusBadges labels={[`state: ${runState.replace(/_/g, " ")}`, policy.sandboxRuntime ? `runtime: ${policy.sandboxRuntime}` : "no active runtime", "network disabled", "ephemeral workspace"]} />
-    {signedIn && <section className={`coding-sandbox-credit-summary${lowBalance ? " coding-sandbox-credit-summary--low" : ""}`} aria-live="polite" aria-busy={creditLoading}>
+    <section className={`coding-sandbox-eligibility coding-sandbox-eligibility--${eligibility.available ? "available" : "unavailable"}`} aria-live="polite" aria-busy={eligibility.state === "checking"}>
+      <div className="addon-card__topline"><strong>{eligibility.title}</strong><span>{eligibility.state.replace(/_/g, " ")}</span></div>
+      <p>{eligibility.message}</p>
+      <div className="button-row">
+        {eligibility.state === "profile_required" && <Link className="button-link" to={SANDBOX_PROFILE_SETUP_PATH}>Create or finish Commons Profile</Link>}
+        {signedIn && accessToken && <button type="button" disabled={!sandboxEligibilityCanBeRefreshed(eligibility)} onClick={() => void refreshEligibility()}>{eligibility.state === "checking" ? "Checking eligibility..." : "Refresh sandbox eligibility"}</button>}
+      </div>
+    </section>
+    {signedIn && eligibility.available && <section className={`coding-sandbox-credit-summary${lowBalance ? " coding-sandbox-credit-summary--low" : ""}`} aria-live="polite" aria-busy={creditLoading}>
       <div className="addon-card__topline"><strong>Private sandbox service credits</strong><span>{creditLoading ? "refreshing" : creditSummary?.mode === "test" ? "test mode" : "availability unknown"}</span></div>
       {creditLoading && !creditSummary && <p>Loading the private account summary...</p>}
       {creditMessage && <p className="boundary-note">{creditMessage}</p>}
@@ -745,7 +789,7 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
     <div className="button-row">
       <button type="button" disabled={!canRun || running} onClick={() => void runSnapshot()}>{running ? "Running in sandbox..." : runLabel}</button>
     </div>
-    {disabledReason && <p className="boundary-note">{disabledReason}</p>}
+    {disabledReason && disabledReason !== eligibility.message && <p className="boundary-note">{disabledReason}</p>}
     {recordMessage && <p className="boundary-note">{recordMessage}</p>}
     {result && <article className="coding-run-result">
       <div className="addon-card__topline"><strong>{result.status.replace(/_/g, " ")}</strong><span>{result.runId ?? "no run id"}</span></div>

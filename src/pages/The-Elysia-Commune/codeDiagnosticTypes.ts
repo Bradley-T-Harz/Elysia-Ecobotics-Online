@@ -21,6 +21,17 @@ export type CodingDiagnosticCategory =
   | "secret_scan_warning"
   | "unsupported_language"
   | "sandbox_credits_required"
+  | "authentication_required"
+  | "authentication_invalid"
+  | "profile_required"
+  | "account_inactive"
+  | "sandbox_not_authorized"
+  | "source_unauthorized"
+  | "origin_denied"
+  | "sandbox_disabled"
+  | "sandbox_service_unavailable"
+  | "runner_unavailable"
+  | "internal_failure"
   | "sandbox_internal_failure"
   | "policy_info";
 
@@ -61,6 +72,7 @@ export type SandboxRunResult = {
   outputTruncated?: boolean;
   recordingStatus?: "recorded" | "failed";
   idempotentReplay?: boolean;
+  errorCode?: import("./sandboxEligibilityClient").SandboxPublicErrorCode;
   diagnostics: CodingDiagnostic[];
   message: string;
 };
