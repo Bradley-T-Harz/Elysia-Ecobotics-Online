@@ -258,6 +258,8 @@ export type SignalConsoleData = {
   signedIn: boolean;
   supabaseConfigured: boolean;
   userId: string | null;
+  canReviewCommune: boolean;
+  canOpenReviewCenter: boolean;
   warnings: string[];
   signals: NotificationPreview[];
   codeProposalActivity: CodeProposalSignalPreview[];
@@ -1195,7 +1197,7 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
 
 export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const warnings: string[] = [];
-  const empty = { signals: [], codeProposalActivity: [], needsMyReview: [], mySubmittedProposals: [], troubleshootingActivity: [], myTroubleshootingIssues: [], troubleshootingNeedingReview: [], troubleshootingResolutionActivity: [], researchNotesActivity: [], myResearchNotes: [], researchNotesNeedingReview: [], researchClarificationActivity: [], repositoryShowcaseActivity: [], myRepositoryShowcases: [], repositoryShowcasesNeedingReview: [], repositorySandboxActivity: [], iterationShowcaseActivity: [], myIterationShowcases: [], iterationShowcasesNeedingReview: [], iterationSandboxActivity: [], jobPostActivity: [], myJobPosts: [], jobPostsNeedingReview: [], jobPostStatusActivity: [], officialUpdateActivity: [], myOfficialUpdates: [], officialUpdatesNeedingAttention: [], communityVoteActivity: [], myCommunityVotes: [], communityVotesNeedingAttention: [], communityVoteLifecycleActivity: [], unreadCount: 0, codeProposalCount: 0, troubleshootingCount: 0, researchNotesCount: 0, repositoryShowcaseCount: 0, iterationShowcaseCount: 0, jobPostCount: 0, officialUpdateCount: 0, communityVoteCount: 0 };
+  const empty = { canReviewCommune: false, canOpenReviewCenter: false, signals: [], codeProposalActivity: [], needsMyReview: [], mySubmittedProposals: [], troubleshootingActivity: [], myTroubleshootingIssues: [], troubleshootingNeedingReview: [], troubleshootingResolutionActivity: [], researchNotesActivity: [], myResearchNotes: [], researchNotesNeedingReview: [], researchClarificationActivity: [], repositoryShowcaseActivity: [], myRepositoryShowcases: [], repositoryShowcasesNeedingReview: [], repositorySandboxActivity: [], iterationShowcaseActivity: [], myIterationShowcases: [], iterationShowcasesNeedingReview: [], iterationSandboxActivity: [], jobPostActivity: [], myJobPosts: [], jobPostsNeedingReview: [], jobPostStatusActivity: [], officialUpdateActivity: [], myOfficialUpdates: [], officialUpdatesNeedingAttention: [], communityVoteActivity: [], myCommunityVotes: [], communityVotesNeedingAttention: [], communityVoteLifecycleActivity: [], unreadCount: 0, codeProposalCount: 0, troubleshootingCount: 0, researchNotesCount: 0, repositoryShowcaseCount: 0, iterationShowcaseCount: 0, jobPostCount: 0, officialUpdateCount: 0, communityVoteCount: 0 };
   if (!hasSupabaseConfig || !supabase) return { signedIn: false, supabaseConfigured: false, userId: null, warnings: [supabaseNotConfiguredMessage], ...empty };
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth.user?.id ?? null;
@@ -1218,6 +1220,7 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const roleState = await loadCurrentRoleState();
   warnings.push(...roleState.warnings);
   const canReviewCommune = roleState.isAdmin || canReviewDomain(roleState.roles, "commune");
+  const canOpenReviewCenter = roleState.isAdmin || roleState.roles.length > 0;
   type TroubleshootingSignalRow = Omit<TroubleshootingSignalPreview, "action_url" | "role_context" | "post_title">;
   const troubleshootingSelect = "id, post_id, thread_id, author_user_id, issue_type, affected_area, troubleshooting_status, accepted_resolution_kind, accepted_summary, accepted_at, resolved_at, closed_at, archived_at, created_at, updated_at";
   const myTroubleshootingRows = await safeQuery<TroubleshootingSignalRow[]>(warnings, "Troubleshooting Grove activity", supabase.from("commune_troubleshooting_posts").select(troubleshootingSelect).eq("author_user_id", userId).order("updated_at", { ascending: false }).limit(100), []);
@@ -1362,6 +1365,8 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
     signedIn: true,
     supabaseConfigured: true,
     userId,
+    canReviewCommune,
+    canOpenReviewCenter,
     warnings,
     signals,
     codeProposalActivity,
