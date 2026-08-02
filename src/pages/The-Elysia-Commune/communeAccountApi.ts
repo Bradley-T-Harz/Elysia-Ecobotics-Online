@@ -1315,20 +1315,6 @@ async function createOfficialUpdateEvent(input: { officialUpdateId?: string | nu
   if (error && import.meta.env.DEV) console.warn("[Official Update event]", error.message);
 }
 
-async function notifyOfficialUpdateSelf(input: { userId?: string | null; title: string; body: string; postId?: string | null; sourceId?: string | null; type: string }) {
-  if (!supabase || !input.userId) return;
-  const { error } = await supabase.from("user_notifications").insert({
-    user_id: input.userId,
-    notification_type: input.type,
-    source_type: canonicalCommuneTables.officialUpdates,
-    source_id: input.sourceId || input.postId || null,
-    title: input.title,
-    body: input.body,
-    action_url: input.postId ? "/commune/posts/" + input.postId : "/commune/rooms/official-updates"
-  });
-  if (error && import.meta.env.DEV) console.warn("[Official Update notification]", error.message);
-}
-
 export async function submitOfficialUpdate(input: {
   title: string;
   summary: string;
@@ -1467,7 +1453,6 @@ export async function submitOfficialUpdate(input: {
   await recordCommuneGovernanceEvent({ actorId: account.userId, targetType: "post", targetId: postId, action: "admin_official_update_published", fromStatus: "draft", toStatus: "published", metadata: { official_update_id: officialUpdateId, update_type: input.updateType, severity: input.severity, comments_enabled: input.commentsEnabled !== false } });
   await createOfficialUpdateEvent({ officialUpdateId, postId, actorId: account.userId, action: "official_update_published", publicNote: input.summary, metadata: { update_type: input.updateType, severity: input.severity, pinned: Boolean(input.pinned), important: Boolean(input.important) } });
   await createReviewHistoryItem({ domain: "commune", sourceTable: canonicalCommuneTables.officialUpdates, sourceId: officialUpdateId, submittedBy: account.userId, title: input.title, summary: "Admin-published Official Update. Brand-authoritative public notice; community users cannot self-assign official authority.", status: "approved", eventType: "admin_official_update_direct_published", metadata: { post_id: postId, update_type: input.updateType, severity: input.severity } });
-  await notifyOfficialUpdateSelf({ userId: account.userId, title: "Official Update published", body: "Your Official Update is public as Elysia Ecobotics Official. Corrections, retractions, code edits, and comment locks remain audit-aware.", postId, sourceId: officialUpdateId, type: input.updateType === "security_notice" ? "official_security_notice_published" : "official_update_published" });
   return { ok: true, message: "Official Update published as Elysia Ecobotics Official with structured metadata, audit event, and read-only official code boundaries.", id: officialUpdateId, postId };
 }
 
@@ -1499,7 +1484,6 @@ export async function updateOfficialUpdateMetadata(input: { officialUpdateId: st
     await supabase.from(canonicalCommuneTables.threads).update(threadPatch).eq("post_id", input.postId);
   }
   await createOfficialUpdateEvent({ officialUpdateId: input.officialUpdateId, postId: input.postId, actorId: account.userId, action: input.action, publicNote: input.correctionNote, metadata: patch });
-  await notifyOfficialUpdateSelf({ userId: account.userId, title: "Official Update lifecycle changed", body: `Official Update action recorded: ${input.action.replace(/_/g, " ")}.`, postId: input.postId, sourceId: input.officialUpdateId, type: "official_update_lifecycle" });
   return { ok: true, message: "Official Update metadata updated and an audit event was recorded." };
 }
 
@@ -1751,20 +1735,6 @@ export async function updateOfficialCodeSnippet(input: { id: string; officialUpd
   return { ok: true, message: "Official code correction saved and audit history updated. Public users still only get read/copy access." };
 }
 
-async function notifyTroubleshootingAuthor(input: { userId?: string | null; actorId?: string | null; postId: string; sourceId?: string | null; title: string; body: string; type: string }) {
-  if (!supabase || !input.userId || input.userId === input.actorId) return;
-  const { error } = await supabase.from("user_notifications").insert({
-    user_id: input.userId,
-    notification_type: input.type,
-    source_type: canonicalCommuneTables.troubleshootingPosts,
-    source_id: input.sourceId || input.postId,
-    title: input.title,
-    body: input.body,
-    action_url: "/commune/posts/" + input.postId
-  });
-  if (error && import.meta.env.DEV) console.warn("[Troubleshooting Grove notification]", error.message);
-}
-
 export async function submitTroubleshootingPost(input: {
   title: string;
   summary: string;
@@ -1909,11 +1879,8 @@ export async function updateTroubleshootingStatus(input: { postId: string; statu
     patch.accepted_by = account.userId;
     patch.accepted_at = now;
   }
-  const { data: existing } = await supabase.from(canonicalCommuneTables.troubleshootingPosts).select("id,author_user_id").eq("post_id", input.postId).maybeSingle();
   const { error } = await supabase.from(canonicalCommuneTables.troubleshootingPosts).update(patch).eq("post_id", input.postId);
   if (error) return { ok: false, message: friendlyError(error.message, "Troubleshooting Grove status could not be updated yet.") };
-  const row = existing as { id?: string; author_user_id?: string | null } | null;
-  await notifyTroubleshootingAuthor({ userId: row?.author_user_id ?? null, actorId: account.userId, postId: input.postId, sourceId: row?.id ?? null, title: "Troubleshooting status updated", body: `Your Troubleshooting Grove issue was marked ${input.status.replace(/_/g, " ")}.`, type: "troubleshooting_status_changed" });
   return { ok: true, message: "Troubleshooting status updated." };
 }
 
@@ -1924,7 +1891,6 @@ export async function markTroubleshootingResolved(input: { postId: string; resol
   if (!input.summary.trim()) return { ok: false, message: "Add a short accepted fix/workaround summary before marking a resolution." };
   const now = new Date().toISOString();
   const status = normalizeTroubleshootingStatus(input.status ?? (input.resolutionKind === "workaround" ? "workaround_found" : "resolved"));
-  const { data: existing } = await supabase.from(canonicalCommuneTables.troubleshootingPosts).select("id,author_user_id").eq("post_id", input.postId).maybeSingle();
   const { error } = await supabase.from(canonicalCommuneTables.troubleshootingPosts).update({
     troubleshooting_status: status,
     accepted_comment_id: input.commentId || null,
@@ -1937,24 +1903,7 @@ export async function markTroubleshootingResolved(input: { postId: string; resol
     updated_at: now
   }).eq("post_id", input.postId);
   if (error) return { ok: false, message: friendlyError(error.message, "Troubleshooting resolution could not be saved yet.") };
-  const row = existing as { id?: string; author_user_id?: string | null } | null;
-  await notifyTroubleshootingAuthor({ userId: row?.author_user_id ?? null, actorId: account.userId, postId: input.postId, sourceId: row?.id ?? null, title: "Troubleshooting resolution recorded", body: `A ${input.resolutionKind.replace(/_/g, " ")} was recorded for your Troubleshooting Grove issue.`, type: "troubleshooting_resolution_recorded" });
   return { ok: true, message: "Accepted troubleshooting fix/workaround recorded." };
-}
-
-
-async function notifyJobPostAuthor(input: { userId?: string | null; actorId?: string | null; postId: string; sourceId?: string | null; title: string; body: string; type: string }) {
-  if (!supabase || !input.userId) return;
-  const { error } = await supabase.from("user_notifications").insert({
-    user_id: input.userId,
-    notification_type: input.type,
-    source_type: canonicalCommuneTables.jobPosts,
-    source_id: input.sourceId || input.postId,
-    title: input.title,
-    body: input.body,
-    action_url: "/commune/posts/" + input.postId
-  });
-  if (error && import.meta.env.DEV) console.warn("[Job Post notification]", error.message);
 }
 
 export async function submitJobPost(input: {
@@ -2118,22 +2067,10 @@ export async function submitJobPost(input: {
         payment_granted_content_approval: false
       }
     });
-    await notifyJobPostAuthor({
-      userId: account.userId,
-      actorId: account.userId,
-      postId,
-      sourceId: jobPostId,
-      title: reviewed.result.published ? "Job Post published" : "Job Post content approved",
-      body: reviewed.result.published
-        ? "Your Job Post is public after governed content review and an independently satisfied publication condition. Work With remains the private application path."
-        : "Your Job Post content is approved but remains non-public until its independent service condition is satisfied. Payment cannot grant content approval.",
-      type: reviewed.result.published ? "job_post_published" : "job_post_approved_pending_economic_condition"
-    });
     return { ok: true, id: jobPostId, postId, message: jobPostReviewResultMessage(reviewed.result) };
   }
   await createReviewItem({ domain: "commune", sourceTable: canonicalCommuneTables.posts, sourceId: postId, submittedBy: account.userId, title: input.title.trim(), summary: excerpt(input.summary || input.roleSummary || body) });
   await createReviewItem({ domain: "commune", sourceTable: canonicalCommuneTables.jobPosts, sourceId: jobPostId, submittedBy: account.userId, title: input.title.trim(), summary: "Job Post metadata awaiting admin approval. Check pay/volunteer clarity, location/remote clarity, contact path, scam risk, and no private applicant data." });
-  await notifyJobPostAuthor({ userId: account.userId, actorId: account.userId, postId, sourceId: jobPostId, title: "Job Post submitted for admin approval", body: "Your Job Post is pending admin approval and is not public yet. Work With remains the private application/intake path.", type: "job_post_submitted" });
   return { ok: true, id: jobPostId, postId, message: "Job Post submitted for mandatory admin approval with structured role metadata. It is not public until approved." };
 }
 
@@ -2167,7 +2104,6 @@ export async function updateJobPostApplicationStatus(input: { jobPostId?: string
     error = result.error;
   }
   if (error) return { ok: false, message: friendlyError(error.message, "Job Post application status could not be updated yet.") };
-  await notifyJobPostAuthor({ userId: row.author_user_id, actorId: account.userId, postId: row.post_id ?? input.postId ?? "", sourceId: row.id, title: "Job Post listing status updated", body: `Job Post status is now ${status.replace(/_/g, " ")}.${input.publicCorrectionNote ? " Note: " + input.publicCorrectionNote : ""}`, type: "job_post_status_changed" });
   return { ok: true, message: "Job Post listing status updated." };
 }
 
@@ -2189,24 +2125,7 @@ export async function updateJobPostReviewStatus(input: { jobPostId?: string | nu
   const query = supabase.from(canonicalCommuneTables.jobPosts).update(patch);
   const { error } = input.jobPostId ? await query.eq("id", input.jobPostId) : await query.eq("post_id", input.postId ?? "");
   if (error) return { ok: false, message: friendlyError(error.message, "Job Post anti-scam review status could not be updated yet.") };
-  const { data: existing } = await supabase.from(canonicalCommuneTables.jobPosts).select("id,post_id,author_user_id").eq(input.jobPostId ? "id" : "post_id", input.jobPostId || input.postId || "").maybeSingle();
-  const row = existing as { id?: string; post_id?: string | null; author_user_id?: string | null } | null;
-  await notifyJobPostAuthor({ userId: row?.author_user_id ?? null, actorId: account.userId, postId: row?.post_id ?? input.postId ?? "", sourceId: row?.id ?? input.jobPostId ?? null, title: "Job Post review state updated", body: `Job Post anti-scam review state is now ${status.replace(/_/g, " ")}.${input.publicCorrectionNote ? " Note: " + input.publicCorrectionNote : ""}`, type: "job_post_review_status_changed" });
   return { ok: true, message: "Job Post anti-scam review state updated. Private admin clarification stays in review/history systems; public correction notes are safe to display." };
-}
-
-async function notifyResearchNotesAuthor(input: { userId?: string | null; postId: string; sourceId?: string | null; title: string; body: string; type: string }) {
-  if (!supabase || !input.userId) return;
-  const { error } = await supabase.from("user_notifications").insert({
-    user_id: input.userId,
-    notification_type: input.type,
-    source_type: canonicalCommuneTables.researchNotes,
-    source_id: input.sourceId || input.postId,
-    title: input.title,
-    body: input.body,
-    action_url: "/commune/posts/" + input.postId
-  });
-  if (error && import.meta.env.DEV) console.warn("[Research Notes notification]", error.message);
 }
 
 export async function submitResearchNotesPost(input: {
@@ -2331,12 +2250,10 @@ export async function submitResearchNotesPost(input: {
     await publishPostAttachments(postId);
     await recordCommuneGovernanceEvent({ actorId: account.userId, targetType: "post", targetId: postId, action: "admin_research_notes_post_published", fromStatus: "draft", toStatus: "published", metadata: { post_type: "research_note", research_note_id: researchNoteId, review_item_created: false } });
     await createReviewHistoryItem({ domain: "commune", sourceTable: canonicalCommuneTables.researchNotes, sourceId: researchNoteId, submittedBy: account.userId, title: input.title, summary: "Admin-published Research Notes entry. Evidence, observation, interpretation, and uncertainty remain separate.", status: "approved", eventType: "admin_research_notes_direct_published", metadata: { post_id: postId, thread_id: threadId, evidence_strength: structuredPayload.evidence_strength } });
-    await notifyResearchNotesAuthor({ userId: account.userId, postId, sourceId: researchNoteId, title: "Research Notes post published", body: "Your Research Notes post is public. Evidence, interpretation, uncertainty, and citations remain visible as structured metadata.", type: "research_notes_published" });
     return { ok: true, id: researchNoteId, postId, message: "Research Notes post published with structured evidence metadata, public thread, and source-safety boundaries." };
   }
   await createReviewItem({ domain: "commune", sourceTable: canonicalCommuneTables.posts, sourceId: postId, submittedBy: account.userId, title: input.title.trim(), summary: excerpt(input.summary || input.body) });
   await createReviewItem({ domain: "commune", sourceTable: canonicalCommuneTables.researchNotes, sourceId: researchNoteId, submittedBy: account.userId, title: input.title.trim(), summary: "Research Notes metadata awaiting review. Check citations, evidence/interpretation boundary, uncertainty, and sensitive-location/private-data safety." });
-  await notifyResearchNotesAuthor({ userId: account.userId, postId, sourceId: researchNoteId, title: "Research Notes submitted", body: "Your Research Notes post is pending moderation. It is not public until approved.", type: "research_notes_submitted" });
   return { ok: true, id: researchNoteId, postId, message: "Research Notes post submitted for moderation with structured evidence metadata. It is not public until approved." };
 }
 
@@ -2358,16 +2275,6 @@ export async function updateResearchNotesReviewStatus(input: { researchNoteId?: 
   const query = supabase.from(canonicalCommuneTables.researchNotes).update(patch);
   const { error } = input.researchNoteId ? await query.eq("id", input.researchNoteId) : await query.eq("post_id", input.postId ?? "");
   if (error) return { ok: false, message: friendlyError(error.message, "Research Notes review state could not be updated yet.") };
-  const { data: existing } = await supabase.from(canonicalCommuneTables.researchNotes).select("id,post_id,author_user_id").eq(input.researchNoteId ? "id" : "post_id", input.researchNoteId || input.postId || "").maybeSingle();
-  const row = existing as { id?: string; post_id?: string | null; author_user_id?: string | null } | null;
-  await notifyResearchNotesAuthor({
-    userId: row?.author_user_id ?? null,
-    postId: row?.post_id ?? input.postId ?? "",
-    sourceId: row?.id ?? input.researchNoteId ?? null,
-    title: "Research Notes review state updated",
-    body: `Research Notes review state is now ${input.reviewStatus.replace(/_/g, " ")}.${input.correctionNote ? " Note: " + input.correctionNote : ""}`,
-    type: "research_notes_review_status_changed"
-  });
   return { ok: true, message: "Research Notes review state updated. Reviewer notes remain in private review/history systems; public correction notes are visible when supplied." };
 }
 
@@ -2896,15 +2803,6 @@ export async function submitIterationShowcase(input: {
       await supabase.from(canonicalCommuneTables.iterationShowcases).update({ sandbox_review_status: "requested", sandbox_review_request_id: sandbox.id ?? null, updated_at: new Date().toISOString() }).eq("id", id);
     }
   }
-  await supabase.from("user_notifications").insert({
-    user_id: account.userId,
-    notification_type: adminDirectPublish ? "iteration_showcase_published" : "iteration_showcase_submitted",
-    source_type: "commune_iteration_showcases",
-    source_id: id,
-    title: adminDirectPublish ? "Elysia Iteration Showcase published" : "Elysia Iteration Showcase submitted",
-    body: adminDirectPublish ? "Your iteration is public progress context. It is not an official release, approval, trust, or Marketplace readiness signal." : "Your iteration showcase is pending review. It is not public until approved.",
-    action_url: "/commune/posts/" + postId
-  });
   return { ok: true, message: adminDirectPublish ? "Elysia Iteration Showcase published as an admin-authored public progress post. It is not an official release, approval, compatibility proof, or Marketplace readiness signal." : "Elysia Iteration Showcase submitted as a normal Commune post for moderation. It is not public until approved.", id, postId, sandboxReviewRequestId };
 }
 
@@ -2914,7 +2812,28 @@ export async function submitSandboxReview(input: { requestTitle: string; reposit
   if (!account.userId) return { ok: false, message: "Sign in to request sandbox review." };
   const scan = scanCommuneTextForSecrets([input.requestTitle, input.repositoryUrl ?? "", input.packageUrl ?? "", input.scope, input.riskNotes, ...input.permissions].join("\n"));
   if (scan.blocked) return { ok: false, message: `Sandbox request blocked because it appears to contain private or secret material: ${scan.warnings.join(", ")}.` };
-  const { data, error } = await supabase.from(canonicalCommuneTables.sandboxReviews).insert({ user_id: account.userId, post_id: input.postId || null, repository_showcase_id: input.repositoryShowcaseId || null, request_title: input.requestTitle, repository_url: input.repositoryUrl || null, package_url: input.packageUrl || null, requested_review_scope: input.scope, risk_notes: input.riskNotes, declared_permissions: input.permissions, status: "requested" }).select("id").single();
+  const { data, error } = await supabase.from(canonicalCommuneTables.sandboxReviews).insert({
+    user_id: account.userId,
+    submitted_by: account.userId,
+    post_id: input.postId || null,
+    repository_showcase_id: input.repositoryShowcaseId || null,
+    request_title: input.requestTitle,
+    title: input.requestTitle,
+    repository_url: input.repositoryUrl || null,
+    package_url: input.packageUrl || null,
+    requested_review_scope: input.scope,
+    risk_notes: input.riskNotes,
+    declared_permissions: input.permissions,
+    source_type: input.postId ? "commune_post" : "manual",
+    source_id: input.postId || null,
+    user_acknowledged_no_execution: true,
+    user_acknowledged_no_secrets: true,
+    user_acknowledged_local_elysia_final_authority: true,
+    status: "requested",
+    request_status: "submitted",
+    review_status: "pending_review",
+    handoff_status: "not_exported"
+  }).select("id").single();
   if (error) return { ok: false, message: friendlyError(error.message, "Sandbox review queue is not active yet.") };
   const id = (data as { id: string }).id;
   await createReviewItem({ domain: "commune", sourceTable: "commune_sandbox_review_requests", sourceId: id, submittedBy: account.userId, title: input.requestTitle, summary: "Sandbox review request only. The website does not execute submitted code." });
@@ -3053,7 +2972,6 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
   if (!ownerResult.data) return { ok: false, message: "This Commune item could not be found. It may already have been removed." };
   const ownerRow = ownerResult.data as unknown as Record<string, unknown>;
   const targetUserId = String(ownerRow.user_id ?? ownerRow.author_user_id ?? ownerRow.owner_user_id ?? ownerRow.reporter_user_id ?? "");
-  const notificationTitle = String(ownerRow.title ?? ownerRow.project_name ?? ownerRow.iteration_type ?? ownerRow.role_title ?? ownerRow.request_title ?? ownerRow.file_name ?? ownerRow.report_type ?? item.title);
   const postId = String(ownerRow.post_id ?? (item.kind === "post" ? item.id : ""));
   if (item.kind === "job" || (item.kind === "post" && ownerRow.post_type === "job_post")) {
     if (action === "lock") return { ok: false, message: "Lock is not a supported governed Job Post review action. No review or publication change was made." };
@@ -3062,19 +2980,6 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
     const jobReview = await reviewCommuneJobPost(jobPostTarget.jobPostId, action as JobPostReviewAction, reason);
     if (!jobReview.ok) return { ok: false, message: jobReview.message };
     await finalizeGovernedJobPostPublication(jobReview.result, targetUserId, account.userId);
-    if (targetUserId && targetUserId !== account.userId) {
-      await supabase.from("user_notifications").insert({
-        user_id: targetUserId,
-        notification_type: "commune_moderation_update",
-        source_type: "job",
-        source_id: jobReview.result.jobPostId,
-        title: `Commune review update: ${notificationTitle}`,
-        body: jobReview.result.published
-          ? "Your Job Post content was approved and the listing is now public. Payment did not grant review approval."
-          : `Your Job Post review is now ${jobReview.result.contentStatus.replace(/_/g, " ")}. The listing remains non-public unless every independent publication condition is satisfied.`,
-        action_url: `/commune/posts/${jobReview.result.postId}`
-      });
-    }
     return { ok: true, message: jobPostReviewResultMessage(jobReview.result) };
   }
   const update: Record<string, unknown> = {};
@@ -3168,17 +3073,6 @@ export async function moderateCommuneItem(item: CommuneModerationItem, action: "
       const commentRow = ownerRow as { user_id?: string | null; post_id?: string | null; thread_id?: string | null };
       await grantThreadParticipationApproval({ threadId: commentRow.thread_id ?? null, postId: commentRow.post_id ?? postId, userId: targetUserId, approvedBy: account.userId, firstCommentId: item.id, source: "first_comment_approval" });
     }
-  }
-  if (targetUserId && targetUserId !== account.userId) {
-    await supabase.from("user_notifications").insert({
-      user_id: targetUserId,
-      notification_type: "commune_moderation_update",
-      source_type: item.kind,
-      source_id: item.id,
-      title: `Commune review update: ${notificationTitle}`,
-      body: `Your Commune ${item.kind} was marked ${toStatus}. Public visibility still follows moderation and privacy rules.`,
-      action_url: postId ? `/commune/posts/${postId}` : "/commune"
-    });
   }
   return { ok: true, message: `Moderation action ${action} recorded.` };
 }

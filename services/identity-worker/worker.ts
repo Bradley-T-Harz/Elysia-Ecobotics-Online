@@ -12,17 +12,20 @@ import { assertIdentityEnabled, assertYouthFlagsSafe, identityFeatureState } fro
 import {
   acceptCurrentUserDocuments,
   cancelCurrentUserCommunityDeletion,
+  claimAccountNotificationDeliveryJobs,
   claimCommunityLifecycleWork,
   claimCommunityExportRetentionJobs,
   claimNotificationDeliveryJobs,
   claimGuardianSponsoredAccount,
   completeCommunityExportRetention,
+  completeAccountNotificationDelivery,
   completeNotificationDelivery,
   consumeCommunityProviderTransaction,
   consumeGuardianSponsoredAccountProviderResult,
   decideGuardianContentApproval,
   enqueueArtisanAccountCleanup,
   failCommunityExportRetention,
+  failAccountNotificationDelivery,
   failNotificationDelivery,
   imposeRestriction,
   listCurrentUserLifecycleRequests,
@@ -59,6 +62,7 @@ import {
   setCurrentUserPublicProfile
 } from "./_shared/database.ts";
 import {
+  accountNotificationDeliveryProvider,
   accountExportProvider,
   accountExportTtlDays,
   assertLifecycleOperatorEnabled,
@@ -1269,6 +1273,85 @@ async function processNotificationDelivery(env: IdentityEnv): Promise<{ claimed:
   return { claimed: claimed.items.length, completed, failed };
 }
 
+async function processAccountNotificationDelivery(
+  env: IdentityEnv
+): Promise<{ claimed: number; completed: number; failed: number }> {
+  accountNotificationDeliveryProvider(env);
+  const serverClient = createIdentityServerClient(env);
+  const leaseToken = crypto.randomUUID();
+  const claimed = upstreamRecord(await claimAccountNotificationDeliveryJobs(serverClient, {
+    leaseToken,
+    limit: 25
+  }), ["deliveries"]);
+  if (!Array.isArray(claimed.deliveries) || claimed.deliveries.length > 25) {
+    throw new IdentityHttpError(502, "account_notification_claim_response_invalid");
+  }
+  const emailAdapter = new CloudflareEmailNotificationAdapter({
+    email: env.IDENTITY_EMAIL,
+    senderEmail: env.IDENTITY_NOTIFICATION_SENDER_EMAIL,
+    senderName: env.IDENTITY_ACCOUNT_NOTIFICATION_SENDER_NAME,
+    origin: env.IDENTITY_ACCOUNT_NOTIFICATION_PUBLIC_ORIGIN
+  });
+  let completed = 0;
+  let failed = 0;
+  for (const rawJob of claimed.deliveries) {
+    let deliveryId = "";
+    let attemptCount = 1;
+    try {
+      const job = upstreamRecord(rawJob, [
+        "deliveryId", "eventId", "recipientUserId", "channel", "attemptCount",
+        "leaseExpiresAt", "category", "mandatory", "title", "preview", "deepLink"
+      ]);
+      deliveryId = upstreamUuid(job.deliveryId);
+      upstreamUuid(job.eventId);
+      const recipientUserId = upstreamUuid(job.recipientUserId);
+      if (job.channel !== "email" || typeof job.mandatory !== "boolean") {
+        throw new IdentityHttpError(502, "account_notification_job_invalid");
+      }
+      attemptCount = upstreamInteger(job.attemptCount, 1, 20);
+      upstreamTimestamp(job.leaseExpiresAt);
+      const category = upstreamString(job.category, 3, 80);
+      const title = upstreamString(job.title, 1, 160);
+      const preview = job.preview === null ? null : upstreamString(job.preview, 1, 500);
+      const deepLink = job.deepLink === null ? null : upstreamString(job.deepLink, 1, 500);
+      const body = preview ?? (job.mandatory
+        ? "A required account notice is ready in your Elysia Ecobotics account."
+        : "An account update is ready in your Elysia Ecobotics account.");
+      const receipt = await emailAdapter.deliver({
+        notificationId: deliveryId,
+        userId: recipientUserId,
+        type: category,
+        actionPath: deepLink,
+        emailDeliveryAllowed: true,
+        title,
+        body,
+        recipientEmail: await confirmedNotificationEmail(serverClient, recipientUserId)
+      });
+      await completeAccountNotificationDelivery(serverClient, {
+        deliveryId,
+        leaseToken,
+        evidenceSha256: receipt.deliveryEvidenceSha256
+      });
+      completed += 1;
+    } catch (error) {
+      failed += 1;
+      if (deliveryId) {
+        const code = stableWorkerFailureCode(error, "account_notification_delivery_failed");
+        const evidence = await sha256Text(
+          `account-notification-failed-v1:${deliveryId}:${attemptCount}:${code}`
+        );
+        await failAccountNotificationDelivery(serverClient, {
+          deliveryId,
+          leaseToken,
+          errorCode: code,
+          evidenceSha256: evidence
+        }).catch(() => undefined);
+      }
+    }
+  }
+  return { claimed: claimed.deliveries.length, completed, failed };
+}
+
 async function processExportRetention(env: IdentityEnv): Promise<{ claimed: number; completed: number; failed: number }> {
   exportRetentionProvider(env);
   const serverClient = createIdentityServerClient(env);
@@ -1339,6 +1422,12 @@ export async function handleIdentityScheduledMaintenance(env: IdentityEnv): Prom
     console.info(JSON.stringify({ event: "identity.notification_delivery", outcome: "completed", ...result }));
   } catch {
     console.info(JSON.stringify({ event: "identity.notification_delivery", outcome: "disabled_or_failed" }));
+  }
+  try {
+    const result = await processAccountNotificationDelivery(env);
+    console.info(JSON.stringify({ event: "identity.account_notification_delivery", outcome: "completed", ...result }));
+  } catch {
+    console.info(JSON.stringify({ event: "identity.account_notification_delivery", outcome: "disabled_or_failed" }));
   }
   try {
     const result = await processExportRetention(env);

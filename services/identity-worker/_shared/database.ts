@@ -296,6 +296,39 @@ export function failNotificationDelivery(
   });
 }
 
+export function claimAccountNotificationDeliveryJobs(
+  client: SupabaseClient,
+  input: { leaseToken: string; limit: number }
+): Promise<unknown> {
+  return rpc(client, "claim_account_delivery_outbox", {
+    p_lease_token: input.leaseToken,
+    p_limit: input.limit
+  });
+}
+
+export function completeAccountNotificationDelivery(
+  client: SupabaseClient,
+  input: { deliveryId: string; leaseToken: string; evidenceSha256: string }
+): Promise<unknown> {
+  return rpc(client, "complete_account_delivery_v2", {
+    p_delivery_id: input.deliveryId,
+    p_lease_token: input.leaseToken,
+    p_delivery_evidence_sha256: input.evidenceSha256
+  });
+}
+
+export function failAccountNotificationDelivery(
+  client: SupabaseClient,
+  input: { deliveryId: string; leaseToken: string; errorCode: string; evidenceSha256: string }
+): Promise<unknown> {
+  return rpc(client, "fail_account_delivery_v2", {
+    p_delivery_id: input.deliveryId,
+    p_lease_token: input.leaseToken,
+    p_error_code: input.errorCode,
+    p_failure_evidence_sha256: input.evidenceSha256
+  });
+}
+
 export function claimCommunityExportRetentionJobs(
   client: SupabaseClient,
   input: { workerId: string; limit: number; leaseSeconds: number }

@@ -60,10 +60,11 @@ export class DatabaseInAppNotificationAdapter implements NotificationDeliveryAda
   }
 }
 
-const ARTISAN_NOTIFICATION_ORIGINS = new Set([
-  "https://elysiaartisancollective.pages.dev",
-  "https://artisans.elysiaecobotics.com"
-]);
+const NOTIFICATION_PREFERENCES_PATH_BY_ORIGIN = new Map<string, string>([
+  ["https://elysiaecobotics.com", "/commons-circle/notifications"],
+  ["https://elysiaartisancollective.pages.dev", "/notifications"],
+  ["https://artisans.elysiaecobotics.com", "/notifications"]
+] as const);
 
 function safeEmailAddress(value: string): string {
   const normalized = value.trim().toLowerCase();
@@ -105,7 +106,7 @@ export class CloudflareEmailNotificationAdapter {
     if (!input.senderName || input.senderName.length < 2 || input.senderName.length > 80 || /[\r\n]/.test(input.senderName)) {
       throw new IdentityHttpError(503, "notification_email_sender_invalid");
     }
-    if (!input.origin || !ARTISAN_NOTIFICATION_ORIGINS.has(input.origin)) {
+    if (!input.origin || !NOTIFICATION_PREFERENCES_PATH_BY_ORIGIN.has(input.origin)) {
       throw new IdentityHttpError(503, "notification_email_origin_invalid");
     }
     this.#email = input.email;
@@ -123,7 +124,9 @@ export class CloudflareEmailNotificationAdapter {
     ) throw new IdentityHttpError(502, "notification_email_content_invalid");
     const recipientEmail = safeEmailAddress(input.recipientEmail);
     const actionUrl = job.actionPath === null ? null : new URL(job.actionPath, this.#origin).toString();
-    const preferencesUrl = new URL("/notifications", this.#origin).toString();
+    const preferencesPath = NOTIFICATION_PREFERENCES_PATH_BY_ORIGIN.get(this.#origin);
+    if (!preferencesPath) throw new IdentityHttpError(503, "notification_email_origin_invalid");
+    const preferencesUrl = new URL(preferencesPath, this.#origin).toString();
     const text = `${input.body}${actionUrl ? `\n\nOpen this notice: ${actionUrl}` : ""}\n\nNotification controls: ${preferencesUrl}`;
     const htmlBody = escapeHtml(input.body).replace(/\r?\n/g, "<br>");
     const result = await this.#email.send({

@@ -69,6 +69,7 @@ const accountCommunicationPaths = [
   "supabase/migrations/20260802030000_code_proposal_account_events.sql",
   "supabase/migrations/20260802040000_account_requests_and_reviews_projection.sql",
   "supabase/migrations/20260802050000_governed_account_conversations.sql",
+  "supabase/migrations/20260802060000_account_notification_producers.sql",
 ];
 
 const activePaths = [
@@ -233,6 +234,13 @@ for (const marker of [
   "public.admin_send_account_message",
   "public.report_account_conversation",
   "account_announcement_confirmation_invalid",
+  "public.commune_comment_mentions",
+  "project_account_domain_transition",
+  "project_economic_notification_delivery",
+  "reconcile_legacy_account_notifications",
+  "account_notification_reconciliation_status",
+  "complete_account_delivery_v2",
+  "fail_account_delivery_v2",
 ]) assert(accountCommunicationSource.includes(marker), `Account communication migration chain omits ${marker}.`);
 const accountCommunicationPlpgsqlFunctions = [...new Set(
   [...accountCommunicationSource.matchAll(/create or replace function\s+(public|private)\.([a-z0-9_]+)\s*\(/gi)]
@@ -592,6 +600,7 @@ try {
     "scripts/fixtures/accountEventFoundationBehavior.sql",
     "scripts/fixtures/accountRequestsReviewsBehavior.sql",
     "scripts/fixtures/accountMessagingBehavior.sql",
+    "scripts/fixtures/accountNotificationProducerBehavior.sql",
     "scripts/sql/supabase_read_only_inventory.sql",
   ]) {
     await run(containerRuntime, ["cp", file, `${container}:/tmp/${path.basename(file)}`]);
@@ -767,6 +776,14 @@ try {
   assert(
     accountMessagingBehavior.stdout.includes("account_messaging_behavior_ok"),
     "Account messaging behavior marker missing."
+  );
+  const accountNotificationProducerBehavior = await psql([
+    "-f",
+    "/tmp/accountNotificationProducerBehavior.sql",
+  ]);
+  assert(
+    accountNotificationProducerBehavior.stdout.includes("account_notification_producer_behavior_ok"),
+    "Account notification producer behavior marker missing."
   );
   // Hosted Supabase owns this ledger. The database-only image omits it, so
   // provide the catalog shape required by the read-only inventory rehearsal.

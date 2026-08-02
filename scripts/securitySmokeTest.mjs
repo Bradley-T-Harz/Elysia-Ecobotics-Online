@@ -103,6 +103,7 @@ const reviewedAccountCommunicationRoleMigrations = new Set([
   "supabase/migrations/20260802020000_account_event_foundation.sql",
   "supabase/migrations/20260802030000_code_proposal_account_events.sql",
   "supabase/migrations/20260802040000_account_requests_and_reviews_projection.sql",
+  "supabase/migrations/20260802060000_account_notification_producers.sql",
 ]);
 
 function allowHit(file, line, checkName) {
@@ -131,6 +132,10 @@ function allowHit(file, line, checkName) {
     && (/node:child_process/.test(line) || /spawn\("psql"/.test(line))
   ) return true;
   if (checkName === "service role key strings") {
+    if (
+      normalized === "scripts/identityNotificationDeliverySmokeTest.mjs"
+      && /SUPABASE_SERVICE_ROLE_KEY:\s*"fixture-service-credential"/.test(line)
+    ) return true;
     if (
       normalized === "scripts/fixtures/artisanDatabaseBehavior.sql"
       && (

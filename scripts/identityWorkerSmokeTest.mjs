@@ -14,6 +14,7 @@ import {
 import { assertYouthFlagsSafe, identityFeatureState } from "../services/identity-worker/_shared/config.ts";
 import { allowedOrigins, fetchWithTimeout, IdentityHttpError, requireSameOriginMutation } from "../services/identity-worker/_shared/http.ts";
 import {
+  accountNotificationDeliveryProvider,
   accountExportProvider,
   accountExportTtlDays,
   assertLifecycleOperatorEnabled,
@@ -73,6 +74,8 @@ const env = {
   IDENTITY_AUTH_DELETION_PROVIDER: "disabled",
   IDENTITY_NOTIFICATION_DELIVERY_ENABLED: "false",
   IDENTITY_NOTIFICATION_DELIVERY_PROVIDER: "disabled",
+  IDENTITY_ACCOUNT_NOTIFICATION_DELIVERY_ENABLED: "false",
+  IDENTITY_ACCOUNT_NOTIFICATION_DELIVERY_PROVIDER: "disabled",
   IDENTITY_EXPORT_RETENTION_ENABLED: "false",
   IDENTITY_EXPORT_RETENTION_PROVIDER: "disabled",
   IDENTITY_EDGE_RATE_LIMIT_CONFIRMED: "true",
@@ -304,6 +307,7 @@ await rejectsCode(() => Promise.resolve(accountExportProvider(env)), "account_ex
 await rejectsCode(() => Promise.resolve(storageCleanupProvider(env)), "storage_cleanup_disabled");
 await rejectsCode(() => Promise.resolve(authDeletionProvider(env)), "auth_deletion_disabled");
 await rejectsCode(() => Promise.resolve(notificationDeliveryProvider(env)), "notification_delivery_disabled");
+await rejectsCode(() => Promise.resolve(accountNotificationDeliveryProvider(env)), "account_notification_delivery_disabled");
 await rejectsCode(() => Promise.resolve(exportRetentionProvider(env)), "export_retention_disabled");
 assert(accountExportTtlDays(env) === 7, "The bounded account-export TTL was not parsed exactly.");
 
@@ -380,6 +384,22 @@ assert(
     IDENTITY_NOTIFICATION_DELIVERY_PROVIDER: "cloudflare-email-service-v1",
   }).sendsExternalEmail === true,
   "The reviewed Cloudflare transactional email provider was not selectable behind its explicit flag."
+);
+assert(
+  accountNotificationDeliveryProvider({
+    ...env,
+    IDENTITY_ACCOUNT_NOTIFICATION_DELIVERY_ENABLED: "true",
+    IDENTITY_ACCOUNT_NOTIFICATION_DELIVERY_PROVIDER: "cloudflare-email-service-v1",
+  }).source === "online-account-delivery-outbox",
+  "Online account email delivery must remain a separately enabled outbox plane."
+);
+await rejectsCode(
+  () => Promise.resolve(accountNotificationDeliveryProvider({
+    ...env,
+    IDENTITY_ACCOUNT_NOTIFICATION_DELIVERY_ENABLED: "true",
+    IDENTITY_ACCOUNT_NOTIFICATION_DELIVERY_PROVIDER: "database-in-app-v1",
+  })),
+  "account_notification_delivery_disabled"
 );
 assert(
   exportRetentionProvider({
@@ -702,6 +722,7 @@ for (const flag of [
   "IDENTITY_STORAGE_CLEANUP_ENABLED",
   "IDENTITY_AUTH_DELETION_ENABLED",
   "IDENTITY_NOTIFICATION_DELIVERY_ENABLED",
+  "IDENTITY_ACCOUNT_NOTIFICATION_DELIVERY_ENABLED",
   "IDENTITY_EXPORT_RETENTION_ENABLED",
 ]) {
   assert(workerConfig.includes(`"${flag}": "false"`), `${flag} did not default off.`);
@@ -711,6 +732,7 @@ for (const provider of [
   "IDENTITY_STORAGE_CLEANUP_PROVIDER",
   "IDENTITY_AUTH_DELETION_PROVIDER",
   "IDENTITY_NOTIFICATION_DELIVERY_PROVIDER",
+  "IDENTITY_ACCOUNT_NOTIFICATION_DELIVERY_PROVIDER",
   "IDENTITY_EXPORT_RETENTION_PROVIDER",
 ]) {
   assert(workerConfig.includes(`"${provider}": "disabled"`), `${provider} did not default disabled.`);
@@ -749,6 +771,7 @@ for (const flag of [
   "IDENTITY_STORAGE_CLEANUP_ENABLED",
   "IDENTITY_AUTH_DELETION_ENABLED",
   "IDENTITY_NOTIFICATION_DELIVERY_ENABLED",
+  "IDENTITY_ACCOUNT_NOTIFICATION_DELIVERY_ENABLED",
   "IDENTITY_EXPORT_RETENTION_ENABLED",
 ]) {
   assert(productionWorkerConfig.includes(`"${flag}": "false"`), `${flag} escaped the production account-access boundary.`);
@@ -768,8 +791,17 @@ for (const route of [
 assert(
   identityWorkerSource.includes("handleIdentityScheduledMaintenance")
     && identityWorkerSource.includes("new SupabaseAuthSoftDeleteAdapter")
-    && identityWorkerSource.includes("new R2AccountExportStorage"),
+    && identityWorkerSource.includes("new R2AccountExportStorage")
+    && identityWorkerSource.includes("processAccountNotificationDelivery")
+    && identityWorkerSource.includes('event: "identity.account_notification_delivery"'),
   "Lifecycle execution adapters or scheduled maintenance were disconnected."
+);
+assert(
+  workerConfig.includes('"IDENTITY_ACCOUNT_NOTIFICATION_SENDER_NAME": "Elysia Ecobotics"')
+    && workerConfig.includes('"IDENTITY_ACCOUNT_NOTIFICATION_PUBLIC_ORIGIN": "https://elysiaecobotics.com"')
+    && productionWorkerConfig.includes('"IDENTITY_ACCOUNT_NOTIFICATION_DELIVERY_ENABLED": "false"')
+    && productionWorkerConfig.includes('"IDENTITY_ACCOUNT_NOTIFICATION_DELIVERY_PROVIDER": "disabled"'),
+  "Online account email delivery must remain origin-bound and fail closed in production."
 );
 
 const validMediaId = "22222222-2222-4222-8222-222222222222";

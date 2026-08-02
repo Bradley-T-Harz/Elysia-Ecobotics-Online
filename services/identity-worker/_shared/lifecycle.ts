@@ -42,6 +42,12 @@ export type NotificationDeliveryProvider = Readonly<{
   sendsExternalEmail: boolean;
 }>;
 
+export type AccountNotificationDeliveryProvider = Readonly<{
+  name: "cloudflare-email-service-v1";
+  sendsExternalEmail: true;
+  source: "online-account-delivery-outbox";
+}>;
+
 export type ExportRetentionProvider = Readonly<{
   name: "private-export-expiry-v1";
   respectsDatabaseLegalHolds: true;
@@ -79,6 +85,12 @@ const NOTIFICATION_DELIVERY_PROVIDER: NotificationDeliveryProvider = Object.free
 const CLOUDFLARE_EMAIL_NOTIFICATION_PROVIDER: NotificationDeliveryProvider = Object.freeze({
   name: "cloudflare-email-service-v1",
   sendsExternalEmail: true
+});
+
+const ACCOUNT_NOTIFICATION_DELIVERY_PROVIDER: AccountNotificationDeliveryProvider = Object.freeze({
+  name: "cloudflare-email-service-v1",
+  sendsExternalEmail: true,
+  source: "online-account-delivery-outbox"
 });
 
 const EXPORT_RETENTION_PROVIDER: ExportRetentionProvider = Object.freeze({
@@ -164,6 +176,16 @@ export function notificationDeliveryProvider(env: IdentityEnv): NotificationDeli
     return CLOUDFLARE_EMAIL_NOTIFICATION_PROVIDER;
   }
   throw new IdentityHttpError(503, "notification_delivery_disabled");
+}
+
+export function accountNotificationDeliveryProvider(env: IdentityEnv): AccountNotificationDeliveryProvider {
+  requireProvider(
+    env.IDENTITY_ACCOUNT_NOTIFICATION_DELIVERY_ENABLED,
+    env.IDENTITY_ACCOUNT_NOTIFICATION_DELIVERY_PROVIDER,
+    ACCOUNT_NOTIFICATION_DELIVERY_PROVIDER.name,
+    "account_notification_delivery_disabled"
+  );
+  return ACCOUNT_NOTIFICATION_DELIVERY_PROVIDER;
 }
 
 export function exportRetentionProvider(env: IdentityEnv): ExportRetentionProvider {

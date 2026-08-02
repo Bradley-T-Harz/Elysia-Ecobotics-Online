@@ -47,6 +47,7 @@ const reactionSecurityRepair = await read("supabase/migrations/20260714015000_co
 const commentDirectPublishMigration = await read("supabase/legacy-migrations/2026_06_21_commune_comment_direct_publish_policy.sql");
 const commentSchemaRepairMigration = await read("supabase/legacy-migrations/2026_06_22_commune_comments_schema_drift_repair.sql");
 const commentNotificationRepairMigration = await read("supabase/legacy-migrations/2026_06_22_commune_comment_notification_dependency_repair.sql");
+const accountNotificationProducerMigration = await read("supabase/migrations/20260802060000_account_notification_producers.sql");
 const roomPostMediaPolicyRepairMigration = await read("supabase/legacy-migrations/2026_06_23_commune_room_post_admin_and_media_policy_repair.sql");
 const publishedMediaDisplayPolicyMigration = await read("supabase/legacy-migrations/2026_06_24_commune_published_media_display_policy.sql");
 const codingRunsMigration = await read("supabase/legacy-migrations/2026_06_24_coding_cornucopia_runs_and_diagnostics.sql");
@@ -136,7 +137,7 @@ assert(signalConsolePage.includes("Job Post admin approval/anti-scam activity") 
 assert(signalConsolePage.includes("Author approval boundary") && signalConsolePage.includes("public code changes only after the original post author accepts"), "Signal Console should preserve author approval doctrine.");
 assert(signalConsolePage.includes("Sandbox diagnostics are evidence for review"), "Signal Console should preserve sandbox-is-not-approval doctrine.");
 assert(commonsPage.includes("Signals compatibility") && commonsPage.includes("Open compatibility Signal Console"), "Commons Circle must preserve the existing Signal Console during Inbox/Notifications migration.");
-assert(commonsPage.includes("Open Signal Console") && commonsPage.includes("/commons-circle/signals"), "Commons Circle preview should link to the full Signal Console.");
+assert(commonsPage.includes("Open Notifications") && commonsPage.includes("/commons-circle/notifications") && commonsPage.includes("/commons-circle/signals"), "Commons Circle should link to Notifications while preserving the compatibility Signal Console.");
 assert(signalConsolePage.includes("Troubleshooting Grove proposed fixes") && signalConsolePage.includes("Troubleshooting Grove activity"), "Signal Console compatibility page must preserve Troubleshooting Grove support activity.");
 assert(signalConsolePage.includes("Research Notes citation/source activity") && signalConsolePage.includes("Research Notes activity"), "Signal Console compatibility page must preserve Research Notes activity.");
 
@@ -547,7 +548,7 @@ assert(troubleshootingBoundaryDoc.includes("no browser/frontend execution") && t
 assert(troubleshootingBoundaryDoc.includes("sandbox success is evidence only") || troubleshootingBoundaryDoc.includes("Sandbox success is evidence only"), "Troubleshooting Grove security boundary doc should preserve sandbox-is-not-trust doctrine.");
 assert(troubleshootingContractDoc.includes("commune_troubleshooting_posts") && troubleshootingContractDoc.includes("commune_code_revision_proposals") && troubleshootingContractDoc.includes("Signal Console"), "Troubleshooting Grove API contract doc missing structured row/proposal/signal contract.");
 assert(accountApi.includes("export async function submitResearchNotesPost") && accountApi.includes("commune_research_notes") && accountApi.includes('post_type: "research_note"'), "Research Notes API should create a normal Commune post plus structured sidecar metadata.");
-assert(accountApi.includes("loadResearchNotesForPosts") && accountApi.includes("updateResearchNotesReviewStatus") && accountApi.includes("research_notes_review_status_changed"), "Research Notes API should load sidecar metadata and support reviewer status updates/signals.");
+assert(accountApi.includes("loadResearchNotesForPosts") && accountApi.includes("updateResearchNotesReviewStatus") && accountNotificationProducerMigration.includes("commune.research_note.status_changed"), "Research Notes API should load sidecar metadata while the authoritative source transition produces review-status events.");
 assert(accountApi.includes("no_sensitive_locations") && accountApi.includes("living_library_link_metadata_only"), "Research Notes safety acknowledgements should preserve sensitive-location and Living Library metadata boundaries.");
 assert(page.includes("ResearchNotesDetail") && page.includes("Evidence-aware fields") && page.includes("Research Notes boundary"), "Research Notes public post detail should render structured evidence-aware metadata.");
 const researchDetailSource = page.slice(page.indexOf("function ResearchNotesDetail"), page.indexOf("function RepositoryShowcaseDetail"));
