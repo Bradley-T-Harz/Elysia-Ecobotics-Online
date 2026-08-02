@@ -4,11 +4,12 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-const [app, homebase, api, inbox, messaging, adminCommunications, adminConsole, requests, migration, messagingMigration, messagingFixture, styles] = await Promise.all([
+const [app, homebase, api, inbox, notifications, messaging, adminCommunications, adminConsole, requests, migration, messagingMigration, messagingFixture, styles] = await Promise.all([
   fs.readFile("src/App.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/index.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/accountCommunicationsApi.ts", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/InboxPage.tsx", "utf8"),
+  fs.readFile("src/pages/The-Commons-Circle/NotificationsPage.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/InboxMessagingPanel.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/AdminCommunicationsPage.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/CommonsCircleAdminConsolePage.tsx", "utf8"),
@@ -19,7 +20,7 @@ const [app, homebase, api, inbox, messaging, adminCommunications, adminConsole, 
   fs.readFile("src/styles.css", "utf8"),
 ]);
 
-for (const route of ["commons-circle/inbox", "commons-circle/requests-reviews", "commons-circle/admin-communications", "commons-circle/signals"]) {
+for (const route of ["commons-circle/inbox", "commons-circle/notifications", "commons-circle/requests-reviews", "commons-circle/admin-communications", "commons-circle/signals"]) {
   assert(app.includes(`path="${route}"`), `Missing account communications route: ${route}`);
 }
 
@@ -30,6 +31,12 @@ for (const rpc of [
   "set_current_user_inbox_archived",
   "current_user_request_counts",
   "current_user_requests_and_reviews",
+  "current_user_notification_items",
+  "set_current_user_notification_read",
+  "set_current_user_notification_archived",
+  "mark_all_current_user_notifications_read",
+  "current_user_account_event_preferences",
+  "update_current_user_account_event_preference",
 ]) assert(api.includes(`"${rpc}"`), `Account communications client omits ${rpc}.`);
 
 for (const rpc of [
@@ -53,6 +60,10 @@ assert(!/\.from\(["'](?:account_events|account_inbox_items|account_notifications
 assert(inbox.includes("Needs attention") && inbox.includes("Messages") && inbox.includes("Sent") && inbox.includes("Completed") && inbox.includes("Archived"), "Inbox tabs are incomplete.");
 assert(inbox.includes("safeInternalActionPath") && inbox.includes("sourceAvailable"), "Inbox must validate deep links and render unavailable sources safely.");
 assert(inbox.includes("45_000") && inbox.includes('addEventListener("focus"'), "Inbox must use bounded polling and focus revalidation.");
+assert(notifications.includes("Account & Security") && notifications.includes("Marketplace & Economic") && notifications.includes("Archived"), "Notification filters are incomplete.");
+assert(notifications.includes("45_000") && notifications.includes('addEventListener("focus"'), "Notifications must use bounded polling and focus revalidation.");
+assert(notifications.includes("safeInternalActionPath") && notifications.includes("sourceAvailable"), "Notifications must validate deep links and render unavailable sources safely.");
+assert(notifications.includes("Mandatory events in this category remain visible") && notifications.toLowerCase().includes("quiet hours"), "Notification preference and mandatory-delivery truth is incomplete.");
 assert(messaging.includes("stored in Supabase") && messaging.includes("not end-to-end encrypted"), "Messaging privacy limitations must be explicit.");
 assert(messaging.includes("Attachments, HTML, embeds, and anonymous messages are not supported"), "Messaging content boundaries are not explained.");
 assert(messaging.includes("Accept request") && messaging.includes("Block account") && messaging.includes("Submit report"), "Participant messaging safety controls are incomplete.");

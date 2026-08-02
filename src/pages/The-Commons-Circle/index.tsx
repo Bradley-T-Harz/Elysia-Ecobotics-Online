@@ -471,7 +471,7 @@ export default function CommonsCirclePage() {
           <h2>Updates and outcomes</h2>
           <dl className="mini-facts"><MiniFact label="Unread" value={unreadCount} /><MiniFact label="Legacy preview rows" value={homebase?.notifications.length ?? 0} /></dl>
           <p>Informational outcomes remain separate from actions. The existing Signal Console stays available during the compatibility period.</p>
-          <Link className="button-link button-link--primary" to="/commons-circle/signals">Open Signal Console</Link>
+          <div className="button-row"><Link className="button-link button-link--primary" to="/commons-circle/notifications">Open Notifications</Link><Link className="button-link" to="/commons-circle/signals">Open compatibility Signals</Link></div>
         </article>
 
         <article className="section-card commons-account-room-card">
@@ -661,9 +661,11 @@ export default function CommonsCirclePage() {
       <section className="section-card commons-settings-grid">
         <article>
           <p className="eyebrow">Notification Preferences</p>
-          <h2>Signal lantern settings</h2>
+          <h2>Legacy signal settings</h2>
           {Object.entries(notificationDraft).map(([key, value]) => <label className="checkbox-line" key={key}><input type="checkbox" checked={value} onChange={(event) => setNotificationDraft({ ...notificationDraft, [key]: event.target.checked })} /><span>{key.replace(/_/g, " ")}</span></label>)}
           <button type="button" onClick={() => void saveNoticePrefs()}>Save notification preferences</button>
+          <p className="boundary-note">These older settings remain available during reconciliation. New event-specific in-app, email, and quiet-hours controls live in Notifications.</p>
+          <Link className="button-link" to="/commons-circle/notifications">Open current notification preferences</Link>
         </article>
         <article>
           <p className="eyebrow">Connected local Elysia</p>

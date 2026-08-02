@@ -36,6 +36,7 @@ const CommonsCircleSetupPage = lazy(() => import("./pages/The-Commons-Circle/Com
 const SavedShelvesPage = lazy(() => import("./pages/The-Commons-Circle/SavedShelvesPage"));
 const SignalConsolePage = lazy(() => import("./pages/The-Commons-Circle/SignalConsolePage"));
 const InboxPage = lazy(() => import("./pages/The-Commons-Circle/InboxPage"));
+const NotificationsPage = lazy(() => import("./pages/The-Commons-Circle/NotificationsPage"));
 const RequestsReviewsPage = lazy(() => import("./pages/The-Commons-Circle/RequestsReviewsPage"));
 const SupportBillingPage = lazy(() => import("./pages/The-Commons-Circle/SupportBillingPage"));
 const PublicCommonsProfilePage = lazy(() => import("./pages/Public-Commons-Profile"));
@@ -149,6 +150,7 @@ export default function App() {
             <Route path="commons-circle/admin-communications" element={<AdminCommunicationsPage />} />
             <Route path="commons-circle/saved-shelves" element={<SavedShelvesPage />} />
             <Route path="commons-circle/inbox" element={<InboxPage />} />
+            <Route path="commons-circle/notifications" element={<NotificationsPage />} />
             <Route path="commons-circle/requests-reviews" element={<RequestsReviewsPage />} />
             <Route path="commons-circle/signals" element={<SignalConsolePage />} />
             <Route path="commons-circle/support-billing" element={<SupportBillingPage />} />

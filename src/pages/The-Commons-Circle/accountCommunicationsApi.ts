@@ -60,6 +60,60 @@ export type InboxResult = {
   cursor: InboxCursor | null;
 };
 
+export type NotificationFilter =
+  | "all"
+  | "unread"
+  | "account_security"
+  | "community"
+  | "work_reviews"
+  | "marketplace"
+  | "moderation"
+  | "archived";
+
+export type AccountNotification = {
+  id: string;
+  kind: "information" | "outcome" | "mandatory_notice" | "legacy";
+  domain: string;
+  sourceType: string;
+  category: string;
+  mandatory: boolean;
+  title: string;
+  preview: string | null;
+  deepLink: string;
+  readAt: string | null;
+  archivedAt: string | null;
+  createdAt: string;
+  sourceAvailable: boolean;
+  actor: AccountActorCard | null;
+};
+
+export type NotificationCursor = { createdAt: string; id: string };
+
+export type NotificationsResult = {
+  signedIn: boolean;
+  supabaseConfigured: boolean;
+  warnings: string[];
+  items: AccountNotification[];
+  counts: AccountEventCounts;
+  cursor: NotificationCursor | null;
+};
+
+export type AccountEventPreference = {
+  category: string;
+  taxonomyVersion: number;
+  preferenceVersion: number;
+  inAppEnabled: boolean;
+  emailEnabled: boolean;
+  quietHoursStart: string | null;
+  quietHoursEnd: string | null;
+  quietHoursTimezone: "UTC";
+};
+
+export type AccountEventPreferencesResult = {
+  taxonomyVersion: number;
+  preferences: AccountEventPreference[];
+};
+
 export type RequestReviewState = "all" | "pending" | "resolved";
 
 export type RequestReviewItem = {
@@ -291,6 +345,50 @@ function normalizeInboxItems(value: unknown): InboxItem[] {
   });
 }
 
+function normalizeNotificationItems(value: unknown): AccountNotification[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    const row = asRecord(entry);
+    const id = asText(row.id);
+    const kind = asText(row.kind);
+    const title = asText(row.title);
+    const createdAt = asText(row.createdAt);
+    if (!id || !title || !createdAt || !["information", "outcome", "mandatory_notice", "legacy"].includes(kind)) return [];
+    return [{
+      id,
+      kind: kind as AccountNotification["kind"],
+      domain: asText(row.domain, "account"),
+      sourceType: asText(row.sourceType, "account_event"),
+      category: asText(row.category, "account_security"),
+      mandatory: row.mandatory === true,
+      title,
+      preview: asNullableText(row.preview),
+      deepLink: asText(row.deepLink),
+      readAt: asNullableText(row.readAt),
+      archivedAt: asNullableText(row.archivedAt),
+      createdAt,
+      sourceAvailable: row.sourceAvailable !== false,
+      actor: normalizeActor(row.actor),
+    }];
+  });
+}
+
+function normalizeEventPreference(value: unknown): AccountEventPreference | null {
+  const row = asRecord(value);
+  const category = asText(row.category);
+  if (!/^[a-z][a-z0-9_]{1,79}$/.test(category)) return null;
+  return {
+    category,
+    taxonomyVersion: safeCount(row.taxonomyVersion),
+    preferenceVersion: safeCount(row.preferenceVersion),
+    inAppEnabled: row.inAppEnabled !== false,
+    emailEnabled: row.emailEnabled === true,
+    quietHoursStart: asNullableText(row.quietHoursStart),
+    quietHoursEnd: asNullableText(row.quietHoursEnd),
+    quietHoursTimezone: "UTC",
+  };
+}
+
 function normalizeRequestItems(value: unknown): RequestReviewItem[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry) => {
@@ -499,6 +597,105 @@ export async function setInboxItemArchived(itemId: string, archived: boolean) {
     return [accountRpcWarning("Inbox archive state")];
   }
   return [];
+}
+
+export async function loadNotifications(
+  filter: NotificationFilter,
+  cursor: NotificationCursor | null = null,
+): Promise<NotificationsResult> {
+  const countState = await loadAccountHomebaseCounts();
+  if (!countState.signedIn || !supabase) return {
+    ...countState,
+    counts: countState.events,
+    items: [],
+    cursor: null,
+  };
+  const { data, error } = await supabase.rpc("current_user_notification_items", {
+    p_filter: filter,
+    p_limit: 30,
+    p_before_created_at: cursor?.createdAt ?? null,
+    p_before_id: cursor?.id ?? null,
+  });
+  if (error) {
+    if (import.meta.env.DEV) console.warn("[Account communications] Notifications", error.message);
+    return { ...countState, counts: countState.events, items: [], cursor: null, warnings: [...countState.warnings, accountRpcWarning("Notifications")] };
+  }
+  const payload = asRecord(data);
+  const items = normalizeNotificationItems(payload.items);
+  const last = items.length ? items[items.length - 1] : undefined;
+  return {
+    ...countState,
+    counts: countState.events,
+    items,
+    cursor: items.length === 30 && last ? { createdAt: last.createdAt, id: last.id } : null,
+  };
+}
+
+export async function setNotificationRead(notificationId: string, read: boolean) {
+  if (!supabase) return [supabaseNotConfiguredMessage];
+  const { error } = await supabase.rpc("set_current_user_notification_read", {
+    p_notification_id: notificationId,
+    p_read: read,
+  });
+  if (error) {
+    if (import.meta.env.DEV) console.warn("[Account communications] Notification read state", error.message);
+    return [accountRpcWarning("Notification read state")];
+  }
+  return [];
+}
+
+export async function setNotificationArchived(notificationId: string, archived: boolean) {
+  if (!supabase) return [supabaseNotConfiguredMessage];
+  const { error } = await supabase.rpc("set_current_user_notification_archived", {
+    p_notification_id: notificationId,
+    p_archived: archived,
+  });
+  if (error) {
+    if (import.meta.env.DEV) console.warn("[Account communications] Notification archive state", error.message);
+    return [accountRpcWarning("Notification archive state")];
+  }
+  return [];
+}
+
+export async function markAllAccountNotificationsRead(category: string | null = null) {
+  if (!supabase) return { count: 0, warning: supabaseNotConfiguredMessage };
+  const { data, error } = await supabase.rpc("mark_all_current_user_notifications_read", { p_category: category });
+  return { count: error ? 0 : safeCount(data), warning: error ? accountRpcWarning("Notification read state") : null };
+}
+
+export async function loadAccountEventPreferences(): Promise<{ result: AccountEventPreferencesResult | null; warning: string | null }> {
+  if (!supabase) return { result: null, warning: supabaseNotConfiguredMessage };
+  const { data, error } = await supabase.rpc("current_user_account_event_preferences");
+  if (error) return { result: null, warning: accountRpcWarning("Notification preferences") };
+  const payload = asRecord(data);
+  return {
+    result: {
+      taxonomyVersion: safeCount(payload.taxonomyVersion),
+      preferences: Array.isArray(payload.preferences)
+        ? payload.preferences.flatMap((value) => {
+          const preference = normalizeEventPreference(value);
+          return preference ? [preference] : [];
+        })
+        : [],
+    },
+    warning: null,
+  };
+}
+
+export async function updateAccountEventPreference(preference: AccountEventPreference) {
+  if (!supabase) return { preference: null as AccountEventPreference | null, warning: supabaseNotConfiguredMessage };
+  const { data, error } = await supabase.rpc("update_current_user_account_event_preference", {
+    p_category: preference.category,
+    p_in_app_enabled: preference.inAppEnabled,
+    p_email_enabled: preference.emailEnabled,
+    p_quiet_hours_start: preference.quietHoursStart,
+    p_quiet_hours_end: preference.quietHoursEnd,
+    p_expected_version: preference.preferenceVersion,
+  });
+  return {
+    preference: error ? null : normalizeEventPreference(data),
+    warning: error ? accountRpcWarning("Notification preferences") : null,
+  };
 }
 
 export async function loadRequestsAndReviews(

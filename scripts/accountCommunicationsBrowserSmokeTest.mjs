@@ -47,6 +47,7 @@ const fixtureSession = {
 };
 
 const inboxItemId = "b9200000-0000-4000-8000-000000000001";
+const notificationId = "b9250000-0000-4000-8000-000000000001";
 const proposalId = "b9300000-0000-4000-8000-000000000001";
 const conversationId = "b9400000-0000-4000-8000-000000000001";
 const messageId = "b9500000-0000-4000-8000-000000000001";
@@ -88,6 +89,29 @@ const requestsPayload = {
   limit: 40,
   hasMore: false,
   nextCursor: null,
+};
+const notificationsPayload = {
+  items: [{
+    id: notificationId,
+    kind: "outcome",
+    domain: "code_proposals",
+    sourceType: "commune_code_revision_proposal",
+    category: "work_reviews",
+    mandatory: false,
+    title: "Your revision proposal was accepted",
+    preview: "Open the published post to see the accepted revision.",
+    deepLink: `/commune/coding-cornucopia/review?proposal=${proposalId}`,
+    readAt: null,
+    archivedAt: null,
+    createdAt: "2026-08-02T12:20:00.000Z",
+    sourceAvailable: true,
+    actor: { handle: "fixture-author", displayName: "Fixture Author", avatarUrl: null },
+  }],
+  limit: 30,
+};
+const eventPreferencesPayload = {
+  taxonomyVersion: 1,
+  preferences: [{ category: "work_reviews", taxonomyVersion: 1, preferenceVersion: 1, inAppEnabled: true, emailEnabled: false, quietHoursStart: null, quietHoursEnd: null, quietHoursTimezone: "UTC" }],
 };
 const conversationSummary = {
   id: conversationId,
@@ -164,6 +188,8 @@ try {
   for (const scenario of [
     { path: "/commons-circle/inbox", width: 1280, heading: "Inbox" },
     { path: "/commons-circle/inbox", width: 390, heading: "Inbox" },
+    { path: "/commons-circle/notifications", width: 1280, heading: "Notifications" },
+    { path: "/commons-circle/notifications", width: 390, heading: "Notifications" },
     { path: "/commons-circle/requests-reviews", width: 1280, heading: "Requests & Reviews" },
   ]) {
     const context = await browser.newContext({ viewport: { width: scenario.width, height: 900 } });
@@ -188,12 +214,16 @@ try {
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_event_counts")) return route.fulfill({ status: 200, headers, body: JSON.stringify({ inboxNeedsAttention: 1, inboxUnread: 1, messagesUnread: 0, notificationsUnread: 2 }) });
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_request_counts")) return route.fulfill({ status: 200, headers, body: JSON.stringify({ total: 1, pending: 1, byDomain: { code_proposals: { total: 1, pending: 1 } } }) });
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_inbox_items")) return route.fulfill({ status: 200, headers, body: JSON.stringify(inboxPayload) });
+      if (url.pathname.endsWith("/rest/v1/rpc/current_user_notification_items")) return route.fulfill({ status: 200, headers, body: JSON.stringify(notificationsPayload) });
+      if (url.pathname.endsWith("/rest/v1/rpc/current_user_account_event_preferences")) return route.fulfill({ status: 200, headers, body: JSON.stringify(eventPreferencesPayload) });
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_requests_and_reviews")) return route.fulfill({ status: 200, headers, body: JSON.stringify(requestsPayload) });
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_messaging_preferences")) return route.fulfill({ status: 200, headers, body: JSON.stringify({ preferenceVersion: 1, receiveDirectRequests: true, receiveOptionalAnnouncements: false, allowSourceLinkedMessages: true, ordinaryMessagingEligible: true, storedInSupabase: true, endToEndEncrypted: false }) });
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_conversations")) return route.fulfill({ status: 200, headers, body: JSON.stringify(conversationListPayload) });
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_conversation")) return route.fulfill({ status: 200, headers, body: JSON.stringify(conversationDetailPayload) });
       if (url.pathname.endsWith("/rest/v1/rpc/mark_current_user_conversation_read")) return route.fulfill({ status: 200, headers, body: "null" });
-      if (/\/rest\/v1\/rpc\/set_current_user_inbox_(?:read|archived)$/.test(url.pathname)) return route.fulfill({ status: 200, headers, body: "null" });
+      if (/\/rest\/v1\/rpc\/set_current_user_(?:inbox|notification)_(?:read|archived)$/.test(url.pathname)) return route.fulfill({ status: 200, headers, body: "null" });
+      if (url.pathname.endsWith("/rest/v1/rpc/mark_all_current_user_notifications_read")) return route.fulfill({ status: 200, headers, body: "1" });
+      if (url.pathname.endsWith("/rest/v1/rpc/update_current_user_account_event_preference")) return route.fulfill({ status: 200, headers, body: JSON.stringify(eventPreferencesPayload.preferences[0]) });
       return route.fulfill({ status: 200, headers, body: "[]" });
     });
 
@@ -218,6 +248,12 @@ try {
       await page.getByText("SYNTHETIC_BROWSER_PRIVATE_MESSAGE", { exact: true }).waitFor();
       assert.equal(await page.getByText(conversationId, { exact: false }).count(), 0, "Raw conversation identifiers must not render as ordinary UI text.");
       await page.getByText("Messages are stored in Supabase and are not end-to-end encrypted.", { exact: false }).waitFor();
+    } else if (scenario.path.endsWith("/notifications")) {
+      await page.getByRole("tab", { name: "Unread (2)" }).waitFor();
+      await page.getByText("Your revision proposal was accepted", { exact: true }).waitFor();
+      await page.getByText("Fixture Author", { exact: false }).waitFor();
+      await page.getByText("Choose optional in-app and email delivery", { exact: true }).waitFor();
+      assert.equal(await page.getByText(notificationId, { exact: false }).count(), 0, "Raw notification identifiers must not render as ordinary UI text.");
     } else {
       await page.getByText("Revision proposal for “Fixture code post”", { exact: true }).waitFor();
       await page.getByText("Pending / needs action", { exact: true }).waitFor();
