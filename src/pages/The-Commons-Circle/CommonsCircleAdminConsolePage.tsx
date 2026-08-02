@@ -42,6 +42,7 @@ export function CommonsCircleAdminEntryCard() {
 
 export function CommonsCircleAdminConsolePanel({ homebase, roleState }: { homebase: CommonsHomebaseData; roleState: RoleGateState }) {
   const profile = homebase.profile;
+  const canOpenPrivateCommunications = roleState.isAdmin || roleState.roles.some((role) => role === "administrator" || role === "moderator" || role === "commune_moderator");
   return <section className="section-card commons-admin-console" id="admin-console">
     <p className="eyebrow">Private Admin Console</p>
     <h2>Moderation and governance tools</h2>
@@ -54,6 +55,7 @@ export function CommonsCircleAdminConsolePanel({ homebase, roleState }: { homeba
     </dl>
     <div className="commons-admin-grid">
       {adminConsoleLinks.map(([href, label, description]) => <a className="commons-admin-link" href={href} key={href}><strong>{label}</strong><span>{description}</span></a>)}
+      {canOpenPrivateCommunications && <a className="commons-admin-link" href="/commons-circle/admin-communications"><strong>Account communications</strong><span>{roleState.isAdmin ? "Governed support, individual notices, opted-in announcements, and reported-message cases." : "Claimed, report-bound private-message moderation cases only."}</span></a>}
     </div>
     <p className="boundary-note">Badges, membership tiers, donations, developer visibility, contribution interest, and public profile customization do not grant administrator, moderator, reviewer, guardian, or paid-role authority.</p>
   </section>;

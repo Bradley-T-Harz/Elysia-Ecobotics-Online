@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
 import { safeInternalActionPath } from "../../shared/navigation/safeInternalActionPath";
@@ -13,6 +13,7 @@ import {
   type InboxResult,
   type InboxView,
 } from "./accountCommunicationsApi";
+import InboxMessagingPanel from "./InboxMessagingPanel";
 
 type InboxTab = InboxView | "sent";
 type PriorityFilter = "all" | "high" | "standard";
@@ -56,7 +57,8 @@ function itemState(item: InboxItem) {
 }
 
 export default function InboxPage() {
-  const [activeTab, setActiveTab] = useState<InboxTab>("attention");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<InboxTab>(() => searchParams.get("view") === "messages" ? "messages" : "attention");
   const [domain, setDomain] = useState("all");
   const [priority, setPriority] = useState<PriorityFilter>("all");
   const [result, setResult] = useState<InboxResult | null>(null);
@@ -118,6 +120,11 @@ export default function InboxPage() {
     setWorkingItem(null);
   }
 
+  const refreshCounts = useCallback(async () => {
+    const counts = await loadAccountHomebaseCounts();
+    setResult((current) => current ? { ...current, counts: counts.events, warnings: [...current.warnings, ...counts.warnings] } : current);
+  }, []);
+
   return <div className="page-stack commons-circle-page commons-account-communications-page">
     <PageHero eyebrow="Private account room" title="Inbox">
       <p>Private requests that need your attention, kept separate from informational notifications and specialist review queues.</p>
@@ -168,7 +175,14 @@ export default function InboxPage() {
           role="tab"
           aria-selected={activeTab === tab.key}
           key={tab.key}
-          onClick={() => { setActiveTab(tab.key); setDomain("all"); }}
+          onClick={() => {
+            setActiveTab(tab.key);
+            setDomain("all");
+            const next = new URLSearchParams(searchParams);
+            if (tab.key === "messages") next.set("view", "messages");
+            else next.delete("view");
+            setSearchParams(next, { replace: true });
+          }}
         >{tab.label}{tab.key === "attention" ? ` (${result.counts.inboxNeedsAttention})` : tab.key === "messages" && result.counts.messagesUnread ? ` (${result.counts.messagesUnread})` : ""}</button>)}
       </div>
 
@@ -176,7 +190,7 @@ export default function InboxPage() {
         <h3>Sent source workflows live in Requests &amp; Reviews</h3>
         <p>Proposals, Work With requests, Job Posts, Research Notes, Repository Showcases, and Iteration Showcases remain authoritative in their own systems.</p>
         <Link className="button-link button-link--primary" to="/commons-circle/requests-reviews">Open Requests &amp; Reviews</Link>
-      </div> : <>
+      </div> : activeTab === "messages" ? <InboxMessagingPanel onCountsChanged={refreshCounts} /> : <>
         <div className="account-communications-filters">
           <label><span>Domain</span><select value={domain} onChange={(event) => setDomain(event.target.value)}><option value="all">All domains</option>{inboxDomains.map((value) => <option value={value} key={value}>{domainLabels[value] ?? humanize(value)}</option>)}</select></label>
           <label><span>Priority</span><select value={priority} onChange={(event) => setPriority(event.target.value as PriorityFilter)}><option value="all">All priorities</option><option value="high">High priority</option><option value="standard">Standard priority</option></select></label>
@@ -184,7 +198,7 @@ export default function InboxPage() {
 
         {loading && <p className="commons-empty-state" aria-live="polite">Loading private Inbox items…</p>}
         {!loading && !visibleItems.length && <div className="account-communications-empty">
-          <h3>{activeTab === "attention" ? "Nothing needs your attention" : activeTab === "messages" ? "No private messages in this view" : activeTab === "completed" ? "No completed actions yet" : "No archived items"}</h3>
+          <h3>{activeTab === "attention" ? "Nothing needs your attention" : activeTab === "completed" ? "No completed actions yet" : "No archived items"}</h3>
           <p>Source workflows, notifications, and staff review queues remain available in their separate account and review surfaces.</p>
         </div>}
 

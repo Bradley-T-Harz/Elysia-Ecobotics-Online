@@ -68,6 +68,7 @@ const accountCommunicationPaths = [
   "supabase/migrations/20260802020000_account_event_foundation.sql",
   "supabase/migrations/20260802030000_code_proposal_account_events.sql",
   "supabase/migrations/20260802040000_account_requests_and_reviews_projection.sql",
+  "supabase/migrations/20260802050000_governed_account_conversations.sql",
 ];
 
 const activePaths = [
@@ -226,6 +227,12 @@ for (const marker of [
   "private.current_user_request_review_rows",
   "public.current_user_request_counts",
   "public.current_user_requests_and_reviews",
+  "private.account_conversations",
+  "private.account_messages",
+  "public.request_account_conversation",
+  "public.admin_send_account_message",
+  "public.report_account_conversation",
+  "account_announcement_confirmation_invalid",
 ]) assert(accountCommunicationSource.includes(marker), `Account communication migration chain omits ${marker}.`);
 const accountCommunicationPlpgsqlFunctions = [...new Set(
   [...accountCommunicationSource.matchAll(/create or replace function\s+(public|private)\.([a-z0-9_]+)\s*\(/gi)]
@@ -584,6 +591,7 @@ try {
     "scripts/fixtures/codeProposalIntegrityBehavior.sql",
     "scripts/fixtures/accountEventFoundationBehavior.sql",
     "scripts/fixtures/accountRequestsReviewsBehavior.sql",
+    "scripts/fixtures/accountMessagingBehavior.sql",
     "scripts/sql/supabase_read_only_inventory.sql",
   ]) {
     await run(containerRuntime, ["cp", file, `${container}:/tmp/${path.basename(file)}`]);
@@ -751,6 +759,14 @@ try {
   assert(
     accountRequestsReviewsBehavior.stdout.includes("account_requests_reviews_behavior_ok"),
     "Account Requests & Reviews behavior marker missing."
+  );
+  const accountMessagingBehavior = await psql([
+    "-f",
+    "/tmp/accountMessagingBehavior.sql",
+  ]);
+  assert(
+    accountMessagingBehavior.stdout.includes("account_messaging_behavior_ok"),
+    "Account messaging behavior marker missing."
   );
   // Hosted Supabase owns this ledger. The database-only image omits it, so
   // provide the catalog shape required by the read-only inventory rehearsal.

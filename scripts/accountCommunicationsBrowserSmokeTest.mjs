@@ -48,6 +48,8 @@ const fixtureSession = {
 
 const inboxItemId = "b9200000-0000-4000-8000-000000000001";
 const proposalId = "b9300000-0000-4000-8000-000000000001";
+const conversationId = "b9400000-0000-4000-8000-000000000001";
+const messageId = "b9500000-0000-4000-8000-000000000001";
 const inboxPayload = {
   items: [{
     id: inboxItemId,
@@ -86,6 +88,38 @@ const requestsPayload = {
   limit: 40,
   hasMore: false,
   nextCursor: null,
+};
+const conversationSummary = {
+  id: conversationId,
+  type: "direct",
+  subject: "Fixture professional conversation",
+  state: "active",
+  replyPolicy: "participants",
+  sourceDomain: null,
+  sourceType: null,
+  sourceAvailable: true,
+  participantRole: "recipient",
+  participationState: "accepted",
+  incomingRequest: false,
+  outgoingRequest: false,
+  canReply: true,
+  blockedByCurrentUser: false,
+  unreadCount: 1,
+  archivedAt: null,
+  mutedAt: null,
+  lastMessageAt: "2026-08-02T12:15:00.000Z",
+  updatedAt: "2026-08-02T12:15:00.000Z",
+  counterpart: { handle: "fixture-colleague", displayName: "Fixture Colleague", avatarUrl: null },
+};
+const conversationListPayload = { items: [conversationSummary], limit: 50 };
+const conversationDetailPayload = {
+  conversation: { ...conversationSummary, createdAt: "2026-08-02T12:10:00.000Z" },
+  participants: [
+    { role: "recipient", state: "accepted", self: true, profile: { handle: "fixture-account", displayName: "Fixture Account", avatarUrl: null } },
+    { role: "requester", state: "accepted", self: false, profile: conversationSummary.counterpart },
+  ],
+  messages: [{ id: messageId, senderKind: "user", senderSelf: false, sender: conversationSummary.counterpart, body: "SYNTHETIC_BROWSER_PRIVATE_MESSAGE", editedAt: null, deletedAt: null, createdAt: "2026-08-02T12:15:00.000Z" }],
+  privacy: { storedInSupabase: true, endToEndEncrypted: false, participantScoped: true, attachmentsEnabled: false },
 };
 
 const contentTypes = new Map([
@@ -155,6 +189,10 @@ try {
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_request_counts")) return route.fulfill({ status: 200, headers, body: JSON.stringify({ total: 1, pending: 1, byDomain: { code_proposals: { total: 1, pending: 1 } } }) });
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_inbox_items")) return route.fulfill({ status: 200, headers, body: JSON.stringify(inboxPayload) });
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_requests_and_reviews")) return route.fulfill({ status: 200, headers, body: JSON.stringify(requestsPayload) });
+      if (url.pathname.endsWith("/rest/v1/rpc/current_user_messaging_preferences")) return route.fulfill({ status: 200, headers, body: JSON.stringify({ preferenceVersion: 1, receiveDirectRequests: true, receiveOptionalAnnouncements: false, allowSourceLinkedMessages: true, ordinaryMessagingEligible: true, storedInSupabase: true, endToEndEncrypted: false }) });
+      if (url.pathname.endsWith("/rest/v1/rpc/current_user_conversations")) return route.fulfill({ status: 200, headers, body: JSON.stringify(conversationListPayload) });
+      if (url.pathname.endsWith("/rest/v1/rpc/current_user_conversation")) return route.fulfill({ status: 200, headers, body: JSON.stringify(conversationDetailPayload) });
+      if (url.pathname.endsWith("/rest/v1/rpc/mark_current_user_conversation_read")) return route.fulfill({ status: 200, headers, body: "null" });
       if (/\/rest\/v1\/rpc\/set_current_user_inbox_(?:read|archived)$/.test(url.pathname)) return route.fulfill({ status: 200, headers, body: "null" });
       return route.fulfill({ status: 200, headers, body: "[]" });
     });
@@ -174,6 +212,12 @@ try {
       await page.getByRole("tab", { name: /Needs attention/ }).waitFor();
       await page.getByText("A revision proposal is ready for review", { exact: true }).waitFor();
       assert.equal(await page.getByRole("link", { name: "Review Proposal" }).getAttribute("href"), `/commune/coding-cornucopia/review?proposal=${proposalId}`);
+      await page.getByRole("tab", { name: "Messages" }).click();
+      await page.getByText("Governed private communication", { exact: true }).waitFor();
+      await page.getByText("Fixture professional conversation", { exact: true }).first().waitFor();
+      await page.getByText("SYNTHETIC_BROWSER_PRIVATE_MESSAGE", { exact: true }).waitFor();
+      assert.equal(await page.getByText(conversationId, { exact: false }).count(), 0, "Raw conversation identifiers must not render as ordinary UI text.");
+      await page.getByText("Messages are stored in Supabase and are not end-to-end encrypted.", { exact: false }).waitFor();
     } else {
       await page.getByText("Revision proposal for “Fixture code post”", { exact: true }).waitFor();
       await page.getByText("Pending / needs action", { exact: true }).waitFor();

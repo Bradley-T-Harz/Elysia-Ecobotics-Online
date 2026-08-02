@@ -87,6 +87,121 @@ export type RequestReviewsResult = {
   cursor: RequestReviewCursor | null;
 };
 
+export type MessagingPreferences = {
+  preferenceVersion: number;
+  receiveDirectRequests: boolean;
+  receiveOptionalAnnouncements: boolean;
+  allowSourceLinkedMessages: boolean;
+  ordinaryMessagingEligible: boolean;
+  storedInSupabase: boolean;
+  endToEndEncrypted: boolean;
+};
+
+export type MessagingRecipient = {
+  found: boolean;
+  eligible: boolean;
+  canReceiveRequest: boolean;
+  profile: AccountActorCard | null;
+};
+
+export type ConversationSummary = {
+  id: string;
+  type: string;
+  subject: string;
+  state: string;
+  replyPolicy: string;
+  sourceDomain: string | null;
+  sourceType: string | null;
+  sourceAvailable: boolean;
+  participantRole: string;
+  participationState: string;
+  incomingRequest: boolean;
+  outgoingRequest: boolean;
+  canReply: boolean;
+  blockedByCurrentUser: boolean;
+  unreadCount: number;
+  archivedAt: string | null;
+  mutedAt: string | null;
+  lastMessageAt: string | null;
+  updatedAt: string;
+  counterpart: AccountActorCard | null;
+};
+
+export type ConversationMessage = {
+  id: string;
+  senderKind: string;
+  senderSelf: boolean;
+  sender: AccountActorCard | null;
+  body: string;
+  editedAt: string | null;
+  deletedAt: string | null;
+  createdAt: string;
+};
+
+export type ConversationDetail = {
+  conversation: ConversationSummary & { createdAt: string };
+  participants: Array<{ role: string; state: string; self: boolean; profile: AccountActorCard | null }>;
+  messages: ConversationMessage[];
+  privacy: { storedInSupabase: boolean; endToEndEncrypted: boolean; participantScoped: boolean; attachmentsEnabled: boolean };
+};
+
+export type AdminSupportItem = {
+  conversationId: string;
+  subject: string;
+  sourceDomain: string | null;
+  sourceType: string | null;
+  status: string;
+  priority: number;
+  assignedToCurrentUser: boolean;
+  createdAt: string;
+  updatedAt: string;
+  requester: AccountActorCard | null;
+};
+
+export type MessageModerationCase = {
+  caseId: string;
+  reportId: string;
+  conversationId: string;
+  messageReported: boolean;
+  reasonCode: string;
+  status: string;
+  assignedToCurrentUser: boolean;
+  legalHold: boolean;
+  createdAt: string;
+  reporter: AccountActorCard | null;
+};
+
+export type ReportedMessageEvidence = {
+  caseId: string;
+  status: string;
+  reasonCode: string;
+  details: string | null;
+  conversation: {
+    type: string;
+    subject: string;
+    sourceDomain: string | null;
+    sourceType: string | null;
+  };
+  reportedMessage: null | {
+    body: string;
+    senderKind: string;
+    createdAt: string;
+    editedAt: string | null;
+    deletedAt: string | null;
+  };
+  scopeNotice: string;
+};
+
+export type AdminAnnouncementDraft = {
+  draftId: string;
+  subject: string;
+  audienceKind: string;
+  recipientCount: number;
+  confirmationPhrase: string;
+  expiresAt: string;
+  safePreview: string;
+};
+
 const emptyEventCounts: AccountEventCounts = {
   inboxNeedsAttention: 0,
   inboxUnread: 0,
@@ -197,6 +312,94 @@ function normalizeRequestItems(value: unknown): RequestReviewItem[] {
       updatedAt,
     }];
   });
+}
+
+function normalizeMessagingPreferences(value: unknown): MessagingPreferences {
+  const row = asRecord(value);
+  return {
+    preferenceVersion: safeCount(row.preferenceVersion),
+    receiveDirectRequests: row.receiveDirectRequests === true,
+    receiveOptionalAnnouncements: row.receiveOptionalAnnouncements === true,
+    allowSourceLinkedMessages: row.allowSourceLinkedMessages !== false,
+    ordinaryMessagingEligible: row.ordinaryMessagingEligible === true,
+    storedInSupabase: row.storedInSupabase === true,
+    endToEndEncrypted: row.endToEndEncrypted === true,
+  };
+}
+
+function normalizeConversationSummary(value: unknown): ConversationSummary | null {
+  const row = asRecord(value);
+  const id = asText(row.id);
+  const subject = asText(row.subject);
+  const updatedAt = asText(row.updatedAt);
+  if (!id || !subject || !updatedAt) return null;
+  return {
+    id,
+    type: asText(row.type, "direct"),
+    subject,
+    state: asText(row.state, "closed"),
+    replyPolicy: asText(row.replyPolicy, "none"),
+    sourceDomain: asNullableText(row.sourceDomain),
+    sourceType: asNullableText(row.sourceType),
+    sourceAvailable: row.sourceAvailable !== false,
+    participantRole: asText(row.participantRole, "participant"),
+    participationState: asText(row.participationState, "accepted"),
+    incomingRequest: row.incomingRequest === true,
+    outgoingRequest: row.outgoingRequest === true,
+    canReply: row.canReply === true,
+    blockedByCurrentUser: row.blockedByCurrentUser === true,
+    unreadCount: safeCount(row.unreadCount),
+    archivedAt: asNullableText(row.archivedAt),
+    mutedAt: asNullableText(row.mutedAt),
+    lastMessageAt: asNullableText(row.lastMessageAt),
+    updatedAt,
+    counterpart: normalizeActor(row.counterpart),
+  };
+}
+
+function normalizeConversationDetail(value: unknown): ConversationDetail | null {
+  const payload = asRecord(value);
+  const conversationRow = asRecord(payload.conversation);
+  const conversation = normalizeConversationSummary({
+    ...conversationRow,
+    updatedAt: asText(conversationRow.updatedAt, asText(conversationRow.createdAt)),
+  });
+  if (!conversation) return null;
+  const participants = Array.isArray(payload.participants) ? payload.participants.flatMap((value) => {
+    const row = asRecord(value);
+    const role = asText(row.role);
+    if (!role) return [];
+    return [{ role, state: asText(row.state), self: row.self === true, profile: normalizeActor(row.profile) }];
+  }) : [];
+  const messages = Array.isArray(payload.messages) ? payload.messages.flatMap((value) => {
+    const row = asRecord(value);
+    const id = asText(row.id);
+    const body = asText(row.body);
+    const createdAt = asText(row.createdAt);
+    if (!id || !body || !createdAt) return [];
+    return [{
+      id,
+      senderKind: asText(row.senderKind, "user"),
+      senderSelf: row.senderSelf === true,
+      sender: normalizeActor(row.sender),
+      body,
+      editedAt: asNullableText(row.editedAt),
+      deletedAt: asNullableText(row.deletedAt),
+      createdAt,
+    }];
+  }) : [];
+  const privacy = asRecord(payload.privacy);
+  return {
+    conversation: { ...conversation, createdAt: asText(conversationRow.createdAt, conversation.updatedAt) },
+    participants,
+    messages,
+    privacy: {
+      storedInSupabase: privacy.storedInSupabase === true,
+      endToEndEncrypted: privacy.endToEndEncrypted === true,
+      participantScoped: privacy.participantScoped === true,
+      attachmentsEnabled: privacy.attachmentsEnabled === true,
+    },
+  };
 }
 
 async function currentUserId() {
@@ -351,4 +554,336 @@ export async function loadRequestsAndReviews(
       ? { updatedAt: nextCursor.updatedAt, key: nextCursor.key }
       : null,
   };
+}
+
+function rpcFailure(scope: string, error: { message: string } | null) {
+  if (error && import.meta.env.DEV) console.warn(`[Account communications] ${scope}`, error.message);
+  return error ? accountRpcWarning(scope) : null;
+}
+
+export function newAccountCommunicationClientId() {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+export async function loadMessagingPreferences(): Promise<{ preferences: MessagingPreferences | null; warning: string | null }> {
+  if (!supabase) return { preferences: null, warning: supabaseNotConfiguredMessage };
+  const { data, error } = await supabase.rpc("current_user_messaging_preferences");
+  return { preferences: error ? null : normalizeMessagingPreferences(data), warning: rpcFailure("Messaging preferences", error) };
+}
+
+export async function updateMessagingPreferences(
+  preferences: Pick<MessagingPreferences, "receiveDirectRequests" | "receiveOptionalAnnouncements" | "allowSourceLinkedMessages" | "preferenceVersion">,
+) {
+  if (!supabase) return { preferences: null, warning: supabaseNotConfiguredMessage };
+  const { data, error } = await supabase.rpc("update_current_user_messaging_preferences", {
+    p_receive_direct_requests: preferences.receiveDirectRequests,
+    p_receive_optional_announcements: preferences.receiveOptionalAnnouncements,
+    p_allow_source_linked_messages: preferences.allowSourceLinkedMessages,
+    p_expected_version: preferences.preferenceVersion,
+  });
+  return { preferences: error ? null : normalizeMessagingPreferences(data), warning: rpcFailure("Messaging preferences", error) };
+}
+
+export async function lookupMessagingRecipient(handle: string) {
+  if (!supabase) return { recipient: null, warning: supabaseNotConfiguredMessage };
+  const { data, error } = await supabase.rpc("lookup_account_messaging_recipient", { p_handle: handle });
+  const row = asRecord(data);
+  const recipient: MessagingRecipient | null = error ? null : {
+    found: row.found === true,
+    eligible: row.eligible === true,
+    canReceiveRequest: row.canReceiveRequest === true,
+    profile: normalizeActor(row.profile),
+  };
+  return { recipient, warning: rpcFailure("Recipient lookup", error) };
+}
+
+export async function requestConversation(handle: string, subject: string, body: string) {
+  if (!supabase) return { conversationId: null, warning: supabaseNotConfiguredMessage };
+  const { data, error } = await supabase.rpc("request_account_conversation", {
+    p_recipient_handle: handle,
+    p_subject: subject,
+    p_body: body,
+    p_client_request_id: newAccountCommunicationClientId(),
+    p_client_message_id: newAccountCommunicationClientId(),
+  });
+  return { conversationId: error ? null : asNullableText(asRecord(data).conversationId), warning: rpcFailure("Conversation request", error) };
+}
+
+export async function startSupportConversation(subject: string, body: string) {
+  if (!supabase) return { conversationId: null, warning: supabaseNotConfiguredMessage };
+  const { data, error } = await supabase.rpc("start_account_support_conversation", {
+    p_subject: subject,
+    p_body: body,
+    p_client_request_id: newAccountCommunicationClientId(),
+    p_client_message_id: newAccountCommunicationClientId(),
+    p_source_domain: null,
+    p_source_type: null,
+    p_source_record_id: null,
+  });
+  return { conversationId: error ? null : asNullableText(asRecord(data).conversationId), warning: rpcFailure("Account support", error) };
+}
+
+export async function startSourceLinkedConversation(input: {
+  sourceDomain: string;
+  sourceType: string;
+  sourceRecordId: string;
+  subject: string;
+  body: string;
+}) {
+  if (!supabase) return { conversationId: null, warning: supabaseNotConfiguredMessage };
+  const { data, error } = await supabase.rpc("start_source_linked_account_conversation", {
+    p_source_domain: input.sourceDomain,
+    p_source_type: input.sourceType,
+    p_source_record_id: input.sourceRecordId,
+    p_subject: input.subject,
+    p_body: input.body,
+    p_client_request_id: newAccountCommunicationClientId(),
+    p_client_message_id: newAccountCommunicationClientId(),
+  });
+  return { conversationId: error ? null : asNullableText(asRecord(data).conversationId), warning: rpcFailure("Source-linked conversation", error) };
+}
+
+export async function loadConversations(view = "all") {
+  if (!supabase) return { items: [] as ConversationSummary[], warning: supabaseNotConfiguredMessage };
+  const { data, error } = await supabase.rpc("current_user_conversations", {
+    p_view: view,
+    p_limit: 50,
+    p_before_updated_at: null,
+    p_before_id: null,
+  });
+  const items = error ? [] : (Array.isArray(asRecord(data).items) ? asRecord(data).items as unknown[] : [])
+    .flatMap((value) => {
+      const item = normalizeConversationSummary(value);
+      return item ? [item] : [];
+    });
+  return { items, warning: rpcFailure("Private conversations", error) };
+}
+
+export async function loadConversation(conversationId: string) {
+  if (!supabase) return { detail: null, warning: supabaseNotConfiguredMessage };
+  const { data, error } = await supabase.rpc("current_user_conversation", {
+    p_conversation_id: conversationId,
+    p_limit: 100,
+    p_before_created_at: null,
+    p_before_id: null,
+  });
+  return { detail: error ? null : normalizeConversationDetail(data), warning: rpcFailure("Private conversation", error) };
+}
+
+export async function respondToConversationRequest(conversationId: string, decision: "accept" | "decline") {
+  if (!supabase) return supabaseNotConfiguredMessage;
+  const { error } = await supabase.rpc("respond_to_account_conversation_request", {
+    p_conversation_id: conversationId,
+    p_decision: decision,
+    p_client_request_id: newAccountCommunicationClientId(),
+  });
+  return rpcFailure("Conversation response", error);
+}
+
+export async function sendConversationMessage(conversationId: string, body: string) {
+  if (!supabase) return supabaseNotConfiguredMessage;
+  const { error } = await supabase.rpc("send_account_conversation_message", {
+    p_conversation_id: conversationId,
+    p_body: body,
+    p_client_message_id: newAccountCommunicationClientId(),
+  });
+  return rpcFailure("Private reply", error);
+}
+
+export async function markConversationRead(conversationId: string) {
+  if (!supabase) return supabaseNotConfiguredMessage;
+  const { error } = await supabase.rpc("mark_current_user_conversation_read", { p_conversation_id: conversationId });
+  return rpcFailure("Conversation read state", error);
+}
+
+export async function setConversationPresentation(conversationId: string, archived: boolean | null, muted: boolean | null) {
+  if (!supabase) return supabaseNotConfiguredMessage;
+  const { error } = await supabase.rpc("set_current_user_conversation_presentation", {
+    p_conversation_id: conversationId,
+    p_archived: archived,
+    p_muted: muted,
+  });
+  return rpcFailure("Conversation presentation", error);
+}
+
+export async function setConversationBlocked(conversationId: string, blocked: boolean) {
+  if (!supabase) return supabaseNotConfiguredMessage;
+  const { error } = await supabase.rpc("set_account_conversation_block", {
+    p_conversation_id: conversationId,
+    p_blocked: blocked,
+    p_client_request_id: newAccountCommunicationClientId(),
+  });
+  return rpcFailure("Account block", error);
+}
+
+export async function reportConversation(conversationId: string, messageId: string | null, reasonCode: string, details: string) {
+  if (!supabase) return supabaseNotConfiguredMessage;
+  const { error } = await supabase.rpc("report_account_conversation", {
+    p_conversation_id: conversationId,
+    p_message_id: messageId,
+    p_reason_code: reasonCode,
+    p_details: details.trim() || null,
+    p_client_request_id: newAccountCommunicationClientId(),
+  });
+  return rpcFailure("Conversation report", error);
+}
+
+export async function loadAdminSupportQueue() {
+  if (!supabase) return { items: [] as AdminSupportItem[], openCount: 0, warning: supabaseNotConfiguredMessage };
+  const { data, error } = await supabase.rpc("current_admin_account_support_queue");
+  const payload = asRecord(data);
+  const items = error || !Array.isArray(payload.items) ? [] : payload.items.flatMap((value) => {
+    const row = asRecord(value);
+    const conversationId = asText(row.conversationId);
+    if (!conversationId) return [];
+    return [{
+      conversationId,
+      subject: asText(row.subject),
+      sourceDomain: asNullableText(row.sourceDomain),
+      sourceType: asNullableText(row.sourceType),
+      status: asText(row.status),
+      priority: safeCount(row.priority),
+      assignedToCurrentUser: row.assignedToCurrentUser === true,
+      createdAt: asText(row.createdAt),
+      updatedAt: asText(row.updatedAt),
+      requester: normalizeActor(row.requester),
+    }];
+  });
+  return { items, openCount: safeCount(payload.openCount), warning: rpcFailure("Administrator support queue", error) };
+}
+
+export async function claimAdminSupportConversation(conversationId: string) {
+  if (!supabase) return supabaseNotConfiguredMessage;
+  const { error } = await supabase.rpc("claim_admin_account_support_conversation", {
+    p_conversation_id: conversationId,
+    p_client_request_id: newAccountCommunicationClientId(),
+  });
+  return rpcFailure("Support assignment", error);
+}
+
+export async function adminSendAccountMessage(input: {
+  handle: string; subject: string; body: string; kind: string;
+}) {
+  if (!supabase) return { conversationId: null, warning: supabaseNotConfiguredMessage };
+  const { data, error } = await supabase.rpc("admin_send_account_message", {
+    p_recipient_handle: input.handle,
+    p_subject: input.subject,
+    p_body: input.body,
+    p_message_kind: input.kind,
+    p_client_request_id: newAccountCommunicationClientId(),
+    p_client_message_id: newAccountCommunicationClientId(),
+    p_source_domain: null,
+    p_source_type: null,
+    p_source_record_id: null,
+  });
+  return { conversationId: error ? null : asNullableText(asRecord(data).conversationId), warning: rpcFailure("Administrator message", error) };
+}
+
+export async function prepareAdminAnnouncement(input: {
+  subject: string; body: string; audienceKind: string; handles: string[];
+}) {
+  if (!supabase) return { draft: null as AdminAnnouncementDraft | null, warning: supabaseNotConfiguredMessage };
+  const { data, error } = await supabase.rpc("prepare_admin_account_announcement", {
+    p_subject: input.subject,
+    p_body: input.body,
+    p_audience_kind: input.audienceKind,
+    p_handles: input.audienceKind === "explicit_opted_in_handles" ? input.handles : null,
+    p_client_request_id: newAccountCommunicationClientId(),
+  });
+  if (error) return { draft: null as AdminAnnouncementDraft | null, warning: rpcFailure("Announcement preview", error) };
+  const row = asRecord(data);
+  const draft: AdminAnnouncementDraft = {
+    draftId: asText(row.draftId),
+    subject: asText(row.subject),
+    audienceKind: asText(row.audienceKind),
+    recipientCount: safeCount(row.recipientCount),
+    confirmationPhrase: asText(row.confirmationPhrase),
+    expiresAt: asText(row.expiresAt),
+    safePreview: asText(row.safePreview),
+  };
+  return { draft, warning: "" };
+}
+
+export async function sendAdminAnnouncement(draftId: string, recipientCount: number, confirmationText: string) {
+  if (!supabase) return supabaseNotConfiguredMessage;
+  const { error } = await supabase.rpc("send_admin_account_announcement", {
+    p_draft_id: draftId,
+    p_expected_recipient_count: recipientCount,
+    p_confirmation_text: confirmationText,
+  });
+  return rpcFailure("Administrator announcement", error);
+}
+
+export async function loadMessageModerationQueue() {
+  if (!supabase) return { items: [] as MessageModerationCase[], warning: supabaseNotConfiguredMessage };
+  const { data, error } = await supabase.rpc("current_account_message_moderation_queue");
+  const payload = asRecord(data);
+  const items = error || !Array.isArray(payload.items) ? [] : payload.items.flatMap((value) => {
+    const row = asRecord(value);
+    const caseId = asText(row.caseId);
+    if (!caseId) return [];
+    return [{
+      caseId,
+      reportId: asText(row.reportId),
+      conversationId: asText(row.conversationId),
+      messageReported: row.messageReported === true,
+      reasonCode: asText(row.reasonCode),
+      status: asText(row.status),
+      assignedToCurrentUser: row.assignedToCurrentUser === true,
+      legalHold: row.legalHold === true,
+      createdAt: asText(row.createdAt),
+      reporter: normalizeActor(row.reporter),
+    }];
+  });
+  return { items, warning: rpcFailure("Message moderation queue", error) };
+}
+
+export async function claimMessageModerationCase(caseId: string) {
+  if (!supabase) return supabaseNotConfiguredMessage;
+  const { error } = await supabase.rpc("claim_account_message_moderation_case", {
+    p_case_id: caseId,
+    p_client_request_id: newAccountCommunicationClientId(),
+  });
+  return rpcFailure("Message moderation assignment", error);
+}
+
+export async function readReportedMessageEvidence(caseId: string) {
+  if (!supabase) return { evidence: null as ReportedMessageEvidence | null, warning: supabaseNotConfiguredMessage };
+  const { data, error } = await supabase.rpc("read_reported_account_message_evidence", { p_case_id: caseId });
+  if (error) return { evidence: null as ReportedMessageEvidence | null, warning: rpcFailure("Reported-message evidence", error) };
+  const row = asRecord(data);
+  const conversation = asRecord(row.conversation);
+  const message = asRecord(row.reportedMessage);
+  const evidence: ReportedMessageEvidence = {
+    caseId: asText(row.caseId),
+    status: asText(row.status),
+    reasonCode: asText(row.reasonCode),
+    details: asNullableText(row.details),
+    conversation: {
+      type: asText(conversation.type),
+      subject: asText(conversation.subject),
+      sourceDomain: asNullableText(conversation.sourceDomain),
+      sourceType: asNullableText(conversation.sourceType),
+    },
+    reportedMessage: Object.keys(message).length ? {
+      body: asText(message.body),
+      senderKind: asText(message.senderKind),
+      createdAt: asText(message.createdAt),
+      editedAt: asNullableText(message.editedAt),
+      deletedAt: asNullableText(message.deletedAt),
+    } : null,
+    scopeNotice: asText(row.scopeNotice, "Only case-bound reported evidence is disclosed."),
+  };
+  return { evidence, warning: "" };
+}
+
+export async function resolveMessageModerationCase(caseId: string, resolutionCode: string, legalHold: boolean) {
+  if (!supabase) return supabaseNotConfiguredMessage;
+  const { error } = await supabase.rpc("resolve_account_message_moderation_case", {
+    p_case_id: caseId,
+    p_resolution_code: resolutionCode,
+    p_legal_hold: legalHold,
+    p_client_request_id: newAccountCommunicationClientId(),
+  });
+  return rpcFailure("Message moderation resolution", error);
 }

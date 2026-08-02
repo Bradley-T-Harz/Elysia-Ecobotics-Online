@@ -4699,6 +4699,175 @@ button.commune-vote-option-card:disabled {
   color: var(--commons-muted, var(--muted));
 }
 
+.inbox-messaging-panel {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.account-messaging-privacy,
+.account-messaging-preferences,
+.account-messaging-compose,
+.account-conversation-detail {
+  border: 1px solid rgba(112, 189, 177, 0.32);
+  border-radius: 1rem;
+  background: rgba(8, 31, 34, 0.66);
+  padding: 1rem;
+}
+
+.account-messaging-preferences label,
+.account-messaging-compose label,
+.account-message-reply label,
+.account-message-report label {
+  display: grid;
+  gap: 0.4rem;
+  margin-top: 0.75rem;
+}
+
+.account-messaging-preferences label {
+  grid-template-columns: auto 1fr;
+  align-items: start;
+}
+
+.account-messaging-handle-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.5rem;
+}
+
+.account-messaging-workspace {
+  display: grid;
+  grid-template-columns: minmax(15rem, 0.78fr) minmax(0, 1.6fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.account-messaging-list {
+  display: grid;
+  gap: 0.5rem;
+}
+
+.account-messaging-list__item {
+  display: grid;
+  gap: 0.24rem;
+  width: 100%;
+  padding: 0.85rem;
+  border: 1px solid rgba(112, 189, 177, 0.25);
+  border-radius: 0.8rem;
+  background: rgba(8, 31, 34, 0.54);
+  color: inherit;
+  text-align: left;
+}
+
+.account-messaging-list__item span {
+  color: var(--muted-text);
+  font-size: 0.86rem;
+}
+
+.account-messaging-list__item--active {
+  border-color: rgba(123, 231, 201, 0.72);
+  box-shadow: 0 0 0 2px rgba(123, 231, 201, 0.14);
+}
+
+.account-message-thread {
+  display: grid;
+  gap: 0.75rem;
+  max-height: 34rem;
+  margin: 1rem 0;
+  padding-right: 0.25rem;
+  overflow-y: auto;
+}
+
+.account-message {
+  max-width: 88%;
+  border: 1px solid rgba(112, 189, 177, 0.24);
+  border-radius: 0.9rem;
+  background: rgba(16, 53, 57, 0.64);
+  padding: 0.8rem;
+}
+
+.account-message--self {
+  justify-self: end;
+  background: rgba(37, 91, 82, 0.72);
+}
+
+.account-message__sender,
+.account-message__time {
+  margin: 0;
+  color: var(--muted-text);
+  font-size: 0.8rem;
+}
+
+.account-message__body {
+  margin: 0.45rem 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.account-message-reply,
+.account-message-report {
+  border-top: 1px solid rgba(112, 189, 177, 0.24);
+  margin-top: 1rem;
+  padding-top: 1rem;
+}
+
+.account-conversation-controls {
+  margin-top: 1rem;
+}
+
+.account-admin-communications {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.account-admin-queue {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 0.75rem;
+}
+
+.account-admin-queue article,
+.account-announcement-confirmation,
+.account-reported-evidence {
+  border: 1px solid rgba(112, 189, 177, 0.28);
+  border-radius: 0.9rem;
+  background: rgba(8, 31, 34, 0.62);
+  padding: 0.9rem;
+}
+
+.account-admin-queue article h3,
+.account-admin-queue article p {
+  margin-top: 0;
+}
+
+.account-announcement-confirmation,
+.account-reported-evidence {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.account-announcement-confirmation label,
+.account-reported-evidence label,
+.account-admin-communications > label {
+  display: grid;
+  gap: 0.4rem;
+}
+
+@media (max-width: 780px) {
+  .account-messaging-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .account-messaging-handle-row {
+    grid-template-columns: 1fr;
+  }
+
+  .account-message {
+    max-width: 100%;
+  }
+}
+
 .commons-signal-meta {
   display: flex;
   flex-wrap: wrap;
