@@ -66,6 +66,7 @@ const accountLifecyclePaths = [
 const accountCommunicationPaths = [
   "supabase/migrations/20260802010000_code_proposal_integrity_and_idempotency.sql",
   "supabase/migrations/20260802020000_account_event_foundation.sql",
+  "supabase/migrations/20260802030000_code_proposal_account_events.sql",
 ];
 
 const activePaths = [
@@ -219,6 +220,8 @@ for (const marker of [
   "account_event_is_immutable",
   "current_user_event_counts",
   "account_event_idempotency_conflict",
+  "project_code_proposal_account_event",
+  "code-proposal:",
 ]) assert(accountCommunicationSource.includes(marker), `Account communication migration chain omits ${marker}.`);
 const accountCommunicationPlpgsqlFunctions = [...new Set(
   [...accountCommunicationSource.matchAll(/create or replace function\s+(public|private)\.([a-z0-9_]+)\s*\(/gi)]

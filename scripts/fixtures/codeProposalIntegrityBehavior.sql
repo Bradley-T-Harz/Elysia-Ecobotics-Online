@@ -39,6 +39,7 @@ declare
   v_request_id uuid := '88000000-0000-4000-8000-000000000001';
   v_first uuid;
   v_replay uuid;
+  v_decision_proposal uuid;
   v_before_code text;
   v_before_version integer;
 begin
@@ -120,6 +121,20 @@ begin
   exception when insufficient_privilege then null;
   end;
 
+  v_decision_proposal := public.submit_commune_code_revision_proposal_v2(
+    '88000000-0000-4000-8000-000000000004',
+    'a1111111-1111-4111-8111-111111111111',
+    'c1111111-1111-4111-8111-111111111111',
+    'console.log(8)',
+    'javascript',
+    'accepted.js',
+    'Synthetic proposal for the author decision event.',
+    'A second private explanation that must never enter an event preview.'
+  );
+  if v_decision_proposal is null then
+    raise exception 'proposal_for_decision_event_was_not_created';
+  end if;
+
   perform public.withdraw_commune_code_revision_proposal(v_first);
   if not exists (
     select 1 from public.commune_code_revision_proposals
@@ -137,6 +152,69 @@ begin
 end
 $proposal_integrity_behavior$;
 
+select pg_catalog.set_config('request.jwt.claim.sub', '66666666-6666-4666-8666-666666666666', false);
+select pg_catalog.set_config('request.jwt.claims', '{"sub":"66666666-6666-4666-8666-666666666666","role":"authenticated"}', false);
+do $proposal_author_inbox_and_decision$
+declare
+  v_proposal_id uuid;
+  v_self_proposal_id uuid;
+  v_inbox_id uuid;
+begin
+  select id into strict v_proposal_id
+  from public.commune_code_revision_proposals
+  where client_request_id = '88000000-0000-4000-8000-000000000004';
+  select id into strict v_inbox_id
+  from public.account_inbox_items
+  where source_record_id = v_proposal_id
+    and action_kind = 'review_code_proposal'
+    and completed_at is null
+    and superseded_at is null;
+  if exists (
+    select 1 from public.account_inbox_items
+    where source_record_id = v_proposal_id
+      and (
+        coalesce(safe_title, '') like '%console.log%'
+        or coalesce(safe_preview, '') like '%private explanation%'
+      )
+  ) then
+    raise exception 'proposal_private_body_leaked_to_author_inbox';
+  end if;
+
+  perform public.decide_commune_code_revision_proposal(
+    v_proposal_id, 'accepted', 'Synthetic author decision.'
+  );
+  if not exists (
+    select 1 from public.account_inbox_items
+    where id = v_inbox_id and completed_at is not null
+  ) then
+    raise exception 'proposal_decision_did_not_complete_author_inbox_item';
+  end if;
+  if not exists (
+    select 1 from public.commune_code_snippets
+    where id = 'c1111111-1111-4111-8111-111111111111'
+      and code_text = 'console.log(8)'
+      and file_name = 'accepted.js'
+  ) then
+    raise exception 'author_acceptance_did_not_publish_exact_proposal';
+  end if;
+
+  v_self_proposal_id := public.submit_commune_code_revision_proposal_v2(
+    '88000000-0000-4000-8000-000000000005',
+    'a1111111-1111-4111-8111-111111111111',
+    'c1111111-1111-4111-8111-111111111111',
+    'console.log(9)', 'javascript', 'self.js',
+    'Synthetic self proposal.', null
+  );
+  if exists (
+    select 1 from public.account_inbox_items where source_record_id = v_self_proposal_id
+  ) or exists (
+    select 1 from public.account_notifications where source_record_id = v_self_proposal_id
+  ) then
+    raise exception 'self_proposal_created_useless_self_projection';
+  end if;
+end
+$proposal_author_inbox_and_decision$;
+
 select pg_catalog.set_config('request.jwt.claim.sub', '22222222-2222-4222-8222-222222222222', false);
 select pg_catalog.set_config('request.jwt.claims', '{"sub":"22222222-2222-4222-8222-222222222222","role":"authenticated"}', false);
 do $proposal_privacy$
@@ -150,6 +228,101 @@ begin
 end
 $proposal_privacy$;
 
+select pg_catalog.set_config('request.jwt.claim.sub', '11111111-1111-4111-8111-111111111111', false);
+select pg_catalog.set_config('request.jwt.claims', '{"sub":"11111111-1111-4111-8111-111111111111","role":"authenticated"}', false);
+do $proposal_outcome_visibility$
+declare v_proposal_id uuid;
+begin
+  select id into strict v_proposal_id
+  from public.commune_code_revision_proposals
+  where client_request_id = '88000000-0000-4000-8000-000000000004';
+  if (select pg_catalog.count(*) from public.account_notifications
+      where source_record_id = v_proposal_id
+        and projection_kind = 'outcome') <> 1 then
+    raise exception 'proposer_did_not_receive_exactly_one_outcome_notification';
+  end if;
+  if exists (
+    select 1 from public.account_notifications
+    where source_record_id = v_proposal_id
+      and (
+        coalesce(safe_title, '') like '%console.log%'
+        or coalesce(safe_preview, '') like '%private explanation%'
+      )
+  ) then
+    raise exception 'proposal_private_body_leaked_to_outcome_notification';
+  end if;
+end
+$proposal_outcome_visibility$;
+
 reset role;
+
+do $proposal_event_server_contract$
+declare
+  v_withdrawn_id uuid;
+  v_accepted_id uuid;
+  v_self_id uuid;
+begin
+  select id into strict v_withdrawn_id
+  from public.commune_code_revision_proposals
+  where client_request_id = '88000000-0000-4000-8000-000000000001';
+  select id into strict v_accepted_id
+  from public.commune_code_revision_proposals
+  where client_request_id = '88000000-0000-4000-8000-000000000004';
+  select id into strict v_self_id
+  from public.commune_code_revision_proposals
+  where client_request_id = '88000000-0000-4000-8000-000000000005';
+
+  if (select pg_catalog.count(*) from private.account_events
+      where idempotency_key = 'code-proposal:' || v_withdrawn_id::text || ':submitted:v1') <> 1
+     or (select pg_catalog.count(*) from private.account_events
+      where idempotency_key = 'code-proposal:' || v_withdrawn_id::text || ':withdrawn:v1') <> 1
+     or (select pg_catalog.count(*) from private.account_events
+      where idempotency_key = 'code-proposal:' || v_accepted_id::text || ':accepted:v1') <> 1 then
+    raise exception 'proposal_event_idempotency_contract_failed';
+  end if;
+  if exists (
+    select 1 from private.account_events
+    where source_type = 'code_revision_proposal'
+      and (
+        safe_title like '%console.log%'
+        or coalesce(safe_preview, '') like '%private explanation%'
+        or safe_payload::text like '%private explanation%'
+      )
+  ) then
+    raise exception 'proposal_private_content_leaked_to_account_event';
+  end if;
+  if not exists (
+    select 1 from public.account_inbox_items
+    where source_record_id = v_withdrawn_id and superseded_at is not null
+  ) then
+    raise exception 'withdrawal_did_not_supersede_author_inbox_item';
+  end if;
+  if not exists (
+    select 1 from public.account_notifications
+    where source_record_id = v_withdrawn_id
+      and safe_title like '%withdrawn%'
+  ) then
+    raise exception 'withdrawal_did_not_notify_original_author';
+  end if;
+  if exists (
+    select 1 from public.account_inbox_items where source_record_id = v_self_id
+    union all
+    select 1 from public.account_notifications where source_record_id = v_self_id
+  ) then
+    raise exception 'self_proposal_projection_exists';
+  end if;
+  if (select pg_catalog.count(*) from public.user_notifications
+      where source_id = v_withdrawn_id
+        and notification_type = 'commune_code_revision_proposed') <> 1
+     or (select pg_catalog.count(*) from public.user_notifications
+      where source_id = v_withdrawn_id
+        and notification_type = 'commune_code_revision_withdrawn') <> 1
+     or (select pg_catalog.count(*) from public.user_notifications
+      where source_id = v_accepted_id
+        and notification_type = 'commune_code_revision_accepted') <> 1 then
+    raise exception 'proposal_legacy_compatibility_projection_failed';
+  end if;
+end
+$proposal_event_server_contract$;
 
 select 'code_proposal_integrity_behavior_ok' as result;
