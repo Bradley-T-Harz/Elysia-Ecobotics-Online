@@ -65,6 +65,7 @@ const accountLifecyclePaths = [
 
 const accountCommunicationPaths = [
   "supabase/migrations/20260802010000_code_proposal_integrity_and_idempotency.sql",
+  "supabase/migrations/20260802020000_account_event_foundation.sql",
 ];
 
 const activePaths = [
@@ -211,6 +212,13 @@ for (const marker of [
   "withdraw_commune_code_revision_proposal",
   "revoke insert, update, delete",
   "snippet.post_id = proposal.post_id",
+  "private.account_events",
+  "public.account_inbox_items",
+  "public.account_notifications",
+  "private.account_delivery_outbox",
+  "account_event_is_immutable",
+  "current_user_event_counts",
+  "account_event_idempotency_conflict",
 ]) assert(accountCommunicationSource.includes(marker), `Account communication migration chain omits ${marker}.`);
 const accountCommunicationPlpgsqlFunctions = [...new Set(
   [...accountCommunicationSource.matchAll(/create or replace function\s+(public|private)\.([a-z0-9_]+)\s*\(/gi)]
@@ -567,6 +575,7 @@ try {
     "scripts/fixtures/communeCanonicalAttributionBehavior.sql",
     "scripts/fixtures/accountAuthDeletionLifecycleBehavior.sql",
     "scripts/fixtures/codeProposalIntegrityBehavior.sql",
+    "scripts/fixtures/accountEventFoundationBehavior.sql",
     "scripts/sql/supabase_read_only_inventory.sql",
   ]) {
     await run(containerRuntime, ["cp", file, `${container}:/tmp/${path.basename(file)}`]);
@@ -718,6 +727,14 @@ try {
   assert(
     codeProposalIntegrityBehavior.stdout.includes("code_proposal_integrity_behavior_ok"),
     "Code proposal integrity behavior marker missing."
+  );
+  const accountEventFoundationBehavior = await psql([
+    "-f",
+    "/tmp/accountEventFoundationBehavior.sql",
+  ]);
+  assert(
+    accountEventFoundationBehavior.stdout.includes("account_event_foundation_behavior_ok"),
+    "Account event foundation behavior marker missing."
   );
   // Hosted Supabase owns this ledger. The database-only image omits it, so
   // provide the catalog shape required by the read-only inventory rehearsal.
