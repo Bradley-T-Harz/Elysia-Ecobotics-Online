@@ -4578,6 +4578,7 @@ function CodeRevisionProposalWorkspace({ account, onMessage }: { account: { sign
   const [loadedParentPublication, setLoadedParentPublication] = useState<{ postId: string; state: ParentPublicationState } | null>(null);
   const [newerSnapshotAvailable, setNewerSnapshotAvailable] = useState(false);
   const [proposalSubmitting, setProposalSubmitting] = useState(false);
+  const proposalRequestRef = useRef<{ fingerprint: string; id: string }>({ fingerprint: "", id: "" });
   const [decisionNote, setDecisionNote] = useState("");
   const [proposalMessage, setProposalMessage] = useState(isTroubleshootingWorkbench ? "Troubleshooting workbench loads from an attached reproduction snippet. Draft editing does not change the attached reproduction." : "Proposal workspace loads from an attached Coding Cornucopia snippet. Draft editing does not change the attached code.");
   const activeSnippet = snippets.find((snippet) => snippet.id === selectedSnippetId) ?? snippets[0] ?? null;
@@ -4701,7 +4702,20 @@ function CodeRevisionProposalWorkspace({ account, onMessage }: { account: { sign
     if (!submissionReadiness.validChangeSummary) return setProposalMessage("Add a change summary between 1 and 500 characters before submitting.");
     setProposalSubmitting(true);
     try {
+      const requestFingerprint = JSON.stringify([
+        publishedSnapshot.postId,
+        publishedSnapshot.snippetId,
+        activeDraft.codeText,
+        activeDraft.language,
+        activeDraft.fileName,
+        activeDraft.changeSummary.trim(),
+        activeDraft.explanation.trim()
+      ]);
+      if (proposalRequestRef.current.fingerprint !== requestFingerprint) {
+        proposalRequestRef.current = { fingerprint: requestFingerprint, id: globalThis.crypto.randomUUID() };
+      }
       const result = await submitCodeRevisionProposal({
+        clientRequestId: proposalRequestRef.current.id,
         postId: publishedSnapshot.postId,
         codeSnippetId: publishedSnapshot.snippetId,
         proposedCodeText: activeDraft.codeText,
@@ -4713,6 +4727,7 @@ function CodeRevisionProposalWorkspace({ account, onMessage }: { account: { sign
       setProposalMessage(cleanCommuneMessage(result.message, "Coding Cornucopia proposal storage is not active yet."));
       onMessage(result.message);
       if (result.ok) {
+        proposalRequestRef.current = { fingerprint: "", id: "" };
         setSelectedProposalId(result.proposalId ?? null);
         setProposalDraft((current) => current ? { ...current, changeSummary: "", explanation: "" } : current);
         await refreshProposals();

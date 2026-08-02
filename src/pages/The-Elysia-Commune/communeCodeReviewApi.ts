@@ -111,13 +111,14 @@ export async function listCodeRevisionProposals(input: { postId?: string; codeSn
   return { proposals: (data ?? []) as CodeRevisionProposal[], warnings: error ? [formatSafeCodeReviewError(error)] : [] };
 }
 
-export async function submitCodeRevisionProposal(input: { postId: string; codeSnippetId: string; proposedCodeText: string; language?: string | null; fileName?: string | null; changeSummary: string; explanation?: string | null }): Promise<{ ok: boolean; message: string; proposalId?: string }> {
+export async function submitCodeRevisionProposal(input: { clientRequestId: string; postId: string; codeSnippetId: string; proposedCodeText: string; language?: string | null; fileName?: string | null; changeSummary: string; explanation?: string | null }): Promise<{ ok: boolean; message: string; proposalId?: string }> {
   if (!hasSupabaseConfig || !supabase) return { ok: false, message: "Coding Cornucopia revision proposals are not active yet." };
   const account = await accountState();
   if (!account.userId) return { ok: false, message: "Sign in before proposing a Coding Cornucopia revision." };
   const validation = validateCodeDocumentInput({ title: input.changeSummary, language: input.language ?? "text", fileName: input.fileName ?? "", text: input.proposedCodeText, summary: input.explanation ?? "" });
   if (!validation.ok) return { ok: false, message: validation.message ?? "Revision proposal blocked by Coding Cornucopia safety limits." };
-  const { data, error } = await supabase.rpc("submit_commune_code_revision_proposal", {
+  const { data, error } = await supabase.rpc("submit_commune_code_revision_proposal_v2", {
+    p_client_request_id: input.clientRequestId,
     p_post_id: input.postId,
     p_code_snippet_id: input.codeSnippetId,
     p_proposed_code_text: validation.text,
@@ -152,9 +153,7 @@ export async function decideCodeRevisionProposal(proposalId: string, decision: E
 
 export async function withdrawCodeRevisionProposal(proposalId: string): Promise<{ ok: boolean; message: string }> {
   if (!hasSupabaseConfig || !supabase) return { ok: false, message: "Coding Cornucopia revision proposals are not active yet." };
-  const account = await accountState();
-  if (!account.userId) return { ok: false, message: "Sign in before withdrawing a proposal." };
-  const { error } = await supabase.from("commune_code_revision_proposals").update({ proposal_status: "withdrawn", withdrawn_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", proposalId).eq("proposer_user_id", account.userId);
+  const { error } = await supabase.rpc("withdraw_commune_code_revision_proposal", { p_proposal_id: proposalId });
   return error ? { ok: false, message: formatSafeCodeReviewError(error) } : { ok: true, message: "Revision proposal withdrawn. The attached code remains unchanged." };
 }
 

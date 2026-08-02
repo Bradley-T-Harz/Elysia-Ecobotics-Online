@@ -63,12 +63,17 @@ const accountLifecyclePaths = [
   "supabase/migrations/20260728010000_auth_user_deletion_lifecycle.sql",
 ];
 
+const accountCommunicationPaths = [
+  "supabase/migrations/20260802010000_code_proposal_integrity_and_idempotency.sql",
+];
+
 const activePaths = [
   ...baselinePaths,
   ...economicPaths,
   ...artisanPaths,
   ...onlineCompatibilityPaths,
   ...accountLifecyclePaths,
+  ...accountCommunicationPaths,
 ];
 
 const legacyHashes = new Map(Object.entries({
@@ -156,6 +161,9 @@ const onlineCompatibilityMigrations = await Promise.all(
 const accountLifecycleMigrations = await Promise.all(
   accountLifecyclePaths.map((file) => fs.readFile(file, "utf8"))
 );
+const accountCommunicationMigrations = await Promise.all(
+  accountCommunicationPaths.map((file) => fs.readFile(file, "utf8"))
+);
 const routeKillSwitchMigration = economicMigrations.at(-1);
 assert(routeKillSwitchMigration, "Economic route kill-switch migration is missing.");
 const economicBehaviorFixture = await fs.readFile("scripts/fixtures/economicDatabaseBehavior.sql", "utf8");
@@ -187,6 +195,27 @@ for (const [index, migration] of accountLifecycleMigrations.entries()) {
   assert(!/postgres(?:ql)?:\/\//i.test(migration), `${accountLifecyclePaths[index]} contains a connection string.`);
   assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${accountLifecyclePaths[index]} contains a token-like value.`);
 }
+for (const [index, migration] of accountCommunicationMigrations.entries()) {
+  assert(migration.startsWith("--"), `${accountCommunicationPaths[index]} needs an explanatory header.`);
+  assert(/^begin;/im.test(migration), `${accountCommunicationPaths[index]} must start a transaction.`);
+  assert(/commit;\s*$/i.test(migration), `${accountCommunicationPaths[index]} must commit atomically.`);
+  assert(!/postgres(?:ql)?:\/\//i.test(migration), `${accountCommunicationPaths[index]} contains a connection string.`);
+  assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${accountCommunicationPaths[index]} contains a token-like value.`);
+}
+const accountCommunicationSource = accountCommunicationMigrations.join("\n");
+for (const marker of [
+  "client_request_id",
+  "commune_code_revision_proposals_post_snippet_fk",
+  "submit_commune_code_revision_proposal_v2",
+  "code_proposal_idempotency_conflict",
+  "withdraw_commune_code_revision_proposal",
+  "revoke insert, update, delete",
+  "snippet.post_id = proposal.post_id",
+]) assert(accountCommunicationSource.includes(marker), `Account communication migration chain omits ${marker}.`);
+const accountCommunicationPlpgsqlFunctions = [...new Set(
+  [...accountCommunicationSource.matchAll(/create or replace function\s+(public|private)\.([a-z0-9_]+)\s*\(/gi)]
+    .map((match) => `${match[1].toLowerCase()}.${match[2].toLowerCase()}`),
+)];
 const accountLifecycleSource = accountLifecycleMigrations.join("\n");
 for (const marker of [
   "account_participation_user_id_fkey",
@@ -537,6 +566,7 @@ try {
     "scripts/fixtures/onlinePublicProfileBehavior.sql",
     "scripts/fixtures/communeCanonicalAttributionBehavior.sql",
     "scripts/fixtures/accountAuthDeletionLifecycleBehavior.sql",
+    "scripts/fixtures/codeProposalIntegrityBehavior.sql",
     "scripts/sql/supabase_read_only_inventory.sql",
   ]) {
     await run(containerRuntime, ["cp", file, `${container}:/tmp/${path.basename(file)}`]);
@@ -658,6 +688,9 @@ try {
   for (const file of accountLifecyclePaths) {
     await psql(["-f", `/tmp/${path.basename(file)}`]);
   }
+  for (const file of accountCommunicationPaths) {
+    await psql(["-f", `/tmp/${path.basename(file)}`]);
+  }
   const artisanBehavior = await psql(["-f", "/tmp/artisanDatabaseBehavior.sql"]);
   assert(artisanBehavior.stdout.includes("Artisan database behavior checks ok."), "Artisan database behavior marker missing.");
   const onlineProfileBehavior = await psql(["-f", "/tmp/onlinePublicProfileBehavior.sql"]);
@@ -677,6 +710,14 @@ try {
   assert(
     accountAuthDeletionLifecycleBehavior.stdout.includes("Account Auth deletion lifecycle behavior checks ok."),
     "Account Auth deletion lifecycle behavior marker missing."
+  );
+  const codeProposalIntegrityBehavior = await psql([
+    "-f",
+    "/tmp/codeProposalIntegrityBehavior.sql",
+  ]);
+  assert(
+    codeProposalIntegrityBehavior.stdout.includes("code_proposal_integrity_behavior_ok"),
+    "Code proposal integrity behavior marker missing."
   );
   // Hosted Supabase owns this ledger. The database-only image omits it, so
   // provide the catalog shape required by the read-only inventory rehearsal.
@@ -748,6 +789,7 @@ try {
       ...economicPlpgsqlFunctions,
       ...artisanPlpgsqlFunctions,
       ...onlineCompatibilityPlpgsqlFunctions,
+      ...accountCommunicationPlpgsqlFunctions,
     ])];
     const lintTargets = governedPlpgsqlFunctions.map((name) => `'${name}'`).join(", ");
     const lintErrors = await psql(["-tAc", `
