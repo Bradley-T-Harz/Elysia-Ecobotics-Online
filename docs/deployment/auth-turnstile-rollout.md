@@ -1,12 +1,15 @@
 # Supabase Auth Turnstile rollout
 
-Updated: 2026-07-30.
+Updated: 2026-08-02.
 
 This runbook governs the additive Cloudflare Turnstile layer for public
 Supabase Auth. It does not replace the repaired Website Account form, Supabase
 rate limits, email confirmation, Brevo, RLS, participation gates, MFA, or the
 Identity Worker. CAPTCHA enforcement remains disabled until every launch gate
-below passes.
+below passes during the original rollout. Production enforcement is now active,
+so every routine Online Direct Upload must preserve the verified `required`
+client build described below. Never compensate for a broken client artifact by
+weakening Supabase enforcement.
 
 ## Architecture and scope
 
@@ -49,6 +52,34 @@ Pages variable cannot rewrite an already-built bundle. Local and automated
 tests use Cloudflare's official test site key
 `1x00000000000000000000AA` and a test-only browser adapter. They never use the
 production widget or a runtime bypass.
+
+### Mandatory Online production artifact path
+
+The only repository-authorized Online production build and Direct Upload path
+is:
+
+```text
+npm run pages:production:build
+npm run pages:production:verify
+npm run pages:production:deploy
+```
+
+`pages:production:build` supplies the established public production mode and
+site key to Vite, then inspects the actual compiled `dist` artifact.
+`pages:production:verify` identifies exactly one compiled Commons/Auth bundle,
+requires the `required` configuration object, the exact public site key, the
+official explicit-render script URL, and the Auth client contract, and records
+bundle and complete-artifact SHA-256 values. The gate rejects missing inputs,
+`off` output, the test key, a duplicated key, an ambiguous bundle, or a changed
+compiled contract.
+
+`pages:production:deploy` repeats that compiled-artifact verification, requires
+a clean named branch whose HEAD exactly matches both its `online/*` remote ref
+and `online/main`, and only then Direct Uploads the existing `dist` directory
+with exact commit metadata. It never rebuilds between verification and upload.
+Plain `npm run build` remains valid for development and explicit mode tests,
+but its output is not production-eligible and must never be passed directly to
+`wrangler pages deploy`.
 
 ## Modes
 
