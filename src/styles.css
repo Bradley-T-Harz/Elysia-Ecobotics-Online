@@ -4603,6 +4603,102 @@ button.commune-vote-option-card:disabled {
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.2);
 }
 
+.commons-account-room-card {
+  display: grid;
+  align-content: start;
+  gap: 0.65rem;
+}
+
+.commons-account-room-card .button-link {
+  justify-self: start;
+}
+
+.account-communications-tabs,
+.account-communications-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin: 1rem 0;
+}
+
+.account-communications-filters label {
+  display: grid;
+  gap: 0.35rem;
+  min-width: min(100%, 15rem);
+}
+
+.account-communications-filters label span {
+  color: var(--commons-muted, var(--muted));
+  font-size: 0.88rem;
+}
+
+.account-communications-list {
+  display: grid;
+  gap: 0.9rem;
+  margin: 1rem 0;
+}
+
+.account-communications-card,
+.account-communications-empty {
+  display: grid;
+  gap: 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--commons-accent, #8ee8dc) 22%, rgba(216, 226, 232, 0.12));
+  border-radius: 16px;
+  padding: 1rem;
+  background:
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--commons-accent, #8ee8dc) 8%, transparent), transparent 13rem),
+    rgba(4, 11, 17, 0.64);
+}
+
+.account-communications-card--unread,
+.account-communications-card--pending {
+  border-color: color-mix(in srgb, var(--commons-accent, #8ee8dc) 56%, rgba(216, 182, 111, 0.32));
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.2);
+}
+
+.account-communications-card__heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.account-communications-card__heading h3,
+.account-communications-empty h3 {
+  margin: 0;
+}
+
+.account-communications-actor {
+  color: var(--commons-muted, var(--muted));
+  font-size: 0.9rem;
+}
+
+.account-state-pill {
+  display: inline-flex;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--commons-accent, #8ee8dc) 26%, rgba(255, 255, 255, 0.1));
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  color: var(--commons-muted, var(--muted));
+  background: rgba(255, 255, 255, 0.035);
+  font-size: 0.82rem;
+}
+
+.account-state-pill--priority {
+  border-color: rgba(216, 182, 111, 0.58);
+  color: #f4dca6;
+}
+
+.account-communications-card details {
+  border-top: 1px solid rgba(142, 232, 220, 0.16);
+  padding-top: 0.6rem;
+}
+
+.account-communications-card summary {
+  cursor: pointer;
+  color: var(--commons-muted, var(--muted));
+}
+
 .commons-signal-meta {
   display: flex;
   flex-wrap: wrap;
@@ -4642,6 +4738,15 @@ button.commune-vote-option-card:disabled {
 
   .coding-output-grid {
     grid-template-columns: 1fr;
+  }
+
+  .account-communications-card__heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .account-state-pill {
+    align-self: start;
   }
 
   .commune-chat-header {

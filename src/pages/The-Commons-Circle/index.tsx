@@ -20,6 +20,7 @@ import PublicProfilePublicationPanel from "../../shared/participation/PublicProf
 import { loadCurrentRoleState } from "../../shared/review/reviewClient";
 import type { AppRole } from "../../shared/review/reviewClient";
 import { CommonsCircleAdminEntryCard, userCanOpenCommonsAdminConsole } from "./CommonsCircleAdminConsolePage";
+import { loadAccountHomebaseCounts, type AccountHomebaseCounts } from "./accountCommunicationsApi";
 import {
   DEFAULT_COMMONS_BANNER_POSITION_X,
   DEFAULT_COMMONS_BANNER_POSITION_Y,
@@ -134,6 +135,7 @@ function polishedActionMessages(scope: string, warnings: string[], fallback: str
 
 export default function CommonsCirclePage() {
   const [homebase, setHomebase] = useState<CommonsHomebaseData | null>(null);
+  const [accountCounts, setAccountCounts] = useState<AccountHomebaseCounts | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
   const [visibilityDraft, setVisibilityDraft] = useState<VisibilitySettings>(defaultVisibility);
   const [customizationDraft, setCustomizationDraft] = useState<ProfileCustomization>(defaultCustomization);
@@ -158,10 +160,11 @@ export default function CommonsCirclePage() {
 
   const refreshHomebase = useCallback(async (options?: { preserveCustomization?: ProfileCustomization }) => {
     refreshLocalCounts();
-    const [result, roles] = await Promise.all([loadCommonsHomebase(), loadCurrentRoleState()]);
+    const [result, roles, counts] = await Promise.all([loadCommonsHomebase(), loadCurrentRoleState(), loadAccountHomebaseCounts()]);
     const localCustomization = readLocalStorage<ProfileCustomization | null>("commonsCircle.customizationDemo.v1", null);
     const customizationWarnings = result.warnings.some((warning) => /Profile customization|profile_customization/i.test(warning));
     setHomebase(result);
+    setAccountCounts(counts);
     setRoleState({ roles: roles.roles, isAdmin: roles.isAdmin, signedIn: roles.signedIn, warnings: roles.warnings });
     setVisibilityDraft(result.visibility);
     setSavedCustomization(result.customization);
@@ -169,6 +172,7 @@ export default function CommonsCirclePage() {
     setNotificationDraft(result.notificationPreferences);
     logDiagnostics("homebase", result.warnings);
     logDiagnostics("role-state", roles.warnings);
+    logDiagnostics("account-counts", counts.warnings);
   }, [refreshLocalCounts]);
 
   useEffect(() => { void refreshHomebase(); }, [refreshHomebase]);
@@ -203,7 +207,11 @@ export default function CommonsCirclePage() {
   const pendingRecognitionCount = verificationDrafts.filter((draft) => draft.status === "pending_admin_review_local").length;
   const localLivingCount = homebase?.localLiving.savedSourceIds.length ?? 0;
   const shouldPromptSync = Boolean(homebase?.signedIn && localLivingCount > 0 && syncChoice.choice !== "synced" && syncChoice.choice !== "keep_local");
-  const unreadCount = homebase?.notifications.filter((notice) => !notice.read_at).length ?? 0;
+  const unreadCount = accountCounts?.events.notificationsUnread ?? 0;
+  const inboxNeedsAttention = accountCounts?.events.inboxNeedsAttention ?? 0;
+  const inboxUnread = accountCounts?.events.inboxUnread ?? 0;
+  const messagesUnread = accountCounts?.events.messagesUnread ?? 0;
+  const pendingRequestCount = accountCounts?.requests.pending ?? 0;
   const codeProposalSignalCount = homebase?.notifications.filter((notice) => /code_revision|proposal/i.test(`${notice.notification_type ?? ""} ${notice.source_type ?? ""}`)).length ?? 0;
   const troubleshootingSignalCount = homebase?.notifications.filter((notice) => /troubleshooting|fix_proposed|resolution/i.test(`${notice.notification_type ?? ""} ${notice.source_type ?? ""}`)).length ?? 0;
   const homeStyle = commonsCustomizationStyle(savedCustomization);
@@ -425,7 +433,8 @@ export default function CommonsCirclePage() {
         <dl className="mini-facts">
           <MiniFact label="Tier" value={membershipTierLabel} />
           <MiniFact label="Setup" value={profileSetupComplete ? "Complete" : "Needs setup"} />
-          <MiniFact label="Unread signals" value={unreadCount} />
+          <MiniFact label="Inbox needs attention" value={inboxNeedsAttention} />
+          <MiniFact label="Notifications unread" value={unreadCount} />
           <MiniFact label="Saved shelves" value={(homebase?.savedAddons.length ?? 0) + (homebase?.savedLivingSources.length ?? 0) + (homebase?.sourceCollections.length ?? 0)} />
         </dl>
         <DecalStrip settings={savedCustomization} />
@@ -449,22 +458,56 @@ export default function CommonsCirclePage() {
       </section>}
 
       <section className="commons-homebase-grid">
-        <article className="section-card commons-signal-feed">
-          <p className="eyebrow">Signal Feed</p>
-          <h2>Notifications and review signals</h2>
-          <dl className="mini-facts"><MiniFact label="Unread" value={unreadCount} /><MiniFact label="Code proposals" value={codeProposalSignalCount} /><MiniFact label="Troubleshooting" value={troubleshootingSignalCount} /></dl>
-          <p className="boundary-note">This is a preview. The full private Signal Console handles Coding Cornucopia proposal decisions, Troubleshooting Grove proposed fixes/status updates, Research Notes citation/source activity, accepted/rejected outcomes, sandbox signals, and review notices.</p>
+        <article className="section-card commons-account-room-card">
+          <p className="eyebrow">Inbox</p>
+          <h2>Private actions for you</h2>
+          <dl className="mini-facts"><MiniFact label="Needs attention" value={inboxNeedsAttention} /><MiniFact label="Unread" value={inboxUnread} /><MiniFact label="Messages unread" value={messagesUnread} /></dl>
+          <p>Review proposals and other private source-backed actions without mixing them into specialist staff queues.</p>
+          <Link className="button-link button-link--primary" to="/commons-circle/inbox">Open Inbox</Link>
+        </article>
+
+        <article className="section-card commons-account-room-card">
+          <p className="eyebrow">Notifications</p>
+          <h2>Updates and outcomes</h2>
+          <dl className="mini-facts"><MiniFact label="Unread" value={unreadCount} /><MiniFact label="Legacy preview rows" value={homebase?.notifications.length ?? 0} /></dl>
+          <p>Informational outcomes remain separate from actions. The existing Signal Console stays available during the compatibility period.</p>
           <Link className="button-link button-link--primary" to="/commons-circle/signals">Open Signal Console</Link>
-          {!homebase?.notifications.length && <EmptyState>No notifications yet. Review status, followed threads, and marketplace updates will appear here when account-backed events exist.</EmptyState>}
+        </article>
+
+        <article className="section-card commons-account-room-card">
+          <p className="eyebrow">Requests &amp; Reviews</p>
+          <h2>Your submitted workflows</h2>
+          <dl className="mini-facts"><MiniFact label="Pending" value={pendingRequestCount} /><MiniFact label="Total source records" value={accountCounts?.requests.total ?? 0} /></dl>
+          <p>Track proposals, Work With requests, Job Posts, Research Notes, Repository Showcases, and Iteration Showcases from their authoritative records.</p>
+          <Link className="button-link button-link--primary" to="/commons-circle/requests-reviews">Open Requests &amp; Reviews</Link>
+        </article>
+
+        <article className="section-card commons-account-room-card">
+          <p className="eyebrow">Saved Shelves</p>
+          <h2>Your private saved archive</h2>
+          <dl className="mini-facts"><MiniFact label="Saved items" value={(homebase?.savedAddons.length ?? 0) + (homebase?.savedLivingSources.length ?? 0) + (homebase?.sourceCollections.length ?? 0)} /><MiniFact label="Followed threads" value={homebase?.followedThreads.length ?? 0} /></dl>
+          <p>Saved references remain private by default and separate from requests, messages, and notifications.</p>
+          <Link className="button-link button-link--primary" to="/commons-circle/saved-shelves">Open Saved Shelves</Link>
+        </article>
+      </section>
+
+      <section className="commons-homebase-grid">
+        <article className="section-card commons-signal-feed">
+          <p className="eyebrow">Signals compatibility</p>
+          <h2>Existing notification preview</h2>
+          <dl className="mini-facts"><MiniFact label="Legacy rows shown" value={homebase?.notifications.length ?? 0} /><MiniFact label="Code proposal rows" value={codeProposalSignalCount} /><MiniFact label="Troubleshooting rows" value={troubleshootingSignalCount} /></dl>
+          <p className="boundary-note">This legacy preview remains during migration. The Signal Console still preserves all existing author, reviewer, administrator, domain, sandbox, vote, and Official Update sections until each destination has proven parity.</p>
+          {!homebase?.notifications.length && <EmptyState>No legacy notification rows yet.</EmptyState>}
           {homebase?.notifications.map((notice) => { const actionPath = safeInternalActionPath(notice.action_url); return <div className="commons-preview-card" key={notice.id}><strong>{notice.title}</strong><p>{notice.body || notice.notification_type || "Account signal"}</p><span>{notice.read_at ? "read" : "unread"}</span><div className="button-row"><button type="button" onClick={async () => { polishedActionMessages("notification-read", await markNotificationRead(notice.id), "Notification actions are not active yet.").forEach(pushMessage); await refreshHomebase(); }}>Mark read</button>{actionPath && <Link className="button-link" to={actionPath}>Open</Link>}</div></div>; })}
-          {homebase?.notifications.length ? <button type="button" onClick={async () => { polishedActionMessages("notifications-read-all", await markAllNotificationsRead(), "Notification actions are not active yet.").forEach(pushMessage); await refreshHomebase(); }}>Mark all read</button> : null}
+          {homebase?.notifications.length ? <button type="button" onClick={async () => { polishedActionMessages("notifications-read-all", await markAllNotificationsRead(), "Notification actions are not active yet.").forEach(pushMessage); await refreshHomebase(); }}>Mark all legacy rows read</button> : null}
+          <Link className="button-link" to="/commons-circle/signals">Open compatibility Signal Console</Link>
         </article>
 
         <article className="section-card">
-          <p className="eyebrow">Requests and review status</p>
-          <h2>Private request status</h2>
-          <dl className="mini-facts"><MiniFact label="Stewardship local pending" value={pendingRecognitionCount} /><MiniFact label="Contribution help drafts" value={contributionRequests.length} /><MiniFact label="Work With / review queues" value="private; account-backed when submitted" /></dl>
-          <p className="boundary-note">Work With requests, resumes/CVs, stewardship receipts/proofs, admin review data, and private drafts are never shown on the public profile.</p>
+          <p className="eyebrow">Local requests and recognition</p>
+          <h2>Browser-local drafts</h2>
+          <dl className="mini-facts"><MiniFact label="Stewardship local pending" value={pendingRecognitionCount} /><MiniFact label="Contribution help drafts" value={contributionRequests.length} /></dl>
+          <p className="boundary-note">These browser-local drafts are not authoritative submitted requests and are not included in the account-backed pending count.</p>
         </article>
         <article className="section-card">
           <p className="eyebrow">Support &amp; Billing</p>

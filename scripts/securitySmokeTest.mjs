@@ -98,6 +98,12 @@ const reviewedArtisanServiceRoleMigrations = new Set([
   "supabase/migrations/20260723010000_public_commons_profile_cutover_marker_correction.sql",
   "supabase/migrations/20260724010000_commune_canonical_author_attribution.sql"
 ]);
+const reviewedAccountCommunicationRoleMigrations = new Set([
+  "supabase/migrations/20260802010000_code_proposal_integrity_and_idempotency.sql",
+  "supabase/migrations/20260802020000_account_event_foundation.sql",
+  "supabase/migrations/20260802030000_code_proposal_account_events.sql",
+  "supabase/migrations/20260802040000_account_requests_and_reviews_projection.sql",
+]);
 
 function allowHit(file, line, checkName) {
   const normalized = file.replaceAll(path.sep, "/");
@@ -166,6 +172,11 @@ function allowHit(file, line, checkName) {
       reviewedArtisanServiceRoleMigrations.has(normalized)
       && /\bservice_role\b|community_caller_is_service_role|(?:community|artisan)_[a-z0-9_]*service_role_required/i.test(line)
       && !/SUPABASE_SERVICE_ROLE_KEY\s*=|SERVICE_ROLE_KEY\s*=/.test(line)
+    ) return true;
+    if (
+      reviewedAccountCommunicationRoleMigrations.has(normalized)
+      && /\bservice_role\b|community_caller_is_service_role|account_delivery_service_required/i.test(line)
+      && !/SUPABASE_SERVICE_ROLE_KEY\s*=|SUPABASE_SERVICE\w*\s*=|SERVICE_ROLE_KEY\s*=/.test(line)
     ) return true;
     if (
       normalized === "scripts/publicCommonsProfileSmokeTest.mjs"

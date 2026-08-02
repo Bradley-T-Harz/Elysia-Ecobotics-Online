@@ -135,10 +135,10 @@ assert(signalConsolePage.includes("Research Notes citation/source activity") && 
 assert(signalConsolePage.includes("Job Post admin approval/anti-scam activity") && signalConsolePage.includes("Job Posts</dt>"), "Signal Console should include Job Post in account-backed counts and notification fallback copy.");
 assert(signalConsolePage.includes("Author approval boundary") && signalConsolePage.includes("public code changes only after the original post author accepts"), "Signal Console should preserve author approval doctrine.");
 assert(signalConsolePage.includes("Sandbox diagnostics are evidence for review"), "Signal Console should preserve sandbox-is-not-approval doctrine.");
-assert(commonsPage.includes("Signal Feed"), "Commons Circle preview signal feed should remain available.");
+assert(commonsPage.includes("Signals compatibility") && commonsPage.includes("Open compatibility Signal Console"), "Commons Circle must preserve the existing Signal Console during Inbox/Notifications migration.");
 assert(commonsPage.includes("Open Signal Console") && commonsPage.includes("/commons-circle/signals"), "Commons Circle preview should link to the full Signal Console.");
-assert(commonsPage.includes("Troubleshooting Grove proposed fixes/status updates"), "Commons Circle signal preview should mention Troubleshooting Grove support activity.");
-assert(commonsPage.includes("Research Notes citation/source activity"), "Commons Circle signal preview should mention Research Notes activity.");
+assert(signalConsolePage.includes("Troubleshooting Grove proposed fixes") && signalConsolePage.includes("Troubleshooting Grove activity"), "Signal Console compatibility page must preserve Troubleshooting Grove support activity.");
+assert(signalConsolePage.includes("Research Notes citation/source activity") && signalConsolePage.includes("Research Notes activity"), "Signal Console compatibility page must preserve Research Notes activity.");
 
 for (const roomSlug of ["media-garden", "troubleshooting-grove", "coding-cornucopia", "code-sharing", "repository-showcase", "community-network", "job-post", "research-notes", "elysia-iteration-showcase", "community-vote", "official-updates"]) {
   assert(page.includes(roomSlug), `Missing Commune room slug: ${roomSlug}`);

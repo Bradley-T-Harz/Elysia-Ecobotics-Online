@@ -273,7 +273,9 @@ async function installNetworkFixtures(context, networkState) {
       await route.fulfill({ status: 200, headers: corsHeaders, body: JSON.stringify(fixtureUser) });
       return;
     }
-    if (url.pathname.endsWith("/rest/v1/rpc/submit_commune_code_revision_proposal")) {
+    if (url.pathname.endsWith("/rest/v1/rpc/submit_commune_code_revision_proposal_v2")) {
+      const body = request.postDataJSON();
+      assert.match(body.p_client_request_id ?? "", /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i, "Proposal v2 must send a cryptographically generated client request UUID.");
       networkState.proposalSubmissionRequests += 1;
       await route.fulfill({ status: 403, headers: corsHeaders, body: '{"message":"fixture proposal denial","code":"42501"}' });
       return;

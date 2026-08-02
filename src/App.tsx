@@ -34,6 +34,8 @@ const CommonsCircleAdminConsolePage = lazy(() => import("./pages/The-Commons-Cir
 const CommonsCircleSetupPage = lazy(() => import("./pages/The-Commons-Circle/CommonsCircleSetupPage"));
 const SavedShelvesPage = lazy(() => import("./pages/The-Commons-Circle/SavedShelvesPage"));
 const SignalConsolePage = lazy(() => import("./pages/The-Commons-Circle/SignalConsolePage"));
+const InboxPage = lazy(() => import("./pages/The-Commons-Circle/InboxPage"));
+const RequestsReviewsPage = lazy(() => import("./pages/The-Commons-Circle/RequestsReviewsPage"));
 const SupportBillingPage = lazy(() => import("./pages/The-Commons-Circle/SupportBillingPage"));
 const PublicCommonsProfilePage = lazy(() => import("./pages/Public-Commons-Profile"));
 const StoryPage = lazy(() => import("./pages/The-Story-of-Elysia"));
@@ -144,6 +146,8 @@ export default function App() {
             <Route path="commons-circle" element={<CommonsCirclePage />} />
             <Route path="commons-circle/admin-console" element={<CommonsCircleAdminConsolePage />} />
             <Route path="commons-circle/saved-shelves" element={<SavedShelvesPage />} />
+            <Route path="commons-circle/inbox" element={<InboxPage />} />
+            <Route path="commons-circle/requests-reviews" element={<RequestsReviewsPage />} />
             <Route path="commons-circle/signals" element={<SignalConsolePage />} />
             <Route path="commons-circle/support-billing" element={<SupportBillingPage />} />
             <Route path="commons-circle/onboarding" element={<Navigate to="/commons-circle/setup/profile" replace />} />
