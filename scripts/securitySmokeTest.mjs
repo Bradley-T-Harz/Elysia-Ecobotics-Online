@@ -197,6 +197,11 @@ function allowHit(file, line, checkName) {
   ) return true;
   if ((normalized.endsWith("scripts/communeSmokeTest.mjs") || normalized.endsWith("scripts/siteContentSmokeTest.mjs")) && /scanner|fixture|assert|secret|SUPABASE_SERVICE_ROLE|service_role|BEGIN \[A-Z \]\*PRIVATE KEY|AWS_ACCESS_KEY_ID/i.test(line)) return true;
   if (normalized.endsWith("scripts/addonSdkSmokeTest.mjs") && /scanner|fixture|assert|inspect|archive|service-role|private key|package install hook|postinstall|preinstall|SUPABASE_SERVICE_ROLE|BEGIN PRIVATE KEY/i.test(line)) return true;
+  if (
+    normalized.endsWith("scripts/sandboxProductionReleaseGate.mjs")
+    && ["Node child process", "process exec"].includes(checkName)
+    && (/node:child_process/.test(line) || /execFileSync\("git", args, \{/.test(line))
+  ) return true;
   if (normalized.endsWith("scripts/sandboxRunnerSmokeTest.mjs") && /child_process|spawnSync|assert|help|missing file|does not execute|never runs code/i.test(line)) return true;
   if (normalized.endsWith("packages/addon-sdk/core.mjs") && /pattern|scanner|scan|blocked|inspect|archive|does not execute|will not execute|SUPABASE_SERVICE_ROLE|service_role|postinstall|preinstall|child_process|exec|spawn|eval|new\s\+Function/i.test(line)) return true;
   if (normalized.includes("services/sandbox-runner/") && /pattern|scanner|blocked|validate|local-only|Docker|Podman|controlled argument|shell: false|child_process|spawn|exec|postinstall|preinstall|SUPABASE_SERVICE_ROLE|service_role|does not execute|will not execute|never runs code/i.test(line)) return true;

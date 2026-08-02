@@ -182,6 +182,30 @@ async function executableAvailable(executablePath) {
 }
 
 async function installNetworkFixtures(context, networkState) {
+  await context.route(`${origin}/api/sandbox/health`, async (route) => {
+    networkState.healthRequests += 1;
+    const error = networkState.healthError;
+    if (error) {
+      const status = error === "authentication_required" || error === "authentication_invalid"
+        ? 401
+        : error === "profile_required" || error === "account_inactive" || error === "sandbox_not_authorized"
+          ? 403
+          : error === "internal_failure"
+            ? 500
+            : 503;
+      await route.fulfill({
+        status,
+        headers: { "Cache-Control": "no-store", "Content-Type": "application/json" },
+        body: JSON.stringify({ ok: false, error })
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      headers: { "Cache-Control": "no-store", "Content-Type": "application/json" },
+      body: '{"ok":true,"status":"available"}'
+    });
+  });
   await context.route(`${origin}/api/sandbox/credits`, async (route) => {
     await route.fulfill({ status: 503, headers: { "Cache-Control": "no-store", "Content-Type": "application/json" }, body: '{"ok":false,"error":"sandbox_disabled"}' });
   });
@@ -189,6 +213,14 @@ async function installNetworkFixtures(context, networkState) {
     const request = route.request();
     const body = request.postDataJSON();
     networkState.sandboxRequests.push(body);
+    if (networkState.nextSandboxError) {
+      await route.fulfill({
+        status: networkState.nextSandboxError === "internal_failure" ? 500 : 403,
+        headers: { "Cache-Control": "no-store", "Content-Type": "application/json" },
+        body: JSON.stringify({ ok: false, error: networkState.nextSandboxError })
+      });
+      return;
+    }
     const completed = networkState.nextSandboxStatus === "completed";
     await route.fulfill({
       status: 200,
@@ -258,7 +290,15 @@ async function loadWorkbench(browser, browserName, viewport, comprehensive) {
   currentPost = publicPost();
   currentSnippet = snippetVersion(1);
   const context = await browser.newContext({ viewport });
-  const networkState = { sandboxRequests: [], supabaseRequests: [], proposalSubmissionRequests: 0, nextSandboxStatus: "completed" };
+  const networkState = {
+    sandboxRequests: [],
+    supabaseRequests: [],
+    proposalSubmissionRequests: 0,
+    healthRequests: 0,
+    healthError: null,
+    nextSandboxError: null,
+    nextSandboxStatus: "completed"
+  };
   await context.addInitScript(({ storageKey, session }) => {
     localStorage.setItem(storageKey, JSON.stringify(session));
     window.__elysiaCspViolations = [];
@@ -287,6 +327,8 @@ async function loadWorkbench(browser, browserName, viewport, comprehensive) {
   assert.equal(await right.getByRole("button", { name: "Reset draft to published snapshot" }).count(), 1);
   assert.equal(await right.getByRole("button", { name: "Run proposed revision in sandbox" }).count(), 1);
   assert.equal(await page.getByText("Current accepted snapshot", { exact: false }).count(), 0);
+  await waitFor(async () => await workspace.getByText("Sandbox available", { exact: true }).count() === 2, `${browserName} did not confirm server-authoritative sandbox eligibility.`);
+  assert.equal(await workspace.getByText("Sandbox execution eligible", { exact: true }).count(), 0, "Language policy alone must not claim account eligibility.");
 
   const horizontalOverflow = await workspace.evaluate((element) => element.scrollWidth > element.clientWidth + 2);
   assert.equal(horizontalOverflow, false, `${browserName} ${viewport.width}px workbench should not overflow horizontally.`);
@@ -298,6 +340,49 @@ async function loadWorkbench(browser, browserName, viewport, comprehensive) {
     await context.close();
     return;
   }
+
+  const leftRunButton = left.getByRole("button", { name: "Run current published snapshot in sandbox" });
+  const rightRunButton = right.getByRole("button", { name: "Run proposed revision in sandbox" });
+  const leftBeforeDenial = await leftEditor.textContent();
+  const rightBeforeDenial = await rightEditor.textContent();
+  const requestsBeforeDenial = networkState.sandboxRequests.length;
+  networkState.healthError = "profile_required";
+  await left.getByRole("button", { name: "Refresh sandbox eligibility" }).click();
+  await right.getByRole("button", { name: "Refresh sandbox eligibility" }).click();
+  await waitFor(async () => await workspace.getByText("Commons Profile required", { exact: true }).count() === 2, "Profile prerequisite did not survive the health response.");
+  assert.equal(await workspace.getByText("Create or finish your Commons Profile before using the governed coding sandbox. This keeps sandbox activity tied to an accountable public-community identity.", { exact: true }).count(), 2);
+  assert.equal(await workspace.getByRole("link", { name: "Create or finish Commons Profile" }).count(), 2);
+  assert.equal(await workspace.getByRole("link", { name: "Create or finish Commons Profile" }).first().getAttribute("href"), "/commons-circle/setup/profile");
+  assert.equal(await leftRunButton.isDisabled(), true);
+  assert.equal(await rightRunButton.isDisabled(), true);
+  await leftRunButton.evaluate((button) => button.click());
+  await rightRunButton.evaluate((button) => button.click());
+  assert.equal(networkState.sandboxRequests.length, requestsBeforeDenial, "An ineligible account must create no reservation or runner request.");
+  assert.equal(await leftEditor.textContent(), leftBeforeDenial, "Eligibility denial must not mutate the published snapshot.");
+  assert.equal(await rightEditor.textContent(), rightBeforeDenial, "Eligibility denial must not mutate the draft.");
+  assert.equal(await workspace.getByText("sandbox internal failure", { exact: false }).count(), 0, "Profile policy denial must not be mislabeled as an internal failure.");
+
+  networkState.healthError = null;
+  await left.getByRole("button", { name: "Refresh sandbox eligibility" }).click();
+  await right.getByRole("button", { name: "Refresh sandbox eligibility" }).click();
+  await waitFor(async () => await workspace.getByText("Sandbox available", { exact: true }).count() === 2, "Eligibility refresh did not enable the profile-backed fixture.");
+  assert.equal(await leftRunButton.isEnabled(), true);
+  assert.equal(await rightRunButton.isEnabled(), true);
+
+  const leftBeforeLateDenial = await leftEditor.textContent();
+  const rightBeforeLateDenial = await rightEditor.textContent();
+  networkState.nextSandboxError = "profile_required";
+  await rightRunButton.click();
+  await right.getByText("Commons Profile required", { exact: true }).waitFor();
+  await right.getByText("Create or finish your Commons Profile before using the governed coding sandbox. This keeps sandbox activity tied to an accountable public-community identity.", { exact: true }).last().waitFor();
+  assert.equal(await right.getByText("sandbox internal failure", { exact: false }).count(), 0, "A run-time eligibility race must preserve profile_required instead of claiming internal failure.");
+  assert.equal(await right.getByText("no run id", { exact: true }).count(), 1, "A profile denial must not invent a run ID.");
+  assert.equal(await leftEditor.textContent(), leftBeforeLateDenial);
+  assert.equal(await rightEditor.textContent(), rightBeforeLateDenial);
+  networkState.nextSandboxError = null;
+  await right.getByRole("button", { name: "Refresh sandbox eligibility" }).click();
+  await right.getByText("Sandbox available", { exact: true }).waitFor();
+  const deniedRunRequestCount = networkState.sandboxRequests.length;
 
   const language = right.getByLabel("Language");
   const filename = right.getByLabel("Filename");
@@ -314,25 +399,25 @@ async function loadWorkbench(browser, browserName, viewport, comprehensive) {
     assert.equal(await leftEditor.textContent(), leftInitial, "editing any draft field must leave the left snapshot unchanged");
   }
 
-  await waitFor(async () => left.getByRole("button", { name: "Run current published snapshot in sandbox" }).isEnabled(), "Published sandbox action did not become enabled.");
-  await left.getByRole("button", { name: "Run current published snapshot in sandbox" }).click();
-  await waitFor(() => networkState.sandboxRequests.length === 1, "Published sandbox request was not captured.");
-  assert.equal(networkState.sandboxRequests[0].sourceType, "commune_post_snippet");
-  assert.equal(networkState.sandboxRequests[0].sourceId, snippetId);
-  assert.equal(networkState.sandboxRequests[0].code, currentSnippet.code_text);
-  assert.equal(networkState.sandboxRequests[0].language, currentSnippet.language);
-  assert.equal(networkState.sandboxRequests[0].fileName, currentSnippet.file_name);
+  await waitFor(async () => leftRunButton.isEnabled(), "Published sandbox action did not become enabled.");
+  await leftRunButton.click();
+  await waitFor(() => networkState.sandboxRequests.length === deniedRunRequestCount + 1, "Published sandbox request was not captured.");
+  assert.equal(networkState.sandboxRequests[deniedRunRequestCount].sourceType, "commune_post_snippet");
+  assert.equal(networkState.sandboxRequests[deniedRunRequestCount].sourceId, snippetId);
+  assert.equal(networkState.sandboxRequests[deniedRunRequestCount].code, currentSnippet.code_text);
+  assert.equal(networkState.sandboxRequests[deniedRunRequestCount].language, currentSnippet.language);
+  assert.equal(networkState.sandboxRequests[deniedRunRequestCount].fileName, currentSnippet.file_name);
   assert.equal(await leftEditor.textContent(), leftInitial);
   assert.match(await rightEditor.textContent() ?? "", /draft-only/);
 
   networkState.nextSandboxStatus = "failed";
-  await right.getByRole("button", { name: "Run proposed revision in sandbox" }).click();
-  await waitFor(() => networkState.sandboxRequests.length === 2, "Draft sandbox request was not captured.");
-  assert.equal(networkState.sandboxRequests[1].sourceType, "manual_snapshot");
-  assert.equal(networkState.sandboxRequests[1].sourceId, null);
-  assert.equal(networkState.sandboxRequests[1].code, "print('draft-only')\n");
-  assert.equal(networkState.sandboxRequests[1].language, "python");
-  assert.equal(networkState.sandboxRequests[1].fileName, "draft.py");
+  await rightRunButton.click();
+  await waitFor(() => networkState.sandboxRequests.length === deniedRunRequestCount + 2, "Draft sandbox request was not captured.");
+  assert.equal(networkState.sandboxRequests[deniedRunRequestCount + 1].sourceType, "manual_snapshot");
+  assert.equal(networkState.sandboxRequests[deniedRunRequestCount + 1].sourceId, null);
+  assert.equal(networkState.sandboxRequests[deniedRunRequestCount + 1].code, "print('draft-only')\n");
+  assert.equal(networkState.sandboxRequests[deniedRunRequestCount + 1].language, "python");
+  assert.equal(networkState.sandboxRequests[deniedRunRequestCount + 1].fileName, "draft.py");
   assert.equal(await leftEditor.textContent(), leftInitial);
   assert.match(await rightEditor.textContent() ?? "", /draft-only/);
 

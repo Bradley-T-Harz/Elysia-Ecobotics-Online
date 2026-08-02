@@ -1,5 +1,5 @@
-import { PublicHttpError, fetchWithTimeout } from "../functions/api/sandbox/_shared/http.ts";
-import { authenticateRequest } from "../functions/api/sandbox/_shared/auth.ts";
+import { PublicHttpError, fetchWithTimeout, safeErrorResponse } from "../functions/api/sandbox/_shared/http.ts";
+import { authenticateRequest, sandboxAccessDeniedError } from "../functions/api/sandbox/_shared/auth.ts";
 import { finalizeRun, startRun } from "../functions/api/sandbox/_shared/database.ts";
 import { executeRunner } from "../functions/api/sandbox/_shared/runner.ts";
 import { parseSandboxRunRequest } from "../functions/api/sandbox/_shared/schema.ts";
@@ -173,7 +173,30 @@ try {
   anonymousRejected = error instanceof PublicHttpError && error.status === 401 && error.code === "authentication_required";
 }
 assert(anonymousRejected, "An anonymous request must fail before any Supabase or runner call.");
-assert((await handleSandboxRun(request(), env, dependencies({ authenticate: async () => { throw new PublicHttpError(401, "authentication_invalid"); } }))).status === 401, "Invalid Supabase tokens must fail closed.");
+const invalidAuthenticationResponse = await handleSandboxRun(request(), env, dependencies({ authenticate: async () => { throw new PublicHttpError(401, "authentication_invalid"); } }));
+assert(invalidAuthenticationResponse.status === 401 && (await invalidAuthenticationResponse.json()).error === "authentication_invalid", "Invalid Supabase tokens must retain the safe authentication-invalid reason.");
+for (const [databaseReason, publicCode, status] of [
+  ["authentication_required", "authentication_required", 401],
+  ["profile_required", "profile_required", 403],
+  ["account_disabled", "account_inactive", 403],
+  ["unexpected_private_reason", "sandbox_not_authorized", 403]
+]) {
+  const error = sandboxAccessDeniedError(databaseReason);
+  const response = safeErrorResponse(error);
+  assert(response.status === status && (await response.json()).error === publicCode, `${databaseReason} must map to the stable safe ${publicCode} response.`);
+
+  let runnerHealthCalls = 0;
+  const healthDenial = await handleSandboxHealth(
+    new Request(`${env.SANDBOX_PUBLIC_ORIGIN}/api/sandbox/health`, { headers: { authorization: "Bearer verified-user-jwt" } }),
+    env,
+    {
+      authenticate: async () => { throw sandboxAccessDeniedError(databaseReason); },
+      health: async () => { runnerHealthCalls += 1; return true; }
+    }
+  );
+  assert(healthDenial.status === status && (await healthDenial.json()).error === publicCode, `Health must preserve ${publicCode}.`);
+  assert(runnerHealthCalls === 0, `${publicCode} must stop before Cloudflare Access or runner health.`);
+}
 let untrustedSupabaseOriginRejected = false;
 try {
   await authenticateRequest(new Request(`${env.SANDBOX_PUBLIC_ORIGIN}/api/sandbox/health`, { headers: { authorization: "Bearer synthetic-user-token" } }), { ...env, SUPABASE_URL: "https://attacker.example" });
@@ -198,7 +221,8 @@ for (const privilegedKey of [
   }
   assert(privilegedPublishableKeyRejected, "The sandbox proxy must reject privileged Supabase key forms before creating a client.");
 }
-assert((await handleSandboxRun(request(), env, dependencies({ resolveSource: async () => { throw new PublicHttpError(403, "source_unauthorized"); } }))).status === 403, "Unauthorized sources must fail closed.");
+const unauthorizedSourceResponse = await handleSandboxRun(request(), env, dependencies({ resolveSource: async () => { throw new PublicHttpError(403, "source_file_unauthorized"); } }));
+assert(unauthorizedSourceResponse.status === 403 && (await unauthorizedSourceResponse.json()).error === "source_unauthorized", "Unauthorized sources must retain one sanitized source reason.");
 const quotaResponse = await handleSandboxRun(request(), env, dependencies({ reserve: async () => ({ accepted: false, idempotentReplay: false, runId: null, status: null, leaseExpiresAt: null, reason: "quota_exceeded", retryAfter: 3600, result: null }) }));
 assert(quotaResponse.status === 429 && quotaResponse.headers.get("retry-after") === "3600", "Quota rejection must return 429 and Retry-After.");
 
@@ -377,6 +401,10 @@ const healthRequest = new Request(`${env.SANDBOX_PUBLIC_ORIGIN}/api/sandbox/heal
 const healthResponse = await handleSandboxHealth(healthRequest, env, { authenticate: async () => auth, health: async () => true });
 assert(healthResponse.status === 200 && healthResponse.headers.get("cache-control") === "no-store", "Authenticated health should return only non-cacheable sanitized availability.");
 assert((await handleSandboxHealth(healthRequest, env, { authenticate: async () => { throw new PublicHttpError(401, "authentication_invalid"); }, health: async () => true })).status === 401, "Anonymous or invalid-token health checks must fail closed.");
+const unavailableHealthResponse = await handleSandboxHealth(healthRequest, env, { authenticate: async () => auth, health: async () => false });
+assert(unavailableHealthResponse.status === 503 && (await unavailableHealthResponse.json()).error === "runner_unavailable", "Eligible health must distinguish an unavailable runner from account denial.");
+const internalHealthResponse = await handleSandboxHealth(healthRequest, env, { authenticate: async () => { throw new Error("private stack detail"); }, health: async () => true });
+assert(internalHealthResponse.status === 500 && (await internalHealthResponse.json()).error === "internal_failure", "Unknown exceptions must become a sanitized genuine internal failure.");
 
 const creditSummaryFixture = {
   available: true,

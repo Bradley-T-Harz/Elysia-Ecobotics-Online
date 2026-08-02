@@ -38,7 +38,7 @@ for (const [name, version] of Object.entries({
   assert(lock.packages[`node_modules/${name}`]?.version === version, `${name} lockfile resolution drifted.`);
 }
 assert(packageJson.devDependencies["@cloudflare/workers-types"] === "4.20260623.1", "Cloudflare runtime types must be pinned.");
-for (const requiredScript of ["test:sandbox-access", "test:sandbox-finalizer", "sandbox:finalizer:check"]) {
+for (const requiredScript of ["test:sandbox-access", "test:sandbox-finalizer", "test:sandbox-eligibility", "test:sandbox-production-gate", "sandbox:finalizer:check", "sandbox:production-gate"]) {
   assert(typeof packageJson.scripts[requiredScript] === "string", `Missing ${requiredScript} repository verification command.`);
 }
 
@@ -81,6 +81,8 @@ const fileChecks = [
   "scripts/sandboxAccessSmokeTest.mjs",
   "scripts/sandboxFinalizerTokenSmokeTest.mjs",
   "scripts/sandboxFinalizerTokenTool.mjs",
+  "scripts/sandboxProductionReleaseGate.mjs",
+  "scripts/sandboxProductionReleaseGateTest.mjs",
   "scripts/verifySandboxRelease.mjs",
   "supabase/migrations/20260714030000_sandbox_proxy_access_and_reservation.sql"
 ];
@@ -213,6 +215,33 @@ assert(
     && deploymentGuide.includes("Preview must retain `SANDBOX_ENABLED=false`")
     && deploymentGuide.includes('HTTP 503 with `{"ok":false,"error":"sandbox_disabled"}` is reserved for a deliberate emergency or maintenance shutdown'),
   "The deployment contract must preserve the enabled production sandbox, keep preview disabled, and forbid stale-baseline control-plane changes."
+);
+const productionGate = await read("scripts/sandboxProductionReleaseGate.mjs");
+assert(
+  productionGate.includes("profileless_health_contract_failed")
+    && productionGate.includes("eligible_health_contract_failed")
+    && productionGate.includes("bounded_run_finalization_not_recorded")
+    && productionGate.includes("idempotent_replay_contract_failed")
+    && productionGate.includes("release_gate_requires_online_main_alignment")
+    && productionGate.includes('exactKeys(envVars, [...ordinaryVariables.keys(), ...secretVariables], "production_variable")')
+    && productionGate.includes('for (const name of secretVariables) assert(!(name in previewVars)'),
+  "The production release gate must verify profile-less denial, eligible health, a finalized idempotent run, source alignment, and exact Pages control-plane state."
+);
+assert(
+  productionGate.includes("CLOUDFLARE_API_TOKEN_FILE")
+    && productionGate.includes("ELYSIA_SANDBOX_PROFILELESS_TOKEN_FILE")
+    && productionGate.includes("ELYSIA_SANDBOX_ELIGIBLE_TOKEN_FILE")
+    && productionGate.includes("must_be_owner_only")
+    && !productionGate.includes("process.argv[2]"),
+  "Production acceptance credentials must be read only from owner-only files outside Git, never argv."
+);
+assert(
+  deploymentGuide.includes("Mandatory post-deployment production release gate")
+    && deploymentGuide.includes("a governed signed-in profile-less fixture returns `profile_required`")
+    && deploymentGuide.includes("an eligible profile-backed fixture receives sanitized availability")
+    && deploymentGuide.includes("one small Python `manual_snapshot` run returns a UUID run ID")
+    && deploymentGuide.includes("there is no bypass or magic account"),
+  "The runbook must require real profile-less, eligible, and bounded execution proof after routine releases."
 );
 const legalPages = await read("src/pages/Legal/legalPolicyPages.ts");
 const communePage = await read("src/pages/The-Elysia-Commune/index.tsx");

@@ -33,7 +33,9 @@ The Pages proxy accepts only the canonical HTTPS `*.supabase.co` project origin 
 
 The runner requires two independent request boundaries: its constant-time bearer service-token check and a verified `Cf-Access-Jwt-Assertion`. It validates RS256, exact Access team issuer, exact application audience, time claims, and a signing key retrieved only from the configured team-domain `/cdn-cgi/access/certs` endpoint. Missing, malformed, expired, not-yet-valid, wrong-issuer, wrong-audience, unknown-key, or unverifiable assertions fail closed. The Pages Function supplies `CF-Access-Client-Id` and `CF-Access-Client-Secret` only to Access; these values are never runner configuration and are never returned to the browser.
 
-`GET /health` on Pages requires a valid Supabase session and returns only `available`/`unavailable` when enabled. `GET /health` on the runner is private and may expose bounded engine/image readiness only to the authenticated proxy/operator path. `POST /v1/runs` is the runner's only mutation route. Every other runner path or method is rejected; browser `Origin` requests are rejected.
+`GET /health` on Pages requires a valid Supabase session and consults `current_user_sandbox_access()` before contacting the runner. Its public contract is deliberately small: `authentication_required`, `authentication_invalid`, `profile_required`, `account_inactive`, `sandbox_not_authorized`, `sandbox_disabled`, `sandbox_service_unavailable`, `runner_unavailable`, or sanitized `available`. A signed-in account without its established Commons Profile is intentionally denied with `profile_required`; the browser must present that prerequisite and the canonical `/commons-circle/setup/profile` action rather than claiming an internal failure. `source_unauthorized` and `origin_denied` remain request-specific run errors. UUIDs, user/profile content, credentials, internal paths, and stack details never enter these error envelopes.
+
+`GET /health` on the runner is private and may expose bounded engine/image readiness only to the authenticated proxy/operator path. `POST /v1/runs` is the runner's only mutation route. Every other runner path or method is rejected; browser `Origin` requests are rejected.
 
 ## Fixed execution policy
 
@@ -56,6 +58,8 @@ npm run test:sandbox-runner
 npm run test:sandbox-access
 npm run test:sandbox-finalizer
 npm run test:sandbox-proxy
+npm run test:sandbox-eligibility
+npm run test:sandbox-production-gate
 npm run test:sandbox-deployment
 npm run test:sandbox-integration
 npm run test:sandbox-database
@@ -258,6 +262,20 @@ systemctl status cloudflared
 ```
 
 For a new environment, only after every proof passes should the operator initialize the narrow finalizer credential, set both runner switches and the production Pages switch true, restart the user runner service, and deploy the production Pages binding change. Disconnect the administrator client, wait, then verify an authenticated health request and bounded run from an independent client. For the already activated production environment, repeat the authenticated health and bounded-run checks after releases while preserving the existing enabled state. Do not replay the initial activation procedure or rotate credentials during a routine application release.
+
+### Mandatory post-deployment production release gate
+
+`npm run sandbox:production-gate` is the canonical routine-release gate. It fails unless the tree is clean, `HEAD` equals `online/main`, the canonical Pages deployment is a clean successful `main` deployment of that exact commit, production has the exact reviewed variable/secret/service-binding names and types, `SANDBOX_ENABLED=true`, and preview has neither enabled execution nor production sandbox secrets. Its Cloudflare project request is read-only; the tool never changes a Pages setting.
+
+The gate then proves four distinct server paths: anonymous health returns `authentication_required`; a governed signed-in profile-less fixture returns `profile_required` without reaching the runner; an eligible profile-backed fixture receives sanitized availability; and one small Python `manual_snapshot` run returns a UUID run ID, reaches `completed` plus `recordingStatus=recorded`, returns bounded output, and replays idempotently without a second execution. A successful runner result is returned only after the container removal check and temporary job removal path have completed; post-run authenticated health must also remain available. This complements, but does not replace, the direct rootless-Podman no-orphan inspection above.
+
+No credential is accepted in argv or a checked-in file. Immediately before the gate, an operator creates three temporary regular files outside the repository with mode `0600`, owned by the current account, containing respectively a read-only Cloudflare Pages API token, a short-lived profile-less Supabase access token, and a short-lived eligible profile-backed Supabase access token. Provide only their absolute paths through these environment names:
+
+- `CLOUDFLARE_API_TOKEN_FILE`
+- `ELYSIA_SANDBOX_PROFILELESS_TOKEN_FILE`
+- `ELYSIA_SANDBOX_ELIGIBLE_TOKEN_FILE`
+
+Provide the non-secret account identifier through `CLOUDFLARE_ACCOUNT_ID`. Run `npm run sandbox:production-gate`, retain only its safe commit/deployment/run identifiers in the release record, then remove the three temporary credential files. Never paste credential contents into chat, a command argument, shell history, logs, documentation, or a report. The two acceptance accounts must be distinct and must continue through ordinary Auth, profile, account-lifecycle, quota, reservation, Access, finalizer, and runner controls; there is no bypass or magic account.
 
 ## 11. Rollback and kill switches
 
