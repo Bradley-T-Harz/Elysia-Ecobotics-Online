@@ -75,6 +75,15 @@ function snippetVersion(version) {
   };
 }
 
+function plainTextSnippet() {
+  return {
+    ...snippetVersion(1),
+    language: "text",
+    file_name: "published-v1.txt",
+    code_text: "Never share .env files, API keys, tokens, passwords, secrets, or vault data.\nThis text remains inert.\n"
+  };
+}
+
 function base64Url(value) {
   return Buffer.from(JSON.stringify(value)).toString("base64url");
 }
@@ -215,7 +224,11 @@ async function installNetworkFixtures(context, networkState) {
     networkState.sandboxRequests.push(body);
     if (networkState.nextSandboxError) {
       await route.fulfill({
-        status: networkState.nextSandboxError === "internal_failure" ? 500 : 403,
+        status: networkState.nextSandboxError === "internal_failure"
+          ? 500
+          : networkState.nextSandboxError === "language_invalid"
+            ? 400
+            : 403,
         headers: { "Cache-Control": "no-store", "Content-Type": "application/json" },
         body: JSON.stringify({ ok: false, error: networkState.nextSandboxError })
       });
@@ -286,9 +299,9 @@ async function installNetworkFixtures(context, networkState) {
   });
 }
 
-async function loadWorkbench(browser, browserName, viewport, comprehensive) {
+async function loadWorkbench(browser, browserName, viewport, comprehensive, scenario = "supported") {
   currentPost = publicPost();
-  currentSnippet = snippetVersion(1);
+  currentSnippet = scenario === "plain-text" ? plainTextSnippet() : snippetVersion(1);
   const context = await browser.newContext({ viewport });
   const networkState = {
     sandboxRequests: [],
@@ -322,7 +335,7 @@ async function loadWorkbench(browser, browserName, viewport, comprehensive) {
   const leftEditor = left.locator(".cm-content");
   const rightEditor = right.locator(".cm-content");
   const leftInitial = await leftEditor.textContent();
-  assert.match(leftInitial ?? "", /published-v1/);
+  assert.match(leftInitial ?? "", scenario === "plain-text" ? /This text remains inert/ : /published-v1/);
   assert.equal(await left.getByRole("button", { name: "Run current published snapshot in sandbox" }).count(), 1);
   assert.equal(await right.getByRole("button", { name: "Reset draft to published snapshot" }).count(), 1);
   assert.equal(await right.getByRole("button", { name: "Run proposed revision in sandbox" }).count(), 1);
@@ -333,6 +346,39 @@ async function loadWorkbench(browser, browserName, viewport, comprehensive) {
   const horizontalOverflow = await workspace.evaluate((element) => element.scrollWidth > element.clientWidth + 2);
   assert.equal(horizontalOverflow, false, `${browserName} ${viewport.width}px workbench should not overflow horizontally.`);
   assert.equal(pageErrors.length, 0, `${browserName} should have no page errors: ${pageErrors.join(" | ")}`);
+
+  if (scenario === "plain-text") {
+    const unsupportedMessage = "Sandbox execution is unavailable for Plain text. The text may still be reviewed and scanned safely, but it is not an executable language.";
+    const leftRunButton = left.getByRole("button", { name: "Run current published snapshot in sandbox" });
+    const rightRunButton = right.getByRole("button", { name: "Run proposed revision in sandbox" });
+    assert.equal(await workspace.getByText(unsupportedMessage, { exact: true }).count(), 2, "Both snapshots must explain why Plain text is not executable.");
+    assert.equal(await workspace.getByText("Static diagnostics only", { exact: true }).count(), 2, "Plain text must retain local static diagnostics.");
+    assert((await workspace.getByText("Plain text: Displayed and scanned as inert text.", { exact: true }).count()) >= 2, "Both snapshots must retain the inert Plain-text local policy diagnostic.");
+    assert((await workspace.getByText("WARNING · secret scan warning", { exact: true }).count()) >= 2, "Both Plain-text snapshots must retain secret scanning.");
+    assert.equal(await leftRunButton.isDisabled(), true);
+    assert.equal(await rightRunButton.isDisabled(), true);
+    const requestsBeforeForcedClicks = networkState.sandboxRequests.length;
+    await leftRunButton.evaluate((button) => button.click());
+    await rightRunButton.evaluate((button) => button.click());
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(networkState.sandboxRequests.length, requestsBeforeForcedClicks, "Disabled Plain-text controls must emit no /api/sandbox/run request.");
+
+    const language = right.getByLabel("Language");
+    const filename = right.getByLabel("Filename");
+    const summary = right.getByLabel("Change summary");
+    assert.equal(await language.inputValue(), "text");
+    assert.equal(await filename.inputValue(), "published-v1.txt");
+    await summary.fill("Review an inert text revision");
+    await setEditorText(page, rightEditor, "Revised inert text for review.\n");
+    assert.equal(await leftEditor.textContent(), leftInitial, "Editing a Plain-text proposal must not mutate the published snapshot.");
+    assert.equal(await right.getByRole("button", { name: "Submit proposed revision" }).isEnabled(), true, "Plain text must remain proposal-compatible.");
+    assert.equal(networkState.sandboxRequests.length, requestsBeforeForcedClicks, "Editing a Plain-text proposal must not contact the sandbox.");
+    assert.equal(await workspace.getByText("sandbox internal failure", { exact: false }).count(), 0);
+    const violations = await page.evaluate(() => window.__elysiaCspViolations ?? []);
+    assert.deepEqual(violations, [], "Plain-text workbench interactions should not violate CSP.");
+    await context.close();
+    return;
+  }
 
   if (!comprehensive) {
     const violations = await page.evaluate(() => window.__elysiaCspViolations ?? []);
@@ -382,6 +428,18 @@ async function loadWorkbench(browser, browserName, viewport, comprehensive) {
   networkState.nextSandboxError = null;
   await right.getByRole("button", { name: "Refresh sandbox eligibility" }).click();
   await right.getByText("Sandbox available", { exact: true }).waitFor();
+
+  const requestsBeforeLanguageRejection = networkState.sandboxRequests.length;
+  networkState.nextSandboxError = "language_invalid";
+  await rightRunButton.click();
+  await right.getByText("Sandbox execution is unavailable because this snapshot language is not supported for execution.", { exact: true }).first().waitFor();
+  assert.equal(await right.getByText("Sandbox execution is unavailable because this snapshot language is not supported for execution.", { exact: true }).count(), 2, "The safe run result and diagnostic must both describe the language rejection truthfully.");
+  assert.equal(networkState.sandboxRequests.length, requestsBeforeLanguageRejection + 1, "The language_invalid fixture must exercise the server error parser.");
+  assert.equal(await right.getByText("sandbox internal failure", { exact: false }).count(), 0, "language_invalid must not be mislabeled as an internal failure.");
+  assert.equal(await right.getByText("The governed sandbox is temporarily unavailable.", { exact: true }).count(), 0, "language_invalid must not be mislabeled as a service outage.");
+  assert.equal(await right.getByText("no run id", { exact: true }).count(), 1, "A language rejection must not invent a run ID.");
+  assert.equal(await right.getByText("Sandbox available", { exact: true }).count(), 1, "A snapshot-language rejection must not erase account/service availability.");
+  networkState.nextSandboxError = null;
   const deniedRunRequestCount = networkState.sandboxRequests.length;
 
   const language = right.getByLabel("Language");
@@ -487,6 +545,7 @@ let activeBrowser;
 try {
   activeBrowser = await chromium.launch({ headless: true });
   await loadWorkbench(activeBrowser, "Chromium", { width: 1440, height: 1000 }, true);
+  await loadWorkbench(activeBrowser, "Chromium Plain text", { width: 1440, height: 1000 }, false, "plain-text");
   await loadWorkbench(activeBrowser, "Chromium mobile", { width: 390, height: 844 }, false);
   await activeBrowser.close();
   activeBrowser = null;
@@ -510,7 +569,7 @@ try {
   } else {
     console.warn(`Firefox visual check skipped because ${firefoxExecutable} is unavailable.`);
   }
-  console.log("Coding Workbench production-build browser regression passed for five-field immutability, reset, sandbox input separation, failed submission, stale-version protection, publication truth, CSP, Chromium, mobile width, installed Brave when available, and Firefox when available.");
+  console.log("Coding Workbench production-build browser regression passed for five-field immutability, reset, sandbox input separation, Plain-text no-request enforcement, truthful language errors, failed submission, stale-version protection, publication truth, CSP, Chromium, mobile width, installed Brave when available, and Firefox when available.");
 } finally {
   if (activeBrowser) await activeBrowser.close();
   await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

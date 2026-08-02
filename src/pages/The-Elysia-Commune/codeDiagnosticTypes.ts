@@ -72,7 +72,7 @@ export type SandboxRunResult = {
   outputTruncated?: boolean;
   recordingStatus?: "recorded" | "failed";
   idempotentReplay?: boolean;
-  errorCode?: import("./sandboxEligibilityClient").SandboxPublicErrorCode;
+  errorCode?: import("./sandboxRunErrors").SandboxRunPublicErrorCode;
   diagnostics: CodingDiagnostic[];
   message: string;
 };

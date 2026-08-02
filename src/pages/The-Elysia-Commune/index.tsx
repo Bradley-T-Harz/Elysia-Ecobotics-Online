@@ -163,7 +163,7 @@ import {
   type SandboxHandoffExport
 } from "./communeSandboxHandoffApi";
 import { type SandboxRequestInput, type SandboxRequestRecord } from "../../shared/sandbox/sandboxHandoffTypes";
-import { codingLanguageOptions, codingLanguageStatusLabel, getCodingLanguagePolicy, normalizeCodingLanguage } from "./codeLanguagePolicies";
+import { codingLanguageOptions, codingLanguageStatusLabel, getCodingLanguagePolicy, getSandboxExecutionLanguageCompatibility, normalizeCodingLanguage } from "./codeLanguagePolicies";
 import { runStaticCodingDiagnostics, type CodingDiagnostic, type SandboxRunResult } from "./codeDiagnosticTypes";
 import { requestSandboxRun, sandboxEndpointState, type SandboxSourceType } from "./codingSandboxClient";
 import { loadSandboxCreditSummary, sandboxCreditClientMessage, type SandboxCreditSourceCategory, type SandboxCreditSummary } from "./sandboxCreditsClient";
@@ -616,7 +616,8 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
 }) {
   const { accessToken } = useAuth();
   const normalizedLanguage = normalizeCodingLanguage(language);
-  const policy = getCodingLanguagePolicy(normalizedLanguage);
+  const executionCompatibility = getSandboxExecutionLanguageCompatibility(normalizedLanguage);
+  const policy = executionCompatibility.policy;
   const endpoint = sandboxEndpointState();
   const staticDiagnostics = useMemo(() => runStaticCodingDiagnostics({ language: normalizedLanguage, fileName, code }), [normalizedLanguage, fileName, code]);
   const [result, setResult] = useState<SandboxRunResult | null>(null);
@@ -665,31 +666,30 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
   }, [snapshotId, sourceType, sourceId, normalizedLanguage, fileName, code]);
   const hasSnapshot = Boolean(snapshotId.trim());
   const hasCode = Boolean(code.trim());
-  const policyEligible = policy.status === "active_sandbox" || policy.status === "static_diagnostics";
   const disabledReason = !signedIn || !accessToken
     ? "Sign in to request and record governed sandbox diagnostics."
     : !hasSnapshot
         ? "Create or choose an explicit snapshot before running."
         : !hasCode
           ? "Add code before requesting sandbox diagnostics."
-          : !policyEligible
-            ? `${policy.label} is not executable in V1. Static review remains available; shell and native-code policies stay disabled/future until hardened.`
+          : !executionCompatibility.executable
+            ? executionCompatibility.message ?? "This snapshot language is unavailable for sandbox execution."
             : !eligibility.available
               ? eligibility.message
               : "";
   const canRun = !disabledReason;
 
   async function runSnapshot() {
-    if (!canRun) return;
+    if (!executionCompatibility.executable || !executionCompatibility.requestLanguage || !canRun) return;
     setRunning(true);
     setRunState("preparing_snapshot");
     setRecordMessage("");
     try {
       setRunState("running");
-      const runResult = await requestSandboxRun({ snapshotId, sourceType, sourceId, language: normalizedLanguage, fileName, code }, accessToken);
+      const runResult = await requestSandboxRun({ snapshotId, sourceType, sourceId, language: executionCompatibility.requestLanguage, fileName, code }, accessToken);
       setResult(runResult);
       setRunState(runResult.status);
-      if (runResult.errorCode && [
+      if (runResult.errorCode && runResult.errorCode !== "sandbox_language_unsupported" && [
         "authentication_required",
         "authentication_invalid",
         "profile_required",
@@ -786,10 +786,11 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
       <p className="small-note">Credits never enable network access, secrets, package installation, host files, private Elysia context, approval, or trust. Free, sponsored, waived, recurring, purchased, and service-provided access use the same execution safety policy.</p>
     </section>}
     <DiagnosticsList diagnostics={staticDiagnostics} />
+    {!executionCompatibility.executable && executionCompatibility.message && <p className="boundary-note">{executionCompatibility.message}</p>}
     <div className="button-row">
       <button type="button" disabled={!canRun || running} onClick={() => void runSnapshot()}>{running ? "Running in sandbox..." : runLabel}</button>
     </div>
-    {disabledReason && disabledReason !== eligibility.message && <p className="boundary-note">{disabledReason}</p>}
+    {disabledReason && disabledReason !== eligibility.message && disabledReason !== executionCompatibility.message && <p className="boundary-note">{disabledReason}</p>}
     {recordMessage && <p className="boundary-note">{recordMessage}</p>}
     {result && <article className="coding-run-result">
       <div className="addon-card__topline"><strong>{result.status.replace(/_/g, " ")}</strong><span>{result.runId ?? "no run id"}</span></div>

@@ -1,10 +1,6 @@
 import { type CodingDiagnostic, type SandboxRunResult } from "./codeDiagnosticTypes";
-import { getCodingLanguagePolicy, normalizeCodingLanguage } from "./codeLanguagePolicies";
-import {
-  parseSandboxPublicErrorCode,
-  sandboxRunErrorMessage,
-  type SandboxPublicErrorCode
-} from "./sandboxEligibilityClient";
+import { getSandboxExecutionLanguageCompatibility, normalizeCodingLanguage } from "./codeLanguagePolicies";
+import { parseSandboxRunPublicErrorCode, sandboxRunPublicErrorMessage, type SandboxRunPublicErrorCode } from "./sandboxRunErrors";
 
 export type SandboxSourceType =
   | "commune_post_snippet"
@@ -96,7 +92,7 @@ function failedResult(
   status: SandboxRunResult["status"],
   message: string,
   category: CodingDiagnostic["category"] = "sandbox_internal_failure",
-  errorCode?: SandboxPublicErrorCode
+  errorCode?: SandboxRunPublicErrorCode
 ): SandboxRunResult {
   const language = normalizeCodingLanguage(request.language);
   return {
@@ -111,14 +107,17 @@ function failedResult(
   };
 }
 
-function resultForPublicError(request: SandboxRunRequest, code: SandboxPublicErrorCode): SandboxRunResult {
-  const unavailable = new Set<SandboxPublicErrorCode>(["sandbox_disabled", "sandbox_service_unavailable", "runner_unavailable"]);
-  const status: SandboxRunResult["status"] = unavailable.has(code)
+function resultForPublicError(request: SandboxRunRequest, code: SandboxRunPublicErrorCode): SandboxRunResult {
+  const unavailable = new Set<SandboxRunPublicErrorCode>(["sandbox_disabled", "sandbox_service_unavailable", "runner_unavailable"]);
+  const status: SandboxRunResult["status"] = code === "sandbox_language_unsupported"
+    ? "policy_blocked"
+    : unavailable.has(code)
     ? "sandbox_unavailable"
     : code === "internal_failure"
       ? "failed"
       : "denied";
-  return failedResult(request, status, sandboxRunErrorMessage(code), code, code);
+  const category: CodingDiagnostic["category"] = code === "sandbox_language_unsupported" ? "unsupported_language" : code;
+  return failedResult(request, status, sandboxRunPublicErrorMessage(code), category, code);
 }
 
 function isSandboxRunResult(value: unknown): value is SandboxRunResult {
@@ -136,13 +135,23 @@ function isSandboxRunResult(value: unknown): value is SandboxRunResult {
     && result.diagnostics.every((item) => item && typeof item === "object" && typeof item.message === "string" && utf8Bytes(item.message) <= 1_000);
 }
 
-export async function requestSandboxRun(request: SandboxRunRequest, accessToken: string | null): Promise<SandboxRunResult> {
-  const language = normalizeCodingLanguage(request.language);
-  const policy = getCodingLanguagePolicy(language);
+export async function requestSandboxRun(
+  request: SandboxRunRequest,
+  accessToken: string | null,
+  fetcher: typeof fetch = fetch
+): Promise<SandboxRunResult> {
+  const compatibility = getSandboxExecutionLanguageCompatibility(request.language);
   if (!accessToken) return failedResult(request, "denied", "Sign in again before requesting governed sandbox execution.");
-  if (policy.status !== "active_sandbox" && policy.status !== "static_diagnostics") {
-    return failedResult(request, "policy_blocked", `${policy.label} is not enabled for this sandbox policy.`, "unsupported_language");
+  if (!compatibility.executable || !compatibility.requestLanguage) {
+    return failedResult(
+      request,
+      "policy_blocked",
+      compatibility.message ?? "This snapshot language is not enabled for governed sandbox execution.",
+      "unsupported_language",
+      "sandbox_language_unsupported"
+    );
   }
+  const language = compatibility.requestLanguage;
 
   const clientRequestId = request.clientRequestId ?? crypto.randomUUID();
   const body = JSON.stringify({
@@ -158,9 +167,9 @@ export async function requestSandboxRun(request: SandboxRunRequest, accessToken:
   for (let attempt = 0; attempt < 2; attempt += 1) {
     let response: Response;
     const controller = new AbortController();
-    const timeout = window.setTimeout(() => controller.abort(), 12_000);
+    const timeout = globalThis.setTimeout(() => controller.abort(), 12_000);
     try {
-      response = await fetch("/api/sandbox/run", {
+      response = await fetcher("/api/sandbox/run", {
         method: "POST",
         headers: {
           "authorization": `Bearer ${accessToken}`,
@@ -175,14 +184,14 @@ export async function requestSandboxRun(request: SandboxRunRequest, accessToken:
       if (attempt === 0) continue;
       return failedResult(request, "sandbox_unavailable", "The governed sandbox proxy is temporarily unreachable.");
     } finally {
-      window.clearTimeout(timeout);
+      globalThis.clearTimeout(timeout);
     }
 
     const responseText = await readBoundedResponseText(response);
     const payload = responseText !== null ? (() => { try { return JSON.parse(responseText) as unknown; } catch { return null; } })() : null;
     if (response.ok && isSandboxRunResult(payload)) return payload;
     if (attempt === 0 && [502, 504].includes(response.status)) continue;
-    const safeError = parseSandboxPublicErrorCode(payload);
+    const safeError = parseSandboxRunPublicErrorCode(payload);
     if (safeError) return resultForPublicError(request, safeError);
     if (response.status === 401) return resultForPublicError(request, "authentication_invalid");
     if (response.status === 403) return resultForPublicError(request, "sandbox_not_authorized");

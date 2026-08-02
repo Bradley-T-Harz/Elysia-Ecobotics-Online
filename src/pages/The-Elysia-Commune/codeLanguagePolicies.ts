@@ -1,4 +1,5 @@
 export type CodingLanguageStatus = "active_sandbox" | "static_diagnostics" | "future" | "disabled";
+export type SandboxExecutionMode = "container" | "static";
 
 export type CodingLanguagePolicy = {
   id: string;
@@ -6,6 +7,7 @@ export type CodingLanguagePolicy = {
   extensions: string[];
   status: CodingLanguageStatus;
   sandboxRuntime?: "node" | "python" | "static";
+  sandboxExecutionMode?: SandboxExecutionMode;
   summary: string;
   risk: string;
 };
@@ -17,6 +19,7 @@ export const codingLanguagePolicies: CodingLanguagePolicy[] = [
     extensions: [".js", ".mjs", ".cjs"],
     status: "active_sandbox",
     sandboxRuntime: "node",
+    sandboxExecutionMode: "container",
     summary: "Runs only through the configured container sandbox with network disabled.",
     risk: "Dependency installs, child processes, and network access remain blocked by policy."
   },
@@ -26,6 +29,7 @@ export const codingLanguagePolicies: CodingLanguagePolicy[] = [
     extensions: [".ts", ".tsx"],
     status: "active_sandbox",
     sandboxRuntime: "node",
+    sandboxExecutionMode: "container",
     summary: "Runs through the sandbox using the Node TypeScript strip-types runtime where available.",
     risk: "Full project builds and npm installs are not enabled from public snippets."
   },
@@ -35,6 +39,7 @@ export const codingLanguagePolicies: CodingLanguagePolicy[] = [
     extensions: [".py"],
     status: "active_sandbox",
     sandboxRuntime: "python",
+    sandboxExecutionMode: "container",
     summary: "Runs only through the configured container sandbox with network disabled.",
     risk: "pip installs, local file access, and private environment access remain blocked by policy."
   },
@@ -44,6 +49,7 @@ export const codingLanguagePolicies: CodingLanguagePolicy[] = [
     extensions: [".json"],
     status: "static_diagnostics",
     sandboxRuntime: "static",
+    sandboxExecutionMode: "static",
     summary: "Validated statically; no execution is needed.",
     risk: "Schema validation is future and must not imply trust."
   },
@@ -53,6 +59,7 @@ export const codingLanguagePolicies: CodingLanguagePolicy[] = [
     extensions: [".yaml", ".yml"],
     status: "static_diagnostics",
     sandboxRuntime: "static",
+    sandboxExecutionMode: "static",
     summary: "Parsed statically for syntax diagnostics.",
     risk: "YAML content is not applied to any system."
   },
@@ -62,6 +69,7 @@ export const codingLanguagePolicies: CodingLanguagePolicy[] = [
     extensions: [".md", ".markdown"],
     status: "static_diagnostics",
     sandboxRuntime: "static",
+    sandboxExecutionMode: "static",
     summary: "Checked statically for public-safety and formatting signals.",
     risk: "Links and code fences are public text, not approval."
   },
@@ -71,6 +79,7 @@ export const codingLanguagePolicies: CodingLanguagePolicy[] = [
     extensions: [".html", ".htm"],
     status: "static_diagnostics",
     sandboxRuntime: "static",
+    sandboxExecutionMode: "static",
     summary: "Checked statically; no browser execution or live preview is performed.",
     risk: "Script/event-handler content is flagged and never run by the Commune page."
   },
@@ -80,6 +89,7 @@ export const codingLanguagePolicies: CodingLanguagePolicy[] = [
     extensions: [".css"],
     status: "static_diagnostics",
     sandboxRuntime: "static",
+    sandboxExecutionMode: "static",
     summary: "Checked statically for simple syntax and unsafe reference signals.",
     risk: "CSS is displayed as text and not injected into the page."
   },
@@ -161,6 +171,51 @@ export function normalizeCodingLanguage(language?: string | null) {
 export function getCodingLanguagePolicy(language?: string | null) {
   const normalized = normalizeCodingLanguage(language);
   return codingLanguagePolicies.find((policy) => policy.id === normalized) ?? codingLanguagePolicies.find((policy) => policy.id === "text")!;
+}
+
+export type SandboxExecutionLanguageCompatibility = {
+  normalizedLanguage: string;
+  policy: CodingLanguagePolicy;
+  knownLanguage: boolean;
+  executable: boolean;
+  requestLanguage: string | null;
+  mode: SandboxExecutionMode | null;
+  message: string | null;
+};
+
+export function getSandboxExecutionLanguageCompatibility(language?: string | null): SandboxExecutionLanguageCompatibility {
+  const normalizedLanguage = normalizeCodingLanguage(language);
+  const matchedPolicy = codingLanguagePolicies.find((policy) => policy.id === normalizedLanguage);
+  const policy = matchedPolicy ?? codingLanguagePolicies.find((item) => item.id === "text")!;
+  const mode = matchedPolicy?.sandboxExecutionMode ?? null;
+
+  if (mode) {
+    return {
+      normalizedLanguage,
+      policy,
+      knownLanguage: true,
+      executable: true,
+      requestLanguage: policy.id,
+      mode,
+      message: null
+    };
+  }
+
+  const message = matchedPolicy?.id === "text"
+    ? "Sandbox execution is unavailable for Plain text. The text may still be reviewed and scanned safely, but it is not an executable language."
+    : matchedPolicy
+      ? `Sandbox execution is unavailable for ${matchedPolicy.label}. The content may still be reviewed and scanned safely, but it is not an executable language.`
+      : "Sandbox execution is unavailable because this snapshot uses an unsupported language. The content may still be reviewed and scanned safely, but it is not executable.";
+
+  return {
+    normalizedLanguage,
+    policy,
+    knownLanguage: Boolean(matchedPolicy),
+    executable: false,
+    requestLanguage: null,
+    mode: null,
+    message
+  };
 }
 
 export function codingLanguageOptions() {
