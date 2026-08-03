@@ -27,6 +27,22 @@ export type AccountHomebaseCounts = {
   requests: AccountRequestCounts;
 };
 
+export type AccountSavedShelvesCounts = {
+  signedIn: boolean;
+  supabaseConfigured: boolean;
+  warnings: string[];
+  savedItems: number;
+  followedThreads: number;
+  total: number;
+  byKind: {
+    addons: number;
+    livingSources: number;
+    citations: number;
+    collections: number;
+    communeItems: number;
+  };
+};
+
 export type InboxView = "attention" | "messages" | "completed" | "archived" | "all";
 
 export type InboxItem = {
@@ -542,6 +558,60 @@ export async function loadAccountHomebaseCounts(): Promise<AccountHomebaseCounts
     warnings,
     events: eventResult.error ? emptyEventCounts : normalizeEventCounts(eventResult.data),
     requests: requestResult.error ? emptyRequestCounts : normalizeRequestCounts(requestResult.data),
+  };
+}
+
+export async function loadAccountSavedShelvesCounts(): Promise<AccountSavedShelvesCounts> {
+  const empty = {
+    savedItems: 0,
+    followedThreads: 0,
+    total: 0,
+    byKind: { addons: 0, livingSources: 0, citations: 0, collections: 0, communeItems: 0 },
+  };
+  if (!hasSupabaseConfig || !supabase) return {
+    signedIn: false,
+    supabaseConfigured: false,
+    warnings: [supabaseNotConfiguredMessage],
+    ...empty,
+  };
+  const client = supabase;
+  const userId = await currentUserId();
+  if (!userId) return { signedIn: false, supabaseConfigured: true, warnings: [], ...empty };
+
+  const tables = [
+    ["addons", "user_saved_addons"],
+    ["livingSources", "user_saved_living_sources"],
+    ["citations", "user_saved_citations"],
+    ["collections", "user_source_collections"],
+    ["communeItems", "user_saved_commune_posts"],
+    ["followedThreads", "user_followed_commune_threads"],
+  ] as const;
+  const results = await Promise.all(tables.map(async ([kind, table]) => {
+    const result = await client.from(table).select("user_id", { count: "exact", head: true }).eq("user_id", userId);
+    return { kind, count: result.count ?? 0, error: result.error };
+  }));
+  const warnings = results.some((result) => result.error) ? [accountRpcWarning("Saved Shelves counts")] : [];
+  if (import.meta.env.DEV) results.forEach((result) => {
+    if (result.error) console.warn(`[Account communications] ${result.kind} count`, result.error.message);
+  });
+  const count = (kind: typeof tables[number][0]) => results.find((result) => result.kind === kind)?.count ?? 0;
+  const byKind = {
+    addons: count("addons"),
+    livingSources: count("livingSources"),
+    citations: count("citations"),
+    collections: count("collections"),
+    communeItems: count("communeItems"),
+  };
+  const savedItems = Object.values(byKind).reduce((sum, value) => sum + value, 0);
+  const followedThreads = count("followedThreads");
+  return {
+    signedIn: true,
+    supabaseConfigured: true,
+    warnings,
+    savedItems,
+    followedThreads,
+    total: savedItems + followedThreads,
+    byKind,
   };
 }
 

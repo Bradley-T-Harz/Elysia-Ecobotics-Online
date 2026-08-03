@@ -53,6 +53,8 @@ const publicProfile = await read("src/pages/Public-Commons-Profile/index.tsx");
 const commune = await read("src/pages/The-Elysia-Commune/index.tsx");
 const communeAccountApi = await read("src/pages/The-Elysia-Commune/communeAccountApi.ts");
 const signalConsole = await read("src/pages/The-Commons-Circle/SignalConsolePage.tsx");
+const signalDetails = await read("src/pages/The-Commons-Circle/SignalDetailPage.tsx");
+const notificationsPage = await read("src/pages/The-Commons-Circle/NotificationsPage.tsx");
 const communityVotePolicyDoc = await read("docs/commune/community-voting-room-policy.md");
 const communityVoteBoundaryDoc = await read("docs/security/community-voting-room-boundary.md");
 const communityVoteContractDoc = await read("docs/api/community-vote-contract.md");
@@ -701,7 +703,7 @@ assert(
   "Website Account form must preserve standard autofill, FormData submission, recovery, and the current password minimum without stale React-state gating."
 );
 assert(safeInternalActionPath.includes('value.startsWith("//")') && safeInternalActionPath.includes("parsed.origin"), "Database-backed notification actions must be constrained to safe internal paths.");
-assert(signalConsole.includes("Support & Billing") && signalConsole.includes("safeInternalActionPath"), "Signal Console must categorize economic notices and constrain their actions.");
+assert(notificationsPage.includes("Marketplace & Economic") && notificationsPage.includes("safeInternalActionPath"), "Notifications must categorize economic notices and constrain their actions after the Signals split.");
 assert(commons.includes('to="/commons-circle/support-billing"') && commons.includes("Private economic account room"), "Commons Circle must expose the private Support & Billing room without changing membership.");
 assert(archive.includes("No public installer exists yet"), "Archive must not imply a public installer exists.");
 assert(archive.includes("unofficial mirror") || archive.includes("unofficial mirrors"), "Archive unofficial mirror warning missing.");
@@ -726,7 +728,7 @@ assert(commune.includes("They do not automatically change site policy") && commu
 assert(commune.includes("Anonymous visitors can view Community Voting Room votes") && commune.includes("Signed-in members can cast one ballot") && commune.includes("Admins control lifecycle and outcomes"), "Community Voting Room should explain anonymous, member, and admin roles.");
 assert(commune.includes("Delete/remove this Commune content?") && commune.includes("This removes the item from public views") && commune.includes("Archive</button>"), "Commune copy should keep Admin Moderation Delete separate from Community Voting Room lifecycle Archive controls.");
 assert(communeAccountApi.includes("Database cleanup failed because the deployed cleanup function references an unavailable column. Apply the latest cleanup migration."), "Commune admin deletion should provide safe actionable copy for deployed cleanup-column drift.");
-assert(signalConsole.includes("Community Voting Room activity") && signalConsole.includes("Community Voting Room attention") && signalConsole.includes("Official Update remains separate"), "Signal Console should include Community Voting Room category/copy.");
+assert(signalConsole.includes("/commons-circle/signals/voting-room") && signalDetails.includes("Voting stewardship snapshot") && signalDetails.includes("separate from Official Updates"), "Focused Signals routes should include Community Voting Room category and authority-boundary copy.");
 assert(communityVotePolicyDoc.includes("advisory governance feature") && communityVotePolicyDoc.includes("Anonymous visitors cannot vote") && communityVotePolicyDoc.includes("Official Update remains separate"), "Community Voting Room policy doc missing purpose/anonymous/Official Update boundary.");
 assert(communityVoteBoundaryDoc.includes("Authenticated members can read their own ballot") && communityVoteBoundaryDoc.includes("aggregate counts only") && communityVoteBoundaryDoc.includes("does not automatically create Official Updates"), "Community Voting Room boundary doc missing ballot privacy/result/Official Update boundary.");
 assert(communityVoteContractDoc.includes("commune_vote_posts") && communityVoteContractDoc.includes("castCommunityVoteBallot") && communityVoteContractDoc.includes("Voting Room signals remain separate from Official Update signals"), "Community Vote API contract doc missing table/helper/signal separation contract.");

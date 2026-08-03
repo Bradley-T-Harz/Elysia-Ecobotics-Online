@@ -182,15 +182,21 @@ await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
 const address = server.address();
 assert(address && typeof address !== "string");
 const origin = `http://127.0.0.1:${address.port}`;
+const screenshotDir = process.env.ELYSIA_ACCOUNT_COMMUNICATIONS_SCREENSHOT_DIR || "";
+if (screenshotDir) await fs.mkdir(screenshotDir, { recursive: true });
 
 const browser = await chromium.launch({ headless: true });
 try {
   for (const scenario of [
-    { path: "/commons-circle/inbox", width: 1280, heading: "Inbox" },
-    { path: "/commons-circle/inbox", width: 390, heading: "Inbox" },
-    { path: "/commons-circle/notifications", width: 1280, heading: "Notifications" },
-    { path: "/commons-circle/notifications", width: 390, heading: "Notifications" },
-    { path: "/commons-circle/requests-reviews", width: 1280, heading: "Requests & Reviews" },
+    { path: "/commons-circle/inbox", width: 1280, heading: "Inbox", kind: "inbox" },
+    { path: "/commons-circle/inbox", width: 390, heading: "Inbox", kind: "inbox" },
+    { path: "/commons-circle/notifications", width: 1280, heading: "Notifications", kind: "notifications" },
+    { path: "/commons-circle/notifications", width: 390, heading: "Notifications", kind: "notifications" },
+    { path: "/commons-circle/requests-reviews", width: 1280, heading: "Requests & Reviews", kind: "requests" },
+    { path: "/commons-circle/signals?legacy-bookmark=preserved", width: 1280, heading: "Signals", kind: "signals" },
+    { path: "/commons-circle/signals", width: 390, heading: "Signals", kind: "signals" },
+    { path: "/commons-circle/signals", width: 1280, heading: "Signals", kind: "signals-admin", admin: true },
+    { path: "/commons-circle/signals/coding-proposals", width: 1280, heading: "Coding proposal signals", kind: "signal-detail" },
   ]) {
     const context = await browser.newContext({ viewport: { width: scenario.width, height: 900 } });
     await context.addInitScript(({ storageKey, session }) => {
@@ -211,6 +217,8 @@ try {
       };
       if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers, body: "" });
       if (url.pathname.endsWith("/auth/v1/user")) return route.fulfill({ status: 200, headers, body: JSON.stringify(fixtureUser) });
+      if (url.pathname.endsWith("/rest/v1/user_roles")) return route.fulfill({ status: 200, headers, body: JSON.stringify(scenario.admin ? [{ role: "administrator" }] : []) });
+      if (url.pathname.endsWith("/rest/v1/profiles") && scenario.admin) return route.fulfill({ status: 200, headers, body: JSON.stringify({ is_admin: true }) });
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_event_counts")) return route.fulfill({ status: 200, headers, body: JSON.stringify({ inboxNeedsAttention: 1, inboxUnread: 1, messagesUnread: 0, notificationsUnread: 2 }) });
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_request_counts")) return route.fulfill({ status: 200, headers, body: JSON.stringify({ total: 1, pending: 1, byDomain: { code_proposals: { total: 1, pending: 1 } } }) });
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_inbox_items")) return route.fulfill({ status: 200, headers, body: JSON.stringify(inboxPayload) });
@@ -238,8 +246,9 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2), false, `${scenario.path} must not overflow at ${scenario.width}px.`);
     assert.deepEqual(await page.evaluate(() => window.__elysiaCspViolations ?? []), [], `${scenario.path} must not violate CSP.`);
     assert.deepEqual(pageErrors, [], `${scenario.path} should have no page errors.`);
-    if (scenario.path.endsWith("/inbox")) {
+    if (scenario.kind === "inbox") {
       await page.getByRole("tab", { name: /Needs attention/ }).waitFor();
+      await page.getByRole("button", { name: "Start a private conversation" }).waitFor();
       await page.getByText("A revision proposal is ready for review", { exact: true }).waitFor();
       assert.equal(await page.getByRole("link", { name: "Review Proposal" }).getAttribute("href"), `/commune/coding-cornucopia/review?proposal=${proposalId}`);
       await page.getByRole("tab", { name: "Messages" }).click();
@@ -248,16 +257,35 @@ try {
       await page.getByText("SYNTHETIC_BROWSER_PRIVATE_MESSAGE", { exact: true }).waitFor();
       assert.equal(await page.getByText(conversationId, { exact: false }).count(), 0, "Raw conversation identifiers must not render as ordinary UI text.");
       await page.getByText("Messages are stored in Supabase and are not end-to-end encrypted.", { exact: false }).waitFor();
-    } else if (scenario.path.endsWith("/notifications")) {
+    } else if (scenario.kind === "notifications") {
       await page.getByRole("tab", { name: "Unread (2)" }).waitFor();
       await page.getByText("Your revision proposal was accepted", { exact: true }).waitFor();
       await page.getByText("Fixture Author", { exact: false }).waitFor();
       await page.getByText("Choose optional in-app and email delivery", { exact: true }).waitFor();
       assert.equal(await page.getByText(notificationId, { exact: false }).count(), 0, "Raw notification identifiers must not render as ordinary UI text.");
-    } else {
+    } else if (scenario.kind === "requests") {
       await page.getByText("Revision proposal for “Fixture code post”", { exact: true }).waitFor();
       await page.getByText("Pending / needs action", { exact: true }).waitFor();
+    } else if (scenario.kind === "signals" || scenario.kind === "signals-admin") {
+      await page.getByRole("heading", { name: "Inbox & Private Messages", exact: true }).waitFor();
+      await page.getByRole("heading", { name: "Notifications", exact: true }).waitFor();
+      await page.getByRole("heading", { name: "My Requests & Reviews", exact: true }).waitFor();
+      const codingCategory = page.locator("summary").filter({ hasText: "Coding & Technical" });
+      await codingCategory.focus();
+      assert.equal(await codingCategory.evaluate((element) => document.activeElement === element), true, "Signal categories must be keyboard focusable.");
+      await codingCategory.press("Enter");
+      assert.equal(await codingCategory.locator("xpath=..").getAttribute("open"), "", "Signal categories must expand from the keyboard.");
+      assert.equal(await page.getByRole("link", { name: "Coding proposals" }).getAttribute("href"), "/commons-circle/signals/coding-proposals");
+      assert.equal(await page.getByRole("heading", { name: "Signals that need review", exact: true }).count(), 0, "Signals hub must not render the old monolithic queue.");
+      assert.equal(await page.getByRole("link", { name: "Open Review Center", exact: true }).count(), scenario.admin ? 1 : 0, "Review Center visibility must follow established role truth.");
+      if (scenario.path.includes("legacy-bookmark")) assert.match(page.url(), /legacy-bookmark=preserved/, "Signals compatibility route must preserve query strings.");
+    } else {
+      await page.getByRole("link", { name: "Back to Signals", exact: true }).waitFor();
+      await page.getByRole("heading", { name: "Proposals awaiting your decision", exact: true }).waitFor();
+      assert.equal(await page.getByText("Reviewer follow-up", { exact: true }).count(), 0, "Ordinary users must not see specialist reviewer lanes.");
     }
+    if (screenshotDir && scenario.kind === "signals") await page.screenshot({ path: path.join(screenshotDir, `signals-hub-${scenario.width}.png`), fullPage: true });
+    if (screenshotDir && scenario.kind === "signal-detail") await page.screenshot({ path: path.join(screenshotDir, "signals-coding-proposals-1280.png"), fullPage: true });
     await context.close();
   }
 } finally {

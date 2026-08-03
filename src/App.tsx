@@ -35,6 +35,7 @@ const AdminCommunicationsPage = lazy(() => import("./pages/The-Commons-Circle/Ad
 const CommonsCircleSetupPage = lazy(() => import("./pages/The-Commons-Circle/CommonsCircleSetupPage"));
 const SavedShelvesPage = lazy(() => import("./pages/The-Commons-Circle/SavedShelvesPage"));
 const SignalConsolePage = lazy(() => import("./pages/The-Commons-Circle/SignalConsolePage"));
+const SignalDetailPage = lazy(() => import("./pages/The-Commons-Circle/SignalDetailPage"));
 const InboxPage = lazy(() => import("./pages/The-Commons-Circle/InboxPage"));
 const NotificationsPage = lazy(() => import("./pages/The-Commons-Circle/NotificationsPage"));
 const RequestsReviewsPage = lazy(() => import("./pages/The-Commons-Circle/RequestsReviewsPage"));
@@ -153,6 +154,17 @@ export default function App() {
             <Route path="commons-circle/notifications" element={<NotificationsPage />} />
             <Route path="commons-circle/requests-reviews" element={<RequestsReviewsPage />} />
             <Route path="commons-circle/signals" element={<SignalConsolePage />} />
+            <Route path="commons-circle/signals/coding-proposals" element={<SignalDetailPage section="coding-proposals" />} />
+            <Route path="commons-circle/signals/troubleshooting" element={<SignalDetailPage section="troubleshooting" />} />
+            <Route path="commons-circle/signals/research-notes" element={<SignalDetailPage section="research-notes" />} />
+            <Route path="commons-circle/signals/repository-showcases" element={<SignalDetailPage section="repository-showcases" />} />
+            <Route path="commons-circle/signals/iteration-showcases" element={<SignalDetailPage section="iteration-showcases" />} />
+            <Route path="commons-circle/signals/job-posts" element={<SignalDetailPage section="job-posts" />} />
+            <Route path="commons-circle/signals/voting-room" element={<SignalDetailPage section="voting-room" />} />
+            <Route path="commons-circle/signals/official-updates" element={<SignalDetailPage section="official-updates" />} />
+            <Route path="commons-circle/signals/sandbox-reviews" element={<SignalDetailPage section="sandbox-reviews" />} />
+            <Route path="commons-circle/signals/work-with" element={<SignalDetailPage section="work-with" />} />
+            <Route path="commons-circle/signals/marketplace-forge" element={<SignalDetailPage section="marketplace-forge" />} />
             <Route path="commons-circle/support-billing" element={<SupportBillingPage />} />
             <Route path="commons-circle/onboarding" element={<Navigate to="/commons-circle/setup/profile" replace />} />
             <Route path="commons-circle/setup/:step" element={<CommonsCircleSetupPage />} />

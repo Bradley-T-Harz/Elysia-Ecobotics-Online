@@ -4,7 +4,7 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-const [app, homebase, api, commonsApi, inbox, notifications, messaging, adminCommunications, adminConsole, requests, signals, migration, messagingMigration, messagingFixture, styles] = await Promise.all([
+const [app, homebase, api, commonsApi, inbox, notifications, messaging, adminCommunications, adminConsole, requests, signals, signalDetails, migration, messagingMigration, messagingFixture, styles] = await Promise.all([
   fs.readFile("src/App.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/index.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/accountCommunicationsApi.ts", "utf8"),
@@ -16,13 +16,14 @@ const [app, homebase, api, commonsApi, inbox, notifications, messaging, adminCom
   fs.readFile("src/pages/The-Commons-Circle/CommonsCircleAdminConsolePage.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/RequestsReviewsPage.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/SignalConsolePage.tsx", "utf8"),
+  fs.readFile("src/pages/The-Commons-Circle/SignalDetailPage.tsx", "utf8"),
   fs.readFile("supabase/migrations/20260802040000_account_requests_and_reviews_projection.sql", "utf8"),
   fs.readFile("supabase/migrations/20260802050000_governed_account_conversations.sql", "utf8"),
   fs.readFile("scripts/fixtures/accountMessagingBehavior.sql", "utf8"),
   fs.readFile("src/styles.css", "utf8"),
 ]);
 
-for (const route of ["commons-circle/inbox", "commons-circle/notifications", "commons-circle/requests-reviews", "commons-circle/admin-communications", "commons-circle/signals"]) {
+for (const route of ["commons-circle/inbox", "commons-circle/notifications", "commons-circle/requests-reviews", "commons-circle/admin-communications", "commons-circle/signals", "commons-circle/signals/coding-proposals", "commons-circle/signals/troubleshooting", "commons-circle/signals/research-notes", "commons-circle/signals/repository-showcases", "commons-circle/signals/iteration-showcases", "commons-circle/signals/job-posts", "commons-circle/signals/voting-room", "commons-circle/signals/official-updates", "commons-circle/signals/sandbox-reviews", "commons-circle/signals/work-with", "commons-circle/signals/marketplace-forge"]) {
   assert(app.includes(`path="${route}"`), `Missing account communications route: ${route}`);
 }
 
@@ -74,12 +75,16 @@ assert(adminCommunications.includes("confirmationPhrase") && adminCommunications
 assert(adminConsole.includes("canOpenPrivateCommunications") && !adminConsole.includes('role === "reviewer" || role === "moderator"'), "Generic reviewers must not inherit private-message tooling.");
 assert(requests.includes("Your submissions only") && requests.includes("excludes moderator, administrator"), "Requests & Reviews must explicitly exclude specialist queues.");
 assert(requests.includes("current") || api.includes("current_user_requests_and_reviews"), "Requests & Reviews must use account-owned source projection.");
-assert(signals.includes("Compatibility migration map") && signals.includes("This compatibility route is not redirected yet"), "Signals must remain an explicit compatibility landing page during production reconciliation.");
+assert(signals.includes("Choose the room that matches your task") && signals.includes("This route remains compatible with existing bookmarks and query strings"), "Signals must be a compact compatibility hub during production reconciliation.");
 for (const destination of ["/commons-circle/inbox", "/commons-circle/notifications", "/commons-circle/requests-reviews"]) {
   assert(signals.includes(`to="${destination}"`), `Signals compatibility map omits ${destination}.`);
 }
-assert(signals.includes("data.canOpenReviewCenter &&") && signals.includes('to="/admin/review"'), "Signals must expose Review Center navigation only through established role truth.");
-assert((signals.match(/data\.canReviewCommune &&/g) ?? []).length >= 6, "Signals specialist sections must be hidden from ordinary accounts while their role-gated source queues remain intact.");
+assert(signals.includes("state.canOpenReviewCenter &&") && signals.includes('to="/admin/review"'), "Signals must expose Review Center navigation only through established role truth.");
+assert(signals.includes("Inbox &amp; Private Messages") && signals.includes("Start a private conversation"), "Signals must make the governed private Inbox unmistakable.");
+for (const category of ["Coding & Technical", "Research & Work", "Stewardship & Official"]) assert(signals.includes(category), `Signals hub omits ${category}.`);
+assert((signalDetails.match(/data\.canReviewCommune &&/g) ?? []).length >= 5, "Signals specialist lanes must remain hidden from ordinary accounts while their role-gated source snapshots remain intact.");
+assert(signalDetails.includes("Perform specialist decisions in") && signalDetails.includes("Review Center"), "Signal detail rooms must preserve Review Center as the specialist authority.");
+assert(signalDetails.includes("Proposal code and private explanation are not duplicated"), "Signal detail summaries must not duplicate private proposal content.");
 assert(commonsApi.includes("canReviewCommune") && commonsApi.includes("canOpenReviewCenter"), "Signal loader must return explicit reviewer navigation truth.");
 
 for (const label of ["Inbox", "Notifications", "Requests &amp; Reviews", "Saved Shelves"]) {
@@ -87,6 +92,7 @@ for (const label of ["Inbox", "Notifications", "Requests &amp; Reviews", "Saved 
 }
 assert(homebase.includes("Signals compatibility") && homebase.includes("existing author, reviewer, administrator"), "Signals compatibility and queue-preservation copy is missing.");
 assert(homebase.includes("loadAccountHomebaseCounts"), "Commons Homebase must use exact account count RPCs.");
+assert(homebase.includes("loadAccountSavedShelvesCounts") && api.includes('count: "exact"'), "Commons Homebase must use exact recipient-scoped Saved Shelves counts.");
 
 for (const marker of [
   "private.current_user_request_review_rows",

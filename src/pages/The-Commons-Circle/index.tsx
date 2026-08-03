@@ -20,7 +20,7 @@ import PublicProfilePublicationPanel from "../../shared/participation/PublicProf
 import { loadCurrentRoleState } from "../../shared/review/reviewClient";
 import type { AppRole } from "../../shared/review/reviewClient";
 import { CommonsCircleAdminEntryCard, userCanOpenCommonsAdminConsole } from "./CommonsCircleAdminConsolePage";
-import { loadAccountHomebaseCounts, type AccountHomebaseCounts } from "./accountCommunicationsApi";
+import { loadAccountHomebaseCounts, loadAccountSavedShelvesCounts, type AccountHomebaseCounts, type AccountSavedShelvesCounts } from "./accountCommunicationsApi";
 import {
   DEFAULT_COMMONS_BANNER_POSITION_X,
   DEFAULT_COMMONS_BANNER_POSITION_Y,
@@ -136,6 +136,7 @@ function polishedActionMessages(scope: string, warnings: string[], fallback: str
 export default function CommonsCirclePage() {
   const [homebase, setHomebase] = useState<CommonsHomebaseData | null>(null);
   const [accountCounts, setAccountCounts] = useState<AccountHomebaseCounts | null>(null);
+  const [savedShelvesCounts, setSavedShelvesCounts] = useState<AccountSavedShelvesCounts | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
   const [visibilityDraft, setVisibilityDraft] = useState<VisibilitySettings>(defaultVisibility);
   const [customizationDraft, setCustomizationDraft] = useState<ProfileCustomization>(defaultCustomization);
@@ -160,11 +161,12 @@ export default function CommonsCirclePage() {
 
   const refreshHomebase = useCallback(async (options?: { preserveCustomization?: ProfileCustomization }) => {
     refreshLocalCounts();
-    const [result, roles, counts] = await Promise.all([loadCommonsHomebase(), loadCurrentRoleState(), loadAccountHomebaseCounts()]);
+    const [result, roles, counts, shelvesCounts] = await Promise.all([loadCommonsHomebase(), loadCurrentRoleState(), loadAccountHomebaseCounts(), loadAccountSavedShelvesCounts()]);
     const localCustomization = readLocalStorage<ProfileCustomization | null>("commonsCircle.customizationDemo.v1", null);
     const customizationWarnings = result.warnings.some((warning) => /Profile customization|profile_customization/i.test(warning));
     setHomebase(result);
     setAccountCounts(counts);
+    setSavedShelvesCounts(shelvesCounts);
     setRoleState({ roles: roles.roles, isAdmin: roles.isAdmin, signedIn: roles.signedIn, warnings: roles.warnings });
     setVisibilityDraft(result.visibility);
     setSavedCustomization(result.customization);
@@ -173,6 +175,7 @@ export default function CommonsCirclePage() {
     logDiagnostics("homebase", result.warnings);
     logDiagnostics("role-state", roles.warnings);
     logDiagnostics("account-counts", counts.warnings);
+    logDiagnostics("saved-shelves-counts", shelvesCounts.warnings);
   }, [refreshLocalCounts]);
 
   useEffect(() => { void refreshHomebase(); }, [refreshHomebase]);
@@ -212,6 +215,7 @@ export default function CommonsCirclePage() {
   const inboxUnread = accountCounts?.events.inboxUnread ?? 0;
   const messagesUnread = accountCounts?.events.messagesUnread ?? 0;
   const pendingRequestCount = accountCounts?.requests.pending ?? 0;
+  const savedShelvesTotal = savedShelvesCounts?.total ?? 0;
   const codeProposalSignalCount = homebase?.notifications.filter((notice) => /code_revision|proposal/i.test(`${notice.notification_type ?? ""} ${notice.source_type ?? ""}`)).length ?? 0;
   const troubleshootingSignalCount = homebase?.notifications.filter((notice) => /troubleshooting|fix_proposed|resolution/i.test(`${notice.notification_type ?? ""} ${notice.source_type ?? ""}`)).length ?? 0;
   const homeStyle = commonsCustomizationStyle(savedCustomization);
@@ -435,7 +439,7 @@ export default function CommonsCirclePage() {
           <MiniFact label="Setup" value={profileSetupComplete ? "Complete" : "Needs setup"} />
           <MiniFact label="Inbox needs attention" value={inboxNeedsAttention} />
           <MiniFact label="Notifications unread" value={unreadCount} />
-          <MiniFact label="Saved shelves" value={(homebase?.savedAddons.length ?? 0) + (homebase?.savedLivingSources.length ?? 0) + (homebase?.sourceCollections.length ?? 0)} />
+          <MiniFact label="Saved shelf records" value={savedShelvesTotal} />
         </dl>
         <DecalStrip settings={savedCustomization} />
         <div className="button-row">
@@ -485,7 +489,7 @@ export default function CommonsCirclePage() {
         <article className="section-card commons-account-room-card">
           <p className="eyebrow">Saved Shelves</p>
           <h2>Your private saved archive</h2>
-          <dl className="mini-facts"><MiniFact label="Saved items" value={(homebase?.savedAddons.length ?? 0) + (homebase?.savedLivingSources.length ?? 0) + (homebase?.sourceCollections.length ?? 0)} /><MiniFact label="Followed threads" value={homebase?.followedThreads.length ?? 0} /></dl>
+          <dl className="mini-facts"><MiniFact label="Account-saved items" value={savedShelvesCounts?.savedItems ?? 0} /><MiniFact label="Followed threads" value={savedShelvesCounts?.followedThreads ?? 0} /></dl>
           <p>Saved references remain private by default and separate from requests, messages, and notifications.</p>
           <Link className="button-link button-link--primary" to="/commons-circle/saved-shelves">Open Saved Shelves</Link>
         </article>

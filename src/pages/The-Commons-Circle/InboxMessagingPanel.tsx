@@ -258,7 +258,7 @@ export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChang
     </details>}
 
     <div className="button-row">
-      <button type="button" onClick={() => { setComposeOpen((open) => !open); setSupportOpen(false); setSourceOpen(false); }} disabled={!preferences?.ordinaryMessagingEligible}>New conversation request</button>
+      <button className="button-primary" type="button" onClick={() => { setComposeOpen((open) => !open); setSupportOpen(false); setSourceOpen(false); }} disabled={!preferences?.ordinaryMessagingEligible}>Start a private conversation</button>
       <button type="button" onClick={() => { setSupportOpen((open) => !open); setComposeOpen(false); setSourceOpen(false); }}>Contact account support</button>
       {sourceContextValid && <button type="button" onClick={() => { setSourceOpen((open) => !open); setComposeOpen(false); setSupportOpen(false); }} disabled={!preferences?.ordinaryMessagingEligible}>Message proposal participant</button>}
       <button type="button" onClick={() => void refresh()} disabled={loading}>Refresh conversations</button>

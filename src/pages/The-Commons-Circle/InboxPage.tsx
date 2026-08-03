@@ -127,7 +127,7 @@ export default function InboxPage() {
 
   return <div className="page-stack commons-circle-page commons-account-communications-page">
     <PageHero eyebrow="Private account room" title="Inbox">
-      <p>Private requests that need your attention, kept separate from informational notifications and specialist review queues.</p>
+      <p>Private actions and governed account conversations, kept separate from informational notifications and specialist review queues.</p>
       <p>An Inbox item points to its authoritative source. Reading, archiving, or opening it never grants authority or changes the source workflow.</p>
     </PageHero>
 
@@ -160,7 +160,12 @@ export default function InboxPage() {
     {result?.signedIn && <section className="section-card">
       <div className="section-heading section-heading--inline">
         <div><p className="eyebrow">Private actions</p><h2>{result.counts.inboxNeedsAttention} items need attention</h2></div>
-        <button type="button" onClick={() => void refresh(false)} disabled={loading}>Refresh</button>
+        <div className="button-row"><button className="button-primary" type="button" onClick={() => {
+          setActiveTab("messages");
+          const next = new URLSearchParams(searchParams);
+          next.set("view", "messages");
+          setSearchParams(next, { replace: true });
+        }}>Start a private conversation</button><button type="button" onClick={() => void refresh(false)} disabled={loading}>Refresh</button></div>
       </div>
       <dl className="mini-facts">
         <div><dt>Needs attention</dt><dd>{result.counts.inboxNeedsAttention}</dd></div>
