@@ -277,12 +277,12 @@ function renderSection(section: SignalSectionKey, data: SignalConsoleData) {
   }
 
   if (section === "work-with") {
-    const links: Array<[string, string, boolean?]> = [["Open Work With private intake", "/work-with-elysia-ecobotics", true], ["Track my Work With requests", "/commons-circle/requests-reviews?domain=work_with"]];
+    const links: Array<[string, string, boolean?]> = [["Open Work With private intake", "/work-with-elysia-ecobotics", true], ["Track my Work With requests", "/commons-circle/signals/requests-reviews?domain=work_with"]];
     if (data.canOpenReviewCenter) links.push(["Open role-gated Review Center", "/admin/review/work-with"]);
     return <DestinationCard eyebrow="Private intake boundary" title="Work With remains authoritative" links={links}><p>Request bodies and files remain in the private Work With workflow. Requester status appears in Requests &amp; Reviews, requested account actions belong in Inbox, informational outcomes belong in Notifications, and staff work remains in Review Center.</p></DestinationCard>;
   }
 
-  const marketplaceLinks: Array<[string, string, boolean?]> = [["Open Developer Forge submissions", "/developer-forge/submissions", true], ["Open Marketplace account", "/marketplace/account"], ["Open Marketplace notifications", "/commons-circle/notifications?filter=marketplace"]];
+  const marketplaceLinks: Array<[string, string, boolean?]> = [["Open Developer Forge submissions", "/developer-forge/submissions", true], ["Open Marketplace account", "/marketplace/account"], ["Open Marketplace notifications", "/commons-circle/signals/notifications?filter=marketplace"]];
   if (data.canOpenReviewCenter) marketplaceLinks.push(["Open role-gated Marketplace review", "/admin/review/marketplace"]);
   return <DestinationCard eyebrow="Separate contracts preserved" title="Marketplace & Developer Forge outcomes" links={marketplaceLinks}><p>Forge validation, Marketplace review and publication, listings, purchases, licenses, payouts, and economic restrictions remain distinct. This signal room routes each task to its authoritative surface instead of flattening them into a generic request or notification.</p></DestinationCard>;
 }
@@ -311,7 +311,7 @@ export default function SignalDetailPage({ section }: { section: SignalSectionKe
 
     <section className="section-card signal-detail-navigation">
       <div className="section-heading section-heading--inline"><div><p className="eyebrow">Focused signal room</p><h2>{copy.title}</h2></div><Link className="button-link button-link--primary" to="/commons-circle/signals">Back to Signals</Link></div>
-      <div className="button-row"><Link className="button-link" to="/commons-circle/inbox">Inbox &amp; Private Messages</Link><Link className="button-link" to="/commons-circle/notifications">Notifications</Link><Link className="button-link" to="/commons-circle/requests-reviews">Requests &amp; Reviews</Link>{data?.canOpenReviewCenter && <Link className="button-link" to="/admin/review">Review Center</Link>}</div>
+      <div className="button-row"><Link className="button-link" to="/commons-circle/signals/inbox">Inbox &amp; Private Messages</Link><Link className="button-link" to="/commons-circle/signals/notifications">Notifications</Link><Link className="button-link" to="/commons-circle/signals/requests-reviews">Requests &amp; Reviews</Link>{data?.canOpenReviewCenter && <Link className="button-link" to="/admin/review">Review Center</Link>}</div>
     </section>
 
     <section className="section-card">

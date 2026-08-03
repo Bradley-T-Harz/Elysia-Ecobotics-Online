@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
 import { structurallyEqual, useCoordinatedRefresh } from "../../shared/hooks/useCoordinatedRefresh";
@@ -38,6 +38,7 @@ function formatTime(value: string) {
 }
 
 export default function RequestsReviewsPage() {
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedDomain = searchParams.get("domain") ?? "all";
   const domain = validDomains.has(requestedDomain as typeof domains[number]["key"]) ? requestedDomain : "all";
@@ -107,7 +108,7 @@ export default function RequestsReviewsPage() {
     <section className="section-card">
       <div className="section-heading section-heading--inline">
         <div><p className="eyebrow">Website Account</p><h2>Source-workflow access</h2></div>
-        <Link className="button-link" to="/commons-circle">Back to Commons Circle</Link>
+        <Link className="button-link" to="/commons-circle/signals">Back to Signals</Link>
       </div>
       <AuthPanel
         onMessage={(message) => setMessages((current) => [message, ...current].slice(0, 6))}
@@ -117,7 +118,7 @@ export default function RequestsReviewsPage() {
           title: result?.signedIn ? "Requests & Reviews active" : "Sign in to view your submissions",
           description: "Only source workflows owned or submitted by the signed-in Website Account appear here.",
           signedOutText: "No active website session.",
-          confirmationPath: "/commons-circle/requests-reviews",
+          confirmationPath: `${location.pathname}${location.search}`,
           confirmationCopy: "If email confirmation is enabled, open the confirmation link to return to Requests & Reviews.",
         }}
       />

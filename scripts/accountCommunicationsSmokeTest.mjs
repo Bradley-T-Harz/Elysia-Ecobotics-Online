@@ -25,8 +25,16 @@ const [app, authPanel, refreshController, homebase, api, commonsApi, inbox, noti
   fs.readFile("src/styles.css", "utf8"),
 ]);
 
-for (const route of ["commons-circle/inbox", "commons-circle/notifications", "commons-circle/requests-reviews", "commons-circle/admin-communications", "commons-circle/signals", "commons-circle/signals/coding-proposals", "commons-circle/signals/troubleshooting", "commons-circle/signals/research-notes", "commons-circle/signals/repository-showcases", "commons-circle/signals/iteration-showcases", "commons-circle/signals/job-posts", "commons-circle/signals/voting-room", "commons-circle/signals/official-updates", "commons-circle/signals/sandbox-reviews", "commons-circle/signals/work-with", "commons-circle/signals/marketplace-forge"]) {
+for (const route of ["commons-circle/inbox", "commons-circle/notifications", "commons-circle/requests-reviews", "commons-circle/admin-communications", "commons-circle/signals", "commons-circle/signals/inbox", "commons-circle/signals/notifications", "commons-circle/signals/requests-reviews", "commons-circle/signals/coding-proposals", "commons-circle/signals/troubleshooting", "commons-circle/signals/research-notes", "commons-circle/signals/repository-showcases", "commons-circle/signals/iteration-showcases", "commons-circle/signals/job-posts", "commons-circle/signals/voting-room", "commons-circle/signals/official-updates", "commons-circle/signals/sandbox-reviews", "commons-circle/signals/work-with", "commons-circle/signals/marketplace-forge"]) {
   assert(app.includes(`path="${route}"`), `Missing account communications route: ${route}`);
+}
+assert(app.includes("function LegacyCommunicationAlias") && app.includes("state={location.state}") && app.includes("search: location.search") && app.includes("hash: location.hash"), "Legacy communication aliases must preserve safe state, query strings, and hash fragments.");
+for (const [legacy, canonical] of [
+  ["commons-circle/inbox", "/commons-circle/signals/inbox"],
+  ["commons-circle/notifications", "/commons-circle/signals/notifications"],
+  ["commons-circle/requests-reviews", "/commons-circle/signals/requests-reviews"],
+]) {
+  assert(app.includes(`path="${legacy}" element={<LegacyCommunicationAlias target="${canonical}" />}`), `${legacy} must be a redirect-only compatibility route.`);
 }
 
 for (const rpc of [
@@ -88,10 +96,12 @@ assert(requests.includes("Your submissions only") && requests.includes("excludes
 assert(requests.includes("useCoordinatedRefresh") && requests.includes("60_000"), "Requests & Reviews must use the shared bounded refresh controller.");
 assert(requests.includes("current") || api.includes("current_user_requests_and_reviews"), "Requests & Reviews must use account-owned source projection.");
 assert(signals.includes("Choose the room that matches your task") && signals.includes("This route remains compatible with existing bookmarks and query strings"), "Signals must be a compact compatibility hub during production reconciliation.");
-for (const destination of ["/commons-circle/inbox", "/commons-circle/notifications", "/commons-circle/requests-reviews"]) {
+for (const destination of ["/commons-circle/signals/inbox", "/commons-circle/signals/notifications", "/commons-circle/signals/requests-reviews"]) {
   assert(signals.includes(`to="${destination}"`), `Signals compatibility map omits ${destination}.`);
 }
+assert(signals.includes("state.isAdmin &&") && signals.includes('to="/commons-circle/admin-console"'), "Signals must expose Admin Console navigation only to administrators.");
 assert(signals.includes("state.canOpenReviewCenter &&") && signals.includes('to="/admin/review"'), "Signals must expose Review Center navigation only through established role truth.");
+assert(signals.includes("Local requests and recognition") && signals.includes("pending_admin_review_local"), "Signals must preserve browser-local request and recognition continuity without treating drafts as authoritative.");
 assert(signals.includes("Inbox &amp; Private Messages") && signals.includes("Start a private conversation"), "Signals must make the governed private Inbox unmistakable.");
 for (const category of ["Coding & Technical", "Research & Work", "Stewardship & Official"]) assert(signals.includes(category), `Signals hub omits ${category}.`);
 assert((signalDetails.match(/data\.canReviewCommune &&/g) ?? []).length >= 5, "Signals specialist lanes must remain hidden from ordinary accounts while their role-gated source snapshots remain intact.");
@@ -99,11 +109,13 @@ assert(signalDetails.includes("Perform specialist decisions in") && signalDetail
 assert(signalDetails.includes("Proposal code and private explanation are not duplicated"), "Signal detail summaries must not duplicate private proposal content.");
 assert(commonsApi.includes("canReviewCommune") && commonsApi.includes("canOpenReviewCenter"), "Signal loader must return explicit reviewer navigation truth.");
 
-for (const label of ["Inbox", "Notifications", "Requests &amp; Reviews", "Saved Shelves"]) {
-  assert(homebase.includes(label), `Commons Homebase omits ${label}.`);
-}
 assert(homebase.includes("Signals compatibility") && homebase.includes("existing author, reviewer, administrator"), "Signals compatibility and queue-preservation copy is missing.");
-assert(homebase.includes("loadAccountHomebaseCounts"), "Commons Homebase must use exact account count RPCs.");
+for (const removed of ["Private actions for you", "Updates and outcomes", "Your submitted workflows", "Browser-local drafts", "CommonsCircleAdminEntryCard", "Admin-only backend status", "loadAccountHomebaseCounts"]) {
+  assert(!homebase.includes(removed), `Commons Homebase still duplicates moved communication/admin content: ${removed}`);
+}
+assert((homebase.match(/Open Saved Shelves/g) ?? []).length === 1 && (homebase.match(/Your private saved archive/g) ?? []).length === 1, "Commons Homebase must render exactly one Saved Shelves card.");
+assert(!homebase.includes("homebase?.notifications.map") && !homebase.includes("markAllNotificationsRead"), "Commons Homebase compatibility card must not render or mutate the long legacy row list.");
+assert(!homebase.includes("Promise.all([loadCommonsHomebase()") && homebase.includes("useEffect(() => { void refreshSavedShelves();"), "Homebase profile/avatar and Saved Shelves count loaders must remain independent.");
 assert(homebase.includes("loadAccountSavedShelvesCounts") && api.includes('count: "exact"'), "Commons Homebase must use exact recipient-scoped Saved Shelves counts.");
 
 for (const marker of [

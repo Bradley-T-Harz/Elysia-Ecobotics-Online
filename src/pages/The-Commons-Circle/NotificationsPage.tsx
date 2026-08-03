@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
 import { structurallyEqual, useCoordinatedRefresh } from "../../shared/hooks/useCoordinatedRefresh";
@@ -63,6 +63,7 @@ function preferenceCategoryLabel(category: string) {
 }
 
 export default function NotificationsPage() {
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedFilter = searchParams.get("filter") ?? "all";
   const activeFilter: NotificationFilter = filterKeys.has(requestedFilter as NotificationFilter)
@@ -176,7 +177,7 @@ export default function NotificationsPage() {
     <section className="section-card">
       <div className="section-heading section-heading--inline">
         <div><p className="eyebrow">Website Account</p><h2>Notification access</h2></div>
-        <Link className="button-link" to="/commons-circle">Back to Commons Circle</Link>
+        <Link className="button-link" to="/commons-circle/signals">Back to Signals</Link>
       </div>
       <AuthPanel
         onMessage={(message) => setMessages((current) => [message, ...current].slice(0, 6))}
@@ -186,7 +187,7 @@ export default function NotificationsPage() {
           title: result?.signedIn ? "Private notifications active" : "Sign in to view private notifications",
           description: "Notifications belong to your Website Account and are not public Commons Profile fields.",
           signedOutText: "No active website session.",
-          confirmationPath: "/commons-circle/notifications",
+          confirmationPath: `${location.pathname}${location.search}`,
           confirmationCopy: "If email confirmation is enabled, open the confirmation link to return to Notifications.",
         }}
       />

@@ -15,12 +15,8 @@ import CommonsAvatarViewer from "../../shared/components/CommonsAvatarViewer";
 import CommonsProfileLayoutFrame from "../../shared/components/CommonsProfileLayoutFrame";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
-import { safeInternalActionPath } from "../../shared/navigation/safeInternalActionPath";
 import PublicProfilePublicationPanel from "../../shared/participation/PublicProfilePublicationPanel";
-import { loadCurrentRoleState } from "../../shared/review/reviewClient";
-import type { AppRole } from "../../shared/review/reviewClient";
-import { CommonsCircleAdminEntryCard, userCanOpenCommonsAdminConsole } from "./CommonsCircleAdminConsolePage";
-import { loadAccountHomebaseCounts, loadAccountSavedShelvesCounts, type AccountHomebaseCounts, type AccountSavedShelvesCounts } from "./accountCommunicationsApi";
+import { loadAccountSavedShelvesCounts, type AccountSavedShelvesCounts } from "./accountCommunicationsApi";
 import {
   DEFAULT_COMMONS_BANNER_POSITION_X,
   DEFAULT_COMMONS_BANNER_POSITION_Y,
@@ -35,8 +31,6 @@ import {
   defaultVisibility,
   freeMemberFallbackBadge,
   loadCommonsHomebase,
-  markAllNotificationsRead,
-  markNotificationRead,
   normalizeCommonsBannerPosition,
   normalizeCommonsBannerZoom,
   readLocalStorage,
@@ -50,8 +44,6 @@ import {
   writeLocalStorage
 } from "./commonsCircleApi";
 import type { CommonsHomebaseData, NotificationPreferences, ProfileCustomization, UserBadge, VisibilitySettings } from "./commonsCircleApi";
-
-type StewardshipDraft = { status?: "draft_local" | "pending_admin_review_local" };
 
 const membershipTiers = [
   { name: "Free Member", purpose: "Default free recognition for participation in the public website commons. No donation is required.", awarded: "Granted for new members after Commons onboarding is completed; existing legitimate awards are preserved.", status: "Free recognition", note: "No payment, authority, or private Elysia access." },
@@ -135,7 +127,6 @@ function polishedActionMessages(scope: string, warnings: string[], fallback: str
 
 export default function CommonsCirclePage() {
   const [homebase, setHomebase] = useState<CommonsHomebaseData | null>(null);
-  const [accountCounts, setAccountCounts] = useState<AccountHomebaseCounts | null>(null);
   const [savedShelvesCounts, setSavedShelvesCounts] = useState<AccountSavedShelvesCounts | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
   const [visibilityDraft, setVisibilityDraft] = useState<VisibilitySettings>(defaultVisibility);
@@ -144,41 +135,37 @@ export default function CommonsCirclePage() {
   const [mediaStatus, setMediaStatus] = useState<string | null>(null);
   const [notificationDraft, setNotificationDraft] = useState<NotificationPreferences>(defaultNotificationPreferences);
   const [syncChoice, setSyncChoice] = useState(() => readLocalStorage<{ choice?: string }>(commonsStorageKeys.syncChoice, {}));
-  const [verificationDrafts, setVerificationDrafts] = useState<StewardshipDraft[]>(() => readLocalStorage(commonsStorageKeys.stewardshipDrafts, []));
-  const [contributionRequests, setContributionRequests] = useState<unknown[]>(() => readLocalStorage(commonsStorageKeys.contributionRequests, []));
-  const [roleState, setRoleState] = useState<{ roles: AppRole[]; isAdmin: boolean; signedIn: boolean; warnings: string[] }>({ roles: [], isAdmin: false, signedIn: false, warnings: [] });
   const localMediaPreviewUrls = useRef<Record<"avatar" | "banner", string | null>>({ avatar: null, banner: null });
 
   const pushMessage = useCallback((message: string) => {
     if (message.trim()) setMessages((current) => [message, ...current].slice(0, 6));
   }, []);
 
-  const refreshLocalCounts = useCallback(() => {
-    setVerificationDrafts(readLocalStorage(commonsStorageKeys.stewardshipDrafts, []));
-    setContributionRequests(readLocalStorage(commonsStorageKeys.contributionRequests, []));
-    setSyncChoice(readLocalStorage(commonsStorageKeys.syncChoice, {}));
-  }, []);
-
   const refreshHomebase = useCallback(async (options?: { preserveCustomization?: ProfileCustomization }) => {
-    refreshLocalCounts();
-    const [result, roles, counts, shelvesCounts] = await Promise.all([loadCommonsHomebase(), loadCurrentRoleState(), loadAccountHomebaseCounts(), loadAccountSavedShelvesCounts()]);
+    const result = await loadCommonsHomebase();
     const localCustomization = readLocalStorage<ProfileCustomization | null>("commonsCircle.customizationDemo.v1", null);
     const customizationWarnings = result.warnings.some((warning) => /Profile customization|profile_customization/i.test(warning));
     setHomebase(result);
-    setAccountCounts(counts);
-    setSavedShelvesCounts(shelvesCounts);
-    setRoleState({ roles: roles.roles, isAdmin: roles.isAdmin, signedIn: roles.signedIn, warnings: roles.warnings });
     setVisibilityDraft(result.visibility);
     setSavedCustomization(result.customization);
     setCustomizationDraft(options?.preserveCustomization ?? (customizationWarnings && localCustomization ? { ...result.customization, ...localCustomization } : result.customization));
     setNotificationDraft(result.notificationPreferences);
     logDiagnostics("homebase", result.warnings);
-    logDiagnostics("role-state", roles.warnings);
-    logDiagnostics("account-counts", counts.warnings);
-    logDiagnostics("saved-shelves-counts", shelvesCounts.warnings);
-  }, [refreshLocalCounts]);
+  }, []);
+
+  const refreshSavedShelves = useCallback(async () => {
+    const counts = await loadAccountSavedShelvesCounts();
+    setSavedShelvesCounts(counts);
+    logDiagnostics("saved-shelves-counts", counts.warnings);
+  }, []);
+
+  const refreshSignedInHomebase = useCallback(async () => {
+    void refreshSavedShelves();
+    await refreshHomebase();
+  }, [refreshHomebase, refreshSavedShelves]);
 
   useEffect(() => { void refreshHomebase(); }, [refreshHomebase]);
+  useEffect(() => { void refreshSavedShelves(); }, [refreshSavedShelves]);
 
   useEffect(() => {
     return () => {
@@ -193,29 +180,23 @@ export default function CommonsCirclePage() {
     const channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("commons-circle-onboarding") : null;
     const onComplete = () => {
       void refreshHomebase();
+      void refreshSavedShelves();
       pushMessage("Commons Circle setup updated. Website Account, Commons Profile, and account shelves were refreshed.");
     };
     channel?.addEventListener("message", (event) => { if (event.data?.type === "commons-circle-onboarding-complete") onComplete(); });
     const onStorage = (event: StorageEvent) => {
-      const refreshKeys: string[] = [commonsStorageKeys.onboarding, commonsStorageKeys.stewardshipDrafts, commonsStorageKeys.contributionRequests];
+      const refreshKeys: string[] = [commonsStorageKeys.onboarding];
       if (event.key && refreshKeys.includes(event.key)) onComplete();
     };
     window.addEventListener("storage", onStorage);
     return () => { channel?.close(); window.removeEventListener("storage", onStorage); };
-  }, [pushMessage, refreshHomebase]);
+  }, [pushMessage, refreshHomebase, refreshSavedShelves]);
 
   const profile = homebase?.profile ?? null;
   const profileSetupComplete = Boolean(profile?.commons_onboarding_completed_at);
   const publicProfilePath = profile?.username ? `/commons-circle/@${encodeURIComponent(profile.username)}` : "/commons-circle/setup/profile";
-  const pendingRecognitionCount = verificationDrafts.filter((draft) => draft.status === "pending_admin_review_local").length;
   const localLivingCount = homebase?.localLiving.savedSourceIds.length ?? 0;
   const shouldPromptSync = Boolean(homebase?.signedIn && localLivingCount > 0 && syncChoice.choice !== "synced" && syncChoice.choice !== "keep_local");
-  const unreadCount = accountCounts?.events.notificationsUnread ?? 0;
-  const inboxNeedsAttention = accountCounts?.events.inboxNeedsAttention ?? 0;
-  const inboxUnread = accountCounts?.events.inboxUnread ?? 0;
-  const messagesUnread = accountCounts?.events.messagesUnread ?? 0;
-  const pendingRequestCount = accountCounts?.requests.pending ?? 0;
-  const savedShelvesTotal = savedShelvesCounts?.total ?? 0;
   const codeProposalSignalCount = homebase?.notifications.filter((notice) => /code_revision|proposal/i.test(`${notice.notification_type ?? ""} ${notice.source_type ?? ""}`)).length ?? 0;
   const troubleshootingSignalCount = homebase?.notifications.filter((notice) => /troubleshooting|fix_proposed|resolution/i.test(`${notice.notification_type ?? ""} ${notice.source_type ?? ""}`)).length ?? 0;
   const homeStyle = commonsCustomizationStyle(savedCustomization);
@@ -237,7 +218,6 @@ export default function CommonsCirclePage() {
   }, [homebase?.userBadges, profile?.commons_onboarding_completed_at]);
   const freeMemberRecognized = earnedBadges.some((badge) => badge.badge_key === "free_member");
   const membershipTierLabel = freeMemberRecognized ? "Free Member" : profile ? "Pending — finish Commons Profile setup" : "Pending — create Commons Profile";
-  const adminEntryAllowed = userCanOpenCommonsAdminConsole(homebase, roleState);
 
   async function saveVisibility() {
     if (!homebase?.signedIn) {
@@ -315,7 +295,7 @@ export default function CommonsCirclePage() {
     const visibleMessages = polishedActionMessages("living-library-sync", result.warnings, "Living Library account sync is not active yet. Your browser-local saves are still safe in this browser.");
     visibleMessages.forEach(pushMessage);
     pushMessage(visibleMessages.length ? `Living Library sync prepared ${result.synced} item changes before account storage stopped.` : `Synced ${result.synced} Living Library saved item changes to your Website Account.`);
-    await refreshHomebase();
+    await Promise.all([refreshHomebase(), refreshSavedShelves()]);
   }
 
   function revokeLocalPreview(mediaType: "avatar" | "banner") {
@@ -401,7 +381,7 @@ export default function CommonsCirclePage() {
           {homebase?.signedIn && <div className="boundary-note"><strong>Website Account active.</strong> This public Elysia Ecobotics Online account remains separate from the private local Elysia core. Do not use or reuse a local Elysia password here.</div>}
           <AuthPanel
             onMessage={pushMessage}
-            onAuthChanged={refreshHomebase}
+            onAuthChanged={refreshSignedInHomebase}
             copy={{
               eyebrow: "Website Account",
               title: homebase?.signedIn ? "Website Account" : "Create or Sign In to Website Account",
@@ -437,9 +417,6 @@ export default function CommonsCirclePage() {
         <dl className="mini-facts">
           <MiniFact label="Tier" value={membershipTierLabel} />
           <MiniFact label="Setup" value={profileSetupComplete ? "Complete" : "Needs setup"} />
-          <MiniFact label="Inbox needs attention" value={inboxNeedsAttention} />
-          <MiniFact label="Notifications unread" value={unreadCount} />
-          <MiniFact label="Saved shelf records" value={savedShelvesTotal} />
         </dl>
         <DecalStrip settings={savedCustomization} />
         <div className="button-row">
@@ -448,11 +425,8 @@ export default function CommonsCirclePage() {
           <a className="button-link" href="#customization-studio">Customize circle</a>
           <a className="button-link" href="#privacy-lanterns">Privacy settings</a>
           <Link className="button-link" to="/commons-circle/support-billing">Support &amp; Billing</Link>
-          {adminEntryAllowed && <a className="button-link" href="/commons-circle/admin-console">Admin Console</a>}
         </div>
       </section>
-
-      {adminEntryAllowed && <CommonsCircleAdminEntryCard />}
 
       {shouldPromptSync && <section className="section-card commons-sync-card">
         <p className="eyebrow">Explicit sync available</p>
@@ -463,56 +437,21 @@ export default function CommonsCirclePage() {
 
       <section className="commons-homebase-grid">
         <article className="section-card commons-account-room-card">
-          <p className="eyebrow">Inbox</p>
-          <h2>Private actions for you</h2>
-          <dl className="mini-facts"><MiniFact label="Needs attention" value={inboxNeedsAttention} /><MiniFact label="Unread" value={inboxUnread} /><MiniFact label="Messages unread" value={messagesUnread} /></dl>
-          <p>Review proposals and other private source-backed actions without mixing them into specialist staff queues.</p>
-          <Link className="button-link button-link--primary" to="/commons-circle/inbox">Open Inbox</Link>
-        </article>
-
-        <article className="section-card commons-account-room-card">
-          <p className="eyebrow">Notifications</p>
-          <h2>Updates and outcomes</h2>
-          <dl className="mini-facts"><MiniFact label="Unread" value={unreadCount} /><MiniFact label="Legacy preview rows" value={homebase?.notifications.length ?? 0} /></dl>
-          <p>Informational outcomes remain separate from actions. The existing Signal Console stays available during the compatibility period.</p>
-          <div className="button-row"><Link className="button-link button-link--primary" to="/commons-circle/notifications">Open Notifications</Link><Link className="button-link" to="/commons-circle/signals">Open compatibility Signals</Link></div>
-        </article>
-
-        <article className="section-card commons-account-room-card">
-          <p className="eyebrow">Requests &amp; Reviews</p>
-          <h2>Your submitted workflows</h2>
-          <dl className="mini-facts"><MiniFact label="Pending" value={pendingRequestCount} /><MiniFact label="Total source records" value={accountCounts?.requests.total ?? 0} /></dl>
-          <p>Track proposals, Work With requests, Job Posts, Research Notes, Repository Showcases, and Iteration Showcases from their authoritative records.</p>
-          <Link className="button-link button-link--primary" to="/commons-circle/requests-reviews">Open Requests &amp; Reviews</Link>
-        </article>
-
-        <article className="section-card commons-account-room-card">
           <p className="eyebrow">Saved Shelves</p>
           <h2>Your private saved archive</h2>
           <dl className="mini-facts"><MiniFact label="Account-saved items" value={savedShelvesCounts?.savedItems ?? 0} /><MiniFact label="Followed threads" value={savedShelvesCounts?.followedThreads ?? 0} /></dl>
           <p>Saved references remain private by default and separate from requests, messages, and notifications.</p>
           <Link className="button-link button-link--primary" to="/commons-circle/saved-shelves">Open Saved Shelves</Link>
         </article>
-      </section>
 
-      <section className="commons-homebase-grid">
-        <article className="section-card commons-signal-feed">
+        <article className="section-card commons-signal-feed commons-account-room-card">
           <p className="eyebrow">Signals compatibility</p>
           <h2>Existing notification preview</h2>
           <dl className="mini-facts"><MiniFact label="Legacy rows shown" value={homebase?.notifications.length ?? 0} /><MiniFact label="Code proposal rows" value={codeProposalSignalCount} /><MiniFact label="Troubleshooting rows" value={troubleshootingSignalCount} /></dl>
           <p className="boundary-note">This legacy preview remains during migration. The Signal Console still preserves all existing author, reviewer, administrator, domain, sandbox, vote, and Official Update sections until each destination has proven parity.</p>
-          {!homebase?.notifications.length && <EmptyState>No legacy notification rows yet.</EmptyState>}
-          {homebase?.notifications.map((notice) => { const actionPath = safeInternalActionPath(notice.action_url); return <div className="commons-preview-card" key={notice.id}><strong>{notice.title}</strong><p>{notice.body || notice.notification_type || "Account signal"}</p><span>{notice.read_at ? "read" : "unread"}</span><div className="button-row"><button type="button" onClick={async () => { polishedActionMessages("notification-read", await markNotificationRead(notice.id), "Notification actions are not active yet.").forEach(pushMessage); await refreshHomebase(); }}>Mark read</button>{actionPath && <Link className="button-link" to={actionPath}>Open</Link>}</div></div>; })}
-          {homebase?.notifications.length ? <button type="button" onClick={async () => { polishedActionMessages("notifications-read-all", await markAllNotificationsRead(), "Notification actions are not active yet.").forEach(pushMessage); await refreshHomebase(); }}>Mark all legacy rows read</button> : null}
           <Link className="button-link" to="/commons-circle/signals">Open compatibility Signal Console</Link>
         </article>
 
-        <article className="section-card">
-          <p className="eyebrow">Local requests and recognition</p>
-          <h2>Browser-local drafts</h2>
-          <dl className="mini-facts"><MiniFact label="Stewardship local pending" value={pendingRecognitionCount} /><MiniFact label="Contribution help drafts" value={contributionRequests.length} /></dl>
-          <p className="boundary-note">These browser-local drafts are not authoritative submitted requests and are not included in the account-backed pending count.</p>
-        </article>
         <article className="section-card">
           <p className="eyebrow">Support &amp; Billing</p>
           <h2>Private economic account room</h2>
@@ -522,25 +461,10 @@ export default function CommonsCirclePage() {
         </article>
       </section>
 
-      <section className="section-card commons-shelves">
-        <p className="eyebrow">Saved Shelves</p>
-        <h2>Your private saved archive room</h2>
-        <p>Your saved add-ons, sources, citations, collections, Commune posts, and followed threads live together in your Saved Shelves.</p>
-        <dl className="mini-facts">
-          <MiniFact label="Add-ons" value={homebase?.savedAddons.length ?? 0} />
-          <MiniFact label="Sources" value={(homebase?.savedLivingSources.length ?? 0) + (homebase?.localLiving.savedSources.length ?? 0)} />
-          <MiniFact label="Citations" value={(homebase?.savedCitations.length ?? 0) + (homebase?.localLiving.savedCitations.length ?? 0)} />
-          <MiniFact label="Collections" value={(homebase?.sourceCollections.length ?? 0) + (homebase?.localLiving.collections.length ?? 0)} />
-          <MiniFact label="Commune" value={(homebase?.communePosts.length ?? 0) + (homebase?.localCommuneDrafts.length ?? 0)} />
-          <MiniFact label="Threads" value={(homebase?.followedThreads.length ?? 0) + (homebase?.localFollowedThreads.length ?? 0)} />
-        </dl>
-        <div className="button-row"><a className="button-link button-link--primary" href="/commons-circle/saved-shelves">Open Saved Shelves</a><span className="commons-empty-state">Private by default. Public profile visibility is controlled separately.</span></div>
-      </section>
-
       <section className="section-card commons-membership-status">
         <p className="eyebrow">Membership Status</p>
         <h2>{freeMemberRecognized ? "Free Member recognition" : "Free Member pending"}</h2>
-        <dl className="mini-facts"><MiniFact label="Current tier" value={membershipTierLabel} /><MiniFact label="Setup complete" value={profileSetupComplete ? "Yes" : "Not yet"} /><MiniFact label="Pending recognition drafts" value={pendingRecognitionCount} /><MiniFact label="Contribution help drafts" value={contributionRequests.length} /><MiniFact label="Developer" value={profile?.is_developer ? "Requested / visible" : "Pending / No"} /><MiniFact label="Admin" value={profile?.is_admin ? "Yes" : "No"} /></dl>
+        <dl className="mini-facts"><MiniFact label="Current tier" value={membershipTierLabel} /><MiniFact label="Setup complete" value={profileSetupComplete ? "Yes" : "Not yet"} /><MiniFact label="Developer" value={profile?.is_developer ? "Requested / visible" : "Pending / No"} /><MiniFact label="Admin" value={profile?.is_admin ? "Yes" : "No"} /></dl>
         {!freeMemberRecognized && <p className="boundary-note">Complete Commons Profile setup before Free Member recognition is granted. A browser-local onboarding flag or a minimal Marketplace profile is not sufficient.</p>}
         <p className="boundary-note">Free Member recognition follows canonical completed Commons onboarding, while existing legitimate awards remain preserved. Other membership tiers and badges are assigned through their own authorized rules. Donation proof may support Steward recognition, but it does not create administrator, moderator, reviewer, developer, paid role, or guardian authority.</p>
       </section>
@@ -669,7 +593,7 @@ export default function CommonsCirclePage() {
           {Object.entries(notificationDraft).map(([key, value]) => <label className="checkbox-line" key={key}><input type="checkbox" checked={value} onChange={(event) => setNotificationDraft({ ...notificationDraft, [key]: event.target.checked })} /><span>{key.replace(/_/g, " ")}</span></label>)}
           <button type="button" onClick={() => void saveNoticePrefs()}>Save notification preferences</button>
           <p className="boundary-note">These older settings remain available during reconciliation. New event-specific in-app, email, and quiet-hours controls live in Notifications.</p>
-          <Link className="button-link" to="/commons-circle/notifications">Open current notification preferences</Link>
+          <Link className="button-link" to="/commons-circle/signals/notifications">Open current notification preferences</Link>
         </article>
         <article>
           <p className="eyebrow">Connected local Elysia</p>
@@ -678,10 +602,6 @@ export default function CommonsCirclePage() {
         </article>
       </section>
 
-      {adminEntryAllowed && <section className="section-card commons-settings-grid">
-        <article><p className="eyebrow">Admin-only backend status</p><h2>Live account systems</h2><BadgeRow labels={["profiles", "user_roles", "review_items", "content_reports", "admin_audit_log", "saved_shelves", "badge_credits"]} /><p>These systems are surfaced as private admin/reviewer tools where migrations and RLS are active. Missing tables show clean admin-only setup messages inside the relevant queue.</p></article>
-        <article><p className="eyebrow">Visibility states</p><h2>Moderation lifecycle</h2><BadgeRow labels={["draft", "submitted", "published", "flagged", "hidden", "removed", "archived", "revoked"]} /><p>Public content should only be visible when intentionally published. Private reports, notes, drafts, hidden/removed content, resumes/CVs, receipts, and audit logs stay RLS-gated.</p></article>
-      </section>}
     </div>
   );
 }

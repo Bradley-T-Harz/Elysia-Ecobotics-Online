@@ -73,7 +73,7 @@ await onlineAdapter.deliver({
   recipientEmail: "owner@example.com",
 });
 assert.match(onlineMessage.text, /https:\/\/elysiaecobotics\.com\/commons-circle\/inbox/);
-assert.match(onlineMessage.text, /https:\/\/elysiaecobotics\.com\/commons-circle\/notifications/);
+assert.match(onlineMessage.text, /https:\/\/elysiaecobotics\.com\/commons-circle\/signals\/notifications/);
 assert.doesNotMatch(onlineMessage.text, /artisans|pages\.dev/i);
 
 const rpcCalls = [];
@@ -189,6 +189,7 @@ try {
 assert.equal(scheduledEmailCalls.length, 1);
 assert.match(scheduledEmailCalls[0].text, /required account notice/i);
 assert.match(scheduledEmailCalls[0].text, /https:\/\/elysiaecobotics\.com\/commons-circle\/notifications/);
+assert.match(scheduledEmailCalls[0].text, /https:\/\/elysiaecobotics\.com\/commons-circle\/signals\/notifications/);
 assert.deepEqual(
   scheduledFetchCalls.map((call) => call.pathname),
   [

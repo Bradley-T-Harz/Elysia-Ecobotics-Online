@@ -188,11 +188,14 @@ if (screenshotDir) await fs.mkdir(screenshotDir, { recursive: true });
 const browser = await chromium.launch({ headless: true });
 try {
   for (const scenario of [
-    { path: "/commons-circle/inbox", width: 1280, heading: "Inbox", kind: "inbox" },
-    { path: "/commons-circle/inbox", width: 390, heading: "Inbox", kind: "inbox" },
-    { path: "/commons-circle/notifications", width: 1280, heading: "Notifications", kind: "notifications" },
-    { path: "/commons-circle/notifications", width: 390, heading: "Notifications", kind: "notifications" },
-    { path: "/commons-circle/requests-reviews", width: 1280, heading: "Requests & Reviews", kind: "requests" },
+    { path: "/commons-circle/signals/inbox", width: 1280, heading: "Inbox", kind: "inbox" },
+    { path: "/commons-circle/signals/inbox", width: 390, heading: "Inbox", kind: "inbox" },
+    { path: "/commons-circle/inbox?domain=code_proposals#inbox-list", canonical: "/commons-circle/signals/inbox?domain=code_proposals#inbox-list", width: 1280, heading: "Inbox", kind: "inbox" },
+    { path: "/commons-circle/signals/notifications", width: 1280, heading: "Notifications", kind: "notifications" },
+    { path: "/commons-circle/signals/notifications", width: 390, heading: "Notifications", kind: "notifications" },
+    { path: "/commons-circle/notifications?filter=all#preferences", canonical: "/commons-circle/signals/notifications?filter=all#preferences", width: 1280, heading: "Notifications", kind: "notifications" },
+    { path: "/commons-circle/signals/requests-reviews", width: 1280, heading: "Requests & Reviews", kind: "requests" },
+    { path: "/commons-circle/requests-reviews?domain=code_proposals#request-list", canonical: "/commons-circle/signals/requests-reviews?domain=code_proposals#request-list", width: 1280, heading: "Requests & Reviews", kind: "requests" },
     { path: "/commons-circle/signals?legacy-bookmark=preserved", width: 1280, heading: "Signals", kind: "signals" },
     { path: "/commons-circle/signals", width: 390, heading: "Signals", kind: "signals" },
     { path: "/commons-circle/signals", width: 1280, heading: "Signals", kind: "signals-admin", admin: true },
@@ -245,6 +248,10 @@ try {
     const response = await page.goto(`${origin}${scenario.path}`, { waitUntil: "domcontentloaded", timeout: 45_000 });
     assert.equal(response?.status(), 200, `${scenario.path} should load.`);
     await page.getByRole("heading", { name: scenario.heading, exact: true }).first().waitFor();
+    if (scenario.canonical) {
+      const current = new URL(page.url());
+      assert.equal(`${current.pathname}${current.search}${current.hash}`, scenario.canonical, `${scenario.path} must replace-navigate to one canonical page while preserving query and hash.`);
+    }
     assert.equal(await page.locator("body").getByText("PRIVATE_WORK_WITH_BODY_MUST_NOT_PROJECT", { exact: false }).count(), 0, "Private source bodies must not render.");
     assert.equal(await page.locator("body").getByText(proposalId, { exact: false }).count(), 0, "Raw source identifiers must not render as ordinary UI text.");
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2), false, `${scenario.path} must not overflow at ${scenario.width}px.`);
@@ -307,6 +314,7 @@ try {
       await page.getByRole("heading", { name: "Inbox & Private Messages", exact: true }).waitFor();
       await page.getByRole("heading", { name: "Notifications", exact: true }).waitFor();
       await page.getByRole("heading", { name: "My Requests & Reviews", exact: true }).waitFor();
+      await page.getByRole("heading", { name: "Local requests and recognition", exact: true }).waitFor();
       const codingCategory = page.locator("summary").filter({ hasText: "Coding & Technical" });
       await codingCategory.focus();
       assert.equal(await codingCategory.evaluate((element) => document.activeElement === element), true, "Signal categories must be keyboard focusable.");
@@ -315,6 +323,7 @@ try {
       assert.equal(await page.getByRole("link", { name: "Coding proposals" }).getAttribute("href"), "/commons-circle/signals/coding-proposals");
       assert.equal(await page.getByRole("heading", { name: "Signals that need review", exact: true }).count(), 0, "Signals hub must not render the old monolithic queue.");
       assert.equal(await page.getByRole("link", { name: "Open Review Center", exact: true }).count(), scenario.admin ? 1 : 0, "Review Center visibility must follow established role truth.");
+      assert.equal(await page.getByRole("link", { name: "Open Admin Console", exact: true }).count(), scenario.admin ? 1 : 0, "Admin Console visibility must be administrator-only.");
       if (scenario.path.includes("legacy-bookmark")) assert.match(page.url(), /legacy-bookmark=preserved/, "Signals compatibility route must preserve query strings.");
     } else {
       await page.getByRole("link", { name: "Back to Signals", exact: true }).waitFor();

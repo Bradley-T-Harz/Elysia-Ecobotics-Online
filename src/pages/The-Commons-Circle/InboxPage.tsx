@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
 import { structurallyEqual, useCoordinatedRefresh } from "../../shared/hooks/useCoordinatedRefresh";
@@ -58,6 +58,7 @@ function itemState(item: InboxItem) {
 }
 
 export default function InboxPage() {
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<InboxTab>(() => searchParams.get("view") === "messages" ? "messages" : "attention");
   const [domain, setDomain] = useState("all");
@@ -150,7 +151,7 @@ export default function InboxPage() {
     <section className="section-card">
       <div className="section-heading section-heading--inline">
         <div><p className="eyebrow">Website Account</p><h2>Inbox access</h2></div>
-        <Link className="button-link" to="/commons-circle">Back to Commons Circle</Link>
+        <Link className="button-link" to="/commons-circle/signals">Back to Signals</Link>
       </div>
       <AuthPanel
         onMessage={(message) => setMessages((current) => [message, ...current].slice(0, 6))}
@@ -160,7 +161,7 @@ export default function InboxPage() {
           title: result?.signedIn ? "Private Inbox active" : "Sign in to open your private Inbox",
           description: "Inbox items belong to your Website Account, not your public Commons Profile.",
           signedOutText: "No active website session.",
-          confirmationPath: "/commons-circle/inbox",
+          confirmationPath: `${location.pathname}${location.search}`,
           confirmationCopy: "If email confirmation is enabled, open the confirmation link to return to your Inbox.",
         }}
       />
@@ -203,7 +204,7 @@ export default function InboxPage() {
       {activeTab === "sent" ? <div className="account-communications-empty">
         <h3>Sent source workflows live in Requests &amp; Reviews</h3>
         <p>Proposals, Work With requests, Job Posts, Research Notes, Repository Showcases, and Iteration Showcases remain authoritative in their own systems.</p>
-        <Link className="button-link button-link--primary" to="/commons-circle/requests-reviews">Open Requests &amp; Reviews</Link>
+        <Link className="button-link button-link--primary" to="/commons-circle/signals/requests-reviews">Open Requests &amp; Reviews</Link>
       </div> : activeTab === "messages" ? <InboxMessagingPanel onCountsChanged={refreshCounts} /> : <>
         <div className="account-communications-filters">
           <label><span>Domain</span><select value={domain} onChange={(event) => setDomain(event.target.value)}><option value="all">All domains</option>{inboxDomains.map((value) => <option value={value} key={value}>{domainLabels[value] ?? humanize(value)}</option>)}</select></label>

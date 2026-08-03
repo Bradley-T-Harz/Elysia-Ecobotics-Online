@@ -137,7 +137,7 @@ assert(signalConsolePage.includes("Research Notes") && signalConsolePage.include
 assert(signalDetailPage.includes("Author approval, moderator safety review, and sandbox evidence remain separate"), "Focused Signals routes should preserve author approval doctrine.");
 assert(signalDetailPage.includes("Sandbox diagnostics are evidence only") || signalDetailPage.includes("selected-artifact review evidence"), "Focused Signals routes should preserve sandbox-is-not-approval doctrine.");
 assert(commonsPage.includes("Signals compatibility") && commonsPage.includes("Open compatibility Signal Console"), "Commons Circle must preserve the existing Signal Console during Inbox/Notifications migration.");
-assert(commonsPage.includes("Open Notifications") && commonsPage.includes("/commons-circle/notifications") && commonsPage.includes("/commons-circle/signals"), "Commons Circle should link to Notifications while preserving the compatibility Signal Console.");
+assert(!commonsPage.includes("<h2>Updates and outcomes</h2>") && commonsPage.includes("/commons-circle/signals/notifications") && commonsPage.includes("/commons-circle/signals"), "Commons Circle should avoid a duplicate Notifications card while preserving canonical preferences and the compatibility Signals doorway.");
 assert(signalConsolePage.includes("/commons-circle/signals/troubleshooting") && signalDetailPage.includes("Troubleshooting activity"), "Signals compatibility routes must preserve Troubleshooting Grove support activity.");
 assert(signalConsolePage.includes("/commons-circle/signals/research-notes") && signalDetailPage.includes("Research Notes activity"), "Signals compatibility routes must preserve Research Notes activity.");
 

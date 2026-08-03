@@ -5,9 +5,11 @@ import WarningCallout from "../../shared/components/WarningCallout";
 import { loadCurrentRoleState } from "../../shared/review/reviewClient";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
 import { loadAccountHomebaseCounts, type AccountHomebaseCounts } from "./accountCommunicationsApi";
+import { commonsStorageKeys, readLocalStorage } from "./commonsCircleApi";
 
 type SignalHubState = {
   signedIn: boolean;
+  isAdmin: boolean;
   canOpenReviewCenter: boolean;
   counts: AccountHomebaseCounts;
   warnings: string[];
@@ -20,6 +22,17 @@ const emptyCounts: AccountHomebaseCounts = {
   events: { inboxNeedsAttention: 0, inboxUnread: 0, messagesUnread: 0, notificationsUnread: 0 },
   requests: { total: 0, pending: 0, byDomain: {} },
 };
+
+type LocalSignalDraft = { status?: string };
+
+function loadBrowserLocalActivity() {
+  const stewardship = readLocalStorage<LocalSignalDraft[]>(commonsStorageKeys.stewardshipDrafts, []);
+  const contributions = readLocalStorage<unknown[]>(commonsStorageKeys.contributionRequests, []);
+  return {
+    stewardshipPending: stewardship.filter((draft) => draft.status === "pending_admin_review_local").length,
+    contributionDrafts: contributions.length,
+  };
+}
 
 const signalCategories = [
   {
@@ -61,16 +74,19 @@ export default function SignalConsolePage() {
   const location = useLocation();
   const [state, setState] = useState<SignalHubState | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
+  const [localActivity, setLocalActivity] = useState(loadBrowserLocalActivity);
 
   const refresh = useCallback(async () => {
     const [roles, counts] = await Promise.all([loadCurrentRoleState(), loadAccountHomebaseCounts()]);
     const warnings = Array.from(new Set([...roles.warnings, ...counts.warnings]));
     setState({
       signedIn: roles.signedIn && counts.signedIn,
+      isAdmin: roles.isAdmin,
       canOpenReviewCenter: roles.isAdmin || roles.roles.length > 0,
       counts,
       warnings,
     });
+    setLocalActivity(loadBrowserLocalActivity());
     setMessages(warnings);
   }, []);
 
@@ -118,7 +134,7 @@ export default function SignalConsolePage() {
             <h3>Inbox &amp; Private Messages</h3>
             <dl className="mini-facts"><MiniFact label="Needs attention" value={counts.events.inboxNeedsAttention} /><MiniFact label="Inbox unread" value={counts.events.inboxUnread} /><MiniFact label="Messages unread" value={counts.events.messagesUnread} /></dl>
             <p>Review account-directed actions, receive conversation requests, and use governed participant-scoped messages.</p>
-            <div className="button-row"><Link className="button-link button-link--primary" to="/commons-circle/inbox">Open Inbox</Link><Link className="button-link" to="/commons-circle/inbox?view=messages">Start a private conversation</Link></div>
+            <div className="button-row"><Link className="button-link button-link--primary" to="/commons-circle/signals/inbox">Open Inbox</Link><Link className="button-link" to="/commons-circle/signals/inbox?view=messages">Start a private conversation</Link></div>
           </article>
 
           <article className="section-card commons-account-room-card signals-primary-card">
@@ -126,7 +142,7 @@ export default function SignalConsolePage() {
             <h3>Notifications</h3>
             <dl className="mini-facts"><MiniFact label="Unread" value={counts.events.notificationsUnread} /></dl>
             <p>See recipient-scoped updates, outcomes, mandatory notices, preferences, and safe links back to authoritative sources.</p>
-            <Link className="button-link button-link--primary" to="/commons-circle/notifications">Open Notifications</Link>
+            <Link className="button-link button-link--primary" to="/commons-circle/signals/notifications">Open Notifications</Link>
           </article>
 
           <article className="section-card commons-account-room-card signals-primary-card">
@@ -134,8 +150,23 @@ export default function SignalConsolePage() {
             <h3>My Requests &amp; Reviews</h3>
             <dl className="mini-facts"><MiniFact label="Pending" value={counts.requests.pending} /><MiniFact label="Total" value={counts.requests.total} /></dl>
             <p>Track proposals, Work With, Job Posts, Research Notes, and showcases from their authoritative source records.</p>
-            <Link className="button-link button-link--primary" to="/commons-circle/requests-reviews">Open Requests &amp; Reviews</Link>
+            <Link className="button-link button-link--primary" to="/commons-circle/signals/requests-reviews">Open Requests &amp; Reviews</Link>
           </article>
+
+          <article className="section-card commons-account-room-card signals-primary-card">
+            <p className="eyebrow">Browser-local continuity</p>
+            <h3>Local requests and recognition</h3>
+            <dl className="mini-facts"><MiniFact label="Stewardship pending" value={localActivity.stewardshipPending} /><MiniFact label="Contribution drafts" value={localActivity.contributionDrafts} /></dl>
+            <p>These drafts remain in this browser. They are not authoritative submissions and do not contribute to account-backed request counts.</p>
+            <Link className="button-link" to="/commons-circle/setup/stewardship">Review Commons setup</Link>
+          </article>
+
+          {state.isAdmin && <article className="section-card commons-account-room-card signals-primary-card">
+            <p className="eyebrow">Administrators only</p>
+            <h3>Admin Console</h3>
+            <p>Open account governance, communications, moderation, role, and audit tools through their established authorization gates.</p>
+            <Link className="button-link button-link--primary" to="/commons-circle/admin-console">Open Admin Console</Link>
+          </article>}
 
           {state.canOpenReviewCenter && <article className="section-card commons-account-room-card signals-primary-card">
             <p className="eyebrow">Authorized staff only</p>

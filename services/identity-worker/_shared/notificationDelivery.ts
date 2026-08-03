@@ -61,7 +61,7 @@ export class DatabaseInAppNotificationAdapter implements NotificationDeliveryAda
 }
 
 const NOTIFICATION_PREFERENCES_PATH_BY_ORIGIN = new Map<string, string>([
-  ["https://elysiaecobotics.com", "/commons-circle/notifications"],
+  ["https://elysiaecobotics.com", "/commons-circle/signals/notifications"],
   ["https://elysiaartisancollective.pages.dev", "/notifications"],
   ["https://artisans.elysiaecobotics.com", "/notifications"]
 ] as const);

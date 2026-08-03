@@ -71,6 +71,15 @@ function LegacySearchAlias({ target }: { target: string }) {
   return <Navigate to={`${target}${location.search}`} replace />;
 }
 
+function LegacyCommunicationAlias({ target }: { target: string }) {
+  const location = useLocation();
+  return <Navigate
+    replace
+    state={location.state}
+    to={{ pathname: target, search: location.search, hash: location.hash }}
+  />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
@@ -150,10 +159,13 @@ export default function App() {
             <Route path="commons-circle/admin-console" element={<CommonsCircleAdminConsolePage />} />
             <Route path="commons-circle/admin-communications" element={<AdminCommunicationsPage />} />
             <Route path="commons-circle/saved-shelves" element={<SavedShelvesPage />} />
-            <Route path="commons-circle/inbox" element={<InboxPage />} />
-            <Route path="commons-circle/notifications" element={<NotificationsPage />} />
-            <Route path="commons-circle/requests-reviews" element={<RequestsReviewsPage />} />
+            <Route path="commons-circle/inbox" element={<LegacyCommunicationAlias target="/commons-circle/signals/inbox" />} />
+            <Route path="commons-circle/notifications" element={<LegacyCommunicationAlias target="/commons-circle/signals/notifications" />} />
+            <Route path="commons-circle/requests-reviews" element={<LegacyCommunicationAlias target="/commons-circle/signals/requests-reviews" />} />
             <Route path="commons-circle/signals" element={<SignalConsolePage />} />
+            <Route path="commons-circle/signals/inbox" element={<InboxPage />} />
+            <Route path="commons-circle/signals/notifications" element={<NotificationsPage />} />
+            <Route path="commons-circle/signals/requests-reviews" element={<RequestsReviewsPage />} />
             <Route path="commons-circle/signals/coding-proposals" element={<SignalDetailPage section="coding-proposals" />} />
             <Route path="commons-circle/signals/troubleshooting" element={<SignalDetailPage section="troubleshooting" />} />
             <Route path="commons-circle/signals/research-notes" element={<SignalDetailPage section="research-notes" />} />
