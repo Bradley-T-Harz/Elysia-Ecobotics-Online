@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 type CommonsAvatarViewerProps = {
@@ -8,11 +8,27 @@ type CommonsAvatarViewerProps = {
   viewLabel: string;
   className?: string;
   imageClassName?: string;
+  imageIdentity?: string | null;
+  onImageError?: (failedSrc: string) => void | Promise<void>;
 };
 
-export default function CommonsAvatarViewer({ src, alt, fallback, viewLabel, className = "", imageClassName = "" }: CommonsAvatarViewerProps) {
+export default function CommonsAvatarViewer({ src, alt, fallback, viewLabel, className = "", imageClassName = "", imageIdentity = null, onImageError }: CommonsAvatarViewerProps) {
   const [open, setOpen] = useState(false);
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const renewalRef = useRef<{ identity: string | null; attempted: boolean }>({ identity: imageIdentity, attempted: false });
   const avatarClassName = ["commons-avatar", className].filter(Boolean).join(" ");
+  const imageAvailable = Boolean(src && failedSrc !== src);
+
+  function handleImageError() {
+    if (!src) return;
+    setFailedSrc(src);
+    setOpen(false);
+    if (!onImageError) return;
+    if (renewalRef.current.identity !== imageIdentity) renewalRef.current = { identity: imageIdentity, attempted: false };
+    if (renewalRef.current.attempted) return;
+    renewalRef.current.attempted = true;
+    void onImageError(src);
+  }
 
   useEffect(() => {
     if (!open) return undefined;
@@ -32,7 +48,7 @@ export default function CommonsAvatarViewer({ src, alt, fallback, viewLabel, cla
     };
   }, [open]);
 
-  if (!src) {
+  if (!imageAvailable) {
     return <div className={avatarClassName}><span>{fallback}</span></div>;
   }
 
@@ -48,7 +64,7 @@ export default function CommonsAvatarViewer({ src, alt, fallback, viewLabel, cla
     >
       <div className="commons-avatar-lightbox-panel">
         <button type="button" className="commons-avatar-lightbox-close" onClick={() => setOpen(false)}>Close</button>
-        <img className="commons-avatar-lightbox-image" src={src} alt={alt} />
+        <img className="commons-avatar-lightbox-image" src={src!} alt={alt} onError={handleImageError} />
       </div>
     </div>
   ) : null;
@@ -56,7 +72,7 @@ export default function CommonsAvatarViewer({ src, alt, fallback, viewLabel, cla
   return (
     <>
       <button type="button" className={`${avatarClassName} commons-avatar-button`} onClick={() => setOpen(true)} aria-label={viewLabel}>
-        <img className={imageClassName} src={src} alt={alt} />
+        <img className={imageClassName} src={src!} alt={alt} onError={handleImageError} />
       </button>
       {lightbox && typeof document !== "undefined" ? createPortal(lightbox, document.body) : null}
     </>

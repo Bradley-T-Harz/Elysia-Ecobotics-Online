@@ -35,6 +35,7 @@ import {
   normalizeCommonsBannerZoom,
   readLocalStorage,
   removeProfileMedia,
+  renewOwnerProfileMediaPreview,
   saveCustomization,
   saveNotificationPreferences,
   saveVisibilitySettings,
@@ -163,6 +164,18 @@ export default function CommonsCirclePage() {
     void refreshSavedShelves();
     await refreshHomebase();
   }, [refreshHomebase, refreshSavedShelves]);
+
+  const renewOwnerAvatar = useCallback(async (failedSrc: string) => {
+    const renewed = await renewOwnerProfileMediaPreview("avatar");
+    logDiagnostics("avatar-renewal", renewed.warnings);
+    if (!renewed.publicUrl || renewed.publicUrl === failedSrc) {
+      setMediaStatus("Avatar preview is unavailable. The safe profile fallback remains visible.");
+      return;
+    }
+    setSavedCustomization((current) => current.avatar_url === failedSrc ? { ...current, avatar_url: renewed.publicUrl, avatar_media_id: renewed.mediaId } : current);
+    setCustomizationDraft((current) => current.avatar_url === failedSrc ? { ...current, avatar_url: renewed.publicUrl, avatar_media_id: renewed.mediaId } : current);
+    setMediaStatus("Avatar preview connection renewed.");
+  }, []);
 
   useEffect(() => { void refreshHomebase(); }, [refreshHomebase]);
   useEffect(() => { void refreshSavedShelves(); }, [refreshSavedShelves]);
@@ -407,7 +420,7 @@ export default function CommonsCirclePage() {
       <section className="section-card commons-homebase-hero commons-private-homebase">
         <div className={`commons-profile-mantle commons-circle-private-homebase-mantle commons-private-homebase__mantle${savedCustomization.banner_url ? " has-public-banner" : ""}`}>
           {savedCustomization.banner_url && <img className="commons-public-banner commons-profile-banner-layer commons-circle-private-banner-image commons-private-homebase__banner-image" src={savedCustomization.banner_url} alt="" aria-hidden="true" loading="lazy" />}
-          <CommonsAvatarViewer className="commons-private-homebase__avatar" src={savedCustomization.avatar_url} alt="Commons profile avatar" fallback={(profile?.display_name || profile?.username || "C").slice(0, 1).toUpperCase()} viewLabel="View full Commons profile picture" />
+          <CommonsAvatarViewer className="commons-private-homebase__avatar" src={savedCustomization.avatar_url} imageIdentity={savedCustomization.avatar_media_id} onImageError={renewOwnerAvatar} alt="Commons profile avatar" fallback={(profile?.display_name || profile?.username || "C").slice(0, 1).toUpperCase()} viewLabel="View full Commons profile picture" />
           <div className="commons-private-homebase__identity">
             <p className="eyebrow">Private Account Homebase</p>
             <h2>{profile?.display_name || profile?.username || "Website member"}</h2>

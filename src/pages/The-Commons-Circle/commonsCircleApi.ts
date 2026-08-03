@@ -56,6 +56,119 @@ export type ProfileCustomization = {
   banner_position_y: number;
 };
 
+type OwnerProfileMediaRow = {
+  id?: string | null;
+  media_type: string;
+  bucket?: string | null;
+  storage_path?: string | null;
+  created_at?: string | null;
+};
+
+type OwnerProfileMediaCacheEntry = {
+  identity: string;
+  url: string;
+  signedAt: number;
+  expiresAt: number;
+};
+
+const ownerProfileMediaSignedUrlLifetimeMs = 300_000;
+const ownerProfileMediaRenewalWindowMs = 30_000;
+const ownerProfileMediaCache = new Map<string, OwnerProfileMediaCacheEntry>();
+const ownerProfileMediaInFlight = new Map<string, { identity: string; promise: Promise<string | null> }>();
+
+function ownerProfileMediaCacheKey(userId: string, mediaType: "avatar" | "banner") {
+  return `${userId}:${mediaType}`;
+}
+
+function ownerProfileMediaIdentity(row: OwnerProfileMediaRow) {
+  return `${row.id ?? "unknown"}:${row.bucket ?? "unknown"}:${row.storage_path ?? "unknown"}`;
+}
+
+function cacheOwnerProfileMediaUrl(userId: string, mediaType: "avatar" | "banner", row: OwnerProfileMediaRow, url: string) {
+  const signedAt = Date.now();
+  ownerProfileMediaCache.set(ownerProfileMediaCacheKey(userId, mediaType), {
+    identity: ownerProfileMediaIdentity(row),
+    url,
+    signedAt,
+    expiresAt: signedAt + ownerProfileMediaSignedUrlLifetimeMs,
+  });
+}
+
+function invalidateOwnerProfileMediaUrl(userId: string, mediaType: "avatar" | "banner") {
+  const key = ownerProfileMediaCacheKey(userId, mediaType);
+  ownerProfileMediaCache.delete(key);
+  ownerProfileMediaInFlight.delete(key);
+}
+
+async function resolveOwnerProfileMediaUrl(
+  userId: string,
+  row: OwnerProfileMediaRow | undefined,
+  mediaType: "avatar" | "banner",
+  warnings: string[],
+  forceRenewal = false,
+) {
+  if (!row || !supabase) return null;
+  const expectedBucket = mediaType === "avatar" ? "profile-avatars" : "profile-banners";
+  const expectedFolder = mediaType === "avatar" ? "avatars" : "banners";
+  if (
+    row.bucket !== expectedBucket
+    || typeof row.storage_path !== "string"
+    || !row.storage_path.startsWith(`${userId}/${expectedFolder}/`)
+  ) {
+    warnings.push(`${mediaType === "avatar" ? "Avatar" : "Banner"} preview: the private media reference was invalid.`);
+    return null;
+  }
+
+  const key = ownerProfileMediaCacheKey(userId, mediaType);
+  const identity = ownerProfileMediaIdentity(row);
+  const cached = ownerProfileMediaCache.get(key);
+  const now = Date.now();
+  if (!forceRenewal && cached?.identity === identity && now < cached.expiresAt - ownerProfileMediaRenewalWindowMs) return cached.url;
+  const pending = ownerProfileMediaInFlight.get(key);
+  if (!forceRenewal && pending?.identity === identity) return pending.promise;
+
+  const promise = (async () => {
+    const signed = await supabase.storage.from(expectedBucket).createSignedUrl(row.storage_path!, 300);
+    if (signed.error || !signed.data?.signedUrl) {
+      if (signed.error) logBackendDetail(`${mediaType} owner preview`, signed.error.message);
+      warnings.push(`${mediaType === "avatar" ? "Avatar" : "Banner"} preview is temporarily unavailable.`);
+      return null;
+    }
+    cacheOwnerProfileMediaUrl(userId, mediaType, row, signed.data.signedUrl);
+    return signed.data.signedUrl;
+  })();
+  ownerProfileMediaInFlight.set(key, { identity, promise });
+  try {
+    return await promise;
+  } finally {
+    if (ownerProfileMediaInFlight.get(key)?.promise === promise) ownerProfileMediaInFlight.delete(key);
+  }
+}
+
+export async function renewOwnerProfileMediaPreview(mediaType: "avatar" | "banner"): Promise<{ publicUrl: string | null; mediaId: string | null; warnings: string[] }> {
+  const warnings: string[] = [];
+  if (!supabase) return { publicUrl: null, mediaId: null, warnings: [supabaseNotConfiguredMessage] };
+  const { data: auth } = await supabase.auth.getUser();
+  const userId = auth.user?.id ?? null;
+  if (!userId) return { publicUrl: null, mediaId: null, warnings: ["Sign in before retrying profile media."] };
+  const { data, error } = await supabase
+    .from("profile_media")
+    .select("id, media_type, bucket, storage_path, created_at")
+    .eq("user_id", userId)
+    .eq("media_type", mediaType)
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (error) {
+    warnings.push(friendlyBackendMessage("Profile media", error.message));
+    return { publicUrl: null, mediaId: null, warnings };
+  }
+  const row = (data as OwnerProfileMediaRow[] | null)?.[0];
+  invalidateOwnerProfileMediaUrl(userId, mediaType);
+  const publicUrl = await resolveOwnerProfileMediaUrl(userId, row, mediaType, warnings, true);
+  return { publicUrl, mediaId: typeof row?.id === "string" ? row.id : null, warnings };
+}
+
 export type NotificationPreferences = {
   commune_replies: boolean;
   followed_threads: boolean;
@@ -1090,7 +1203,7 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
   const [visibilityRows, customizationRows, mediaRows, prefRows, savedAddons, savedSources, savedCitations, collectionRows, collectionItems, savedCommuneRows, followedRows, notificationRows, definitions, awarded] = await Promise.all([
     safeQuery<VisibilitySettings[]>(warnings, "Visibility settings", supabase.from("profile_visibility_settings").select("*").eq("user_id", userId).limit(1), []),
     safeQuery<ProfileCustomization[]>(warnings, "Profile customization", supabase.from("profile_customization").select("*").eq("user_id", userId).limit(1), []),
-    safeQuery<Array<{ id?: string | null; media_type: string; bucket?: string | null; storage_path?: string | null; created_at?: string | null }>>(warnings, "Profile media", supabase.from("profile_media").select("id, media_type, bucket, storage_path, created_at").eq("user_id", userId).eq("status", "active").order("created_at", { ascending: false }), []),
+    safeQuery<OwnerProfileMediaRow[]>(warnings, "Profile media", supabase.from("profile_media").select("id, media_type, bucket, storage_path, created_at").eq("user_id", userId).eq("status", "active").order("created_at", { ascending: false }), []),
     safeQuery<NotificationPreferences[]>(warnings, "Notification preferences", supabase.from("notification_preferences").select("*").eq("user_id", userId).limit(1), []),
     safeQuery<SavedAddonPreview[]>(warnings, "Saved add-ons", supabase.from("user_saved_addons").select("addon_slug, addon_name, addon_version_id, saved_at, notes").eq("user_id", userId).order("saved_at", { ascending: false }).limit(200), []),
     safeQuery<SavedLivingSourcePreview[]>(warnings, "Saved Living Library sources", supabase.from("user_saved_living_sources").select("id, source_id, source_name, source_url, category, saved_at, notes").eq("user_id", userId).order("saved_at", { ascending: false }).limit(200), []),
@@ -1106,29 +1219,9 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
 
   const avatarMedia = mediaRows.find((row) => row.media_type === "avatar");
   const bannerMedia = mediaRows.find((row) => row.media_type === "banner");
-  const ownerProfileMediaUrl = async (row: typeof avatarMedia, mediaType: "avatar" | "banner") => {
-    if (!row || !supabase) return null;
-    const expectedBucket = mediaType === "avatar" ? "profile-avatars" : "profile-banners";
-    const expectedFolder = mediaType === "avatar" ? "avatars" : "banners";
-    if (
-      row.bucket !== expectedBucket
-      || typeof row.storage_path !== "string"
-      || !row.storage_path.startsWith(`${userId}/${expectedFolder}/`)
-    ) {
-      warnings.push(`${mediaType === "avatar" ? "Avatar" : "Banner"} preview: the private media reference was invalid.`);
-      return null;
-    }
-    const signed = await supabase.storage.from(expectedBucket).createSignedUrl(row.storage_path, 300);
-    if (signed.error || !signed.data?.signedUrl) {
-      if (signed.error) logBackendDetail(`${mediaType} owner preview`, signed.error.message);
-      warnings.push(`${mediaType === "avatar" ? "Avatar" : "Banner"} preview is temporarily unavailable.`);
-      return null;
-    }
-    return signed.data.signedUrl;
-  };
   const [avatarUrl, bannerUrl] = await Promise.all([
-    ownerProfileMediaUrl(avatarMedia, "avatar"),
-    ownerProfileMediaUrl(bannerMedia, "banner")
+    resolveOwnerProfileMediaUrl(userId, avatarMedia, "avatar", warnings),
+    resolveOwnerProfileMediaUrl(userId, bannerMedia, "banner", warnings)
   ]);
   const canonicalFreeMemberCompletedAt = profile?.commons_onboarding_completed_at ?? null;
   const profileQualifiesForFreeMember = Boolean(canonicalFreeMemberCompletedAt);
@@ -1553,6 +1646,7 @@ export async function uploadProfileMedia(file: File, mediaType: "avatar" | "bann
   const signed = await supabase.storage.from(bucket).createSignedUrl(storagePath, 300);
   const ownerPreviewUrl = signed.data?.signedUrl;
   if (signed.error || !ownerPreviewUrl) warnings.push(friendlyBackendMessage("Profile media preview", signed.error?.message ?? "Signed preview could not be created."));
+  if (ownerPreviewUrl) cacheOwnerProfileMediaUrl(auth.user.id, mediaType, { id: mediaId, media_type: mediaType, bucket, storage_path: storagePath }, ownerPreviewUrl);
   if (!error) {
     const customizationPatch = {
       [mediaType === "avatar" ? "avatar_media_id" : "banner_media_id"]: mediaId,
@@ -1580,6 +1674,7 @@ export async function removeProfileMedia(mediaType: "avatar" | "banner"): Promis
     .eq("media_type", mediaType)
     .eq("status", "active");
   if (result.error) warnings.push(friendlyBackendMessage("Profile media", result.error.message));
+  else invalidateOwnerProfileMediaUrl(auth.user.id, mediaType);
   if (mediaType === "avatar") {
     const profileResult = await supabase
       .from("profiles")

@@ -311,12 +311,114 @@ async function loadProfileEditor(viewport, exerciseMedia) {
   await context.close();
 }
 
+async function loadHomebaseAvatar({ imageFailure = null }) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  await context.addInitScript(({ ref, accessToken, user }) => {
+    localStorage.setItem(`sb-${ref}-auth-token`, JSON.stringify({
+      access_token: accessToken,
+      refresh_token: "fixture-homebase-avatar-refresh-token",
+      token_type: "bearer",
+      expires_in: 3_600,
+      expires_at: Math.floor(Date.now() / 1_000) + 3_600,
+      user,
+    }));
+  }, { ref: projectRef, accessToken: fixtureAccessToken, user: fixtureUser });
+
+  const page = await context.newPage();
+  let signRequests = 0;
+  let imageRequests = 0;
+  const mutationRequests = [];
+  const mediaRow = {
+    id: fixtureMediaId,
+    media_type: "avatar",
+    bucket: "profile-avatars",
+    storage_path: `${fixtureUserId}/avatars/fixture-avatar.png`,
+    created_at: "2026-07-24T12:00:00.000Z",
+  };
+
+  await context.route(/^https:\/\/[^/]+\.supabase\.co\//, async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const corsHeaders = {
+      "Access-Control-Allow-Headers": "*",
+      "Access-Control-Allow-Methods": "GET,HEAD,PATCH,POST,PUT,OPTIONS",
+      "Access-Control-Allow-Origin": "*",
+      "Content-Type": "application/json; charset=utf-8",
+    };
+    if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers: corsHeaders, body: "" });
+    if (url.pathname.endsWith("/auth/v1/user")) return route.fulfill({ status: 200, headers: corsHeaders, body: JSON.stringify(fixtureUser) });
+    if (url.pathname.startsWith("/storage/v1/object/sign/profile-avatars/")) {
+      if (request.method() === "POST") {
+        signRequests += 1;
+        return route.fulfill({
+          status: 200,
+          headers: corsHeaders,
+          body: JSON.stringify({ signedURL: `${url.pathname.replace(/^\/storage\/v1/, "")}?token=fixture-owner-preview-${signRequests}` }),
+        });
+      }
+      imageRequests += 1;
+      if (imageFailure === "malformed") return route.fulfill({ status: 200, headers: { ...corsHeaders, "Content-Type": "text/plain" }, body: "not an image" });
+      if (typeof imageFailure === "number") return route.fulfill({ status: imageFailure, headers: corsHeaders, body: "" });
+      return route.fulfill({ status: 200, headers: { ...corsHeaders, "Content-Type": "image/png" }, body: safePng });
+    }
+    if (url.pathname.startsWith("/rest/v1/")) {
+      const table = url.pathname.slice("/rest/v1/".length);
+      if (!["GET", "HEAD"].includes(request.method())) mutationRequests.push(`${request.method()} ${table}`);
+      if (request.method() === "HEAD") return route.fulfill({ status: 200, headers: { ...corsHeaders, "Content-Range": "*/0" }, body: "" });
+      if (table === "profiles") {
+        const objectResponse = request.headers().accept?.includes("application/vnd.pgrst.object+json");
+        return route.fulfill({ status: 200, headers: corsHeaders, body: JSON.stringify(objectResponse ? fixtureProfile : [fixtureProfile]) });
+      }
+      if (table === "profile_media") return route.fulfill({ status: 200, headers: corsHeaders, body: JSON.stringify([mediaRow]) });
+      if (table === "profile_customization") return route.fulfill({ status: 200, headers: corsHeaders, body: JSON.stringify([{ avatar_media_id: fixtureMediaId }]) });
+      return route.fulfill({ status: 200, headers: corsHeaders, body: "[]" });
+    }
+    return route.fulfill({ status: 404, headers: corsHeaders, body: '{"message":"unexpected fixture request"}' });
+  });
+
+  const response = await page.goto(`${origin}/commons-circle`, { waitUntil: "networkidle", timeout: 45_000 });
+  assert.equal(response?.status(), 200, "Commons Homebase must load for the avatar stability fixture");
+  await page.locator(".commons-private-homebase").getByRole("heading", { name: "Fixture Avatar Owner", exact: true }).waitFor();
+  const privateAvatar = page.locator(".commons-private-homebase__avatar");
+
+  if (imageFailure === null) {
+    const image = privateAvatar.locator('img[alt="Commons profile avatar"]');
+    await image.waitFor();
+    await page.waitForFunction(() => {
+      const candidate = document.querySelector('.commons-private-homebase__avatar img[alt="Commons profile avatar"]');
+      return candidate instanceof HTMLImageElement && candidate.complete && candidate.naturalWidth > 0;
+    });
+    const stableSrc = await image.getAttribute("src");
+    assert.equal(signRequests, 1, "Homebase must issue one initial owner-avatar signing request");
+    await page.evaluate(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("focus"));
+    });
+    await page.waitForTimeout(900);
+    assert.equal(signRequests, 1, "Unrelated focus and visibility activity must not regenerate the owner-avatar URL");
+    assert.equal(await image.getAttribute("src"), stableSrc, "The successful owner-avatar URL must remain stable");
+  } else {
+    await privateAvatar.locator("span", { hasText: "F" }).waitFor();
+    await page.waitForTimeout(900);
+    assert.equal(signRequests, 2, `${imageFailure} must cause one initial sign and at most one canonical renewal`);
+    assert(imageRequests >= 2, `${imageFailure} must exercise both the failed initial image and the bounded renewal`);
+    assert.equal(await privateAvatar.locator("img").count(), 0, `${imageFailure} must stop rendering the broken image and retain the stable fallback`);
+    await page.waitForTimeout(900);
+    assert.equal(signRequests, 2, `${imageFailure} must not enter a signed-URL renewal loop`);
+  }
+
+  assert.deepEqual(mutationRequests, [], "Homebase avatar load, cache, failure, and renewal must not mutate profile or Storage data");
+  await context.close();
+}
+
 try {
   await loadProfileEditor({ width: 1440, height: 1000 }, true);
   await loadProfileEditor({ width: 1024, height: 900 }, false);
   await loadProfileEditor({ width: 768, height: 900 }, false);
   await loadProfileEditor({ width: 390, height: 844 }, false);
-  console.log("Commons Profile avatar browser regression passed for owner upload/removal, validation, desktop, and mobile.");
+  await loadHomebaseAvatar({ imageFailure: null });
+  for (const imageFailure of [401, 403, 404, "malformed"]) await loadHomebaseAvatar({ imageFailure });
+  console.log("Commons Profile avatar browser regression passed for owner upload/removal, one-sign Homebase caching, bounded renewal, stable failure fallback, desktop, and mobile.");
 } finally {
   await browser.close();
   await new Promise((resolve, reject) =>
