@@ -70,6 +70,7 @@ const accountCommunicationPaths = [
   "supabase/migrations/20260802040000_account_requests_and_reviews_projection.sql",
   "supabase/migrations/20260802050000_governed_account_conversations.sql",
   "supabase/migrations/20260802060000_account_notification_producers.sql",
+  "supabase/migrations/20260803010000_release_reconcile_account_communications.sql",
 ];
 
 const activePaths = [
@@ -596,6 +597,8 @@ try {
     "scripts/fixtures/onlinePublicProfileBehavior.sql",
     "scripts/fixtures/communeCanonicalAttributionBehavior.sql",
     "scripts/fixtures/accountAuthDeletionLifecycleBehavior.sql",
+    "scripts/fixtures/accountReleaseReconciliationPrestate.sql",
+    "scripts/fixtures/accountReleaseReconciliationBehavior.sql",
     "scripts/fixtures/codeProposalIntegrityBehavior.sql",
     "scripts/fixtures/accountEventFoundationBehavior.sql",
     "scripts/fixtures/accountRequestsReviewsBehavior.sql",
@@ -722,6 +725,14 @@ try {
   for (const file of accountLifecyclePaths) {
     await psql(["-f", `/tmp/${path.basename(file)}`]);
   }
+  const accountReleaseReconciliationPrestate = await psql([
+    "-f",
+    "/tmp/accountReleaseReconciliationPrestate.sql",
+  ]);
+  assert(
+    accountReleaseReconciliationPrestate.stdout.includes("account_release_reconciliation_prestate_ok"),
+    "Account release reconciliation prestate marker missing."
+  );
   for (const file of accountCommunicationPaths) {
     await psql(["-f", `/tmp/${path.basename(file)}`]);
   }
@@ -744,6 +755,14 @@ try {
   assert(
     accountAuthDeletionLifecycleBehavior.stdout.includes("Account Auth deletion lifecycle behavior checks ok."),
     "Account Auth deletion lifecycle behavior marker missing."
+  );
+  const accountReleaseReconciliationBehavior = await psql([
+    "-f",
+    "/tmp/accountReleaseReconciliationBehavior.sql",
+  ]);
+  assert(
+    accountReleaseReconciliationBehavior.stdout.includes("account_release_reconciliation_behavior_ok"),
+    "Account release reconciliation behavior marker missing."
   );
   const codeProposalIntegrityBehavior = await psql([
     "-f",
