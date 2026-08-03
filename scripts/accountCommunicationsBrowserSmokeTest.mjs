@@ -199,6 +199,7 @@ try {
     { path: "/commons-circle/signals/coding-proposals", width: 1280, heading: "Coding proposal signals", kind: "signal-detail" },
   ]) {
     const context = await browser.newContext({ viewport: { width: scenario.width, height: 900 } });
+    const observed = { totalRequests: 0, inboxLoads: 0, readMutations: 0 };
     await context.addInitScript(({ storageKey, session }) => {
       localStorage.setItem(storageKey, JSON.stringify(session));
       window.__elysiaCspViolations = [];
@@ -216,6 +217,9 @@ try {
         "Content-Type": "application/json; charset=utf-8",
       };
       if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers, body: "" });
+      observed.totalRequests += 1;
+      if (url.pathname.endsWith("/rest/v1/rpc/current_user_inbox_items")) observed.inboxLoads += 1;
+      if (url.pathname.endsWith("/rest/v1/rpc/mark_current_user_conversation_read")) observed.readMutations += 1;
       if (url.pathname.endsWith("/auth/v1/user")) return route.fulfill({ status: 200, headers, body: JSON.stringify(fixtureUser) });
       if (url.pathname.endsWith("/rest/v1/user_roles")) return route.fulfill({ status: 200, headers, body: JSON.stringify(scenario.admin ? [{ role: "administrator" }] : []) });
       if (url.pathname.endsWith("/rest/v1/profiles") && scenario.admin) return route.fulfill({ status: 200, headers, body: JSON.stringify({ is_admin: true }) });
@@ -257,15 +261,48 @@ try {
       await page.getByText("SYNTHETIC_BROWSER_PRIVATE_MESSAGE", { exact: true }).waitFor();
       assert.equal(await page.getByText(conversationId, { exact: false }).count(), 0, "Raw conversation identifiers must not render as ordinary UI text.");
       await page.getByText("Messages are stored in Supabase and are not end-to-end encrypted.", { exact: false }).waitFor();
+      await page.waitForTimeout(750);
+      assert.equal(observed.readMutations, 1, "Opening a genuinely unread visible conversation must acknowledge it once.");
+      const inboxLoadsBeforeResume = observed.inboxLoads;
+      await page.evaluate(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+        window.dispatchEvent(new Event("focus"));
+      });
+      await page.getByText("SYNTHETIC_BROWSER_PRIVATE_MESSAGE", { exact: true }).waitFor();
+      await page.waitForTimeout(900);
+      assert.equal(observed.readMutations, 1, "Passive messaging refresh must perform zero additional read mutations.");
+      assert.equal(observed.inboxLoads, inboxLoadsBeforeResume, "The parent actionable-Inbox loader must stay suspended while Messages owns refresh.");
+      assert(observed.totalRequests <= 32, `Inbox and Messages exceeded the bounded request budget: ${observed.totalRequests}.`);
     } else if (scenario.kind === "notifications") {
       await page.getByRole("tab", { name: "Unread (2)" }).waitFor();
       await page.getByText("Your revision proposal was accepted", { exact: true }).waitFor();
       await page.getByText("Fixture Author", { exact: false }).waitFor();
       await page.getByText("Choose optional in-app and email delivery", { exact: true }).waitFor();
       assert.equal(await page.getByText(notificationId, { exact: false }).count(), 0, "Raw notification identifiers must not render as ordinary UI text.");
+      const settledTitle = page.getByText("Your revision proposal was accepted", { exact: true });
+      const requestsBeforeResume = observed.totalRequests;
+      await page.evaluate(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+        window.dispatchEvent(new Event("focus"));
+      });
+      await settledTitle.waitFor();
+      await page.waitForTimeout(900);
+      assert(observed.totalRequests - requestsBeforeResume <= 4, "Focus plus visibility return must coalesce into one Notification refresh sequence.");
+      assert.equal(await page.getByText("Loading private notifications…", { exact: true }).count(), 0, "Background Notification refresh must retain settled content.");
+      assert(observed.totalRequests <= 14, `Notifications exceeded the bounded request budget: ${observed.totalRequests}.`);
     } else if (scenario.kind === "requests") {
       await page.getByText("Revision proposal for “Fixture code post”", { exact: true }).waitFor();
       await page.getByText("Pending / needs action", { exact: true }).waitFor();
+      const requestsBeforeResume = observed.totalRequests;
+      await page.evaluate(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+        window.dispatchEvent(new Event("focus"));
+      });
+      await page.getByText("Revision proposal for “Fixture code post”", { exact: true }).waitFor();
+      await page.waitForTimeout(900);
+      assert(observed.totalRequests - requestsBeforeResume <= 3, "Focus plus visibility return must coalesce into one Requests & Reviews refresh sequence.");
+      assert.equal(await page.getByText("Loading authoritative request states…", { exact: true }).count(), 0, "Background Requests & Reviews refresh must retain settled content.");
+      assert(observed.totalRequests <= 10, `Requests & Reviews exceeded the bounded request budget: ${observed.totalRequests}.`);
     } else if (scenario.kind === "signals" || scenario.kind === "signals-admin") {
       await page.getByRole("heading", { name: "Inbox & Private Messages", exact: true }).waitFor();
       await page.getByRole("heading", { name: "Notifications", exact: true }).waitFor();

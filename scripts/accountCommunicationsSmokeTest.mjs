@@ -4,8 +4,10 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-const [app, homebase, api, commonsApi, inbox, notifications, messaging, adminCommunications, adminConsole, requests, signals, signalDetails, migration, messagingMigration, messagingFixture, styles] = await Promise.all([
+const [app, authPanel, refreshController, homebase, api, commonsApi, inbox, notifications, messaging, adminCommunications, adminConsole, requests, signals, signalDetails, migration, messagingMigration, messagingFixture, styles] = await Promise.all([
   fs.readFile("src/App.tsx", "utf8"),
+  fs.readFile("src/pages/The-Elysia-Marketplace/components/AuthPanel.tsx", "utf8"),
+  fs.readFile("src/shared/hooks/useCoordinatedRefresh.ts", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/index.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/accountCommunicationsApi.ts", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/commonsCircleApi.ts", "utf8"),
@@ -60,20 +62,30 @@ for (const rpc of [
 ]) assert(api.includes(`"${rpc}"`), `Governed communication client omits ${rpc}.`);
 
 assert(!/\.from\(["'](?:account_events|account_inbox_items|account_notifications)["']\)\.(?:insert|upsert)/.test(api), "Browser client must not insert authoritative account events or projections.");
+assert(authPanel.includes("onAuthChangedRef") && authPanel.includes("authenticatedUserIdRef"), "AuthPanel must retain current callbacks and account identity through stable refs.");
+assert(authPanel.includes('event === "SIGNED_IN" && accountChanged') && authPanel.includes('event === "SIGNED_OUT" && previousUserId !== null'), "AuthPanel must refresh domain data only for meaningful account transitions.");
+assert(!authPanel.includes("void onAuthChanged()") && !authPanel.includes("await onAuthChanged()"), "Auth transitions must have one listener-owned domain refresh path.");
+for (const marker of ["initialLoading", "backgroundRefreshing", "generationRef", "queueRef", "structurallyEqual", "visibilitychange", "window.setTimeout", "lastResumeAt"]) {
+  assert(refreshController.includes(marker), `Shared refresh controller omits ${marker}.`);
+}
+assert(!refreshController.includes("setInterval"), "Shared refresh polling must not retain an interval while the document is hidden.");
 assert(inbox.includes("Needs attention") && inbox.includes("Messages") && inbox.includes("Sent") && inbox.includes("Completed") && inbox.includes("Archived"), "Inbox tabs are incomplete.");
 assert(inbox.includes("safeInternalActionPath") && inbox.includes("sourceAvailable"), "Inbox must validate deep links and render unavailable sources safely.");
-assert(inbox.includes("45_000") && inbox.includes('addEventListener("focus"'), "Inbox must use bounded polling and focus revalidation.");
+assert(inbox.includes("useCoordinatedRefresh") && inbox.includes("45_000") && inbox.includes('activeTab !== "messages"'), "Inbox must use the shared bounded controller and suspend its parent poller during Messages.");
 assert(notifications.includes("Account & Security") && notifications.includes("Marketplace & Economic") && notifications.includes("Archived"), "Notification filters are incomplete.");
-assert(notifications.includes("45_000") && notifications.includes('addEventListener("focus"'), "Notifications must use bounded polling and focus revalidation.");
+assert(notifications.includes("useCoordinatedRefresh") && notifications.includes("45_000"), "Notifications must use the shared bounded refresh controller.");
 assert(notifications.includes("safeInternalActionPath") && notifications.includes("sourceAvailable"), "Notifications must validate deep links and render unavailable sources safely.");
 assert(notifications.includes("Mandatory events in this category remain visible") && notifications.toLowerCase().includes("quiet hours"), "Notification preference and mandatory-delivery truth is incomplete.");
 assert(messaging.includes("stored in Supabase") && messaging.includes("not end-to-end encrypted"), "Messaging privacy limitations must be explicit.");
 assert(messaging.includes("Attachments, HTML, embeds, and anonymous messages are not supported"), "Messaging content boundaries are not explained.");
 assert(messaging.includes("Accept request") && messaging.includes("Block account") && messaging.includes("Submit report"), "Participant messaging safety controls are incomplete.");
+assert(messaging.includes("acknowledgedReadRef") && messaging.includes("selectedSummary.unreadCount <= 0") && messaging.includes('document.visibilityState !== "visible"'), "Messaging must acknowledge genuinely unread visible conversations only once.");
+assert(!messaging.includes("refreshDetail") && messaging.includes("runMessagingOperation"), "Messaging list, detail, participant state, and mutations must use one refresh owner.");
 assert(adminCommunications.includes("roleState.isAdmin") && adminCommunications.includes('role === "moderator"') && adminCommunications.includes('role === "commune_moderator"'), "Staff messaging UI role separation is missing.");
 assert(adminCommunications.includes("confirmationPhrase") && adminCommunications.includes("Preview exact audience"), "Administrator audience preview/confirmation is missing.");
 assert(adminConsole.includes("canOpenPrivateCommunications") && !adminConsole.includes('role === "reviewer" || role === "moderator"'), "Generic reviewers must not inherit private-message tooling.");
 assert(requests.includes("Your submissions only") && requests.includes("excludes moderator, administrator"), "Requests & Reviews must explicitly exclude specialist queues.");
+assert(requests.includes("useCoordinatedRefresh") && requests.includes("60_000"), "Requests & Reviews must use the shared bounded refresh controller.");
 assert(requests.includes("current") || api.includes("current_user_requests_and_reviews"), "Requests & Reviews must use account-owned source projection.");
 assert(signals.includes("Choose the room that matches your task") && signals.includes("This route remains compatible with existing bookmarks and query strings"), "Signals must be a compact compatibility hub during production reconciliation.");
 for (const destination of ["/commons-circle/inbox", "/commons-circle/notifications", "/commons-circle/requests-reviews"]) {

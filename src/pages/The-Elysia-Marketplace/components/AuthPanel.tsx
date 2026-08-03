@@ -104,12 +104,20 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
   const authTurnstileRef = useRef<AuthTurnstileHandle | null>(null);
   const signupPendingRef = useRef(false);
   const signupAttemptIdRef = useRef<string | null>(null);
+  const onAuthChangedRef = useRef(onAuthChanged);
+  const onMessageRef = useRef(onMessage);
+  const authenticatedUserIdRef = useRef<string | null>(null);
   const authHostPolicy = onlineAuthHostPolicy();
   const currentSignupRoute = authSignupRouteForPath(window.location.pathname);
   const currentBrowserFamily = signupDiagnostic?.browserFamily ?? currentAuthSignupBrowserFamily();
   const visibleSignupDiagnostic = signupDiagnostic?.attemptId === visibleSignupAttemptId
     ? signupDiagnostic
     : null;
+
+  useEffect(() => {
+    onAuthChangedRef.current = onAuthChanged;
+    onMessageRef.current = onMessage;
+  }, [onAuthChanged, onMessage]);
 
   useEffect(() => {
     if (!supabase) return;
@@ -121,6 +129,7 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
         setLocalStatus("The Website Account session could not be loaded safely. Refresh the page or sign in again.");
         return;
       }
+      authenticatedUserIdRef.current = data.session?.user.id ?? null;
       setSession(data.session);
       if (data.session?.user.email) {
         setLocalStatus(`Signed in as ${data.session.user.email}.`);
@@ -128,9 +137,15 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      const previousUserId = authenticatedUserIdRef.current;
+      const nextUserId = nextSession?.user.id ?? null;
+      const accountChanged = previousUserId !== nextUserId;
+      authenticatedUserIdRef.current = nextUserId;
       setSession(nextSession);
       if (event === "SIGNED_IN" && nextSession?.user.email) {
-        emit(`Signed in as ${nextSession.user.email}.`);
+        const message = `Signed in as ${nextSession.user.email}.`;
+        setLocalStatus(message);
+        onMessageRef.current(message);
       }
       if (event === "SIGNED_OUT") {
         setLocalStatus("Signed out.");
@@ -138,14 +153,20 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
       if (event === "PASSWORD_RECOVERY") {
         setLocalStatus("Password recovery session detected. This marketplace does not collect local Elysia credentials.");
       }
-      void onAuthChanged();
+      const shouldRefreshDomain = (
+        (event === "SIGNED_IN" && accountChanged)
+        || (event === "SIGNED_OUT" && previousUserId !== null)
+        || (event === "PASSWORD_RECOVERY" && accountChanged)
+        || event === "USER_UPDATED"
+      );
+      if (shouldRefreshDomain) void onAuthChangedRef.current();
     });
 
     return () => {
       mounted = false;
       listener.subscription.unsubscribe();
     };
-  }, [onAuthChanged]);
+  }, []);
 
   useEffect(() => subscribeToAuthSignupDiagnostic(setSignupDiagnostic), []);
 
@@ -359,7 +380,6 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
       setSession(result.session);
       clearPassword("immediate_session", attempt.attemptId);
       emit(`Signed in as ${result.session.user.email ?? submittedEmail}.`, "signed_in", attempt.attemptId);
-      await onAuthChanged();
     } catch {
       restoreSubmittedPassword(submittedPassword, attempt.attemptId);
       updateAuthSignupDiagnostic(attempt.attemptId, { resultCategory: "unexpected_error" });
@@ -394,7 +414,6 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
       emit(`Signed in as ${signedInEmail}.`);
       if (passwordInputRef.current) passwordInputRef.current.value = "";
       setReactPasswordPresent(false);
-      await onAuthChanged();
     } catch {
       emit("The Website Account sign-in request could not reach authentication. Your password was not cleared; check your connection and try again.");
     } finally {
@@ -411,7 +430,6 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
     if (error) { emit(safeAuthError("sign-out", error.message)); return; }
     emit("Signed out.");
     setSession(null);
-    await onAuthChanged();
   }
 
   async function submitAuth(event: FormEvent<HTMLFormElement>) {

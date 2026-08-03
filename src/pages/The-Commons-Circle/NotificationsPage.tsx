@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
+import { structurallyEqual, useCoordinatedRefresh } from "../../shared/hooks/useCoordinatedRefresh";
 import { safeInternalActionPath } from "../../shared/navigation/safeInternalActionPath";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
 import {
@@ -67,24 +68,32 @@ export default function NotificationsPage() {
   const activeFilter: NotificationFilter = filterKeys.has(requestedFilter as NotificationFilter)
     ? requestedFilter as NotificationFilter
     : "all";
-  const [result, setResult] = useState<NotificationsResult | null>(null);
   const [preferences, setPreferences] = useState<AccountEventPreference[]>([]);
   const [taxonomyVersion, setTaxonomyVersion] = useState(0);
-  const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [workingItem, setWorkingItem] = useState<string | null>(null);
   const [workingPreference, setWorkingPreference] = useState<string | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
 
-  const refresh = useCallback(async (append = false) => {
-    append ? setLoadingMore(true) : setLoading(true);
-    const next = await loadNotifications(activeFilter, append ? result?.cursor ?? null : null);
-    setResult((current) => append && current ? {
-      ...next,
-      items: [...current.items, ...next.items.filter((item) => !current.items.some((existing) => existing.id === item.id))],
-    } : next);
-    append ? setLoadingMore(false) : setLoading(false);
-  }, [activeFilter, result?.cursor]);
+  const loadCurrentFilter = useCallback(() => loadNotifications(activeFilter, null), [activeFilter]);
+
+  const {
+    data: result,
+    initialLoading: loading,
+    backgroundRefreshing,
+    busy,
+    refresh,
+    runExclusive,
+    updateData: setResult,
+  } = useCoordinatedRefresh<NotificationsResult | null>({
+    resourceKey: activeFilter,
+    load: loadCurrentFilter,
+    initialData: null,
+    pollIntervalMs: 45_000,
+    pollEnabled: (next) => Boolean(next?.signedIn),
+    classify: (next) => !next?.signedIn ? "blocked" : next.warnings.length ? "degraded" : "settled",
+    isEqual: structurallyEqual,
+  });
 
   const refreshPreferences = useCallback(async () => {
     const next = await loadAccountEventPreferences();
@@ -95,21 +104,7 @@ export default function NotificationsPage() {
     }
   }, []);
 
-  useEffect(() => { void refresh(false); }, [activeFilter]);
   useEffect(() => { if (result?.signedIn) void refreshPreferences(); }, [refreshPreferences, result?.signedIn]);
-
-  useEffect(() => {
-    if (!result?.signedIn) return;
-    const onFocus = () => { if (document.visibilityState === "visible") void refresh(false); };
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onFocus);
-    const timer = window.setInterval(onFocus, 45_000);
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onFocus);
-      window.clearInterval(timer);
-    };
-  }, [refresh, result?.signedIn]);
 
   const filterLabel = useMemo(() => filters.find((filter) => filter.key === activeFilter)?.label ?? "All", [activeFilter]);
 
@@ -123,7 +118,7 @@ export default function NotificationsPage() {
     setWorkingItem(itemId);
     const warnings = await action();
     setMessages(warnings.length ? warnings : [success]);
-    await refresh(false);
+    await refresh("mutation");
     setWorkingItem(null);
   }
 
@@ -133,7 +128,7 @@ export default function NotificationsPage() {
       : null;
     const outcome = await markAllAccountNotificationsRead(category);
     setMessages([outcome.warning ?? `${outcome.count} notification${outcome.count === 1 ? "" : "s"} marked read.`]);
-    await refresh(false);
+    await refresh("mutation");
   }
 
   function patchPreference(category: string, patch: Partial<AccountEventPreference>) {
@@ -147,6 +142,22 @@ export default function NotificationsPage() {
     if (outcome.preference) patchPreference(preference.category, outcome.preference);
     else await refreshPreferences();
     setWorkingPreference(null);
+  }
+
+  const refreshAfterAuth = useCallback(async () => { await refresh("auth"); }, [refresh]);
+
+  async function loadMore() {
+    if (!result?.cursor) return;
+    const cursor = result.cursor;
+    setLoadingMore(true);
+    await runExclusive(async () => {
+      const next = await loadNotifications(activeFilter, cursor);
+      setResult((current) => current ? {
+        ...next,
+        items: [...current.items, ...next.items.filter((item) => !current.items.some((existing) => existing.id === item.id))],
+      } : next);
+    });
+    setLoadingMore(false);
   }
 
   return <div className="page-stack commons-circle-page commons-account-communications-page">
@@ -169,7 +180,7 @@ export default function NotificationsPage() {
       </div>
       <AuthPanel
         onMessage={(message) => setMessages((current) => [message, ...current].slice(0, 6))}
-        onAuthChanged={async () => { await refresh(false); }}
+        onAuthChanged={refreshAfterAuth}
         copy={{
           eyebrow: "Website Account",
           title: result?.signedIn ? "Private notifications active" : "Sign in to view private notifications",
@@ -185,7 +196,7 @@ export default function NotificationsPage() {
       <section className="section-card">
         <div className="section-heading section-heading--inline">
           <div><p className="eyebrow">Informational events</p><h2>{result.counts.notificationsUnread} unread notifications</h2></div>
-          <div className="button-row"><button type="button" onClick={() => void refresh(false)} disabled={loading}>Refresh</button><button type="button" onClick={() => void markAllRead()} disabled={loading || result.counts.notificationsUnread === 0}>Mark all read</button></div>
+          <div className="button-row"><button type="button" onClick={() => void refresh("manual")} disabled={busy}>Refresh</button><button type="button" onClick={() => void markAllRead()} disabled={busy || result.counts.notificationsUnread === 0}>Mark all read</button>{backgroundRefreshing && <span className="boundary-note" aria-live="polite">Refreshing quietly…</span>}</div>
         </div>
 
         <div className="account-communications-tabs" role="tablist" aria-label="Notification views">
@@ -223,7 +234,7 @@ export default function NotificationsPage() {
             </article>;
           })}
         </div>
-        {result.cursor && <button type="button" disabled={loadingMore} onClick={() => void refresh(true)}>{loadingMore ? "Loading…" : "Load more"}</button>}
+        {result.cursor && <button type="button" disabled={loadingMore || busy} onClick={() => void loadMore()}>{loadingMore ? "Loading…" : "Load more"}</button>}
       </section>
 
       <section className="section-card account-notification-preferences">

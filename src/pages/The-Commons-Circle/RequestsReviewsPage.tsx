@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
+import { structurallyEqual, useCoordinatedRefresh } from "../../shared/hooks/useCoordinatedRefresh";
 import { safeInternalActionPath } from "../../shared/navigation/safeInternalActionPath";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
 import {
@@ -42,35 +43,47 @@ export default function RequestsReviewsPage() {
   const domain = validDomains.has(requestedDomain as typeof domains[number]["key"]) ? requestedDomain : "all";
   const requestedState = searchParams.get("state") ?? "all";
   const state: RequestReviewState = ["all", "pending", "resolved"].includes(requestedState) ? requestedState as RequestReviewState : "all";
-  const [result, setResult] = useState<RequestReviewsResult | null>(null);
-  const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [messages, setMessages] = useState<string[]>([]);
 
-  const refresh = useCallback(async (append = false) => {
-    append ? setLoadingMore(true) : setLoading(true);
-    const next = await loadRequestsAndReviews(state, domain === "all" ? null : domain, append ? result?.cursor ?? null : null);
-    setResult((current) => append && current ? {
-      ...next,
-      items: [...current.items, ...next.items.filter((item) => !current.items.some((existing) => existing.key === item.key))],
-    } : next);
-    append ? setLoadingMore(false) : setLoading(false);
-  }, [domain, result?.cursor, state]);
+  const loadCurrentView = useCallback(
+    () => loadRequestsAndReviews(state, domain === "all" ? null : domain, null),
+    [domain, state],
+  );
 
-  useEffect(() => { void refresh(false); }, [domain, state]);
+  const {
+    data: result,
+    initialLoading: loading,
+    backgroundRefreshing,
+    busy,
+    refresh,
+    runExclusive,
+    updateData: setResult,
+  } = useCoordinatedRefresh<RequestReviewsResult | null>({
+    resourceKey: `${state}:${domain}`,
+    load: loadCurrentView,
+    initialData: null,
+    pollIntervalMs: 60_000,
+    pollEnabled: (next) => Boolean(next?.signedIn),
+    classify: (next) => !next?.signedIn ? "blocked" : next.warnings.length ? "degraded" : "settled",
+    isEqual: structurallyEqual,
+  });
 
-  useEffect(() => {
-    if (!result?.signedIn) return;
-    const onFocus = () => { if (document.visibilityState === "visible") void refresh(false); };
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onFocus);
-    const timer = window.setInterval(onFocus, 60_000);
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onFocus);
-      window.clearInterval(timer);
-    };
-  }, [refresh, result?.signedIn]);
+  const refreshAfterAuth = useCallback(async () => { await refresh("auth"); }, [refresh]);
+
+  async function loadMore() {
+    if (!result?.hasMore || !result.cursor) return;
+    const cursor = result.cursor;
+    setLoadingMore(true);
+    await runExclusive(async () => {
+      const next = await loadRequestsAndReviews(state, domain === "all" ? null : domain, cursor);
+      setResult((current) => current ? {
+        ...next,
+        items: [...current.items, ...next.items.filter((item) => !current.items.some((existing) => existing.key === item.key))],
+      } : next);
+    });
+    setLoadingMore(false);
+  }
 
   function setFilter(key: "domain" | "state", value: string) {
     const next = new URLSearchParams(searchParams);
@@ -98,7 +111,7 @@ export default function RequestsReviewsPage() {
       </div>
       <AuthPanel
         onMessage={(message) => setMessages((current) => [message, ...current].slice(0, 6))}
-        onAuthChanged={async () => { await refresh(false); }}
+        onAuthChanged={refreshAfterAuth}
         copy={{
           eyebrow: "Website Account",
           title: result?.signedIn ? "Requests & Reviews active" : "Sign in to view your submissions",
@@ -113,7 +126,7 @@ export default function RequestsReviewsPage() {
     {result?.signedIn && <section className="section-card">
       <div className="section-heading section-heading--inline">
         <div><p className="eyebrow">Account-owned workflows</p><h2>{result.counts.pending} pending across {result.counts.total} submissions</h2></div>
-        <button type="button" onClick={() => void refresh(false)} disabled={loading}>Refresh</button>
+        <div className="button-row"><button type="button" onClick={() => void refresh("manual")} disabled={busy}>Refresh</button>{backgroundRefreshing && <span className="boundary-note" aria-live="polite">Refreshing quietly…</span>}</div>
       </div>
       <div className="account-communications-filters">
         <label><span>Status</span><select value={state} onChange={(event) => setFilter("state", event.target.value)}><option value="all">All statuses</option><option value="pending">Pending or needs action</option><option value="resolved">Resolved or closed</option></select></label>
@@ -144,7 +157,7 @@ export default function RequestsReviewsPage() {
           </article>;
         })}
       </div>
-      {result.hasMore && result.cursor && <button type="button" disabled={loadingMore} onClick={() => void refresh(true)}>{loadingMore ? "Loading…" : "Load more"}</button>}
+      {result.hasMore && result.cursor && <button type="button" disabled={loadingMore || busy} onClick={() => void loadMore()}>{loadingMore ? "Loading…" : "Load more"}</button>}
     </section>}
 
     {result?.warnings.length ? <WarningCallout title="Temporary account-data limitation"><p>{result.warnings.join(" ")}</p></WarningCallout> : null}

@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
+import { structurallyEqual, useCoordinatedRefresh } from "../../shared/hooks/useCoordinatedRefresh";
 import {
   loadConversation,
   loadConversations,
@@ -22,6 +23,20 @@ import {
 } from "./accountCommunicationsApi";
 
 type PanelMessage = { tone: "info" | "error"; text: string };
+
+type MessagingWorkspace = {
+  conversations: ConversationSummary[];
+  detail: ConversationDetail | null;
+  preferences: MessagingPreferences | null;
+  warning: string | null;
+};
+
+const emptyMessagingWorkspace: MessagingWorkspace = {
+  conversations: [],
+  detail: null,
+  preferences: null,
+  warning: null,
+};
 
 function formatTime(value: string | null) {
   if (!value) return "No messages yet";
@@ -50,10 +65,6 @@ export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChang
   const sourceContextValid = sourceDomain === "code_proposals"
     && sourceType === "commune_code_revision_proposal"
     && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sourceRecordId ?? "");
-  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
-  const [detail, setDetail] = useState<ConversationDetail | null>(null);
-  const [preferences, setPreferences] = useState<MessagingPreferences | null>(null);
-  const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState(false);
   const [panelMessage, setPanelMessage] = useState<PanelMessage | null>(null);
   const [composeOpen, setComposeOpen] = useState(false);
@@ -67,56 +78,84 @@ export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChang
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("spam");
   const [reportDetails, setReportDetails] = useState("");
+  const acknowledgedReadRef = useRef(new Map<string, string>());
 
-  const selectedId = selectedFromUrl || conversations[0]?.id || null;
-
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  const loadMessagingWorkspace = useCallback(async (): Promise<MessagingWorkspace> => {
     const [conversationResult, preferenceResult] = await Promise.all([
       loadConversations("all"),
       loadMessagingPreferences(),
     ]);
-    setConversations(conversationResult.items);
-    setPreferences(preferenceResult.preferences);
-    const warning = conversationResult.warning || preferenceResult.warning;
-    if (warning) setPanelMessage({ tone: "error", text: warning });
-    setLoading(false);
-  }, []);
+    const selectedConversationId = selectedFromUrl || conversationResult.items[0]?.id || null;
+    const detailResult = selectedConversationId
+      ? await loadConversation(selectedConversationId)
+      : { detail: null, warning: null };
+    return {
+      conversations: conversationResult.items,
+      detail: detailResult.detail,
+      preferences: preferenceResult.preferences,
+      warning: conversationResult.warning || preferenceResult.warning || detailResult.warning,
+    };
+  }, [selectedFromUrl]);
 
-  const refreshDetail = useCallback(async (conversationId: string | null) => {
-    if (!conversationId) { setDetail(null); return; }
-    const result = await loadConversation(conversationId);
-    setDetail(result.detail);
-    if (result.warning) setPanelMessage({ tone: "error", text: result.warning });
-    if (result.detail) {
-      await markConversationRead(conversationId);
-      onCountsChanged();
-    }
-  }, [onCountsChanged]);
+  const {
+    data: workspace,
+    phase,
+    initialLoading: loading,
+    backgroundRefreshing,
+    busy,
+    refresh,
+    runExclusive,
+    updateData: setWorkspace,
+  } = useCoordinatedRefresh<MessagingWorkspace>({
+    resourceKey: selectedFromUrl ?? "first-conversation",
+    load: loadMessagingWorkspace,
+    initialData: emptyMessagingWorkspace,
+    pollIntervalMs: 45_000,
+    pollEnabled: true,
+    classify: (next) => next.warning ? "degraded" : "settled",
+    isEqual: structurallyEqual,
+  });
 
-  useEffect(() => { void refresh(); }, [refresh]);
-  useEffect(() => { void refreshDetail(selectedId); }, [refreshDetail, selectedId]);
+  const conversations = workspace.conversations;
+  const detail = workspace.detail;
+  const preferences = workspace.preferences;
+  const selectedId = selectedFromUrl || conversations[0]?.id || null;
 
   useEffect(() => {
-    const onFocus = () => {
-      if (document.visibilityState !== "visible") return;
-      void refresh();
-      void refreshDetail(selectedId);
-    };
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onFocus);
-    const timer = window.setInterval(onFocus, 45_000);
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onFocus);
-      window.clearInterval(timer);
-    };
-  }, [refresh, refreshDetail, selectedId]);
+    if (!workspace.warning) return;
+    setPanelMessage({ tone: "error", text: workspace.warning });
+  }, [workspace.warning]);
 
   const selectedSummary = useMemo(
     () => conversations.find((conversation) => conversation.id === selectedId) ?? detail?.conversation ?? null,
     [conversations, detail, selectedId],
   );
+
+  useEffect(() => {
+    if (!selectedId || !detail || !selectedSummary || selectedSummary.unreadCount <= 0) return;
+    if (document.visibilityState !== "visible" || phase === "initialLoading" || phase === "backgroundRefreshing") return;
+    const newestIncomingMessage = [...detail.messages].reverse().find((message) => !message.senderSelf && !message.deletedAt);
+    if (!newestIncomingMessage || acknowledgedReadRef.current.get(selectedId) === newestIncomingMessage.id) return;
+    acknowledgedReadRef.current.set(selectedId, newestIncomingMessage.id);
+    void runExclusive(async () => {
+      const warning = await markConversationRead(selectedId);
+      if (warning) {
+        acknowledgedReadRef.current.delete(selectedId);
+        setPanelMessage({ tone: "error", text: warning });
+        return;
+      }
+      setWorkspace((current) => ({
+        ...current,
+        conversations: current.conversations.map((conversation) => conversation.id === selectedId
+          ? { ...conversation, unreadCount: 0 }
+          : conversation),
+        detail: current.detail?.conversation.id === selectedId
+          ? { ...current.detail, conversation: { ...current.detail.conversation, unreadCount: 0 } }
+          : current.detail,
+      }));
+      onCountsChanged();
+    });
+  }, [detail, onCountsChanged, phase, runExclusive, selectedId, selectedSummary, setWorkspace]);
 
   function selectConversation(id: string) {
     const next = new URLSearchParams(searchParams);
@@ -124,10 +163,16 @@ export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChang
     setSearchParams(next, { replace: true });
   }
 
+  async function runMessagingOperation<T>(operation: () => Promise<T>) {
+    let result!: T;
+    await runExclusive(async () => { result = await operation(); });
+    return result;
+  }
+
   async function savePreferences(next: MessagingPreferences) {
     setWorking(true);
-    const result = await updateMessagingPreferences(next);
-    setPreferences(result.preferences ?? preferences);
+    const result = await runMessagingOperation(() => updateMessagingPreferences(next));
+    setWorkspace((current) => ({ ...current, preferences: result.preferences ?? current.preferences }));
     setPanelMessage(result.warning
       ? { tone: "error", text: result.warning }
       : { tone: "info", text: "Private communication preferences saved." });
@@ -136,7 +181,7 @@ export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChang
 
   async function checkRecipient() {
     setWorking(true);
-    const result = await lookupMessagingRecipient(handle);
+    const result = await runMessagingOperation(() => lookupMessagingRecipient(handle));
     setRecipient(result.recipient);
     setPanelMessage(result.warning ? { tone: "error", text: result.warning } : null);
     setWorking(false);
@@ -144,26 +189,26 @@ export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChang
 
   async function submitConversationRequest() {
     setWorking(true);
-    const result = await requestConversation(handle, subject, body);
+    const result = await runMessagingOperation(() => requestConversation(handle, subject, body));
     if (result.warning || !result.conversationId) {
       setPanelMessage({ tone: "error", text: result.warning ?? "The conversation request could not be created." });
     } else {
       setPanelMessage({ tone: "info", text: "Conversation request sent. The recipient must accept before replies are enabled." });
       setComposeOpen(false); setHandle(""); setSubject(""); setBody(""); setRecipient(null);
-      await refresh(); selectConversation(result.conversationId);
+      selectConversation(result.conversationId);
     }
     setWorking(false);
   }
 
   async function submitSupportRequest() {
     setWorking(true);
-    const result = await startSupportConversation(subject, body);
+    const result = await runMessagingOperation(() => startSupportConversation(subject, body));
     if (result.warning || !result.conversationId) {
       setPanelMessage({ tone: "error", text: result.warning ?? "The support conversation could not be created." });
     } else {
       setPanelMessage({ tone: "info", text: "Your private account-support conversation is in the administrator queue." });
       setSupportOpen(false); setSubject(""); setBody("");
-      await refresh(); selectConversation(result.conversationId);
+      selectConversation(result.conversationId);
     }
     setWorking(false);
   }
@@ -171,13 +216,12 @@ export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChang
   async function submitSourceConversation() {
     if (!sourceContextValid || !sourceDomain || !sourceType || !sourceRecordId) return;
     setWorking(true);
-    const result = await startSourceLinkedConversation({ sourceDomain, sourceType, sourceRecordId, subject, body });
+    const result = await runMessagingOperation(() => startSourceLinkedConversation({ sourceDomain, sourceType, sourceRecordId, subject, body }));
     if (result.warning || !result.conversationId) {
       setPanelMessage({ tone: "error", text: result.warning ?? "The source-linked conversation could not be created." });
     } else {
       setPanelMessage({ tone: "info", text: "A private conversation was opened with the other proposal participant. The proposal remains authoritative." });
       setSourceOpen(false); setSubject(""); setBody("");
-      await refresh();
       const next = new URLSearchParams(searchParams);
       next.delete("sourceDomain"); next.delete("sourceType"); next.delete("sourceRecord");
       next.set("conversation", result.conversationId);
@@ -189,34 +233,34 @@ export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChang
   async function respond(decision: "accept" | "decline") {
     if (!selectedId) return;
     setWorking(true);
-    const warning = await respondToConversationRequest(selectedId, decision);
+    const warning = await runMessagingOperation(() => respondToConversationRequest(selectedId, decision));
     setPanelMessage(warning
       ? { tone: "error", text: warning }
       : { tone: "info", text: decision === "accept" ? "Conversation accepted. Replies are now enabled." : "Conversation declined." });
-    await refresh(); await refreshDetail(selectedId); onCountsChanged();
+    await refresh("mutation"); onCountsChanged();
     setWorking(false);
   }
 
   async function sendReply() {
     if (!selectedId || !reply.trim()) return;
     setWorking(true);
-    const warning = await sendConversationMessage(selectedId, reply);
+    const warning = await runMessagingOperation(() => sendConversationMessage(selectedId, reply));
     setPanelMessage(warning ? { tone: "error", text: warning } : { tone: "info", text: "Private reply sent." });
     if (!warning) setReply("");
-    await refresh(); await refreshDetail(selectedId); onCountsChanged();
+    await refresh("mutation"); onCountsChanged();
     setWorking(false);
   }
 
   async function changePresentation(kind: "archive" | "mute") {
     if (!selectedId || !selectedSummary) return;
     setWorking(true);
-    const warning = await setConversationPresentation(
+    const warning = await runMessagingOperation(() => setConversationPresentation(
       selectedId,
       kind === "archive" ? !selectedSummary.archivedAt : null,
       kind === "mute" ? !selectedSummary.mutedAt : null,
-    );
+    ));
     setPanelMessage(warning ? { tone: "error", text: warning } : { tone: "info", text: `${kind === "archive" ? "Archive" : "Mute"} setting updated.` });
-    await refresh(); await refreshDetail(selectedId);
+    await refresh("mutation");
     setWorking(false);
   }
 
@@ -224,9 +268,9 @@ export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChang
     if (!selectedId || !selectedSummary) return;
     setWorking(true);
     const blocked = !selectedSummary.blockedByCurrentUser;
-    const warning = await setConversationBlocked(selectedId, blocked);
+    const warning = await runMessagingOperation(() => setConversationBlocked(selectedId, blocked));
     setPanelMessage(warning ? { tone: "error", text: warning } : { tone: "info", text: blocked ? "Account blocked. Direct and source-linked conversations were closed." : "Account unblocked. Closed conversations stay closed." });
-    await refresh(); await refreshDetail(selectedId); onCountsChanged();
+    await refresh("mutation"); onCountsChanged();
     setWorking(false);
   }
 
@@ -234,7 +278,7 @@ export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChang
     if (!selectedId) return;
     setWorking(true);
     const latestOtherMessage = [...(detail?.messages ?? [])].reverse().find((message) => !message.senderSelf);
-    const warning = await reportConversation(selectedId, latestOtherMessage?.id ?? null, reportReason, reportDetails);
+    const warning = await runMessagingOperation(() => reportConversation(selectedId, latestOtherMessage?.id ?? null, reportReason, reportDetails));
     setPanelMessage(warning ? { tone: "error", text: warning } : { tone: "info", text: "Report submitted to the case-bound message moderation queue." });
     if (!warning) { setReportOpen(false); setReportDetails(""); }
     setWorking(false);
@@ -261,7 +305,8 @@ export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChang
       <button className="button-primary" type="button" onClick={() => { setComposeOpen((open) => !open); setSupportOpen(false); setSourceOpen(false); }} disabled={!preferences?.ordinaryMessagingEligible}>Start a private conversation</button>
       <button type="button" onClick={() => { setSupportOpen((open) => !open); setComposeOpen(false); setSourceOpen(false); }}>Contact account support</button>
       {sourceContextValid && <button type="button" onClick={() => { setSourceOpen((open) => !open); setComposeOpen(false); setSupportOpen(false); }} disabled={!preferences?.ordinaryMessagingEligible}>Message proposal participant</button>}
-      <button type="button" onClick={() => void refresh()} disabled={loading}>Refresh conversations</button>
+      <button type="button" onClick={() => void refresh("manual")} disabled={busy}>Refresh conversations</button>
+      {backgroundRefreshing && <span className="boundary-note" aria-live="polite">Refreshing quietly…</span>}
     </div>
 
     {(composeOpen || supportOpen || sourceOpen) && <form className="account-messaging-compose" onSubmit={(event) => { event.preventDefault(); void (composeOpen ? submitConversationRequest() : sourceOpen ? submitSourceConversation() : submitSupportRequest()); }}>

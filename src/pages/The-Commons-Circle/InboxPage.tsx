@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
+import { structurallyEqual, useCoordinatedRefresh } from "../../shared/hooks/useCoordinatedRefresh";
 import { safeInternalActionPath } from "../../shared/navigation/safeInternalActionPath";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
 import {
@@ -61,50 +62,42 @@ export default function InboxPage() {
   const [activeTab, setActiveTab] = useState<InboxTab>(() => searchParams.get("view") === "messages" ? "messages" : "attention");
   const [domain, setDomain] = useState("all");
   const [priority, setPriority] = useState<PriorityFilter>("all");
-  const [result, setResult] = useState<InboxResult | null>(null);
-  const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [workingItem, setWorkingItem] = useState<string | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
 
-  const refresh = useCallback(async (append = false) => {
+  const loadCurrentView = useCallback(async () => {
     if (activeTab === "sent") {
-      setLoading(true);
       const counts = await loadAccountHomebaseCounts();
-      setResult({
+      return {
         signedIn: counts.signedIn,
         supabaseConfigured: counts.supabaseConfigured,
         warnings: counts.warnings,
         items: [],
         counts: counts.events,
         cursor: null,
-      });
-      setLoading(false);
-      return;
+      } satisfies InboxResult;
     }
-    append ? setLoadingMore(true) : setLoading(true);
-    const next = await loadInbox(activeTab, domain === "all" ? null : domain, append ? result?.cursor ?? null : null);
-    setResult((current) => append && current ? {
-      ...next,
-      items: [...current.items, ...next.items.filter((item) => !current.items.some((existing) => existing.id === item.id))],
-    } : next);
-    append ? setLoadingMore(false) : setLoading(false);
-  }, [activeTab, domain, result?.cursor]);
+    return loadInbox(activeTab, domain === "all" ? null : domain, null);
+  }, [activeTab, domain]);
 
-  useEffect(() => { void refresh(false); }, [activeTab, domain]);
-
-  useEffect(() => {
-    if (!result?.signedIn) return;
-    const onFocus = () => { if (document.visibilityState === "visible") void refresh(false); };
-    window.addEventListener("focus", onFocus);
-    document.addEventListener("visibilitychange", onFocus);
-    const timer = window.setInterval(onFocus, 45_000);
-    return () => {
-      window.removeEventListener("focus", onFocus);
-      document.removeEventListener("visibilitychange", onFocus);
-      window.clearInterval(timer);
-    };
-  }, [refresh, result?.signedIn]);
+  const {
+    data: result,
+    initialLoading: loading,
+    backgroundRefreshing,
+    busy,
+    refresh,
+    runExclusive,
+    updateData: setResult,
+  } = useCoordinatedRefresh<InboxResult | null>({
+    resourceKey: `${activeTab}:${domain}`,
+    load: loadCurrentView,
+    initialData: null,
+    pollIntervalMs: 45_000,
+    pollEnabled: (next) => Boolean(next?.signedIn && activeTab !== "messages"),
+    classify: (next) => !next?.signedIn ? "blocked" : next.warnings.length ? "degraded" : "settled",
+    isEqual: structurallyEqual,
+  });
 
   const visibleItems = useMemo(() => (result?.items ?? []).filter((item) => {
     if (priority === "high") return item.priority >= 75;
@@ -116,14 +109,30 @@ export default function InboxPage() {
     setWorkingItem(itemId);
     const warnings = await action();
     setMessages(warnings.length ? warnings : [success]);
-    await refresh(false);
+    await refresh("mutation");
     setWorkingItem(null);
   }
 
   const refreshCounts = useCallback(async () => {
     const counts = await loadAccountHomebaseCounts();
     setResult((current) => current ? { ...current, counts: counts.events, warnings: [...current.warnings, ...counts.warnings] } : current);
-  }, []);
+  }, [setResult]);
+
+  const refreshAfterAuth = useCallback(async () => { await refresh("auth"); }, [refresh]);
+
+  async function loadMore() {
+    if (!result?.cursor || activeTab === "sent" || activeTab === "messages") return;
+    const cursor = result.cursor;
+    setLoadingMore(true);
+    await runExclusive(async () => {
+      const next = await loadInbox(activeTab, domain === "all" ? null : domain, cursor);
+      setResult((current) => current ? {
+        ...next,
+        items: [...current.items, ...next.items.filter((item) => !current.items.some((existing) => existing.id === item.id))],
+      } : next);
+    });
+    setLoadingMore(false);
+  }
 
   return <div className="page-stack commons-circle-page commons-account-communications-page">
     <PageHero eyebrow="Private account room" title="Inbox">
@@ -145,7 +154,7 @@ export default function InboxPage() {
       </div>
       <AuthPanel
         onMessage={(message) => setMessages((current) => [message, ...current].slice(0, 6))}
-        onAuthChanged={async () => { await refresh(false); }}
+        onAuthChanged={refreshAfterAuth}
         copy={{
           eyebrow: "Website Account",
           title: result?.signedIn ? "Private Inbox active" : "Sign in to open your private Inbox",
@@ -165,7 +174,7 @@ export default function InboxPage() {
           const next = new URLSearchParams(searchParams);
           next.set("view", "messages");
           setSearchParams(next, { replace: true });
-        }}>Start a private conversation</button><button type="button" onClick={() => void refresh(false)} disabled={loading}>Refresh</button></div>
+        }}>Start a private conversation</button><button type="button" onClick={() => void refresh("manual")} disabled={busy}>Refresh</button>{backgroundRefreshing && <span className="boundary-note" aria-live="polite">Refreshing quietly…</span>}</div>
       </div>
       <dl className="mini-facts">
         <div><dt>Needs attention</dt><dd>{result.counts.inboxNeedsAttention}</dd></div>
@@ -228,7 +237,7 @@ export default function InboxPage() {
             </article>;
           })}
         </div>
-        {result.cursor && <button type="button" disabled={loadingMore} onClick={() => void refresh(true)}>{loadingMore ? "Loading…" : "Load more"}</button>}
+        {result.cursor && <button type="button" disabled={loadingMore || busy} onClick={() => void loadMore()}>{loadingMore ? "Loading…" : "Load more"}</button>}
       </>}
     </section>}
 
