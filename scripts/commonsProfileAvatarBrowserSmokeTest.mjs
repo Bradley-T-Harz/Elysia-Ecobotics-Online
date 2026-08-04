@@ -379,6 +379,11 @@ async function loadHomebaseAvatar({ imageFailure = null }) {
   const response = await page.goto(`${origin}/commons-circle`, { waitUntil: "networkidle", timeout: 45_000 });
   assert.equal(response?.status(), 200, "Commons Homebase must load for the avatar stability fixture");
   await page.locator(".commons-private-homebase").getByRole("heading", { name: "Fixture Avatar Owner", exact: true }).waitFor();
+  const signalsCard = page.locator(".commons-signal-feed");
+  await signalsCard.getByRole("heading", { name: "Signals", exact: true }).waitFor();
+  assert.equal(await signalsCard.getByRole("link", { name: "Open Signals", exact: true }).getAttribute("href"), "/commons-circle/signals", "Homebase Signals doorway must target the dedicated Signals hub");
+  assert.match(await signalsCard.innerText(), /Signals contains private messages, notifications, requests, reviews, domain activity, and authorized staff tools\./, "Homebase Signals doorway must use the approved neutral summary");
+  assert.doesNotMatch(await signalsCard.innerText(), /compatibility|existing notification preview|legacy preview|remains during migration/i, "Homebase Signals doorway must omit migration-era language");
   const privateAvatar = page.locator(".commons-private-homebase__avatar");
 
   if (imageFailure === null) {

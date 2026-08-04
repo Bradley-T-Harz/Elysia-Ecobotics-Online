@@ -136,8 +136,9 @@ assert(signalDetailPage.includes("direct-source lane remains as a parity fallbac
 assert(signalConsolePage.includes("Research Notes") && signalConsolePage.includes("Job Posts"), "Signals hub should retain Research Notes and Job Post destinations.");
 assert(signalDetailPage.includes("Author approval, moderator safety review, and sandbox evidence remain separate"), "Focused Signals routes should preserve author approval doctrine.");
 assert(signalDetailPage.includes("Sandbox diagnostics are evidence only") || signalDetailPage.includes("selected-artifact review evidence"), "Focused Signals routes should preserve sandbox-is-not-approval doctrine.");
-assert(commonsPage.includes("Signals compatibility") && commonsPage.includes("Open compatibility Signal Console"), "Commons Circle must preserve the existing Signal Console during Inbox/Notifications migration.");
-assert(!commonsPage.includes("<h2>Updates and outcomes</h2>") && commonsPage.includes("/commons-circle/signals/notifications") && commonsPage.includes("/commons-circle/signals"), "Commons Circle should avoid a duplicate Notifications card while preserving canonical preferences and the compatibility Signals doorway.");
+assert(commonsPage.includes("<h2>Signals</h2>") && commonsPage.includes("Open Signals"), "Commons Circle must preserve one broad doorway to the dedicated Signals hub.");
+assert(!commonsPage.includes("Signals compatibility") && !commonsPage.includes("Existing notification preview") && !commonsPage.includes("legacy preview") && !commonsPage.includes("remains during migration"), "Commons Circle must not retain migration-era Signals wording.");
+assert(!commonsPage.includes("<h2>Updates and outcomes</h2>") && commonsPage.includes("/commons-circle/signals/notifications") && commonsPage.includes("/commons-circle/signals"), "Commons Circle should avoid a duplicate Notifications card while preserving canonical preferences and the Signals doorway.");
 assert(signalConsolePage.includes("/commons-circle/signals/troubleshooting") && signalDetailPage.includes("Troubleshooting activity"), "Signals compatibility routes must preserve Troubleshooting Grove support activity.");
 assert(signalConsolePage.includes("/commons-circle/signals/research-notes") && signalDetailPage.includes("Research Notes activity"), "Signals compatibility routes must preserve Research Notes activity.");
 

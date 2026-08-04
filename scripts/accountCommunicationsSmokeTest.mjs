@@ -126,7 +126,11 @@ assert(!commonsApi.includes("export async function loadSignalConsole():"), "Focu
 for (const source of ["work_with_requests", "addon_submissions", "marketplace_listings"]) assert(commonsApi.includes(`.from("${source}")`), `Signals source-backed activity omits ${source}.`);
 assert(signalDetails.includes("Exact scoped totals") && signalDetails.includes("Signal room pagination"), "Focused Signal rooms must label exact totals and expose bounded pagination.");
 
-assert(homebase.includes("Signals compatibility") && homebase.includes("existing author, reviewer, administrator"), "Signals compatibility and queue-preservation copy is missing.");
+assert(homebase.includes("<h2>Signals</h2>") && homebase.includes("Signals contains private messages, notifications, requests, reviews, domain activity, and authorized staff tools."), "Commons Homebase must present one broad Signals doorway.");
+assert(homebase.includes('to="/commons-circle/signals">Open Signals</Link>'), "Commons Homebase Signals doorway must open the dedicated Signals hub.");
+for (const removedLegacyCopy of ["Signals compatibility", "Existing notification preview", "legacy preview", "remains during migration", "Open compatibility Signal Console", "Legacy rows shown", "Code proposal rows", "Troubleshooting rows"]) {
+  assert(!homebase.includes(removedLegacyCopy), `Commons Homebase still contains migration-era Signals copy: ${removedLegacyCopy}`);
+}
 for (const removed of ["Private actions for you", "Updates and outcomes", "Your submitted workflows", "Browser-local drafts", "CommonsCircleAdminEntryCard", "Admin-only backend status", "loadAccountHomebaseCounts"]) {
   assert(!homebase.includes(removed), `Commons Homebase still duplicates moved communication/admin content: ${removed}`);
 }

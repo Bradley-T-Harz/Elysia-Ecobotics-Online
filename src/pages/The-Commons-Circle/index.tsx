@@ -210,8 +210,6 @@ export default function CommonsCirclePage() {
   const publicProfilePath = profile?.username ? `/commons-circle/@${encodeURIComponent(profile.username)}` : "/commons-circle/setup/profile";
   const localLivingCount = homebase?.localLiving.savedSourceIds.length ?? 0;
   const shouldPromptSync = Boolean(homebase?.signedIn && localLivingCount > 0 && syncChoice.choice !== "synced" && syncChoice.choice !== "keep_local");
-  const codeProposalSignalCount = homebase?.notifications.filter((notice) => /code_revision|proposal/i.test(`${notice.notification_type ?? ""} ${notice.source_type ?? ""}`)).length ?? 0;
-  const troubleshootingSignalCount = homebase?.notifications.filter((notice) => /troubleshooting|fix_proposed|resolution/i.test(`${notice.notification_type ?? ""} ${notice.source_type ?? ""}`)).length ?? 0;
   const homeStyle = commonsCustomizationStyle(savedCustomization);
   const previewStyle = commonsCustomizationStyle(customizationDraft);
   const homebaseClasses = `page-stack commons-circle-page commons-homebase ${customizationSkinClass(savedCustomization)}`;
@@ -458,11 +456,10 @@ export default function CommonsCirclePage() {
         </article>
 
         <article className="section-card commons-signal-feed commons-account-room-card">
-          <p className="eyebrow">Signals compatibility</p>
-          <h2>Existing notification preview</h2>
-          <dl className="mini-facts"><MiniFact label="Legacy rows shown" value={homebase?.notifications.length ?? 0} /><MiniFact label="Code proposal rows" value={codeProposalSignalCount} /><MiniFact label="Troubleshooting rows" value={troubleshootingSignalCount} /></dl>
-          <p className="boundary-note">This legacy preview remains during migration. The Signal Console still preserves all existing author, reviewer, administrator, domain, sandbox, vote, and Official Update sections until each destination has proven parity.</p>
-          <Link className="button-link" to="/commons-circle/signals">Open compatibility Signal Console</Link>
+          <p className="eyebrow">Communications &amp; activity</p>
+          <h2>Signals</h2>
+          <p>Signals contains private messages, notifications, requests, reviews, domain activity, and authorized staff tools.</p>
+          <Link className="button-link" to="/commons-circle/signals">Open Signals</Link>
         </article>
 
         <article className="section-card">
