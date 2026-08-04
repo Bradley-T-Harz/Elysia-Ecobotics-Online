@@ -192,7 +192,7 @@ export type CodeProposalSignalPreview = {
   code_snippet_id: string;
   proposer_user_id: string;
   original_author_user_id: string;
-  change_summary: string;
+  change_summary?: string;
   explanation?: string | null;
   proposal_status: CodeProposalSignalStatus;
   submitted_at?: string | null;
@@ -326,6 +326,35 @@ export type CommunityVoteSignalPreview = {
   action_url: string;
   role_context: "author" | "reviewer" | "closing_soon" | "outcome";
 };
+export type WorkWithSignalPreview = {
+  id: string;
+  request_type?: string | null;
+  status: string;
+  source_context?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  action_url: string;
+};
+export type MarketplaceForgeSignalPreview = {
+  id: string;
+  submission_status: string;
+  listing_status?: string | null;
+  submitted_at?: string | null;
+  updated_at?: string | null;
+  action_url: string;
+};
+export type SignalDetailScope =
+  | "coding-proposals"
+  | "troubleshooting"
+  | "research-notes"
+  | "repository-showcases"
+  | "iteration-showcases"
+  | "job-posts"
+  | "voting-room"
+  | "official-updates"
+  | "sandbox-reviews"
+  | "work-with"
+  | "marketplace-forge";
 export type BadgeDefinition = { badge_key: string; name: string; description: string; badge_type: string; category?: string | null; rarity: string; is_active?: boolean; icon_path?: string | null; tags?: string[]; authority?: boolean; authority_linked?: boolean | null; award_mode?: string | null; rule_summary?: string | null; is_manual_only?: boolean | null; sort_order?: number | null; note?: string; default_status?: string };
 // Evidence fields remain optional for a future privileged, audited RPC result.
 // Ordinary/self and public reads below deliberately request only presentation-safe columns.
@@ -405,6 +434,18 @@ export type SignalConsoleData = {
   myCommunityVotes: CommunityVoteSignalPreview[];
   communityVotesNeedingAttention: CommunityVoteSignalPreview[];
   communityVoteLifecycleActivity: CommunityVoteSignalPreview[];
+  workWithActivity: WorkWithSignalPreview[];
+  workWithTotal: number;
+  workWithHasMore: boolean;
+  marketplaceForgeActivity: MarketplaceForgeSignalPreview[];
+  marketplaceForgeTotal: number;
+  marketplaceForgeHasMore: boolean;
+  signalPage: number;
+  signalPageSize: number;
+  signalOwnerTotal: number;
+  signalReviewerTotal: number;
+  signalHasPrevious: boolean;
+  signalHasNext: boolean;
   unreadCount: number;
   codeProposalCount: number;
   troubleshootingCount: number;
@@ -998,6 +1039,27 @@ async function safeQuery<T>(warnings: string[], label: string, query: PromiseLik
   }
 }
 
+type CountedSignalRows<T> = { rows: T[]; count: number };
+
+async function safeCountedSignalQuery<T>(
+  warnings: string[],
+  label: string,
+  query: PromiseLike<{ data: unknown; error: { message: string } | null; count?: number | null }>,
+): Promise<CountedSignalRows<T>> {
+  try {
+    const { data, error, count } = await query;
+    if (error) {
+      warnings.push(friendlyBackendMessage(label, error.message));
+      return { rows: [], count: 0 };
+    }
+    const rows = (data ?? []) as T[];
+    return { rows, count: count ?? rows.length };
+  } catch (error) {
+    warnings.push(friendlyBackendMessage(label, error instanceof Error ? error.message : String(error)));
+    return { rows: [], count: 0 };
+  }
+}
+
 type ActivePublicCommunePost = {
   id: string;
   title?: string | null;
@@ -1288,16 +1350,23 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
   };
 }
 
-export async function loadSignalConsole(): Promise<SignalConsoleData> {
+export async function loadSignalConsole(scope: SignalDetailScope, requestedPage = 1): Promise<SignalConsoleData> {
   const warnings: string[] = [];
-  const empty = { canReviewCommune: false, canOpenReviewCenter: false, signals: [], codeProposalActivity: [], needsMyReview: [], mySubmittedProposals: [], troubleshootingActivity: [], myTroubleshootingIssues: [], troubleshootingNeedingReview: [], troubleshootingResolutionActivity: [], researchNotesActivity: [], myResearchNotes: [], researchNotesNeedingReview: [], researchClarificationActivity: [], repositoryShowcaseActivity: [], myRepositoryShowcases: [], repositoryShowcasesNeedingReview: [], repositorySandboxActivity: [], iterationShowcaseActivity: [], myIterationShowcases: [], iterationShowcasesNeedingReview: [], iterationSandboxActivity: [], jobPostActivity: [], myJobPosts: [], jobPostsNeedingReview: [], jobPostStatusActivity: [], officialUpdateActivity: [], myOfficialUpdates: [], officialUpdatesNeedingAttention: [], communityVoteActivity: [], myCommunityVotes: [], communityVotesNeedingAttention: [], communityVoteLifecycleActivity: [], unreadCount: 0, codeProposalCount: 0, troubleshootingCount: 0, researchNotesCount: 0, repositoryShowcaseCount: 0, iterationShowcaseCount: 0, jobPostCount: 0, officialUpdateCount: 0, communityVoteCount: 0 };
+  const signalPageSize = 40;
+  const signalPage = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const rangeStart = (signalPage - 1) * signalPageSize;
+  const rangeEnd = rangeStart + signalPageSize - 1;
+  const empty = { canReviewCommune: false, canOpenReviewCenter: false, signals: [], codeProposalActivity: [], needsMyReview: [], mySubmittedProposals: [], troubleshootingActivity: [], myTroubleshootingIssues: [], troubleshootingNeedingReview: [], troubleshootingResolutionActivity: [], researchNotesActivity: [], myResearchNotes: [], researchNotesNeedingReview: [], researchClarificationActivity: [], repositoryShowcaseActivity: [], myRepositoryShowcases: [], repositoryShowcasesNeedingReview: [], repositorySandboxActivity: [], iterationShowcaseActivity: [], myIterationShowcases: [], iterationShowcasesNeedingReview: [], iterationSandboxActivity: [], jobPostActivity: [], myJobPosts: [], jobPostsNeedingReview: [], jobPostStatusActivity: [], officialUpdateActivity: [], myOfficialUpdates: [], officialUpdatesNeedingAttention: [], communityVoteActivity: [], myCommunityVotes: [], communityVotesNeedingAttention: [], communityVoteLifecycleActivity: [], workWithActivity: [], workWithTotal: 0, workWithHasMore: false, marketplaceForgeActivity: [], marketplaceForgeTotal: 0, marketplaceForgeHasMore: false, signalPage, signalPageSize, signalOwnerTotal: 0, signalReviewerTotal: 0, signalHasPrevious: signalPage > 1, signalHasNext: false, unreadCount: 0, codeProposalCount: 0, troubleshootingCount: 0, researchNotesCount: 0, repositoryShowcaseCount: 0, iterationShowcaseCount: 0, jobPostCount: 0, officialUpdateCount: 0, communityVoteCount: 0 };
   if (!hasSupabaseConfig || !supabase) return { signedIn: false, supabaseConfigured: false, userId: null, warnings: [supabaseNotConfiguredMessage], ...empty };
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth.user?.id ?? null;
   if (!userId) return { signedIn: false, supabaseConfigured: true, userId: null, warnings: [], ...empty };
-  const signalRows = await safeQuery<NotificationPreview[]>(warnings, "Notifications", supabase.from("user_notifications").select("id, title, body, action_url, read_at, created_at, notification_type, source_type, source_id").eq("user_id", userId).order("created_at", { ascending: false }).limit(100), []);
-  const signals = await filterNotificationsByActiveCommunePost(signalRows, warnings);
-  const codeProposalActivityRows = await safeQuery<Omit<CodeProposalSignalPreview, "action_url" | "source_room" | "post_title">[]>(warnings, "Coding Cornucopia proposal activity", supabase.from("commune_code_revision_proposals").select("id, post_id, code_snippet_id, proposer_user_id, original_author_user_id, change_summary, explanation, proposal_status, submitted_at, decided_at, withdrawn_at, hidden_at, created_at, updated_at").or("original_author_user_id.eq." + userId + ",proposer_user_id.eq." + userId).order("created_at", { ascending: false }).limit(100), []);
+  const wants = (...sections: SignalDetailScope[]) => sections.includes(scope);
+  const signals: NotificationPreview[] = [];
+  const codeProposalResult = wants("coding-proposals")
+    ? await safeCountedSignalQuery<Omit<CodeProposalSignalPreview, "action_url" | "source_room" | "post_title">>(warnings, "Coding Cornucopia proposal activity", supabase.from("commune_code_revision_proposals").select("id, post_id, code_snippet_id, proposer_user_id, original_author_user_id, proposal_status, submitted_at, decided_at, withdrawn_at, hidden_at, created_at, updated_at", { count: "exact" }).or("original_author_user_id.eq." + userId + ",proposer_user_id.eq." + userId).order("created_at", { ascending: false }).range(rangeStart, rangeEnd))
+    : { rows: [], count: 0 };
+  const codeProposalActivityRows = codeProposalResult.rows;
   const proposalPostIds = Array.from(new Set(codeProposalActivityRows.map((proposal) => proposal.post_id).filter(Boolean)));
   const proposalPostById = await loadActivePublicCommunePostMap(proposalPostIds, warnings);
   const codeProposalActivity = codeProposalActivityRows.filter((proposal) => !proposal.hidden_at && proposal.proposal_status !== "hidden_by_moderation" && proposalPostById.has(proposal.post_id)).map((proposal) => ({
@@ -1316,10 +1385,14 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const canOpenReviewCenter = roleState.isAdmin || roleState.roles.length > 0;
   type TroubleshootingSignalRow = Omit<TroubleshootingSignalPreview, "action_url" | "role_context" | "post_title">;
   const troubleshootingSelect = "id, post_id, thread_id, author_user_id, issue_type, affected_area, troubleshooting_status, accepted_resolution_kind, accepted_summary, accepted_at, resolved_at, closed_at, archived_at, created_at, updated_at";
-  const myTroubleshootingRows = await safeQuery<TroubleshootingSignalRow[]>(warnings, "Troubleshooting Grove activity", supabase.from("commune_troubleshooting_posts").select(troubleshootingSelect).eq("author_user_id", userId).order("updated_at", { ascending: false }).limit(100), []);
-  const reviewTroubleshootingRows = canReviewCommune
-    ? await safeQuery<TroubleshootingSignalRow[]>(warnings, "Troubleshooting Grove review activity", supabase.from("commune_troubleshooting_posts").select(troubleshootingSelect).in("troubleshooting_status", ["needs_information", "fix_proposed", "in_progress"]).order("updated_at", { ascending: false }).limit(100), [])
-    : [];
+  const myTroubleshootingResult = wants("troubleshooting")
+    ? await safeCountedSignalQuery<TroubleshootingSignalRow>(warnings, "Troubleshooting Grove activity", supabase.from("commune_troubleshooting_posts").select(troubleshootingSelect, { count: "exact" }).eq("author_user_id", userId).order("updated_at", { ascending: false }).range(rangeStart, rangeEnd))
+    : { rows: [], count: 0 };
+  const reviewTroubleshootingResult = wants("troubleshooting") && canReviewCommune
+    ? await safeCountedSignalQuery<TroubleshootingSignalRow>(warnings, "Troubleshooting Grove review activity", supabase.from("commune_troubleshooting_posts").select(troubleshootingSelect, { count: "exact" }).in("troubleshooting_status", ["needs_information", "fix_proposed", "in_progress"]).order("updated_at", { ascending: false }).range(rangeStart, rangeEnd))
+    : { rows: [], count: 0 };
+  const myTroubleshootingRows = myTroubleshootingResult.rows;
+  const reviewTroubleshootingRows = reviewTroubleshootingResult.rows;
   const troubleshootingPostIds = Array.from(new Set([...myTroubleshootingRows, ...reviewTroubleshootingRows].map((row) => row.post_id).filter(Boolean) as string[]));
   const troubleshootingPostById = await loadActivePublicCommunePostMap(troubleshootingPostIds, warnings);
   const visibleMyTroubleshootingRows = myTroubleshootingRows.filter((row) => row.post_id && troubleshootingPostById.has(row.post_id));
@@ -1333,10 +1406,14 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
 
   type ResearchNotesSignalRow = Omit<ResearchNotesSignalPreview, "action_url" | "role_context" | "post_title">;
   const researchSelect = "id, post_id, thread_id, author_user_id, research_question, domain, evidence_strength, review_status, living_library_source_link, correction_note, reviewed_at, corrected_at, archived_at, created_at, updated_at";
-  const myResearchRows = await safeQuery<ResearchNotesSignalRow[]>(warnings, "Research Notes activity", supabase.from("commune_research_notes").select(researchSelect).eq("author_user_id", userId).order("updated_at", { ascending: false }).limit(100), []);
-  const reviewResearchRows = canReviewCommune
-    ? await safeQuery<ResearchNotesSignalRow[]>(warnings, "Research Notes review activity", supabase.from("commune_research_notes").select(researchSelect).in("review_status", ["submitted", "needs_citation", "needs_clarification", "source_issue", "overclaiming_evidence"]).order("updated_at", { ascending: false }).limit(100), [])
-    : [];
+  const myResearchResult = wants("research-notes")
+    ? await safeCountedSignalQuery<ResearchNotesSignalRow>(warnings, "Research Notes activity", supabase.from("commune_research_notes").select(researchSelect, { count: "exact" }).eq("author_user_id", userId).order("updated_at", { ascending: false }).range(rangeStart, rangeEnd))
+    : { rows: [], count: 0 };
+  const reviewResearchResult = wants("research-notes") && canReviewCommune
+    ? await safeCountedSignalQuery<ResearchNotesSignalRow>(warnings, "Research Notes review activity", supabase.from("commune_research_notes").select(researchSelect, { count: "exact" }).in("review_status", ["submitted", "needs_citation", "needs_clarification", "source_issue", "overclaiming_evidence"]).order("updated_at", { ascending: false }).range(rangeStart, rangeEnd))
+    : { rows: [], count: 0 };
+  const myResearchRows = myResearchResult.rows;
+  const reviewResearchRows = reviewResearchResult.rows;
   const researchPostIds = Array.from(new Set([...myResearchRows, ...reviewResearchRows].map((row) => row.post_id).filter(Boolean) as string[]));
   const researchPostById = await loadActivePublicCommunePostMap(researchPostIds, warnings);
   const visibleMyResearchRows = myResearchRows.filter((row) => row.post_id && researchPostById.has(row.post_id));
@@ -1349,10 +1426,18 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const researchNotesActivity = Array.from(new Map([...myResearchNotes, ...researchNotesNeedingReview, ...researchClarificationActivity].map((row) => [row.role_context + ":" + row.id, row])).values());
 
   const repoSelect = "id, user_id, post_id, repository_url, project_name, status, sandbox_review_requested, sandbox_review_status, sandbox_review_request_id, created_at, updated_at";
-  const myRepoRows = await safeQuery<RepositoryShowcaseSignalRow[]>(warnings, "Repository Showcase activity", supabase.from("commune_repository_showcases").select(repoSelect).eq("user_id", userId).order("updated_at", { ascending: false }).limit(100), []);
-  const reviewRepoRows = canReviewCommune
-    ? await safeQuery<RepositoryShowcaseSignalRow[]>(warnings, "Repository Showcase review activity", supabase.from("commune_repository_showcases").select(repoSelect).in("status", ["pending_review", "in_review", "needs_information"]).order("updated_at", { ascending: false }).limit(100), [])
-    : [];
+  const myRepoResult = wants("repository-showcases", "sandbox-reviews")
+    ? await safeCountedSignalQuery<RepositoryShowcaseSignalRow>(warnings, "Repository Showcase activity", scope === "sandbox-reviews"
+      ? supabase.from("commune_repository_showcases").select(repoSelect, { count: "exact" }).eq("user_id", userId).or("sandbox_review_requested.eq.true,sandbox_review_status.not.eq.not_requested").order("updated_at", { ascending: false }).range(rangeStart, rangeEnd)
+      : supabase.from("commune_repository_showcases").select(repoSelect, { count: "exact" }).eq("user_id", userId).order("updated_at", { ascending: false }).range(rangeStart, rangeEnd))
+    : { rows: [], count: 0 };
+  const reviewRepoResult = wants("repository-showcases", "sandbox-reviews") && canReviewCommune
+    ? await safeCountedSignalQuery<RepositoryShowcaseSignalRow>(warnings, "Repository Showcase review activity", scope === "sandbox-reviews"
+      ? supabase.from("commune_repository_showcases").select(repoSelect, { count: "exact" }).or("sandbox_review_requested.eq.true,sandbox_review_status.not.eq.not_requested").order("updated_at", { ascending: false }).range(rangeStart, rangeEnd)
+      : supabase.from("commune_repository_showcases").select(repoSelect, { count: "exact" }).in("status", ["pending_review", "in_review", "needs_information"]).order("updated_at", { ascending: false }).range(rangeStart, rangeEnd))
+    : { rows: [], count: 0 };
+  const myRepoRows = myRepoResult.rows;
+  const reviewRepoRows = reviewRepoResult.rows;
   const repoPostById = await loadActivePublicCommunePostMap([...myRepoRows, ...reviewRepoRows].map((row) => row.post_id), warnings);
   const visibleMyRepoRows = myRepoRows.filter((row) => row.post_id && repoPostById.has(row.post_id));
   const visibleReviewRepoRows = reviewRepoRows.filter((row) => row.post_id && repoPostById.has(row.post_id));
@@ -1374,10 +1459,18 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
 
   type IterationShowcaseSignalRow = Omit<ElysiaIterationShowcaseSignalPreview, "action_url" | "role_context">;
   const iterationSelect = "id, author_user_id, post_id, iteration_type, version_build_label, status, sandbox_review_requested, sandbox_review_status, sandbox_review_request_id, created_at, updated_at";
-  const myIterationRows = await safeQuery<IterationShowcaseSignalRow[]>(warnings, "Elysia Iteration Showcase activity", supabase.from("commune_iteration_showcases").select(iterationSelect).eq("author_user_id", userId).order("updated_at", { ascending: false }).limit(100), []);
-  const reviewIterationRows = canReviewCommune
-    ? await safeQuery<IterationShowcaseSignalRow[]>(warnings, "Elysia Iteration Showcase review activity", supabase.from("commune_iteration_showcases").select(iterationSelect).in("status", ["pending_review", "in_review", "needs_information"]).order("updated_at", { ascending: false }).limit(100), [])
-    : [];
+  const myIterationResult = wants("iteration-showcases", "sandbox-reviews")
+    ? await safeCountedSignalQuery<IterationShowcaseSignalRow>(warnings, "Elysia Iteration Showcase activity", scope === "sandbox-reviews"
+      ? supabase.from("commune_iteration_showcases").select(iterationSelect, { count: "exact" }).eq("author_user_id", userId).or("sandbox_review_requested.eq.true,sandbox_review_status.not.eq.not_requested").order("updated_at", { ascending: false }).range(rangeStart, rangeEnd)
+      : supabase.from("commune_iteration_showcases").select(iterationSelect, { count: "exact" }).eq("author_user_id", userId).order("updated_at", { ascending: false }).range(rangeStart, rangeEnd))
+    : { rows: [], count: 0 };
+  const reviewIterationResult = wants("iteration-showcases", "sandbox-reviews") && canReviewCommune
+    ? await safeCountedSignalQuery<IterationShowcaseSignalRow>(warnings, "Elysia Iteration Showcase review activity", scope === "sandbox-reviews"
+      ? supabase.from("commune_iteration_showcases").select(iterationSelect, { count: "exact" }).or("sandbox_review_requested.eq.true,sandbox_review_status.not.eq.not_requested").order("updated_at", { ascending: false }).range(rangeStart, rangeEnd)
+      : supabase.from("commune_iteration_showcases").select(iterationSelect, { count: "exact" }).in("status", ["pending_review", "in_review", "needs_information"]).order("updated_at", { ascending: false }).range(rangeStart, rangeEnd))
+    : { rows: [], count: 0 };
+  const myIterationRows = myIterationResult.rows;
+  const reviewIterationRows = reviewIterationResult.rows;
   const iterationPostById = await loadActivePublicCommunePostMap([...myIterationRows, ...reviewIterationRows].map((row) => row.post_id), warnings);
   const visibleMyIterationRows = myIterationRows.filter((row) => row.post_id && iterationPostById.has(row.post_id));
   const visibleReviewIterationRows = reviewIterationRows.filter((row) => row.post_id && iterationPostById.has(row.post_id));
@@ -1399,10 +1492,14 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
 
   type JobPostSignalRow = Omit<JobPostSignalPreview, "action_url" | "role_context">;
   const jobSelect = "id, post_id, thread_id, author_user_id, role_title, organization_project, role_type, paid_volunteer_status, location_mode, application_status, anti_scam_review_status, public_correction_note, created_at, updated_at";
-  const myJobRows = await safeQuery<JobPostSignalRow[]>(warnings, "Job Post activity", supabase.from("commune_job_posts").select(jobSelect).eq("author_user_id", userId).order("updated_at", { ascending: false }).limit(100), []);
-  const reviewJobRows = canReviewCommune
-    ? await safeQuery<JobPostSignalRow[]>(warnings, "Job Post review activity", supabase.from("commune_job_posts").select(jobSelect).in("anti_scam_review_status", ["not_reviewed", "needs_pay_clarification", "needs_contact_clarification", "needs_location_clarification", "suspicious"]).order("updated_at", { ascending: false }).limit(100), [])
-    : [];
+  const myJobResult = wants("job-posts")
+    ? await safeCountedSignalQuery<JobPostSignalRow>(warnings, "Job Post activity", supabase.from("commune_job_posts").select(jobSelect, { count: "exact" }).eq("author_user_id", userId).order("updated_at", { ascending: false }).range(rangeStart, rangeEnd))
+    : { rows: [], count: 0 };
+  const reviewJobResult = wants("job-posts") && canReviewCommune
+    ? await safeCountedSignalQuery<JobPostSignalRow>(warnings, "Job Post review activity", supabase.from("commune_job_posts").select(jobSelect, { count: "exact" }).in("anti_scam_review_status", ["not_reviewed", "needs_pay_clarification", "needs_contact_clarification", "needs_location_clarification", "suspicious"]).order("updated_at", { ascending: false }).range(rangeStart, rangeEnd))
+    : { rows: [], count: 0 };
+  const myJobRows = myJobResult.rows;
+  const reviewJobRows = reviewJobResult.rows;
   const jobPostById = await loadActivePublicCommunePostMap([...myJobRows, ...reviewJobRows].map((row) => row.post_id), warnings);
   const visibleMyJobRows = myJobRows.filter((row) => row.post_id && jobPostById.has(row.post_id));
   const visibleReviewJobRows = reviewJobRows.filter((row) => row.post_id && jobPostById.has(row.post_id));
@@ -1415,10 +1512,14 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
 
   type CommunityVoteSignalRow = Omit<CommunityVoteSignalPreview, "action_url" | "role_context">;
   const voteSelect = "post_id, created_by, question, vote_status, opens_at, closes_at, results_visibility, allow_comments, admin_outcome_summary, official_update_post_id, created_at, updated_at";
-  const myCommunityVoteRows = await safeQuery<CommunityVoteSignalRow[]>(warnings, "Community Voting Room activity", supabase.from("commune_vote_posts").select(voteSelect).eq("created_by", userId).order("updated_at", { ascending: false }).limit(100), []);
-  const reviewCommunityVoteRows = canReviewCommune
-    ? await safeQuery<CommunityVoteSignalRow[]>(warnings, "Community Voting Room review activity", supabase.from("commune_vote_posts").select(voteSelect).in("vote_status", ["open", "closed", "accepted", "declined", "posted_to_official_update", "archived"]).order("updated_at", { ascending: false }).limit(100), [])
-    : [];
+  const myCommunityVoteResult = wants("voting-room")
+    ? await safeCountedSignalQuery<CommunityVoteSignalRow>(warnings, "Community Voting Room activity", supabase.from("commune_vote_posts").select(voteSelect, { count: "exact" }).eq("created_by", userId).order("updated_at", { ascending: false }).range(rangeStart, rangeEnd))
+    : { rows: [], count: 0 };
+  const reviewCommunityVoteResult = wants("voting-room") && canReviewCommune
+    ? await safeCountedSignalQuery<CommunityVoteSignalRow>(warnings, "Community Voting Room review activity", supabase.from("commune_vote_posts").select(voteSelect, { count: "exact" }).in("vote_status", ["open", "closed", "accepted", "declined", "posted_to_official_update", "archived"]).order("updated_at", { ascending: false }).range(rangeStart, rangeEnd))
+    : { rows: [], count: 0 };
+  const myCommunityVoteRows = myCommunityVoteResult.rows;
+  const reviewCommunityVoteRows = reviewCommunityVoteResult.rows;
   const votePostById = await loadActivePublicCommunePostMap([...myCommunityVoteRows, ...reviewCommunityVoteRows].map((row) => row.post_id), warnings);
   const visibleMyCommunityVoteRows = myCommunityVoteRows.filter((row) => votePostById.has(row.post_id));
   const visibleReviewCommunityVoteRows = reviewCommunityVoteRows.filter((row) => votePostById.has(row.post_id));
@@ -1440,10 +1541,14 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
 
   type OfficialUpdateSignalRow = Omit<OfficialUpdateSignalPreview, "action_url" | "role_context">;
   const officialSelect = "id, post_id, admin_user_id, brand_author_name, update_type, official_status, severity, pinned, important, comments_enabled, correction_status, correction_note, published_at, updated_at";
-  const myOfficialRows = await safeQuery<OfficialUpdateSignalRow[]>(warnings, "Official Update activity", supabase.from("commune_official_updates").select(officialSelect).eq("admin_user_id", userId).order("updated_at", { ascending: false }).limit(100), []);
-  const reviewOfficialRows = canReviewCommune
-    ? await safeQuery<OfficialUpdateSignalRow[]>(warnings, "Official Update review activity", supabase.from("commune_official_updates").select(officialSelect).in("official_status", ["published", "updated", "corrected", "retracted", "monitoring", "resolved"]).order("updated_at", { ascending: false }).limit(100), [])
-    : [];
+  const myOfficialResult = wants("official-updates")
+    ? await safeCountedSignalQuery<OfficialUpdateSignalRow>(warnings, "Official Update activity", supabase.from("commune_official_updates").select(officialSelect, { count: "exact" }).eq("admin_user_id", userId).order("updated_at", { ascending: false }).range(rangeStart, rangeEnd))
+    : { rows: [], count: 0 };
+  const reviewOfficialResult = wants("official-updates") && canReviewCommune
+    ? await safeCountedSignalQuery<OfficialUpdateSignalRow>(warnings, "Official Update review activity", supabase.from("commune_official_updates").select(officialSelect, { count: "exact" }).in("official_status", ["published", "updated", "corrected", "retracted", "monitoring", "resolved"]).order("updated_at", { ascending: false }).range(rangeStart, rangeEnd))
+    : { rows: [], count: 0 };
+  const myOfficialRows = myOfficialResult.rows;
+  const reviewOfficialRows = reviewOfficialResult.rows;
   const officialPostById = await loadActivePublicCommunePostMap([...myOfficialRows, ...reviewOfficialRows].map((row) => row.post_id), warnings);
   const visibleMyOfficialRows = myOfficialRows.filter((row) => row.post_id && officialPostById.has(row.post_id));
   const visibleReviewOfficialRows = reviewOfficialRows.filter((row) => row.post_id && officialPostById.has(row.post_id));
@@ -1451,9 +1556,109 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
   const myOfficialUpdates = visibleMyOfficialRows.map((row) => mapOfficial(row, "author"));
   const officialUpdatesNeedingAttention = visibleReviewOfficialRows.filter((row) => ["critical", "urgent"].includes(row.severity ?? "") || ["retracted", "corrected", "monitoring"].includes(row.official_status ?? "")).map((row) => mapOfficial(row, "reviewer"));
   const officialUpdateActivity = Array.from(new Map([...myOfficialUpdates, ...officialUpdatesNeedingAttention].map((row) => [row.role_context + ":" + row.id, row])).values());
+
+  let workWithActivity: WorkWithSignalPreview[] = [];
+  let workWithTotal = 0;
+  if (wants("work-with")) {
+    const result = await supabase
+      .from("work_with_requests")
+      .select("id, request_type, status, source_context, created_at, updated_at", { count: "exact" })
+      .eq("user_id", userId)
+      .order("updated_at", { ascending: false })
+      .range(rangeStart, rangeEnd);
+    if (result.error) warnings.push("Work With activity is temporarily unavailable.");
+    else {
+      const rows = (result.data ?? []) as Array<Omit<WorkWithSignalPreview, "action_url">>;
+      workWithActivity = rows.map((row) => ({
+        ...row,
+        action_url: "/commons-circle/signals/requests-reviews?domain=work_with",
+      }));
+      workWithTotal = result.count ?? workWithActivity.length;
+    }
+  }
+
+  let marketplaceForgeActivity: MarketplaceForgeSignalPreview[] = [];
+  let marketplaceForgeTotal = 0;
+  if (wants("marketplace-forge")) {
+    const submissionsResult = await supabase
+      .from("addon_submissions")
+      .select("id, status, submitted_at, updated_at", { count: "exact" })
+      .eq("submitted_by", userId)
+      .order("updated_at", { ascending: false })
+      .range(rangeStart, rangeEnd);
+    if (submissionsResult.error) warnings.push("Developer Forge submission activity is temporarily unavailable.");
+    else {
+      const submissions = (submissionsResult.data ?? []) as Array<{
+        id: string;
+        status: string;
+        submitted_at?: string | null;
+        updated_at?: string | null;
+      }>;
+      const listingResult = submissions.length
+        ? await supabase
+          .from("marketplace_listings")
+          .select("source_submission_id, listing_status, slug")
+          .in("source_submission_id", submissions.map((submission) => submission.id))
+        : { data: [], error: null };
+      if (listingResult.error) warnings.push("Marketplace publication state is temporarily unavailable.");
+      const listingBySubmission = new Map(((listingResult.data ?? []) as Array<{
+        source_submission_id: string;
+        listing_status: string;
+        slug: string;
+      }>).map((listing) => [listing.source_submission_id, listing]));
+      marketplaceForgeActivity = submissions.map((submission) => {
+        const listing = listingBySubmission.get(submission.id);
+        return {
+          id: submission.id,
+          submission_status: submission.status,
+          listing_status: listing?.listing_status ?? null,
+          submitted_at: submission.submitted_at ?? null,
+          updated_at: submission.updated_at ?? null,
+          action_url: listing?.listing_status === "published" && listing.slug
+            ? `/marketplace/addons/${encodeURIComponent(listing.slug)}`
+            : "/developer-forge/submissions",
+        };
+      });
+      marketplaceForgeTotal = submissionsResult.count ?? marketplaceForgeActivity.length;
+    }
+  }
+
   const proposalNotificationIds = signals
     .filter((signal) => /code_revision|proposal/i.test((signal.notification_type ?? "") + " " + (signal.source_type ?? "")))
     .map((signal) => signal.source_id || signal.id);
+  const scopedTotals: Record<SignalDetailScope, { owner: number; reviewer: number }> = {
+    "coding-proposals": { owner: codeProposalResult.count, reviewer: 0 },
+    troubleshooting: { owner: myTroubleshootingResult.count, reviewer: reviewTroubleshootingResult.count },
+    "research-notes": { owner: myResearchResult.count, reviewer: reviewResearchResult.count },
+    "repository-showcases": { owner: myRepoResult.count, reviewer: reviewRepoResult.count },
+    "iteration-showcases": { owner: myIterationResult.count, reviewer: reviewIterationResult.count },
+    "job-posts": { owner: myJobResult.count, reviewer: reviewJobResult.count },
+    "voting-room": { owner: myCommunityVoteResult.count, reviewer: reviewCommunityVoteResult.count },
+    "official-updates": { owner: myOfficialResult.count, reviewer: reviewOfficialResult.count },
+    "sandbox-reviews": {
+      owner: myRepoResult.count + myIterationResult.count,
+      reviewer: reviewRepoResult.count + reviewIterationResult.count,
+    },
+    "work-with": { owner: workWithTotal, reviewer: 0 },
+    "marketplace-forge": { owner: marketplaceForgeTotal, reviewer: 0 },
+  };
+  const signalTotals = scopedTotals[scope];
+  const pageBoundary = signalPage * signalPageSize;
+  const scopedHasNext: Record<SignalDetailScope, boolean> = {
+    "coding-proposals": codeProposalResult.count > pageBoundary,
+    troubleshooting: myTroubleshootingResult.count > pageBoundary || reviewTroubleshootingResult.count > pageBoundary,
+    "research-notes": myResearchResult.count > pageBoundary || reviewResearchResult.count > pageBoundary,
+    "repository-showcases": myRepoResult.count > pageBoundary || reviewRepoResult.count > pageBoundary,
+    "iteration-showcases": myIterationResult.count > pageBoundary || reviewIterationResult.count > pageBoundary,
+    "job-posts": myJobResult.count > pageBoundary || reviewJobResult.count > pageBoundary,
+    "voting-room": myCommunityVoteResult.count > pageBoundary || reviewCommunityVoteResult.count > pageBoundary,
+    "official-updates": myOfficialResult.count > pageBoundary || reviewOfficialResult.count > pageBoundary,
+    "sandbox-reviews": myRepoResult.count > pageBoundary || reviewRepoResult.count > pageBoundary
+      || myIterationResult.count > pageBoundary || reviewIterationResult.count > pageBoundary,
+    "work-with": workWithTotal > pageBoundary,
+    "marketplace-forge": marketplaceForgeTotal > pageBoundary,
+  };
+  const signalHasNext = scopedHasNext[scope];
   return {
     signedIn: true,
     supabaseConfigured: true,
@@ -1492,6 +1697,18 @@ export async function loadSignalConsole(): Promise<SignalConsoleData> {
     myCommunityVotes,
     communityVotesNeedingAttention,
     communityVoteLifecycleActivity,
+    workWithActivity,
+    workWithTotal,
+    workWithHasMore: signalPage * signalPageSize < workWithTotal,
+    marketplaceForgeActivity,
+    marketplaceForgeTotal,
+    marketplaceForgeHasMore: signalPage * signalPageSize < marketplaceForgeTotal,
+    signalPage,
+    signalPageSize,
+    signalOwnerTotal: signalTotals.owner,
+    signalReviewerTotal: signalTotals.reviewer,
+    signalHasPrevious: signalPage > 1,
+    signalHasNext,
     unreadCount: signals.filter((signal) => !signal.read_at).length,
     codeProposalCount: new Set([...codeProposalActivity.map((proposal) => proposal.id), ...proposalNotificationIds]).size,
     troubleshootingCount: new Set(troubleshootingActivity.map((item) => item.id)).size,

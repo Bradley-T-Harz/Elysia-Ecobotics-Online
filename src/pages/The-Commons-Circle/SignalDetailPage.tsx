@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
@@ -10,25 +10,17 @@ import {
   type CommunityVoteSignalPreview,
   type ElysiaIterationShowcaseSignalPreview,
   type JobPostSignalPreview,
+  type MarketplaceForgeSignalPreview,
   type OfficialUpdateSignalPreview,
   type RepositoryShowcaseSignalPreview,
   type ResearchNotesSignalPreview,
   type SignalConsoleData,
+  type SignalDetailScope,
   type TroubleshootingSignalPreview,
+  type WorkWithSignalPreview,
 } from "./commonsCircleApi";
 
-export type SignalSectionKey =
-  | "coding-proposals"
-  | "troubleshooting"
-  | "research-notes"
-  | "repository-showcases"
-  | "iteration-showcases"
-  | "job-posts"
-  | "voting-room"
-  | "official-updates"
-  | "sandbox-reviews"
-  | "work-with"
-  | "marketplace-forge";
+export type SignalSectionKey = SignalDetailScope;
 
 const sectionCopy: Record<SignalSectionKey, { eyebrow: string; title: string; description: string }> = {
   "coding-proposals": { eyebrow: "Coding & Technical", title: "Coding proposal signals", description: "Participant-visible proposal activity and exact links back to the established Coding Workbench review routes." },
@@ -135,6 +127,24 @@ function JobPostSignalCard({ signal }: { signal: JobPostSignalPreview }) {
     <p>{signal.public_correction_note || "Public listing status remains connected to its authoritative Job Post."}</p>
     <p className="boundary-note">Private applications, resumes, contact details, and Work With uploads never appear here.</p>
     <div className="button-row"><Link className="button-link" to={signal.action_url}>Open Job Post</Link><Link className="button-link" to="/work-with-elysia-ecobotics">Open Work With private intake</Link></div>
+  </article>;
+}
+
+function WorkWithSignalCard({ signal }: { signal: WorkWithSignalPreview }) {
+  return <article className="commons-signal-card">
+    <div className="addon-card__topline"><strong>{signal.request_type ? `Work With · ${statusLabel(signal.request_type)}` : "Work With request"}</strong><span>{formatTime(signal.updated_at || signal.created_at)}</span></div>
+    <div className="commons-signal-meta"><span>Private owner status</span><span>{statusLabel(signal.status)}</span>{signal.source_context && <span>{statusLabel(signal.source_context)}</span>}</div>
+    <p>The request body, preferred contact, files, skills, and private links remain only in the protected Work With workflow.</p>
+    <Link className="button-link" to={signal.action_url}>Track in Requests &amp; Reviews</Link>
+  </article>;
+}
+
+function MarketplaceForgeSignalCard({ signal }: { signal: MarketplaceForgeSignalPreview }) {
+  return <article className="commons-signal-card">
+    <div className="addon-card__topline"><strong>Developer Forge submission</strong><span>{formatTime(signal.updated_at || signal.submitted_at)}</span></div>
+    <div className="commons-signal-meta"><span>Forge</span><span>{statusLabel(signal.submission_status)}</span>{signal.listing_status && <span>Marketplace · {statusLabel(signal.listing_status)}</span>}</div>
+    <p>Only safe submission and publication state appears here. Manifests, packages, contracts, payment, payout, and private review material remain in their authoritative systems.</p>
+    <Link className="button-link" to={signal.action_url}>{signal.listing_status === "published" ? "Open published Marketplace listing" : "Open Developer Forge submissions"}</Link>
   </article>;
 }
 
@@ -279,25 +289,42 @@ function renderSection(section: SignalSectionKey, data: SignalConsoleData) {
   if (section === "work-with") {
     const links: Array<[string, string, boolean?]> = [["Open Work With private intake", "/work-with-elysia-ecobotics", true], ["Track my Work With requests", "/commons-circle/signals/requests-reviews?domain=work_with"]];
     if (data.canOpenReviewCenter) links.push(["Open role-gated Review Center", "/admin/review/work-with"]);
-    return <DestinationCard eyebrow="Private intake boundary" title="Work With remains authoritative" links={links}><p>Request bodies and files remain in the private Work With workflow. Requester status appears in Requests &amp; Reviews, requested account actions belong in Inbox, informational outcomes belong in Notifications, and staff work remains in Review Center.</p></DestinationCard>;
+    return <>
+      <section className="section-card"><p className="eyebrow">Exact owner count</p><h2>{data.workWithTotal} Work With request{data.workWithTotal === 1 ? "" : "s"}</h2><p>{data.workWithHasMore ? "Showing the 40 most recently updated requests. Continue in Requests & Reviews for paginated history." : "All request status rows currently visible to this account are shown below."}</p></section>
+      <SignalLane eyebrow="Your source-backed status" title="Work With request activity" description="Safe owner status comes directly from Work With source records; private intake contents are excluded." empty="No Work With requests are connected to this Website Account." count={data.workWithActivity.length}>{data.workWithActivity.map((row) => <WorkWithSignalCard signal={row} key={row.id} />)}</SignalLane>
+      <DestinationCard eyebrow="Private intake boundary" title="Work With remains authoritative" links={links}><p>Requested account actions belong in Inbox, informational outcomes belong in Notifications, submitted status belongs in Requests &amp; Reviews, and staff decisions remain in Review Center.</p></DestinationCard>
+    </>;
   }
 
   const marketplaceLinks: Array<[string, string, boolean?]> = [["Open Developer Forge submissions", "/developer-forge/submissions", true], ["Open Marketplace account", "/marketplace/account"], ["Open Marketplace notifications", "/commons-circle/signals/notifications?filter=marketplace"]];
   if (data.canOpenReviewCenter) marketplaceLinks.push(["Open role-gated Marketplace review", "/admin/review/marketplace"]);
-  return <DestinationCard eyebrow="Separate contracts preserved" title="Marketplace & Developer Forge outcomes" links={marketplaceLinks}><p>Forge validation, Marketplace review and publication, listings, purchases, licenses, payouts, and economic restrictions remain distinct. This signal room routes each task to its authoritative surface instead of flattening them into a generic request or notification.</p></DestinationCard>;
+  return <>
+    <section className="section-card"><p className="eyebrow">Exact owner count</p><h2>{data.marketplaceForgeTotal} Forge submission{data.marketplaceForgeTotal === 1 ? "" : "s"}</h2><p>{data.marketplaceForgeHasMore ? "Showing the 40 most recently updated submissions. Open Developer Forge for complete history." : "All submission status rows currently visible to this account are shown below."}</p></section>
+    <SignalLane eyebrow="Your source-backed status" title="Forge and Marketplace activity" description="Safe submission and publication state comes from the current account’s authoritative Forge and visible Marketplace records." empty="No Developer Forge submissions are connected to this Website Account." count={data.marketplaceForgeActivity.length}>{data.marketplaceForgeActivity.map((row) => <MarketplaceForgeSignalCard signal={row} key={row.id} />)}</SignalLane>
+    <DestinationCard eyebrow="Separate contracts preserved" title="Marketplace & Developer Forge outcomes" links={marketplaceLinks}><p>Forge validation, Marketplace review and publication, listings, purchases, licenses, payouts, and economic restrictions remain distinct. Each button returns to its authoritative surface.</p></DestinationCard>
+  </>;
 }
 
 export default function SignalDetailPage({ section }: { section: SignalSectionKey }) {
   const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const requestedPage = Number.parseInt(searchParams.get("page") ?? "1", 10);
+  const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
   const [data, setData] = useState<SignalConsoleData | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
   const copy = sectionCopy[section];
+  const pageSearch = (nextPage: number) => {
+    const next = new URLSearchParams(searchParams);
+    if (nextPage <= 1) next.delete("page");
+    else next.set("page", String(nextPage));
+    return next.toString() ? `?${next.toString()}` : "";
+  };
 
   const refresh = useCallback(async () => {
-    const result = await loadSignalConsole();
+    const result = await loadSignalConsole(section, page);
     setData(result);
     setMessages(result.warnings);
-  }, []);
+  }, [page, section]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -305,6 +332,7 @@ export default function SignalDetailPage({ section }: { section: SignalSectionKe
     <PageHero eyebrow={copy.eyebrow} title={copy.title}>
       <p>{copy.description}</p>
       <p>Direct-source activity is retained here for compatibility and history. Informational event rows live in Notifications, account actions live in Inbox, submitted workflows live in Requests &amp; Reviews, and specialist decisions remain in Review Center.</p>
+      <p>Each source-backed lane shows one 40-row page and reports exact source totals. Owner/participant activity remains separate from authorized reviewer or staff activity.</p>
     </PageHero>
 
     {messages.length > 0 && <section className="message-stack" aria-live="polite">{messages.map((message, index) => <p className="message" key={`${message}-${index}`}>{message}</p>)}</section>}
@@ -330,7 +358,19 @@ export default function SignalDetailPage({ section }: { section: SignalSectionKe
       />
     </section>
 
+    {data?.signedIn && <section className="section-card">
+      <p className="eyebrow">Exact scoped totals</p>
+      <dl className="mini-facts"><div><dt>Account-connected source rows</dt><dd>{data.signalOwnerTotal}</dd></div>{data.canReviewCommune && <div><dt>Authorized reviewer rows</dt><dd>{data.signalReviewerTotal}</dd></div>}<div><dt>Current page</dt><dd>{data.signalPage}</dd></div><div><dt>Rows per lane</dt><dd>{data.signalPageSize}</dd></div></dl>
+      <p className="boundary-note">A row may appear in both account and reviewer totals when an authorized reviewer also owns it; the lanes represent different authority contexts.</p>
+    </section>}
+
     {data?.signedIn && renderSection(section, data)}
+
+    {data?.signedIn && (data.signalHasPrevious || data.signalHasNext) && <nav className="section-card button-row" aria-label="Signal room pagination">
+      {data.signalHasPrevious && <Link className="button-link" to={{ pathname: location.pathname, search: pageSearch(data.signalPage - 1), hash: location.hash }}>Previous page</Link>}
+      <span className="boundary-note">Page {data.signalPage}</span>
+      {data.signalHasNext && <Link className="button-link button-link--primary" to={{ pathname: location.pathname, search: pageSearch(data.signalPage + 1), hash: location.hash }}>Next page</Link>}
+    </nav>}
 
     {data?.signedIn && <WarningCallout title="Compatibility and authority"><p>No item on this page grants source authority. Detailed sections were reorganized, not deleted; direct-source states remain available while the new Inbox, Notifications, Requests &amp; Reviews, and Review Center surfaces prove production parity.</p></WarningCallout>}
   </div>;

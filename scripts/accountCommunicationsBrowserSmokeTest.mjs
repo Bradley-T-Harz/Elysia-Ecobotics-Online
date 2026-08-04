@@ -51,6 +51,10 @@ const notificationId = "b9250000-0000-4000-8000-000000000001";
 const proposalId = "b9300000-0000-4000-8000-000000000001";
 const conversationId = "b9400000-0000-4000-8000-000000000001";
 const messageId = "b9500000-0000-4000-8000-000000000001";
+const resolvedRecipient = {
+  state: "can_request",
+  profile: { handle: "fixture-colleague", displayName: "Fixture Colleague", avatarUrl: null, shortPublicBio: "Synthetic public profile descriptor." },
+};
 const inboxPayload = {
   items: [{
     id: inboxItemId,
@@ -190,7 +194,11 @@ try {
   for (const scenario of [
     { path: "/commons-circle/signals/inbox", width: 1280, heading: "Inbox", kind: "inbox" },
     { path: "/commons-circle/signals/inbox", width: 390, heading: "Inbox", kind: "inbox" },
+    { path: "/commons-circle/signals/inbox/new?recipient=%40fixture-colleague", width: 1280, heading: "Start a private conversation", kind: "new-conversation" },
+    { path: "/commons-circle/signals/inbox/new?recipient=%40fixture-colleague", width: 390, heading: "Start a private conversation", kind: "new-conversation-mobile" },
+    { path: "/commons-circle/signals/inbox/new?recipient=%40fixture-existing", width: 1280, heading: "Start a private conversation", kind: "existing-conversation" },
     { path: "/commons-circle/inbox?domain=code_proposals#inbox-list", canonical: "/commons-circle/signals/inbox?domain=code_proposals#inbox-list", width: 1280, heading: "Inbox", kind: "inbox" },
+    { path: `/commons-circle/inbox?conversation=${conversationId}&from=stored-link#message`, canonical: `/commons-circle/signals/inbox/conversations/${conversationId}?from=stored-link#message`, width: 1280, heading: "Private conversation", kind: "conversation-alias" },
     { path: "/commons-circle/signals/notifications", width: 1280, heading: "Notifications", kind: "notifications" },
     { path: "/commons-circle/signals/notifications", width: 390, heading: "Notifications", kind: "notifications" },
     { path: "/commons-circle/notifications?filter=all#preferences", canonical: "/commons-circle/signals/notifications?filter=all#preferences", width: 1280, heading: "Notifications", kind: "notifications" },
@@ -200,9 +208,11 @@ try {
     { path: "/commons-circle/signals", width: 390, heading: "Signals", kind: "signals" },
     { path: "/commons-circle/signals", width: 1280, heading: "Signals", kind: "signals-admin", admin: true },
     { path: "/commons-circle/signals/coding-proposals", width: 1280, heading: "Coding proposal signals", kind: "signal-detail" },
+    { path: "/commons-circle/signals/work-with", width: 1280, heading: "Work With signals", kind: "signal-work-with" },
+    { path: "/commons-circle/signals/marketplace-forge", width: 1280, heading: "Marketplace & Developer Forge signals", kind: "signal-marketplace-forge" },
   ]) {
     const context = await browser.newContext({ viewport: { width: scenario.width, height: 900 } });
-    const observed = { totalRequests: 0, inboxLoads: 0, readMutations: 0 };
+    const observed = { totalRequests: 0, inboxLoads: 0, readMutations: 0, eventCountLoads: 0, resolverLoads: 0, requestBodies: [], tables: new Set() };
     await context.addInitScript(({ storageKey, session }) => {
       localStorage.setItem(storageKey, JSON.stringify(session));
       window.__elysiaCspViolations = [];
@@ -217,28 +227,47 @@ try {
         "Access-Control-Allow-Headers": "*",
         "Access-Control-Allow-Methods": "GET,PATCH,POST,OPTIONS",
         "Access-Control-Allow-Origin": "*",
+        "Content-Range": "0-0/0",
         "Content-Type": "application/json; charset=utf-8",
       };
       if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers, body: "" });
       observed.totalRequests += 1;
+      const tableMatch = url.pathname.match(/\/rest\/v1\/([^/]+)$/);
+      if (tableMatch && !url.pathname.includes("/rpc/")) observed.tables.add(tableMatch[1]);
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_inbox_items")) observed.inboxLoads += 1;
       if (url.pathname.endsWith("/rest/v1/rpc/mark_current_user_conversation_read")) observed.readMutations += 1;
       if (url.pathname.endsWith("/auth/v1/user")) return route.fulfill({ status: 200, headers, body: JSON.stringify(fixtureUser) });
       if (url.pathname.endsWith("/rest/v1/user_roles")) return route.fulfill({ status: 200, headers, body: JSON.stringify(scenario.admin ? [{ role: "administrator" }] : []) });
       if (url.pathname.endsWith("/rest/v1/profiles") && scenario.admin) return route.fulfill({ status: 200, headers, body: JSON.stringify({ is_admin: true }) });
-      if (url.pathname.endsWith("/rest/v1/rpc/current_user_event_counts")) return route.fulfill({ status: 200, headers, body: JSON.stringify({ inboxNeedsAttention: 1, inboxUnread: 1, messagesUnread: 0, notificationsUnread: 2 }) });
+      if (url.pathname.endsWith("/rest/v1/rpc/current_user_event_counts")) { observed.eventCountLoads += 1; return route.fulfill({ status: 200, headers, body: JSON.stringify({ inboxNeedsAttention: 1, inboxUnread: 1, messagesUnread: 0, notificationsUnread: 2 }) }); }
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_request_counts")) return route.fulfill({ status: 200, headers, body: JSON.stringify({ total: 1, pending: 1, byDomain: { code_proposals: { total: 1, pending: 1 } } }) });
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_inbox_items")) return route.fulfill({ status: 200, headers, body: JSON.stringify(inboxPayload) });
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_notification_items")) return route.fulfill({ status: 200, headers, body: JSON.stringify(notificationsPayload) });
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_account_event_preferences")) return route.fulfill({ status: 200, headers, body: JSON.stringify(eventPreferencesPayload) });
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_requests_and_reviews")) return route.fulfill({ status: 200, headers, body: JSON.stringify(requestsPayload) });
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_messaging_preferences")) return route.fulfill({ status: 200, headers, body: JSON.stringify({ preferenceVersion: 1, receiveDirectRequests: true, receiveOptionalAnnouncements: false, allowSourceLinkedMessages: true, ordinaryMessagingEligible: true, storedInSupabase: true, endToEndEncrypted: false }) });
+      if (url.pathname.endsWith("/rest/v1/rpc/resolve_account_messaging_destination")) {
+        observed.resolverLoads += 1;
+        const requestBody = request.postDataJSON();
+        const payload = requestBody?.p_public_handle === "@fixture-existing"
+          ? { state: "existing_active", profile: { handle: "fixture-existing", displayName: "Fixture Existing", avatarUrl: null }, deepLink: `/commons-circle/signals/inbox/conversations/${conversationId}` }
+          : resolvedRecipient;
+        return route.fulfill({ status: 200, headers, body: JSON.stringify(payload) });
+      }
+      if (url.pathname.endsWith("/rest/v1/rpc/request_account_conversation")) {
+        observed.requestBodies.push(request.postDataJSON());
+        if (observed.requestBodies.length === 1) return route.fulfill({ status: 503, headers, body: JSON.stringify({ message: "synthetic_lost_response" }) });
+        return route.fulfill({ status: 200, headers, body: JSON.stringify({ conversationId, state: "requested", deepLink: `/commons-circle/inbox?conversation=${conversationId}` }) });
+      }
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_conversations")) return route.fulfill({ status: 200, headers, body: JSON.stringify(conversationListPayload) });
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_conversation")) return route.fulfill({ status: 200, headers, body: JSON.stringify(conversationDetailPayload) });
       if (url.pathname.endsWith("/rest/v1/rpc/mark_current_user_conversation_read")) return route.fulfill({ status: 200, headers, body: "null" });
       if (/\/rest\/v1\/rpc\/set_current_user_(?:inbox|notification)_(?:read|archived)$/.test(url.pathname)) return route.fulfill({ status: 200, headers, body: "null" });
       if (url.pathname.endsWith("/rest/v1/rpc/mark_all_current_user_notifications_read")) return route.fulfill({ status: 200, headers, body: "1" });
       if (url.pathname.endsWith("/rest/v1/rpc/update_current_user_account_event_preference")) return route.fulfill({ status: 200, headers, body: JSON.stringify(eventPreferencesPayload.preferences[0]) });
+      if (url.pathname.endsWith("/rest/v1/work_with_requests")) return route.fulfill({ status: 200, headers: { ...headers, "Content-Range": "0-0/1" }, body: JSON.stringify([{ id: "b9600000-0000-4000-8000-000000000001", request_type: "collaboration", status: "pending_review", source_context: "standalone", created_at: "2026-08-02T12:00:00.000Z", updated_at: "2026-08-02T12:05:00.000Z" }]) });
+      if (url.pathname.endsWith("/rest/v1/addon_submissions")) return route.fulfill({ status: 200, headers: { ...headers, "Content-Range": "0-0/1" }, body: JSON.stringify([{ id: "b9700000-0000-4000-8000-000000000001", status: "published", submitted_at: "2026-08-02T12:00:00.000Z", updated_at: "2026-08-02T12:05:00.000Z" }]) });
+      if (url.pathname.endsWith("/rest/v1/marketplace_listings")) return route.fulfill({ status: 200, headers: { ...headers, "Content-Range": "0-0/1" }, body: JSON.stringify([{ source_submission_id: "b9700000-0000-4000-8000-000000000001", listing_status: "published", slug: "fixture-addon" }]) });
       return route.fulfill({ status: 200, headers, body: "[]" });
     });
 
@@ -259,17 +288,21 @@ try {
     assert.deepEqual(pageErrors, [], `${scenario.path} should have no page errors.`);
     if (scenario.kind === "inbox") {
       await page.getByRole("tab", { name: /Needs attention/ }).waitFor();
-      await page.getByRole("button", { name: "Start a private conversation" }).waitFor();
+      assert.equal(await page.getByRole("link", { name: "Start a private conversation" }).first().getAttribute("href"), "/commons-circle/signals/inbox/new");
       await page.getByText("A revision proposal is ready for review", { exact: true }).waitFor();
       assert.equal(await page.getByRole("link", { name: "Review Proposal" }).getAttribute("href"), `/commune/coding-cornucopia/review?proposal=${proposalId}`);
       await page.getByRole("tab", { name: "Messages" }).click();
       await page.getByText("Governed private communication", { exact: true }).waitFor();
       await page.getByText("Fixture professional conversation", { exact: true }).first().waitFor();
+      assert.equal(await page.getByText("SYNTHETIC_BROWSER_PRIVATE_MESSAGE", { exact: true }).count(), 0, "The concise conversation list must not preload private message bodies.");
+      await page.getByRole("button", { name: /Fixture professional conversation/ }).click();
       await page.getByText("SYNTHETIC_BROWSER_PRIVATE_MESSAGE", { exact: true }).waitFor();
+      assert.equal(new URL(page.url()).pathname, `/commons-circle/signals/inbox/conversations/${conversationId}`, "Conversation rows must open the focused canonical detail route.");
       assert.equal(await page.getByText(conversationId, { exact: false }).count(), 0, "Raw conversation identifiers must not render as ordinary UI text.");
-      await page.getByText("Messages are stored in Supabase and are not end-to-end encrypted.", { exact: false }).waitFor();
+      await page.getByText("Messages are stored in Supabase and are not end-to-end encrypted.", { exact: true }).first().waitFor();
       await page.waitForTimeout(750);
       assert.equal(observed.readMutations, 1, "Opening a genuinely unread visible conversation must acknowledge it once.");
+      assert.equal(observed.eventCountLoads >= 2, true, "A genuine read mutation must reconcile exact event counts once in addition to the Inbox overview load.");
       const inboxLoadsBeforeResume = observed.inboxLoads;
       await page.evaluate(() => {
         document.dispatchEvent(new Event("visibilitychange"));
@@ -279,7 +312,37 @@ try {
       await page.waitForTimeout(900);
       assert.equal(observed.readMutations, 1, "Passive messaging refresh must perform zero additional read mutations.");
       assert.equal(observed.inboxLoads, inboxLoadsBeforeResume, "The parent actionable-Inbox loader must stay suspended while Messages owns refresh.");
-      assert(observed.totalRequests <= 32, `Inbox and Messages exceeded the bounded request budget: ${observed.totalRequests}.`);
+      assert(observed.totalRequests <= 38, `Inbox, Messages, and focused detail exceeded the bounded request budget: ${observed.totalRequests}.`);
+    } else if (scenario.kind === "new-conversation" || scenario.kind === "new-conversation-mobile") {
+      const handleInput = page.getByLabel("Exact public Commons handle");
+      assert.equal(await handleInput.inputValue(), "@fixture-colleague", "Recipient query parameters must safely prefill the exact-handle field.");
+      assert.equal(observed.resolverLoads, 0, "Recipient query parameters must never trigger an automatic lookup.");
+      await page.getByRole("button", { name: "Check recipient" }).click();
+      await page.getByText("Synthetic public profile descriptor.", { exact: true }).waitFor();
+      assert.equal(observed.resolverLoads, 1, "One explicit recipient check must issue exactly one resolver call.");
+      assert.equal(await page.getByText(/@fixture-colleague/).count() > 0, true, "The safe recipient card must show the public handle.");
+      if (scenario.kind === "new-conversation") {
+        await page.getByLabel("Subject").fill("Synthetic professional request");
+        await page.getByLabel("Plain-text first message").fill("SYNTHETIC_BROWSER_FIRST_REQUEST");
+        await page.getByRole("button", { name: "Send conversation request" }).click();
+        await page.getByRole("button", { name: "Send conversation request" }).waitFor();
+        assert.equal(observed.requestBodies.length, 1, "The first logical submission should issue one request attempt.");
+        await page.getByRole("button", { name: "Send conversation request" }).click();
+        await page.getByText("SYNTHETIC_BROWSER_PRIVATE_MESSAGE", { exact: true }).waitFor();
+        assert.equal(observed.requestBodies.length, 2, "A user retry should issue one additional attempt.");
+        assert.equal(observed.requestBodies[0].p_client_request_id, observed.requestBodies[1].p_client_request_id, "Conversation request retries must reuse the logical client request ID.");
+        assert.equal(observed.requestBodies[0].p_client_message_id, observed.requestBodies[1].p_client_message_id, "First-message retries must reuse the logical client message ID.");
+        assert.equal(new URL(page.url()).pathname, `/commons-circle/signals/inbox/conversations/${conversationId}`);
+      }
+    } else if (scenario.kind === "existing-conversation") {
+      assert.equal(observed.resolverLoads, 0, "A profile-originated handle must not auto-resolve.");
+      await page.getByRole("button", { name: "Check recipient" }).click();
+      await page.getByText("SYNTHETIC_BROWSER_PRIVATE_MESSAGE", { exact: true }).waitFor();
+      assert.equal(observed.resolverLoads, 1, "Existing-conversation reuse must come from one explicit resolver call.");
+      assert.equal(new URL(page.url()).pathname, `/commons-circle/signals/inbox/conversations/${conversationId}`);
+    } else if (scenario.kind === "conversation-alias") {
+      await page.getByText("SYNTHETIC_BROWSER_PRIVATE_MESSAGE", { exact: true }).waitFor();
+      assert.equal(observed.readMutations, 1, "Stored legacy conversation links must resolve to one focused participant view and one read acknowledgment.");
     } else if (scenario.kind === "notifications") {
       await page.getByRole("tab", { name: "Unread (2)" }).waitFor();
       await page.getByText("Your revision proposal was accepted", { exact: true }).waitFor();
@@ -325,10 +388,22 @@ try {
       assert.equal(await page.getByRole("link", { name: "Open Review Center", exact: true }).count(), scenario.admin ? 1 : 0, "Review Center visibility must follow established role truth.");
       assert.equal(await page.getByRole("link", { name: "Open Admin Console", exact: true }).count(), scenario.admin ? 1 : 0, "Admin Console visibility must be administrator-only.");
       if (scenario.path.includes("legacy-bookmark")) assert.match(page.url(), /legacy-bookmark=preserved/, "Signals compatibility route must preserve query strings.");
-    } else {
+    } else if (scenario.kind === "signal-detail") {
       await page.getByRole("link", { name: "Back to Signals", exact: true }).waitFor();
       await page.getByRole("heading", { name: "Proposals awaiting your decision", exact: true }).waitFor();
       assert.equal(await page.getByText("Reviewer follow-up", { exact: true }).count(), 0, "Ordinary users must not see specialist reviewer lanes.");
+      assert(observed.tables.has("commune_code_revision_proposals"), "Coding Proposals must load its authoritative proposal source.");
+      for (const unrelated of ["work_with_requests", "addon_submissions", "commune_research_notes", "commune_job_posts"]) assert.equal(observed.tables.has(unrelated), false, `Coding Proposals must not load unrelated ${unrelated} rows.`);
+    } else if (scenario.kind === "signal-work-with") {
+      await page.getByText("Work With request activity", { exact: true }).waitFor();
+      await page.getByText("private owner status", { exact: false }).waitFor();
+      assert(observed.tables.has("work_with_requests"), "Work With Signals must load safe authoritative request status.");
+      for (const unrelated of ["addon_submissions", "marketplace_listings", "commune_code_revision_proposals", "commune_research_notes"]) assert.equal(observed.tables.has(unrelated), false, `Work With Signals must not load unrelated ${unrelated} rows.`);
+    } else if (scenario.kind === "signal-marketplace-forge") {
+      await page.getByText("Forge and Marketplace activity", { exact: true }).waitFor();
+      await page.getByText("Open published Marketplace listing", { exact: true }).waitFor();
+      assert(observed.tables.has("addon_submissions") && observed.tables.has("marketplace_listings"), "Marketplace/Forge Signals must load safe owner submission and visible listing state.");
+      for (const unrelated of ["work_with_requests", "commune_code_revision_proposals", "commune_research_notes"]) assert.equal(observed.tables.has(unrelated), false, `Marketplace/Forge Signals must not load unrelated ${unrelated} rows.`);
     }
     if (screenshotDir && scenario.kind === "signals") await page.screenshot({ path: path.join(screenshotDir, `signals-hub-${scenario.width}.png`), fullPage: true });
     if (screenshotDir && scenario.kind === "signal-detail") await page.screenshot({ path: path.join(screenshotDir, "signals-coding-proposals-1280.png"), fullPage: true });
