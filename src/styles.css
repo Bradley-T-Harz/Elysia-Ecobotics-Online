@@ -4893,6 +4893,57 @@ button.commune-vote-option-card:disabled {
   height: 3.5rem;
 }
 
+.account-messaging-profile-results {
+  display: grid;
+  gap: 0.65rem;
+  margin-top: 1rem;
+}
+
+.account-messaging-profile-results__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: 0.65rem;
+}
+
+.account-messaging-profile-result {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.7rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid rgba(112, 189, 177, 0.3);
+  border-radius: 0.85rem;
+  background: rgba(8, 31, 34, 0.54);
+  color: inherit;
+  text-align: left;
+}
+
+.account-messaging-profile-result:hover,
+.account-messaging-profile-result:focus-visible {
+  border-color: rgba(123, 231, 201, 0.72);
+}
+
+.account-messaging-profile-result .commons-avatar {
+  width: 2.8rem;
+  height: 2.8rem;
+}
+
+.account-messaging-profile-result span {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.account-messaging-profile-result small {
+  color: var(--muted-text);
+  overflow-wrap: anywhere;
+}
+
+.account-messaging-help {
+  margin-top: 1rem;
+}
+
 .account-messaging-workspace {
   display: grid;
   grid-template-columns: minmax(15rem, 0.78fr) minmax(0, 1.6fr);

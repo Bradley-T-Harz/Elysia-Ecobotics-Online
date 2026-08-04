@@ -154,7 +154,7 @@ assert(address && typeof address === "object", "Local browser server did not sta
 const origin = `http://127.0.0.1:${address.port}`;
 const browser = await chromium.launch({ headless: true });
 
-async function loadCase({ handle, viewport, expected, canonicalAfterLoad, signedIn = false, owner = false, availability = "available" }) {
+async function loadCase({ handle, viewport, expected, canonicalAfterLoad, signedIn = false, owner = false }) {
   const context = await browser.newContext({
     viewport,
     isMobile: viewport.width < 600,
@@ -242,18 +242,6 @@ async function loadCase({ handle, viewport, expected, canonicalAfterLoad, signed
       await route.fulfill({ status: 200, headers: corsHeaders, body: "[]" });
       return;
     }
-    if (url.pathname.endsWith("/rest/v1/rpc/resolve_account_messaging_destination")) {
-      const body = request.postDataJSON();
-      rpcCalls.push(`messaging:${body.p_public_handle}`);
-      await route.fulfill({
-        status: 200,
-        headers: corsHeaders,
-        body: JSON.stringify(availability === "available"
-          ? { state: "can_request", profile: { handle: canonicalHandle, displayName: "Fixture Online Public", avatarUrl: `/api/public/profile-avatars/${mediaId}`, shortPublicBio: "Synthetic browser-only public profile." } }
-          : { state: "unavailable" }),
-      });
-      return;
-    }
     unknownSupabaseRequests.push(`${request.method()} ${url.pathname}`);
     await route.fulfill({
       status: 404,
@@ -281,17 +269,17 @@ async function loadCase({ handle, viewport, expected, canonicalAfterLoad, signed
     if (owner) {
       await page.getByRole("link", { name: "Edit in Commons Circle", exact: true }).waitFor();
       assert.equal(await page.getByRole("link", { name: "Message", exact: true }).count(), 0, "Own public profile must not offer self-messaging.");
+      assert.equal(await page.getByRole("link", { name: "Messaging settings", exact: true }).getAttribute("href"), "/commons-circle/signals/inbox/settings");
+      assert.equal(await page.getByText("Private messaging unavailable", { exact: true }).count(), 0, "Own public profile must not show an unavailable badge.");
     } else if (!signedIn) {
-      const signIn = page.getByRole("link", { name: "Sign in to contact this member", exact: true });
+      const signIn = page.getByRole("link", { name: "Sign in to message", exact: true });
       await signIn.waitFor();
       assert.equal(await signIn.getAttribute("href"), `/commons-circle/signals/inbox/new?recipient=%40${canonicalHandle}`);
-    } else if (availability === "available") {
+    } else {
       const messageLink = page.getByRole("link", { name: "Message", exact: true });
       await messageLink.waitFor();
       assert.equal(await messageLink.getAttribute("href"), `/commons-circle/signals/inbox/new?recipient=%40${canonicalHandle}`);
-    } else {
-      await page.getByText("Private messaging unavailable", { exact: true }).waitFor();
-      assert.equal(await page.getByRole("link", { name: "Message", exact: true }).count(), 0);
+      assert.equal(await page.getByText("Private messaging unavailable", { exact: true }).count(), 0, "Public profiles must not pre-query or expose private availability.");
     }
     const messagingControlMarkup = await page.locator(".commons-profile-masthead__edit").innerHTML();
     assert(!messagingControlMarkup.includes(fixtureUser.email) && !messagingControlMarkup.includes(fixtureUserId), "Public-profile messaging controls must not render email or private account identity.");
@@ -331,15 +319,7 @@ try {
     expected: "Fixture Online Public",
     signedIn: true,
   });
-  assert.deepEqual(signedInCalls, [`presentation:${canonicalHandle}`, `messaging:@${canonicalHandle}`]);
-  const unavailableCalls = await loadCase({
-    handle: canonicalHandle,
-    viewport: { width: 1280, height: 900 },
-    expected: "Fixture Online Public",
-    signedIn: true,
-    availability: "unavailable",
-  });
-  assert.deepEqual(unavailableCalls, [`presentation:${canonicalHandle}`, `messaging:@${canonicalHandle}`]);
+  assert.deepEqual(signedInCalls, [`presentation:${canonicalHandle}`]);
   const ownerCalls = await loadCase({
     handle: canonicalHandle,
     viewport: { width: 1280, height: 900 },

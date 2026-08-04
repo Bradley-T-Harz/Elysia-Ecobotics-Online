@@ -4,7 +4,7 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-const [app, authPanel, refreshController, homebase, api, commonsApi, inbox, notifications, messaging, newConversation, conversationPage, publicProfile, adminCommunications, adminConsole, requests, signals, signalDetails, migration, messagingMigration, destinationMigration, messagingFixture, styles] = await Promise.all([
+const [app, authPanel, refreshController, homebase, api, commonsApi, inbox, notifications, messaging, messagingSettings, newConversation, conversationPage, publicProfile, participationClient, identityWorker, identityDatabase, identityProxy, adminCommunications, adminConsole, requests, signals, signalDetails, migration, messagingMigration, destinationMigration, usabilityMigration, messagingFixture, styles] = await Promise.all([
   fs.readFile("src/App.tsx", "utf8"),
   fs.readFile("src/pages/The-Elysia-Marketplace/components/AuthPanel.tsx", "utf8"),
   fs.readFile("src/shared/hooks/useCoordinatedRefresh.ts", "utf8"),
@@ -14,9 +14,14 @@ const [app, authPanel, refreshController, homebase, api, commonsApi, inbox, noti
   fs.readFile("src/pages/The-Commons-Circle/InboxPage.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/NotificationsPage.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/InboxMessagingPanel.tsx", "utf8"),
+  fs.readFile("src/pages/The-Commons-Circle/MessagingSettingsPage.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/NewConversationPage.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/InboxConversationPage.tsx", "utf8"),
   fs.readFile("src/pages/Public-Commons-Profile/index.tsx", "utf8"),
+  fs.readFile("src/shared/participation/participationClient.ts", "utf8"),
+  fs.readFile("services/identity-worker/worker.ts", "utf8"),
+  fs.readFile("services/identity-worker/_shared/database.ts", "utf8"),
+  fs.readFile("functions/api/identity/[[path]].ts", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/AdminCommunicationsPage.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/CommonsCircleAdminConsolePage.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/RequestsReviewsPage.tsx", "utf8"),
@@ -25,11 +30,12 @@ const [app, authPanel, refreshController, homebase, api, commonsApi, inbox, noti
   fs.readFile("supabase/migrations/20260802040000_account_requests_and_reviews_projection.sql", "utf8"),
   fs.readFile("supabase/migrations/20260802050000_governed_account_conversations.sql", "utf8"),
   fs.readFile("supabase/migrations/20260803020000_account_messaging_destination_resolution.sql", "utf8"),
+  fs.readFile("supabase/migrations/20260803030000_messaging_capabilities_and_public_profile_search.sql", "utf8"),
   fs.readFile("scripts/fixtures/accountMessagingBehavior.sql", "utf8"),
   fs.readFile("src/styles.css", "utf8"),
 ]);
 
-for (const route of ["commons-circle/inbox", "commons-circle/notifications", "commons-circle/requests-reviews", "commons-circle/admin-communications", "commons-circle/signals", "commons-circle/signals/inbox", "commons-circle/signals/inbox/new", "commons-circle/signals/inbox/conversations/:conversationId", "commons-circle/signals/notifications", "commons-circle/signals/requests-reviews", "commons-circle/signals/coding-proposals", "commons-circle/signals/troubleshooting", "commons-circle/signals/research-notes", "commons-circle/signals/repository-showcases", "commons-circle/signals/iteration-showcases", "commons-circle/signals/job-posts", "commons-circle/signals/voting-room", "commons-circle/signals/official-updates", "commons-circle/signals/sandbox-reviews", "commons-circle/signals/work-with", "commons-circle/signals/marketplace-forge"]) {
+for (const route of ["commons-circle/inbox", "commons-circle/notifications", "commons-circle/requests-reviews", "commons-circle/admin-communications", "commons-circle/signals", "commons-circle/signals/inbox", "commons-circle/signals/inbox/new", "commons-circle/signals/inbox/settings", "commons-circle/signals/inbox/conversations/:conversationId", "commons-circle/signals/notifications", "commons-circle/signals/requests-reviews", "commons-circle/signals/coding-proposals", "commons-circle/signals/troubleshooting", "commons-circle/signals/research-notes", "commons-circle/signals/repository-showcases", "commons-circle/signals/iteration-showcases", "commons-circle/signals/job-posts", "commons-circle/signals/voting-room", "commons-circle/signals/official-updates", "commons-circle/signals/sandbox-reviews", "commons-circle/signals/work-with", "commons-circle/signals/marketplace-forge"]) {
   assert(app.includes(`path="${route}"`), `Missing account communications route: ${route}`);
 }
 assert(app.includes("function LegacyCommunicationAlias") && app.includes("state={location.state}") && app.includes("search: location.search") && app.includes("hash: location.hash"), "Legacy communication aliases must preserve safe state, query strings, and hash fragments.");
@@ -94,14 +100,27 @@ assert(messaging.includes("Attachments, HTML, embeds, and anonymous messages are
 assert(messaging.includes("Accept request") && messaging.includes("Block account") && messaging.includes("Submit report"), "Participant messaging safety controls are incomplete.");
 assert(messaging.includes("acknowledgedReadRef") && messaging.includes("selectedSummary.unreadCount <= 0") && messaging.includes('document.visibilityState !== "visible"'), "Messaging must acknowledge genuinely unread visible conversations only once.");
 assert(!messaging.includes("refreshDetail") && messaging.includes("runMessagingOperation"), "Messaging list, detail, participant state, and mutations must use one refresh owner.");
-assert(messaging.includes('to="/commons-circle/signals/inbox/new"') && !messaging.includes("lookupMessagingRecipient"), "The conversation list must route to one dedicated exact-handle composer instead of retaining a duplicate inline composer.");
+assert(messaging.includes('to="/commons-circle/signals/inbox/new"') && messaging.includes('to="/commons-circle/signals/inbox/settings"') && !messaging.includes("lookupMessagingRecipient"), "The conversation list must route to dedicated composer and settings pages instead of retaining duplicate inline controls.");
 assert(conversationPage.includes("conversationId={conversationId}") && conversationPage.includes("participant-scoped conversation contract"), "Conversation detail must use the governed participant-scoped page contract.");
-for (const marker of ["Exact public Commons handle", "Check recipient", "Send conversation request", "resolveMessagingDestination", "clientIdsRef", "newClientIds", "stored in Supabase", "not end-to-end encrypted"]) {
+for (const marker of ["Search public profiles or enter an exact @handle", "Search or check", "Send conversation request", "resolveMessagingDestination", "searchMessagingPublicProfiles", "clientIdsRef", "newClientIds", "stored in Supabase", "not end-to-end encrypted", "You are not accepting new conversation requests, but you may still contact eligible public profiles."]) {
   assert(newConversation.includes(marker), `Focused new-conversation flow omits ${marker}.`);
 }
 assert(newConversation.includes("destination.profile?.handle !== normalizedHandle.slice(1)") && !newConversation.includes("autoSubmit"), "A public-handle deep link must be explicitly resolved before sending.");
-assert(publicProfile.includes("resolveMessagingDestination") && publicProfile.includes("Sign in to contact this member") && publicProfile.includes("Private messaging unavailable"), "Public profiles must expose only an Auth-aware, coarse-resolved messaging action.");
+assert(newConversation.includes("query.trim().startsWith(\"@\")") && newConversation.includes("normalizedQuery.length < 3") && newConversation.includes("recentConversations"), "The composer must preserve exact-handle lookup, enforce bounded search input, and derive recent contacts from participant-scoped conversations.");
+assert(messagingSettings.includes("Allow eligible members to send me conversation requests") && messagingSettings.includes("Allow source-linked conversations") && messagingSettings.includes("broadMessagingEligibility"), "Dedicated messaging settings must explain and separate the existing user-controlled preferences.");
+assert(messagingSettings.includes("You are not accepting new conversation requests, but you may still contact eligible public profiles."), "Incoming opt-out must not be presented as an outbound-initiation prohibition.");
+assert(!publicProfile.includes("resolveMessagingDestination") && publicProfile.includes("Sign in to message") && publicProfile.includes(">Message</Link>") && !publicProfile.includes("Private messaging unavailable"), "Public profiles must navigate by handle without pre-querying or exposing private availability.");
 assert(publicProfile.includes('encodeURIComponent(`@${profile.username}`)') && !publicProfile.includes("recipient=${userId}") && !publicProfile.includes("recipient=${profile.id}"), "Public-profile messaging navigation must use only the public handle, never an account identifier.");
+assert(publicProfile.includes("isOwner && userId") && publicProfile.includes("Messaging settings"), "A profile owner must receive settings navigation without a self-message or unavailable badge.");
+for (const capability of ["broadMessagingEligibility", "canInitiateDirectConversation", "acceptsIncomingDirectRequests", "canUseExistingConversations", "currentPublicHandle"]) {
+  assert(api.includes(capability) && usabilityMigration.includes(`'${capability}'`), `Messaging capability contract omits ${capability}.`);
+}
+assert(participationClient.includes("searchMessagingPublicProfiles") && participationClient.includes("minimumQueryLength: z.literal(3)") && participationClient.includes("resultLimit: z.literal(8)"), "The browser search client must strictly decode the bounded public-only response.");
+assert(identityProxy.includes('headers.set("x-elysia-surface", "online")'), "The trusted Pages service binding must label the Online surface for messaging discovery.");
+for (const marker of ["messagingProfileSearch", '"/v1/messaging/public-profile-search"', '"x-elysia-surface"', '"messaging_profile_search"', "safeMessagingProfileSearch", "authenticateIdentityRequest"]) {
+  assert(identityWorker.includes(marker), `Identity Worker messaging discovery omits ${marker}.`);
+}
+assert(identityDatabase.includes('"search_public_commons_message_profiles_for_actor"'), "Identity Worker database adapter omits the service-only search RPC.");
 assert(adminCommunications.includes("roleState.isAdmin") && adminCommunications.includes('role === "moderator"') && adminCommunications.includes('role === "commune_moderator"'), "Staff messaging UI role separation is missing.");
 assert(adminCommunications.includes("confirmationPhrase") && adminCommunications.includes("Preview exact audience"), "Administrator audience preview/confirmation is missing.");
 assert(adminConsole.includes("canOpenPrivateCommunications") && !adminConsole.includes('role === "reviewer" || role === "moderator"'), "Generic reviewers must not inherit private-message tooling.");
@@ -155,6 +174,7 @@ for (const sensitive of ["request.message", "request.preferred_contact", "propos
 
 assert(styles.includes(".account-communications-card") && styles.includes(".account-communications-tabs"), "Account communications responsive styling is missing.");
 assert(styles.includes(".inbox-messaging-panel") && styles.includes(".account-admin-communications"), "Governed messaging responsive styling is missing.");
+assert(styles.includes(".account-messaging-profile-results") && styles.includes(".account-messaging-profile-result"), "Bounded profile results need compact responsive styling.");
 
 for (const marker of [
   "private.account_conversations",
@@ -182,6 +202,21 @@ for (const marker of [
   "to authenticated",
 ]) assert(destinationMigration.includes(marker), `Messaging destination migration omits ${marker}.`);
 assert(!destinationMigration.match(/grant execute[\s\S]{0,120}to (?:anon|public)/i), "Destination resolution must not be executable by anonymous or public roles.");
+
+for (const marker of [
+  "search_public_commons_message_profiles_for_actor",
+  "minimumQueryLength",
+  "resultLimit",
+  "private.community_safe_online_public_profile_cards",
+  "private.account_private_messaging_allowed",
+  "limit v_limit",
+  "set search_path = ''",
+  "to service_role",
+]) assert(usabilityMigration.includes(marker), `Messaging usability migration omits ${marker}.`);
+assert(!/grant execute on function[\s\S]*search_public_commons_message_profiles_for_actor[\s\S]{0,180}to (?:authenticated|anon|public)/i.test(usabilityMigration), "Bounded profile search must not bypass the authenticated Worker rate limit through a direct browser grant.");
+for (const privateField of ["email", "auth_user_id", "account_id", "profile_id", "guardian", "moderation", "restriction_reason", "block_reason"]) {
+  assert(!usabilityMigration.includes(`'${privateField}'`), `Messaging profile search exposes private field ${privateField}.`);
+}
 
 for (const privateBody of [
   "SYNTHETIC_PRIVATE_FIRST_MESSAGE",

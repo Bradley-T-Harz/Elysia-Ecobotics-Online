@@ -196,7 +196,10 @@ try {
     { path: "/commons-circle/signals/inbox", width: 390, heading: "Inbox", kind: "inbox" },
     { path: "/commons-circle/signals/inbox/new?recipient=%40fixture-colleague", width: 1280, heading: "Start a private conversation", kind: "new-conversation" },
     { path: "/commons-circle/signals/inbox/new?recipient=%40fixture-colleague", width: 390, heading: "Start a private conversation", kind: "new-conversation-mobile" },
+    { path: "/commons-circle/signals/inbox/new", width: 1280, heading: "Start a private conversation", kind: "profile-search" },
     { path: "/commons-circle/signals/inbox/new?recipient=%40fixture-existing", width: 1280, heading: "Start a private conversation", kind: "existing-conversation" },
+    { path: "/commons-circle/signals/inbox/settings", width: 1280, heading: "Messaging settings", kind: "messaging-settings" },
+    { path: "/commons-circle/signals/inbox/settings", width: 390, heading: "Messaging settings", kind: "messaging-settings" },
     { path: "/commons-circle/inbox?domain=code_proposals#inbox-list", canonical: "/commons-circle/signals/inbox?domain=code_proposals#inbox-list", width: 1280, heading: "Inbox", kind: "inbox" },
     { path: `/commons-circle/inbox?conversation=${conversationId}&from=stored-link#message`, canonical: `/commons-circle/signals/inbox/conversations/${conversationId}?from=stored-link#message`, width: 1280, heading: "Private conversation", kind: "conversation-alias" },
     { path: "/commons-circle/signals/notifications", width: 1280, heading: "Notifications", kind: "notifications" },
@@ -212,7 +215,7 @@ try {
     { path: "/commons-circle/signals/marketplace-forge", width: 1280, heading: "Marketplace & Developer Forge signals", kind: "signal-marketplace-forge" },
   ]) {
     const context = await browser.newContext({ viewport: { width: scenario.width, height: 900 } });
-    const observed = { totalRequests: 0, inboxLoads: 0, readMutations: 0, eventCountLoads: 0, resolverLoads: 0, requestBodies: [], tables: new Set() };
+    const observed = { totalRequests: 0, inboxLoads: 0, readMutations: 0, eventCountLoads: 0, resolverLoads: 0, searchLoads: 0, requestBodies: [], preferenceBodies: [], tables: new Set() };
     await context.addInitScript(({ storageKey, session }) => {
       localStorage.setItem(storageKey, JSON.stringify(session));
       window.__elysiaCspViolations = [];
@@ -220,6 +223,18 @@ try {
         window.__elysiaCspViolations.push({ blockedUri: event.blockedURI, directive: event.effectiveDirective });
       });
     }, { storageKey: `sb-${projectRef}-auth-token`, session: fixtureSession });
+    await context.route(/\/api\/identity\/v1\/messaging\/public-profile-search\?/, async (route) => {
+      observed.searchLoads += 1;
+      const request = route.request();
+      const url = new URL(request.url());
+      assert.equal(request.headers().authorization, `Bearer ${accessToken}`, "Messaging profile search must use the authenticated Identity Worker boundary.");
+      assert.equal(url.searchParams.get("q"), "Fixture Coll", "Profile search must send only the bounded public query.");
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json; charset=utf-8",
+        body: JSON.stringify({ ok: true, data: { items: [{ handle: "fixture-colleague", displayName: "Fixture Colleague", avatarUrl: null, shortPublicBio: "Synthetic public profile descriptor." }], minimumQueryLength: 3, resultLimit: 8 } }),
+      });
+    });
     await context.route(/^https:\/\/[^/]+\.supabase\.co\//, async (route) => {
       const request = route.request();
       const url = new URL(request.url());
@@ -245,7 +260,11 @@ try {
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_notification_items")) return route.fulfill({ status: 200, headers, body: JSON.stringify(notificationsPayload) });
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_account_event_preferences")) return route.fulfill({ status: 200, headers, body: JSON.stringify(eventPreferencesPayload) });
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_requests_and_reviews")) return route.fulfill({ status: 200, headers, body: JSON.stringify(requestsPayload) });
-      if (url.pathname.endsWith("/rest/v1/rpc/current_user_messaging_preferences")) return route.fulfill({ status: 200, headers, body: JSON.stringify({ preferenceVersion: 1, receiveDirectRequests: true, receiveOptionalAnnouncements: false, allowSourceLinkedMessages: true, ordinaryMessagingEligible: true, storedInSupabase: true, endToEndEncrypted: false }) });
+      if (url.pathname.endsWith("/rest/v1/rpc/current_user_messaging_preferences")) return route.fulfill({ status: 200, headers, body: JSON.stringify({ preferenceVersion: 1, receiveDirectRequests: false, receiveOptionalAnnouncements: false, allowSourceLinkedMessages: true, ordinaryMessagingEligible: true, broadMessagingEligibility: true, canInitiateDirectConversation: true, acceptsIncomingDirectRequests: false, canUseExistingConversations: true, currentPublicHandle: "fixture-account", storedInSupabase: true, endToEndEncrypted: false }) });
+      if (url.pathname.endsWith("/rest/v1/rpc/update_current_user_messaging_preferences")) {
+        observed.preferenceBodies.push(request.postDataJSON());
+        return route.fulfill({ status: 200, headers, body: JSON.stringify({ preferenceVersion: 2, receiveDirectRequests: true, receiveOptionalAnnouncements: false, allowSourceLinkedMessages: true, ordinaryMessagingEligible: true, broadMessagingEligibility: true, canInitiateDirectConversation: true, acceptsIncomingDirectRequests: true, canUseExistingConversations: true, currentPublicHandle: "fixture-account", storedInSupabase: true, endToEndEncrypted: false }) });
+      }
       if (url.pathname.endsWith("/rest/v1/rpc/resolve_account_messaging_destination")) {
         observed.resolverLoads += 1;
         const requestBody = request.postDataJSON();
@@ -314,10 +333,12 @@ try {
       assert.equal(observed.inboxLoads, inboxLoadsBeforeResume, "The parent actionable-Inbox loader must stay suspended while Messages owns refresh.");
       assert(observed.totalRequests <= 38, `Inbox, Messages, and focused detail exceeded the bounded request budget: ${observed.totalRequests}.`);
     } else if (scenario.kind === "new-conversation" || scenario.kind === "new-conversation-mobile") {
-      const handleInput = page.getByLabel("Exact public Commons handle");
+      const handleInput = page.getByLabel("Search public profiles or enter an exact @handle");
       assert.equal(await handleInput.inputValue(), "@fixture-colleague", "Recipient query parameters must safely prefill the exact-handle field.");
       assert.equal(observed.resolverLoads, 0, "Recipient query parameters must never trigger an automatic lookup.");
-      await page.getByRole("button", { name: "Check recipient" }).click();
+      await page.getByText("You are not accepting new conversation requests, but you may still contact eligible public profiles.", { exact: true }).waitFor();
+      assert.equal(await page.getByRole("button", { name: "Search or check" }).isEnabled(), true, "Incoming opt-out must not disable outbound recipient resolution.");
+      await page.getByRole("button", { name: "Search or check" }).click();
       await page.getByText("Synthetic public profile descriptor.", { exact: true }).waitFor();
       assert.equal(observed.resolverLoads, 1, "One explicit recipient check must issue exactly one resolver call.");
       assert.equal(await page.getByText(/@fixture-colleague/).count() > 0, true, "The safe recipient card must show the public handle.");
@@ -334,9 +355,31 @@ try {
         assert.equal(observed.requestBodies[0].p_client_message_id, observed.requestBodies[1].p_client_message_id, "First-message retries must reuse the logical client message ID.");
         assert.equal(new URL(page.url()).pathname, `/commons-circle/signals/inbox/conversations/${conversationId}`);
       }
+    } else if (scenario.kind === "profile-search") {
+      const searchInput = page.getByLabel("Search public profiles or enter an exact @handle");
+      await searchInput.fill("Fixture Coll");
+      await page.getByRole("button", { name: "Search or check" }).click();
+      await page.getByRole("heading", { name: "Published profile results", exact: true }).waitFor();
+      assert.equal(observed.searchLoads, 1, "One explicit bounded search must issue one Identity Worker request.");
+      assert.equal(observed.resolverLoads, 0, "Search results must not imply or pre-query messaging availability.");
+      await page.getByRole("button", { name: /Fixture Colleague/ }).last().click();
+      await page.getByText("This published Commons Profile can receive a conversation request.", { exact: true }).waitFor();
+      assert.equal(observed.resolverLoads, 1, "Selecting a public result must issue one privacy-safe destination resolution.");
+      assert.equal(await page.getByText(userId, { exact: false }).count(), 0, "Search UI must not render a private account identifier.");
+    } else if (scenario.kind === "messaging-settings") {
+      await page.getByText("You are not accepting new conversation requests, but you may still contact eligible public profiles.", { exact: true }).waitFor();
+      const directRequests = page.getByLabel("Allow eligible members to send me conversation requests");
+      assert.equal(await directRequests.isChecked(), false, "Incoming request opt-in must render independently from outbound eligibility.");
+      assert.equal(await page.getByRole("link", { name: "Start a conversation" }).getAttribute("href"), "/commons-circle/signals/inbox/new");
+      if (scenario.width === 1280) {
+        await directRequests.check();
+        await page.getByText("Messaging settings saved.", { exact: true }).waitFor();
+        assert.equal(observed.preferenceBodies.length, 1, "One settings change must issue one versioned preference update.");
+        assert.equal(observed.preferenceBodies[0].p_receive_direct_requests, true, "Settings must update incoming opt-in without changing outbound capability.");
+      }
     } else if (scenario.kind === "existing-conversation") {
       assert.equal(observed.resolverLoads, 0, "A profile-originated handle must not auto-resolve.");
-      await page.getByRole("button", { name: "Check recipient" }).click();
+      await page.getByRole("button", { name: "Search or check" }).click();
       await page.getByText("SYNTHETIC_BROWSER_PRIVATE_MESSAGE", { exact: true }).waitFor();
       assert.equal(observed.resolverLoads, 1, "Existing-conversation reuse must come from one explicit resolver call.");
       assert.equal(new URL(page.url()).pathname, `/commons-circle/signals/inbox/conversations/${conversationId}`);

@@ -38,6 +38,7 @@ const SignalConsolePage = lazy(() => import("./pages/The-Commons-Circle/SignalCo
 const SignalDetailPage = lazy(() => import("./pages/The-Commons-Circle/SignalDetailPage"));
 const InboxPage = lazy(() => import("./pages/The-Commons-Circle/InboxPage"));
 const NewConversationPage = lazy(() => import("./pages/The-Commons-Circle/NewConversationPage"));
+const MessagingSettingsPage = lazy(() => import("./pages/The-Commons-Circle/MessagingSettingsPage"));
 const InboxConversationPage = lazy(() => import("./pages/The-Commons-Circle/InboxConversationPage"));
 const NotificationsPage = lazy(() => import("./pages/The-Commons-Circle/NotificationsPage"));
 const RequestsReviewsPage = lazy(() => import("./pages/The-Commons-Circle/RequestsReviewsPage"));
@@ -187,6 +188,7 @@ export default function App() {
             <Route path="commons-circle/signals" element={<SignalConsolePage />} />
             <Route path="commons-circle/signals/inbox" element={<CanonicalInboxEntry />} />
             <Route path="commons-circle/signals/inbox/new" element={<NewConversationPage />} />
+            <Route path="commons-circle/signals/inbox/settings" element={<MessagingSettingsPage />} />
             <Route path="commons-circle/signals/inbox/conversations/:conversationId" element={<InboxConversationPage />} />
             <Route path="commons-circle/signals/notifications" element={<NotificationsPage />} />
             <Route path="commons-circle/signals/requests-reviews" element={<RequestsReviewsPage />} />

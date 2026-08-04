@@ -11,7 +11,6 @@ import CommonsAvatarViewer from "../../shared/components/CommonsAvatarViewer";
 import CommonsProfileLayoutFrame from "../../shared/components/CommonsProfileLayoutFrame";
 import PageHero from "../../shared/components/PageHero";
 import { artisanProfileReportUrl } from "../../config/siteUrls";
-import { resolveMessagingDestination } from "../The-Commons-Circle/accountCommunicationsApi";
 import { loadPublicCommonsProfile, resolvePublicCommonsProfileHandle } from "../The-Commons-Circle/commonsCircleApi";
 import type { PublicCommonsProfile, UserBadge } from "../The-Commons-Circle/commonsCircleApi";
 
@@ -71,7 +70,6 @@ export default function PublicCommonsProfilePage() {
   const [canonicalRedirectPath, setCanonicalRedirectPath] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [messageAvailability, setMessageAvailability] = useState<"idle" | "loading" | "available" | "unavailable">("idle");
 
   useEffect(() => {
     let active = true;
@@ -102,20 +100,6 @@ export default function PublicCommonsProfilePage() {
     });
     return () => { active = false; };
   }, [username]);
-
-  useEffect(() => {
-    let active = true;
-    if (authLoading || !userId || !profileData || profileData.isOwner) {
-      setMessageAvailability("idle");
-      return () => { active = false; };
-    }
-    setMessageAvailability("loading");
-    resolveMessagingDestination(`@${profileData.profile.username}`).then((result) => {
-      if (!active) return;
-      setMessageAvailability(result.destination && result.destination.state !== "unavailable" ? "available" : "unavailable");
-    });
-    return () => { active = false; };
-  }, [authLoading, profileData, userId]);
 
   if (loading) {
     return <div className="page-stack"><PageHero eyebrow="Commons Profile" title="Loading public profile"><p>Checking the public Commons profile visibility settings.</p></PageHero></div>;
@@ -179,9 +163,9 @@ export default function PublicCommonsProfilePage() {
               </div>
               <div className="button-row commons-profile-summary-card__edit commons-profile-masthead__edit">
                 {isOwner && <a className="button-link button-link--primary" href="/commons-circle">Edit in Commons Circle</a>}
-                {!isOwner && !authLoading && !userId && <Link className="button-link button-link--primary" to={messagePath}>Sign in to contact this member</Link>}
-                {!isOwner && userId && messageAvailability === "available" && <Link className="button-link button-link--primary" to={messagePath}>Message</Link>}
-                {!isOwner && userId && messageAvailability === "unavailable" && <span className="boundary-note">Private messaging unavailable</span>}
+                {isOwner && userId && <Link className="button-link" to="/commons-circle/signals/inbox/settings">Messaging settings</Link>}
+                {!isOwner && !authLoading && !userId && <Link className="button-link button-link--primary" to={messagePath}>Sign in to message</Link>}
+                {!isOwner && userId && <Link className="button-link button-link--primary" to={messagePath}>Message</Link>}
               </div>
             </article>
           </section>

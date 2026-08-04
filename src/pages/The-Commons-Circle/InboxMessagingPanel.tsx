@@ -13,7 +13,6 @@ import {
   setConversationPresentation,
   startSourceLinkedConversation,
   startSupportConversation,
-  updateMessagingPreferences,
   type ConversationDetail,
   type ConversationSummary,
   type MessagingPreferences,
@@ -168,16 +167,6 @@ export default function InboxMessagingPanel({
     return result;
   }
 
-  async function savePreferences(next: MessagingPreferences) {
-    setWorking(true);
-    const result = await runMessagingOperation(() => updateMessagingPreferences(next));
-    setWorkspace((current) => ({ ...current, preferences: result.preferences ?? current.preferences }));
-    setPanelMessage(result.warning
-      ? { tone: "error", text: result.warning }
-      : { tone: "info", text: "Private communication preferences saved." });
-    setWorking(false);
-  }
-
   async function submitSupportRequest() {
     setWorking(true);
     const result = await runMessagingOperation(() => startSupportConversation(subject, body));
@@ -268,18 +257,18 @@ export default function InboxMessagingPanel({
 
     {panelMessage && <p className={panelMessage.tone === "error" ? "warning-callout" : "message"} role="status">{panelMessage.text}</p>}
 
-    {preferences && <details className="account-messaging-preferences">
-      <summary>Private communication controls</summary>
-      <p>{preferences.ordinaryMessagingEligible ? "Your account is eligible for adult account-to-account messaging." : "Direct account messaging is unavailable under the current participation, age, guardian, lifecycle, or restriction state. Account support and required notices remain separate."}</p>
-      <label><input type="checkbox" checked={preferences.receiveDirectRequests} disabled={working || !preferences.ordinaryMessagingEligible} onChange={(event) => void savePreferences({ ...preferences, receiveDirectRequests: event.target.checked })} /> Receive new account-to-account conversation requests</label>
-      <label><input type="checkbox" checked={preferences.allowSourceLinkedMessages} disabled={working} onChange={(event) => void savePreferences({ ...preferences, allowSourceLinkedMessages: event.target.checked })} /> Allow messages from participants in a shared source workflow</label>
-      <label><input type="checkbox" checked={preferences.receiveOptionalAnnouncements} disabled={working} onChange={(event) => void savePreferences({ ...preferences, receiveOptionalAnnouncements: event.target.checked })} /> Receive optional administrator announcements</label>
-    </details>}
+    {preferences && <section className="account-messaging-preferences">
+      <h3>Messaging status</h3>
+      <p>{preferences.broadMessagingEligibility ? "Governed account messaging is available." : "Messaging is unavailable under the current broad participation or account-safety state."}</p>
+      {!preferences.acceptsIncomingDirectRequests && preferences.canInitiateDirectConversation
+        && <p>You are not accepting new conversation requests, but you may still contact eligible public profiles.</p>}
+      <Link className="button-link" to="/commons-circle/signals/inbox/settings">Open messaging settings</Link>
+    </section>}
 
     <div className="button-row">
       <Link className="button-link button-link--primary" to="/commons-circle/signals/inbox/new">Start a private conversation</Link>
       <button type="button" onClick={() => { setSupportOpen((open) => !open); setSourceOpen(false); }}>Contact account support</button>
-      {sourceContextValid && <button type="button" onClick={() => { setSourceOpen((open) => !open); setSupportOpen(false); }} disabled={!preferences?.ordinaryMessagingEligible}>Message proposal participant</button>}
+      {sourceContextValid && <button type="button" onClick={() => { setSourceOpen((open) => !open); setSupportOpen(false); }} disabled={!preferences?.canInitiateDirectConversation}>Message proposal participant</button>}
       <button type="button" onClick={() => void refresh("manual")} disabled={busy}>Refresh conversations</button>
       {backgroundRefreshing && <span className="boundary-note" aria-live="polite">Refreshing quietly…</span>}
     </div>
