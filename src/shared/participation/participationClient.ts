@@ -7,6 +7,7 @@ import type {
   LifecycleRequestDetail,
   LifecycleRequestResult,
   LifecycleRequestSummary,
+  MessagingPublicProfileSearchResult,
   PublicProfileCard,
   PublicProfilePublicationInput,
   VerifiedLifecycleExportDownload,
@@ -74,6 +75,17 @@ const publicProfileCardSchema = z.object({
   canonicalProfileUrl: z.url().refine((value) => CANONICAL_PROFILE_URL.test(value)),
   publicProfileEnabled: z.boolean(),
   updatedAt: z.iso.datetime({ offset: true }),
+}).strict();
+
+const messagingPublicProfileSearchSchema = z.object({
+  items: z.array(z.object({
+    handle: z.string().regex(/^[a-z0-9][a-z0-9._-]{1,79}$/),
+    displayName: z.string().min(1).max(120).nullable(),
+    avatarUrl: z.string().regex(PUBLIC_AVATAR_PATH).nullable(),
+    shortPublicBio: z.string().max(280).nullable(),
+  }).strict()).max(8),
+  minimumQueryLength: z.literal(3),
+  resultLimit: z.literal(8),
 }).strict();
 
 const membershipSchema = z.object({
@@ -320,6 +332,24 @@ export function loadIdentityBootstrap(accessToken: string, signal?: AbortSignal)
   return identityRequest(accessToken, "/bootstrap", bootstrapSchema, { signal });
 }
 
+export function searchMessagingPublicProfiles(
+  accessToken: string,
+  query: string,
+  signal?: AbortSignal,
+): Promise<MessagingPublicProfileSearchResult> {
+  const normalized = query.trim();
+  if (normalized.length < 3 || normalized.length > 80 || /[\u0000-\u001f\u007f]/.test(normalized)) {
+    throw new IdentityApiError("messaging_profile_search_invalid", 400);
+  }
+  const parameters = new URLSearchParams({ q: normalized });
+  return identityRequest(
+    accessToken,
+    `/messaging/public-profile-search?${parameters.toString()}`,
+    messagingPublicProfileSearchSchema,
+    { signal },
+  );
+}
+
 export function updatePublicProfilePublication(
   accessToken: string,
   input: PublicProfilePublicationInput,
@@ -465,6 +495,7 @@ const FRIENDLY_IDENTITY_ERRORS: Readonly<Record<string, string>> = Object.freeze
   turnstile_required: "Complete the human-verification check before continuing.",
   turnstile_failed: "The human-verification check was not accepted. Please try it again.",
   rate_limited: "Too many requests were attempted. Wait before trying again.",
+  messaging_profile_search_invalid: "Type at least three characters to search published Commons Profiles.",
 });
 
 export function friendlyIdentityError(error: unknown): string {

@@ -51,6 +51,19 @@ export type PublicProfileCard = Readonly<{
   updatedAt: string;
 }>;
 
+export type MessagingPublicProfileSearchItem = Readonly<{
+  handle: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  shortPublicBio: string | null;
+}>;
+
+export type MessagingPublicProfileSearchResult = Readonly<{
+  items: readonly MessagingPublicProfileSearchItem[];
+  minimumQueryLength: 3;
+  resultLimit: 8;
+}>;
+
 export type ArtisanMembership = Readonly<{
   status: string;
   joinedAt: string;

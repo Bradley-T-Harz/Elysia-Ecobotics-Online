@@ -12,7 +12,8 @@ values
   ('b1000000-0000-4000-8000-000000000005', 'message-admin@example.invalid', now(), now(), now()),
   ('b1000000-0000-4000-8000-000000000006', 'message-reviewer@example.invalid', now(), now(), now()),
   ('b1000000-0000-4000-8000-000000000007', 'message-moderator@example.invalid', now(), now(), now()),
-  ('b1000000-0000-4000-8000-000000000008', 'message-opted-out@example.invalid', now(), now(), now());
+  ('b1000000-0000-4000-8000-000000000008', 'message-opted-out@example.invalid', now(), now(), now()),
+  ('b1000000-0000-4000-8000-000000000009', 'message-unpublished@example.invalid', now(), now(), now());
 
 insert into public.profiles(
   id, username, display_name, commons_onboarding_completed_at, is_admin
@@ -20,12 +21,13 @@ insert into public.profiles(
 values
   ('b1000000-0000-4000-8000-000000000001', 'message-sender', 'Message Sender', now(), false),
   ('b1000000-0000-4000-8000-000000000002', 'message-recipient', 'Message Recipient', now(), false),
-  ('b1000000-0000-4000-8000-000000000003', 'message-unrelated', 'Message Unrelated', now(), false),
+  ('b1000000-0000-4000-8000-000000000003', 'message-unrelated', 'Message Recipient Alternate', now(), false),
   ('b1000000-0000-4000-8000-000000000004', 'message-restricted', 'Message Restricted', now(), false),
   ('b1000000-0000-4000-8000-000000000005', 'message-admin', 'Message Admin', now(), true),
   ('b1000000-0000-4000-8000-000000000006', 'message-reviewer', 'Message Reviewer', now(), false),
   ('b1000000-0000-4000-8000-000000000007', 'message-moderator', 'Message Moderator', now(), false),
-  ('b1000000-0000-4000-8000-000000000008', 'message-opted-out', 'Message Opted Out', now(), false);
+  ('b1000000-0000-4000-8000-000000000008', 'message-opted-out', 'Message Opted Out', now(), false),
+  ('b1000000-0000-4000-8000-000000000009', 'message-unpublished', 'Message Unpublished', null, false);
 
 insert into private.account_participation(
   user_id, participation_state, age_band, assurance_status
@@ -55,7 +57,7 @@ insert into public.account_messaging_preferences(
   allow_source_linked_messages
 )
 values
-  ('b1000000-0000-4000-8000-000000000001', true, true, true),
+  ('b1000000-0000-4000-8000-000000000001', false, true, true),
   ('b1000000-0000-4000-8000-000000000002', true, true, true),
   ('b1000000-0000-4000-8000-000000000003', true, false, true),
   ('b1000000-0000-4000-8000-000000000005', false, true, true),
@@ -108,6 +110,10 @@ begin
     'authenticated', 'private.create_account_conversation_message(uuid,uuid,text,text,uuid,boolean,text,text,integer)', 'EXECUTE'
   ) or pg_catalog.has_function_privilege(
     'authenticated', 'private.account_direct_request_decline_cooldown_active(uuid,text)', 'EXECUTE'
+  ) or pg_catalog.has_function_privilege(
+    'authenticated', 'public.search_public_commons_message_profiles_for_actor(uuid,text,integer)', 'EXECUTE'
+  ) or not pg_catalog.has_function_privilege(
+    'service_role', 'public.search_public_commons_message_profiles_for_actor(uuid,text,integer)', 'EXECUTE'
   ) then
     raise exception 'account_messaging_rpc_grant_contract_failed';
   end if;
@@ -121,12 +127,23 @@ select pg_catalog.set_config('request.jwt.claims', '{"sub":"b1000000-0000-4000-8
 do $account_messaging_sender$
 declare
   v_lookup jsonb;
+  v_preferences jsonb;
   v_destination jsonb;
   v_created jsonb;
   v_replay jsonb;
   v_source jsonb;
   v_source_replay jsonb;
 begin
+  v_preferences := public.current_user_messaging_preferences();
+  if (v_preferences->>'receiveDirectRequests')::boolean is not false
+     or (v_preferences->>'acceptsIncomingDirectRequests')::boolean is not false
+     or (v_preferences->>'broadMessagingEligibility')::boolean is not true
+     or (v_preferences->>'canInitiateDirectConversation')::boolean is not true
+     or (v_preferences->>'canUseExistingConversations')::boolean is not true
+     or (v_preferences->>'ordinaryMessagingEligible')::boolean is not true
+     or v_preferences->>'currentPublicHandle' <> 'message-sender' then
+    raise exception 'account_messaging_sender_capabilities_conflated: %', v_preferences;
+  end if;
   v_destination := public.resolve_account_messaging_destination('@@MESSAGE-RECIPIENT');
   if v_destination->>'state' <> 'can_request'
      or v_destination #>> '{profile,handle}' <> 'message-recipient'
@@ -222,6 +239,63 @@ begin
 end
 $account_messaging_sender$;
 
+reset role;
+set role service_role;
+do $account_messaging_profile_search$
+declare
+  v_empty jsonb;
+  v_exact jsonb;
+  v_name jsonb;
+  v_restricted jsonb;
+  v_unpublished jsonb;
+begin
+  v_empty := public.search_public_commons_message_profiles_for_actor(
+    'b1000000-0000-4000-8000-000000000001', 'me', 8
+  );
+  if pg_catalog.jsonb_array_length(v_empty->'items') <> 0 then
+    raise exception 'account_messaging_profile_search_minimum_failed: %', v_empty;
+  end if;
+
+  v_exact := public.search_public_commons_message_profiles_for_actor(
+    'b1000000-0000-4000-8000-000000000001', '@MESSAGE-RECIPIENT', 99
+  );
+  if v_exact->>'minimumQueryLength' <> '3'
+     or v_exact->>'resultLimit' <> '8'
+     or pg_catalog.jsonb_array_length(v_exact->'items') < 1
+     or pg_catalog.jsonb_array_length(v_exact->'items') > 8
+     or v_exact #>> '{items,0,handle}' <> 'message-recipient'
+     or v_exact::text ~* '(email|userId|accountId|profileId|blocked|restricted|guardian|moderation)'
+     or v_exact::text like '%b1000000-0000-4000-8000-000000000002%' then
+    raise exception 'account_messaging_profile_search_exact_failed_or_leaked: %', v_exact;
+  end if;
+
+  v_name := public.search_public_commons_message_profiles_for_actor(
+    'b1000000-0000-4000-8000-000000000001', 'Message Recip', 8
+  );
+  if v_name #>> '{items,0,handle}' <> 'message-recipient'
+     or v_name #>> '{items,1,handle}' <> 'message-unrelated'
+     or pg_catalog.jsonb_array_length(v_name->'items') > 8 then
+    raise exception 'account_messaging_profile_search_name_or_limit_failed: %', v_name;
+  end if;
+
+  v_unpublished := public.search_public_commons_message_profiles_for_actor(
+    'b1000000-0000-4000-8000-000000000001', 'unpublished', 8
+  );
+  if pg_catalog.jsonb_array_length(v_unpublished->'items') <> 0 then
+    raise exception 'unpublished_account_messaging_profile_search_leaked: %', v_unpublished;
+  end if;
+
+  v_restricted := public.search_public_commons_message_profiles_for_actor(
+    'b1000000-0000-4000-8000-000000000004', 'message', 8
+  );
+  if pg_catalog.jsonb_array_length(v_restricted->'items') <> 0 then
+    raise exception 'restricted_account_messaging_profile_search_not_blocked: %', v_restricted;
+  end if;
+end
+$account_messaging_profile_search$;
+
+reset role;
+set role authenticated;
 select pg_catalog.set_config('request.jwt.claim.sub', 'b1000000-0000-4000-8000-000000000003', false);
 select pg_catalog.set_config('request.jwt.claims', '{"sub":"b1000000-0000-4000-8000-000000000003","role":"authenticated"}', false);
 

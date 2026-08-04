@@ -70,6 +70,9 @@ export async function handleIdentityProxy(request: Request, env: IdentityProxyEn
     if (FORWARDED_HEADERS.has(name.toLowerCase())) headers.set(name, value);
   });
   headers.delete("cookie");
+  // Trusted service-binding context. The shared Identity Worker uses this to
+  // keep Online-only account discovery separate from Artisan surfaces.
+  headers.set("x-elysia-surface", "online");
   try {
     const upstreamUrl = new URL(request.url);
     upstreamUrl.protocol = "https:";

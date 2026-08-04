@@ -2,6 +2,7 @@ import fs from "node:fs/promises";
 import { handleIdentityProxy } from "../functions/api/identity/[[path]].ts";
 import { handlePublicAvatarProxy } from "../functions/api/public/profile-avatars/[mediaId].ts";
 import { handlePublicBannerProxy } from "../functions/api/public/profile-banners/[mediaId].ts";
+import { requireRateLimit } from "../services/identity-worker/_shared/abuse.ts";
 import { hmacSha256Text } from "../services/identity-worker/_shared/crypto.ts";
 import {
   authenticateIdentityRequest,
@@ -131,6 +132,14 @@ assert(
   "Notification preferences must use the service-only explicit-actor RPC after direct authenticated mutation grants are revoked."
 );
 assert(
+  identityWorkerSource.includes('"/v1/messaging/public-profile-search": messagingProfileSearch')
+    && identityWorkerSource.includes('request.headers.get("x-elysia-surface") !== "online"')
+    && identityWorkerSource.includes('requireRateLimit(env, auth.userId, "messaging_profile_search")')
+    && identityWorkerSource.includes("safeMessagingProfileSearch(result)")
+    && identityDatabaseSource.includes('"search_public_commons_message_profiles_for_actor"'),
+  "Bounded messaging discovery must stay Online-only, authenticated, per-user rate-limited, strictly decoded, and service-RPC backed."
+);
+assert(
   identityWorkerSource.includes('"expectedRevisionSha256"')
     && identityWorkerSource.includes("expectedRevisionSha256,")
     && identityDatabaseSource.includes("p_expected_revision_sha256: input.expectedRevisionSha256"),
@@ -174,6 +183,25 @@ await rejectsCode(
 );
 
 assert(identityFeatureState(env).teen === false && identityFeatureState(env).under13 === false, "Youth flags did not default off.");
+
+let messagingSearchRateLimitKey = "";
+await requireRateLimit({
+  ...env,
+  IDENTITY_RATE_LIMITER: {
+    limit: async ({ key }) => { messagingSearchRateLimitKey = key; return { success: true }; },
+  },
+}, requestId, "messaging_profile_search");
+assert(
+  messagingSearchRateLimitKey === `messaging_profile_search:${requestId}`,
+  "Messaging search must use one authenticated-account-scoped edge rate-limit key."
+);
+await rejectsCode(
+  () => requireRateLimit({
+    ...env,
+    IDENTITY_RATE_LIMITER: { limit: async () => ({ success: false }) },
+  }, requestId, "messaging_profile_search"),
+  "rate_limited"
+);
 
 const diagnosticNow = Math.floor(Date.now() / 1_000);
 const diagnosticToken = accessToken({
@@ -589,6 +617,21 @@ const healthBody = await health.json();
 assert(healthBody.data.privacyBoundary === "shared_public_identity_only", "Identity Worker lost its explicit privacy boundary.");
 const unknown = await handleIdentityRequest(new Request(`${initialArtisanOrigin}/api/identity/v1/not-real`), env);
 assert(unknown.status === 404, "Unknown identity route did not fail closed.");
+const discoveryWrongSurface = await handleIdentityRequest(new Request(
+  `${onlineOrigin}/api/identity/v1/messaging/public-profile-search?q=public`,
+  { headers: { "x-elysia-surface": "artisan" } },
+), env);
+assert(discoveryWrongSurface.status === 403, "Messaging profile discovery did not reject a non-Online service surface.");
+const discoveryInvalidQuery = await handleIdentityRequest(new Request(
+  `${onlineOrigin}/api/identity/v1/messaging/public-profile-search?q=ab`,
+  { headers: { "x-elysia-surface": "online" } },
+), env);
+assert(discoveryInvalidQuery.status === 400, "Messaging profile discovery did not reject a query below its privacy-preserving minimum.");
+const discoverySignedOut = await handleIdentityRequest(new Request(
+  `${onlineOrigin}/api/identity/v1/messaging/public-profile-search?q=public`,
+  { headers: { "x-elysia-surface": "online" } },
+), env);
+assert(discoverySignedOut.status === 401, "Messaging profile discovery did not require authentication.");
 await handleIdentityScheduledMaintenance(env);
 for (const route of [
   "/v1/notifications", "/v1/guardian-relationship/start", "/v1/guardian-consent/start",
@@ -658,6 +701,7 @@ const proxy = await handleIdentityProxy(
 );
 assert(proxy.status === 200 && proxy.headers.get("cache-control")?.includes("no-store"), "Pages identity proxy omitted response hardening.");
 assert(proxiedRequest.headers.get("authorization") === "Bearer fixture", "Identity proxy dropped the scoped bearer header.");
+assert(proxiedRequest.headers.get("x-elysia-surface") === "online", "Online Pages identity proxy omitted its trusted service-binding surface marker.");
 assert(!proxiedRequest.headers.has("cookie") && !proxiedRequest.headers.has("x-unsafe-header"), "Identity proxy forwarded browser cookies or an unallowlisted header.");
 assert(!proxy.headers.has("set-cookie"), "Identity proxy returned an upstream cookie across the service boundary.");
 assert(proxy.headers.get("x-content-sha256") === "a".repeat(64), "Identity proxy dropped the authenticated export integrity header.");

@@ -22,6 +22,17 @@ export function loadPublicProfileBannerAsset(client: SupabaseClient, mediaId: st
   return rpc(client, "get_online_public_profile_banner_asset", { p_media_id: mediaId });
 }
 
+export function searchPublicCommonsMessageProfiles(
+  client: SupabaseClient,
+  input: { actorUserId: string; query: string; limit: number }
+): Promise<unknown> {
+  return rpc(client, "search_public_commons_message_profiles_for_actor", {
+    p_actor_user_id: input.actorUserId,
+    p_query: input.query,
+    p_limit: input.limit,
+  });
+}
+
 export function loadCurrentUserBootstrap(client: SupabaseClient): Promise<unknown> {
   return rpc(client, "current_user_artisan_bootstrap");
 }

@@ -46,6 +46,7 @@ import {
   loadPublicProfileCard,
   loadPublicProfileAvatarAsset,
   loadPublicProfileBannerAsset,
+  searchPublicCommonsMessageProfiles,
   requestCurrentUserLifecycleAction,
   requestGuardianContentApproval,
   requestGuardianDependentLifecycle,
@@ -646,6 +647,70 @@ const publicProfile: IdentityHandler = async (request, env) => {
   await requireRateLimit(env, `${remoteIp(request) ?? "network-unavailable"}:${handle}`, "public_profile");
   const card = await loadPublicProfileCard(createIdentityServerClient(env), handle);
   return success(safePublicProfileCard(card));
+};
+
+function safeMessagingProfileSearch(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new IdentityHttpError(502, "identity_database_response_invalid");
+  }
+  const payload = value as Record<string, unknown>;
+  if (
+    Object.keys(payload).length !== 3
+    || !Array.isArray(payload.items)
+    || payload.items.length > 8
+    || payload.minimumQueryLength !== 3
+    || payload.resultLimit !== 8
+  ) throw new IdentityHttpError(502, "identity_database_response_invalid");
+
+  const items = payload.items.map((item) => {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      throw new IdentityHttpError(502, "identity_database_response_invalid");
+    }
+    const row = item as Record<string, unknown>;
+    const expected = ["handle", "displayName", "avatarUrl", "shortPublicBio"];
+    if (Object.keys(row).length !== expected.length || expected.some((key) => !(key in row))) {
+      throw new IdentityHttpError(502, "identity_database_response_invalid");
+    }
+    let handle: string;
+    try { handle = publicHandleValue(row.handle); }
+    catch { throw new IdentityHttpError(502, "identity_database_response_invalid"); }
+    const displayName = row.displayName;
+    const avatarUrl = row.avatarUrl;
+    const shortPublicBio = row.shortPublicBio;
+    if (
+      (displayName !== null && (typeof displayName !== "string" || displayName.length < 1 || displayName.length > 120))
+      || (avatarUrl !== null && (typeof avatarUrl !== "string" || !/^\/api\/public\/profile-avatars\/[0-9a-f-]{36}$/i.test(avatarUrl)))
+      || (shortPublicBio !== null && (typeof shortPublicBio !== "string" || shortPublicBio.length > 280))
+    ) throw new IdentityHttpError(502, "identity_database_response_invalid");
+    return { handle, displayName, avatarUrl, shortPublicBio };
+  });
+
+  return { items, minimumQueryLength: 3, resultLimit: 8 };
+}
+
+const messagingProfileSearch: IdentityHandler = async (request, env) => {
+  assertIdentityEnabled(env);
+  assertYouthFlagsSafe(env);
+  requireGet(request);
+  if (request.headers.get("x-elysia-surface") !== "online") {
+    throw new IdentityHttpError(403, "surface_denied");
+  }
+  const url = new URL(request.url);
+  if ([...url.searchParams.keys()].some((key) => key !== "q")) {
+    throw new IdentityHttpError(400, "request_invalid");
+  }
+  const query = (url.searchParams.get("q") ?? "").trim();
+  if (query.length < 3 || query.length > 80 || /[\u0000-\u001f\u007f]/.test(query)) {
+    throw new IdentityHttpError(400, "messaging_profile_search_invalid");
+  }
+  const auth = await authenticateIdentityRequest(request, env);
+  await requireRateLimit(env, auth.userId, "messaging_profile_search");
+  const result = await searchPublicCommonsMessageProfiles(createIdentityServerClient(env), {
+    actorUserId: auth.userId,
+    query,
+    limit: 8,
+  });
+  return success(safeMessagingProfileSearch(result));
 };
 
 type PublicProfileImageKind = "avatar" | "banner";
@@ -2038,6 +2103,7 @@ const restrictionLift: IdentityHandler = async (request, env) => {
 const ROUTES: Readonly<Record<string, IdentityHandler>> = Object.freeze({
   "/v1/health": health,
   "/v1/public-profile": publicProfile,
+  "/v1/messaging/public-profile-search": messagingProfileSearch,
   "/v1/bootstrap": bootstrap,
   "/v1/profile/publication": profilePublication,
   "/v1/legal/accept": legalAccept,

@@ -164,6 +164,11 @@ export type MessagingPreferences = {
   receiveOptionalAnnouncements: boolean;
   allowSourceLinkedMessages: boolean;
   ordinaryMessagingEligible: boolean;
+  broadMessagingEligibility: boolean;
+  canInitiateDirectConversation: boolean;
+  acceptsIncomingDirectRequests: boolean;
+  canUseExistingConversations: boolean;
+  currentPublicHandle: string | null;
   storedInSupabase: boolean;
   endToEndEncrypted: boolean;
 };
@@ -470,12 +475,30 @@ function normalizeRequestItems(value: unknown): RequestReviewItem[] {
 
 function normalizeMessagingPreferences(value: unknown): MessagingPreferences {
   const row = asRecord(value);
+  const broadMessagingEligibility = row.broadMessagingEligibility === true
+    || row.ordinaryMessagingEligible === true;
+  const hasCapability = (key: string) => Object.prototype.hasOwnProperty.call(row, key);
+  const currentPublicHandle = asNullableText(row.currentPublicHandle);
   return {
     preferenceVersion: safeCount(row.preferenceVersion),
     receiveDirectRequests: row.receiveDirectRequests === true,
     receiveOptionalAnnouncements: row.receiveOptionalAnnouncements === true,
     allowSourceLinkedMessages: row.allowSourceLinkedMessages !== false,
-    ordinaryMessagingEligible: row.ordinaryMessagingEligible === true,
+    ordinaryMessagingEligible: broadMessagingEligibility,
+    broadMessagingEligibility,
+    canInitiateDirectConversation: hasCapability("canInitiateDirectConversation")
+      ? row.canInitiateDirectConversation === true
+      : broadMessagingEligibility,
+    acceptsIncomingDirectRequests: hasCapability("acceptsIncomingDirectRequests")
+      ? row.acceptsIncomingDirectRequests === true
+      : row.receiveDirectRequests === true,
+    canUseExistingConversations: hasCapability("canUseExistingConversations")
+      ? row.canUseExistingConversations === true
+      : broadMessagingEligibility,
+    currentPublicHandle: currentPublicHandle
+      && /^[a-z0-9][a-z0-9._-]{1,79}$/.test(currentPublicHandle)
+      ? currentPublicHandle
+      : null,
     storedInSupabase: row.storedInSupabase === true,
     endToEndEncrypted: row.endToEndEncrypted === true,
   };

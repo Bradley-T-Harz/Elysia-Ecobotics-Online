@@ -72,6 +72,7 @@ const accountCommunicationPaths = [
   "supabase/migrations/20260802060000_account_notification_producers.sql",
   "supabase/migrations/20260803010000_release_reconcile_account_communications.sql",
   "supabase/migrations/20260803020000_account_messaging_destination_resolution.sql",
+  "supabase/migrations/20260803030000_messaging_capabilities_and_public_profile_search.sql",
 ];
 
 const activePaths = [
@@ -246,6 +247,9 @@ for (const marker of [
   "public.resolve_account_messaging_destination",
   "private.account_direct_request_decline_cooldown",
   "account_conversations_declined_pair_cooldown_idx",
+  "public.search_public_commons_message_profiles_for_actor",
+  "canInitiateDirectConversation",
+  "acceptsIncomingDirectRequests",
 ]) assert(accountCommunicationSource.includes(marker), `Account communication migration chain omits ${marker}.`);
 const accountCommunicationPlpgsqlFunctions = [...new Set(
   [...accountCommunicationSource.matchAll(/create or replace function\s+(public|private)\.([a-z0-9_]+)\s*\(/gi)]

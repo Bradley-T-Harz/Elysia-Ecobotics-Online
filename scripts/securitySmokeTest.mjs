@@ -105,6 +105,7 @@ const reviewedAccountCommunicationRoleMigrations = new Set([
   "supabase/migrations/20260802040000_account_requests_and_reviews_projection.sql",
   "supabase/migrations/20260802060000_account_notification_producers.sql",
   "supabase/migrations/20260803020000_account_messaging_destination_resolution.sql",
+  "supabase/migrations/20260803030000_messaging_capabilities_and_public_profile_search.sql",
 ]);
 
 function allowHit(file, line, checkName) {
@@ -142,6 +143,14 @@ function allowHit(file, line, checkName) {
       && (
         /set_config\(\s*['"]request\.jwt\.claim\.role['"]\s*,\s*['"]service_role['"]\s*,\s*(?:true|false)\s*\)/i.test(line)
         || /has_(?:function|table|column|schema)_privilege\(\s*['"]service_role['"]/i.test(line)
+      )
+    ) return true;
+    if (
+      normalized === "scripts/fixtures/accountMessagingBehavior.sql"
+      && (
+        /set role service_role/i.test(line)
+        || /has_function_privilege\(\s*['"]service_role['"]/i.test(line)
+        || /['"]service_role['"].*search_public_commons_message_profiles_for_actor/i.test(line)
       )
     ) return true;
     if (
@@ -183,6 +192,10 @@ function allowHit(file, line, checkName) {
       reviewedAccountCommunicationRoleMigrations.has(normalized)
       && /\bservice_role\b|community_caller_is_service_role|account_delivery_service_required/i.test(line)
       && !/SUPABASE_SERVICE_ROLE_KEY\s*=|SUPABASE_SERVICE\w*\s*=|SERVICE_ROLE_KEY\s*=/.test(line)
+    ) return true;
+    if (
+      normalized === "scripts/accountCommunicationsSmokeTest.mjs"
+      && /assert|service_role|grant|revoke|privilege|search_public_commons_message_profiles_for_actor/i.test(line)
     ) return true;
     if (
       normalized === "scripts/publicCommonsProfileSmokeTest.mjs"
