@@ -49,8 +49,16 @@ set participation_state = excluded.participation_state,
 
 insert into public.user_roles(user_id, role, granted_by, reason)
 values
+  ('b1000000-0000-4000-8000-000000000005', 'administrator', 'b1000000-0000-4000-8000-000000000005', 'Synthetic dual-authority messaging administrator'),
   ('b1000000-0000-4000-8000-000000000006', 'reviewer', 'b1000000-0000-4000-8000-000000000005', 'Synthetic messaging fixture role'),
   ('b1000000-0000-4000-8000-000000000007', 'moderator', 'b1000000-0000-4000-8000-000000000005', 'Synthetic messaging fixture role');
+
+insert into private.account_messaging_beta_enrollments(
+  user_id, enrolled_by, enrollment_category, private_reason
+) values
+  ('b1000000-0000-4000-8000-000000000001', 'b1000000-0000-4000-8000-000000000005', 'production_acceptance', 'Synthetic controlled-beta sender enrollment.'),
+  ('b1000000-0000-4000-8000-000000000002', 'b1000000-0000-4000-8000-000000000005', 'production_acceptance', 'Synthetic controlled-beta recipient enrollment.'),
+  ('b1000000-0000-4000-8000-000000000003', 'b1000000-0000-4000-8000-000000000005', 'production_acceptance', 'Synthetic controlled-beta alternate sender enrollment.');
 
 insert into public.account_messaging_preferences(
   user_id, receive_direct_requests, receive_optional_announcements,
@@ -99,7 +107,9 @@ begin
   if pg_catalog.has_table_privilege('authenticated', 'private.account_messages', 'SELECT')
      or pg_catalog.has_table_privilege('authenticated', 'private.account_messages', 'INSERT')
      or pg_catalog.has_table_privilege('authenticated', 'private.account_conversations', 'INSERT')
-     or pg_catalog.has_table_privilege('authenticated', 'private.account_conversation_reports', 'SELECT') then
+     or pg_catalog.has_table_privilege('authenticated', 'private.account_conversation_reports', 'SELECT')
+     or pg_catalog.has_table_privilege('authenticated', 'private.account_messaging_beta_enrollments', 'SELECT')
+     or pg_catalog.has_table_privilege('authenticated', 'private.account_messaging_launch_control', 'UPDATE') then
     raise exception 'account_messaging_private_table_grant_present';
   end if;
   if not pg_catalog.has_function_privilege(
@@ -114,6 +124,14 @@ begin
     'authenticated', 'public.search_public_commons_message_profiles_for_actor(uuid,text,integer)', 'EXECUTE'
   ) or not pg_catalog.has_function_privilege(
     'service_role', 'public.search_public_commons_message_profiles_for_actor(uuid,text,integer)', 'EXECUTE'
+  ) or pg_catalog.has_function_privilege(
+    'authenticated', 'public.current_account_messaging_admin_status(uuid,text)', 'EXECUTE'
+  ) or pg_catalog.has_function_privilege(
+    'authenticated', 'public.set_account_messaging_beta_enrollment(uuid,text,uuid,text,boolean,text,text,text)', 'EXECUTE'
+  ) or not pg_catalog.has_function_privilege(
+    'service_role', 'public.current_account_messaging_admin_status(uuid,text)', 'EXECUTE'
+  ) or not pg_catalog.has_function_privilege(
+    'service_role', 'public.set_account_messaging_beta_enrollment(uuid,text,uuid,text,boolean,text,text,text)', 'EXECUTE'
   ) then
     raise exception 'account_messaging_rpc_grant_contract_failed';
   end if;
@@ -138,9 +156,13 @@ begin
   if (v_preferences->>'receiveDirectRequests')::boolean is not false
      or (v_preferences->>'acceptsIncomingDirectRequests')::boolean is not false
      or (v_preferences->>'broadMessagingEligibility')::boolean is not true
+     or (v_preferences->>'canSearchPublishedProfiles')::boolean is not true
      or (v_preferences->>'canInitiateDirectConversation')::boolean is not true
      or (v_preferences->>'canUseExistingConversations')::boolean is not true
      or (v_preferences->>'ordinaryMessagingEligible')::boolean is not true
+     or v_preferences->>'messagingLaunchMode' <> 'controlled_beta'
+     or (v_preferences->>'betaEnrolled')::boolean is not true
+     or v_preferences->>'ownerMessagingStatus' <> 'enabled'
      or v_preferences->>'currentPublicHandle' <> 'message-sender' then
     raise exception 'account_messaging_sender_capabilities_conflated: %', v_preferences;
   end if;
@@ -294,7 +316,93 @@ begin
 end
 $account_messaging_profile_search$;
 
+do $account_messaging_launch_governance$
+declare
+  v_search jsonb;
+  v_status jsonb;
+  v_result jsonb;
+begin
+  v_search := public.search_public_commons_message_profiles_for_actor(
+    'b1000000-0000-4000-8000-000000000008', 'recipient', 8
+  );
+  if pg_catalog.jsonb_array_length(v_search->'items') < 1 then
+    raise exception 'unenrolled_account_could_not_search_public_profiles: %', v_search;
+  end if;
+
+  v_status := public.current_account_messaging_admin_status(
+    'b1000000-0000-4000-8000-000000000005', null
+  );
+  if v_status->>'launchMode' <> 'controlled_beta'
+     or (v_status->>'generalAvailabilityReady')::boolean is not false
+     or (v_status->>'authorized')::boolean is not true then
+    raise exception 'account_messaging_launch_status_failed: %', v_status;
+  end if;
+
+  begin
+    perform public.current_account_messaging_admin_status(
+      'b1000000-0000-4000-8000-000000000006', null
+    );
+    raise exception 'reviewer_inherited_messaging_access_administration';
+  exception when insufficient_privilege then null;
+  end;
+
+  v_result := public.set_account_messaging_beta_enrollment(
+    'b1000000-0000-4000-8000-000000000005', 'aal1',
+    'b1900000-0000-4000-8000-000000000001', '@message-opted-out', true,
+    'production_acceptance', 'ENABLE @message-opted-out',
+    'Synthetic explicit controlled-beta enrollment proof.'
+  );
+  if (v_result->>'betaEnrolled')::boolean is not true then
+    raise exception 'account_messaging_beta_enrollment_failed: %', v_result;
+  end if;
+  if public.set_account_messaging_beta_enrollment(
+    'b1000000-0000-4000-8000-000000000005', 'aal1',
+    'b1900000-0000-4000-8000-000000000001', '@message-opted-out', true,
+    'production_acceptance', 'ENABLE @message-opted-out',
+    'Synthetic explicit controlled-beta enrollment proof.'
+  ) <> v_result then
+    raise exception 'account_messaging_beta_enrollment_replay_failed';
+  end if;
+  begin
+    perform public.set_account_messaging_beta_enrollment(
+      'b1000000-0000-4000-8000-000000000005', 'aal1',
+      'b1900000-0000-4000-8000-000000000001', '@message-recipient', true,
+      'production_acceptance', 'ENABLE @message-recipient',
+      'Synthetic conflicting target must not be accepted.'
+    );
+    raise exception 'account_messaging_beta_enrollment_idempotency_conflict_missing';
+  exception when unique_violation then null;
+  end;
+  v_result := public.set_account_messaging_beta_enrollment(
+    'b1000000-0000-4000-8000-000000000005', 'aal1',
+    'b1900000-0000-4000-8000-000000000002', '@message-opted-out', false,
+    'acceptance_complete', 'REVOKE @message-opted-out',
+    'Synthetic controlled-beta enrollment revocation proof.'
+  );
+  if (v_result->>'betaEnrolled')::boolean is not false then
+    raise exception 'account_messaging_beta_revocation_failed: %', v_result;
+  end if;
+  v_result := public.set_account_messaging_beta_enrollment(
+    'b1000000-0000-4000-8000-000000000005', 'aal1',
+    'b1900000-0000-4000-8000-000000000003', '@message-opted-out', true,
+    'production_acceptance', 'ENABLE @message-opted-out',
+    'Synthetic re-enrollment to isolate recipient opt-out behavior.'
+  );
+  if (v_result->>'betaEnrolled')::boolean is not true then
+    raise exception 'account_messaging_beta_reenrollment_failed: %', v_result;
+  end if;
+end
+$account_messaging_launch_governance$;
+
 reset role;
+do $account_messaging_launch_audit$
+begin
+  if (select pg_catalog.count(*) from private.account_messaging_beta_actions
+      where target_user_id = 'b1000000-0000-4000-8000-000000000008') <> 3 then
+    raise exception 'account_messaging_beta_audit_count_failed';
+  end if;
+end
+$account_messaging_launch_audit$;
 set role authenticated;
 select pg_catalog.set_config('request.jwt.claim.sub', 'b1000000-0000-4000-8000-000000000003', false);
 select pg_catalog.set_config('request.jwt.claims', '{"sub":"b1000000-0000-4000-8000-000000000003","role":"authenticated"}', false);
@@ -474,6 +582,15 @@ begin
 end
 $account_messaging_recipient$;
 
+reset role;
+set role service_role;
+select public.set_account_messaging_launch_mode(
+  'b1000000-0000-4000-8000-000000000005', 'aal1',
+  'b1910000-0000-4000-8000-000000000001', 'disabled', 'SET disabled',
+  'Synthetic new-initiation kill-switch verification.'
+);
+reset role;
+set role authenticated;
 select pg_catalog.set_config('request.jwt.claim.sub', 'b1000000-0000-4000-8000-000000000001', false);
 select pg_catalog.set_config('request.jwt.claims', '{"sub":"b1000000-0000-4000-8000-000000000001","role":"authenticated"}', false);
 
@@ -491,6 +608,15 @@ begin
   if v_destination->>'state' <> 'existing_active' then
     raise exception 'account_messaging_destination_active_sender_failed: %', v_destination;
   end if;
+  if (public.current_user_messaging_preferences()->>'canInitiateDirectConversation')::boolean is not false
+     or (public.current_user_messaging_preferences()->>'canSearchPublishedProfiles')::boolean is not true
+     or (public.current_user_messaging_preferences()->>'canUseExistingConversations')::boolean is not true then
+    raise exception 'account_messaging_kill_switch_capability_separation_failed';
+  end if;
+  perform public.send_account_conversation_message(
+    v_conversation_id, 'SYNTHETIC_PRIVATE_EXISTING_AFTER_KILL_SWITCH',
+    'b1200000-0000-4000-8000-000000000010'
+  );
   perform public.set_account_conversation_block(
     v_conversation_id, true, 'b1500000-0000-4000-8000-000000000001'
   );
@@ -508,6 +634,15 @@ begin
 end
 $account_messaging_sender_reply_and_block$;
 
+reset role;
+set role service_role;
+select public.set_account_messaging_launch_mode(
+  'b1000000-0000-4000-8000-000000000005', 'aal1',
+  'b1910000-0000-4000-8000-000000000002', 'controlled_beta', 'SET controlled_beta',
+  'Synthetic restoration after kill-switch verification.'
+);
+reset role;
+set role authenticated;
 select pg_catalog.set_config('request.jwt.claim.sub', 'b1000000-0000-4000-8000-000000000006', false);
 select pg_catalog.set_config('request.jwt.claims', '{"sub":"b1000000-0000-4000-8000-000000000006","role":"authenticated"}', false);
 
@@ -560,6 +695,11 @@ declare
   v_draft jsonb;
   v_sent jsonb;
 begin
+  if (public.current_user_messaging_preferences()->>'betaEnrolled')::boolean is not false
+     or (public.current_user_messaging_preferences()->>'canInitiateDirectConversation')::boolean is not false
+     or (public.current_user_messaging_preferences()->>'canSearchPublishedProfiles')::boolean is not true then
+    raise exception 'administrator_was_automatically_enrolled_or_search_was_conflated';
+  end if;
   v_admin_message := public.admin_send_account_message(
     'message-recipient', 'Synthetic account action',
     'SYNTHETIC_PRIVATE_ADMIN_REQUIRED_BODY', 'required_action',

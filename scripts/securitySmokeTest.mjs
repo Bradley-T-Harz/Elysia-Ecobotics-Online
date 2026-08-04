@@ -106,6 +106,7 @@ const reviewedAccountCommunicationRoleMigrations = new Set([
   "supabase/migrations/20260802060000_account_notification_producers.sql",
   "supabase/migrations/20260803020000_account_messaging_destination_resolution.sql",
   "supabase/migrations/20260803030000_messaging_capabilities_and_public_profile_search.sql",
+  "supabase/migrations/20260804010000_account_messaging_functional_launch.sql",
 ]);
 
 function allowHit(file, line, checkName) {
@@ -150,7 +151,7 @@ function allowHit(file, line, checkName) {
       && (
         /set role service_role/i.test(line)
         || /has_function_privilege\(\s*['"]service_role['"]/i.test(line)
-        || /['"]service_role['"].*search_public_commons_message_profiles_for_actor/i.test(line)
+        || /['"]service_role['"].*(?:search_public_commons_message_profiles_for_actor|current_account_messaging_admin_status|set_account_messaging_beta_enrollment|set_account_messaging_launch_mode)/i.test(line)
       )
     ) return true;
     if (

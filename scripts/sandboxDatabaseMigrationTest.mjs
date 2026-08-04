@@ -73,6 +73,7 @@ const accountCommunicationPaths = [
   "supabase/migrations/20260803010000_release_reconcile_account_communications.sql",
   "supabase/migrations/20260803020000_account_messaging_destination_resolution.sql",
   "supabase/migrations/20260803030000_messaging_capabilities_and_public_profile_search.sql",
+  "supabase/migrations/20260804010000_account_messaging_functional_launch.sql",
 ];
 
 const activePaths = [
@@ -250,6 +251,15 @@ for (const marker of [
   "public.search_public_commons_message_profiles_for_actor",
   "canInitiateDirectConversation",
   "acceptsIncomingDirectRequests",
+  "canSearchPublishedProfiles",
+  "account_messaging_launch_control",
+  "account_messaging_beta_enrollments",
+  "account_messaging_beta_actions",
+  "private.account_messaging_initiation_allowed",
+  "private.account_messaging_existing_conversation_allowed",
+  "public.current_account_messaging_admin_status",
+  "public.set_account_messaging_beta_enrollment",
+  "public.set_account_messaging_launch_mode",
 ]) assert(accountCommunicationSource.includes(marker), `Account communication migration chain omits ${marker}.`);
 const accountCommunicationPlpgsqlFunctions = [...new Set(
   [...accountCommunicationSource.matchAll(/create or replace function\s+(public|private)\.([a-z0-9_]+)\s*\(/gi)]
@@ -808,11 +818,18 @@ try {
     insert into auth.users(id, email, email_confirmed_at, created_at, updated_at)
     values
       ('ba000000-0000-4000-8000-000000000001', 'concurrent-sender@example.invalid', now(), now(), now()),
-      ('ba000000-0000-4000-8000-000000000002', 'concurrent-recipient@example.invalid', now(), now(), now());
+      ('ba000000-0000-4000-8000-000000000002', 'concurrent-recipient@example.invalid', now(), now(), now()),
+      ('ba000000-0000-4000-8000-000000000003', 'concurrent-admin@example.invalid', now(), now(), now());
     insert into public.profiles(id, username, display_name, commons_onboarding_completed_at, is_admin)
     values
       ('ba000000-0000-4000-8000-000000000001', 'concurrent-sender', 'Concurrent Sender', now(), false),
-      ('ba000000-0000-4000-8000-000000000002', 'concurrent-recipient', 'Concurrent Recipient', now(), false);
+      ('ba000000-0000-4000-8000-000000000002', 'concurrent-recipient', 'Concurrent Recipient', now(), false),
+      ('ba000000-0000-4000-8000-000000000003', 'concurrent-admin', 'Concurrent Admin', now(), true);
+    insert into public.user_roles(user_id, role, granted_by, reason)
+    values (
+      'ba000000-0000-4000-8000-000000000003', 'administrator',
+      'ba000000-0000-4000-8000-000000000003', 'Synthetic concurrent enrollment administrator'
+    );
     insert into private.account_participation(user_id, participation_state, age_band, assurance_status)
     values
       ('ba000000-0000-4000-8000-000000000001', 'adult_eligible', '18_plus', 'self_attested'),
@@ -826,7 +843,36 @@ try {
     values
       ('ba000000-0000-4000-8000-000000000001', true, false, true),
       ('ba000000-0000-4000-8000-000000000002', true, false, true);
+    insert into private.account_messaging_beta_enrollments(
+      user_id, enrolled_by, enrollment_category, private_reason
+    ) values
+      (
+        'ba000000-0000-4000-8000-000000000001',
+        'ba000000-0000-4000-8000-000000000001',
+        'production_acceptance',
+        'Disposable concurrency sender fixture.'
+      );
   `]);
+  const concurrentEnrollmentSql = `
+    set role service_role;
+    select public.set_account_messaging_beta_enrollment(
+      'ba000000-0000-4000-8000-000000000003', 'aal1',
+      'ba300000-0000-4000-8000-000000000001', '@concurrent-recipient', true,
+      'production_acceptance', 'ENABLE @concurrent-recipient',
+      'Disposable concurrent idempotent enrollment fixture.'
+    );
+  `;
+  const concurrentEnrollmentResults = await Promise.all([
+    run(containerRuntime, ["exec", container, "psql", "-q", "-v", "ON_ERROR_STOP=1", "-U", "supabase_admin", "-d", "postgres", "-c", concurrentEnrollmentSql], { allowFailure: true }),
+    run(containerRuntime, ["exec", container, "psql", "-q", "-v", "ON_ERROR_STOP=1", "-U", "supabase_admin", "-d", "postgres", "-c", concurrentEnrollmentSql], { allowFailure: true }),
+  ]);
+  assert(concurrentEnrollmentResults.every((result) => result.code === 0), "Concurrent identical enrollment retries must both return the authoritative result.");
+  assert(concurrentEnrollmentResults[0].stdout.trim() === concurrentEnrollmentResults[1].stdout.trim(), "Concurrent identical enrollment retries must return the same result.");
+  const concurrentEnrollmentCount = await psql(["-tAc", `
+    select count(*) from private.account_messaging_beta_actions
+    where client_request_id = 'ba300000-0000-4000-8000-000000000001';
+  `]);
+  assert(concurrentEnrollmentCount.stdout.trim() === "1", "Concurrent identical enrollment retries created duplicate audit evidence.");
   const concurrentRequestSql = (requestId, messageId) => `
     set role authenticated;
     select pg_catalog.set_config('request.jwt.claim.sub', 'ba000000-0000-4000-8000-000000000001', false);
@@ -857,7 +903,16 @@ try {
     select public.resolve_account_messaging_destination('@concurrent-recipient')->>'state';
   `]);
   assert(concurrentResolution.stdout.trim().endsWith("existing_pending_outbound"), "Destination resolution did not converge on the concurrent winning request.");
-  await psql(["-c", `delete from auth.users where id in ('ba000000-0000-4000-8000-000000000001', 'ba000000-0000-4000-8000-000000000002');`]);
+  await psql(["-c", `
+    delete from public.user_roles
+    where user_id = 'ba000000-0000-4000-8000-000000000003';
+    delete from auth.users
+    where id in (
+      'ba000000-0000-4000-8000-000000000001',
+      'ba000000-0000-4000-8000-000000000002',
+      'ba000000-0000-4000-8000-000000000003'
+    );
+  `]);
   const accountNotificationProducerBehavior = await psql([
     "-f",
     "/tmp/accountNotificationProducerBehavior.sql",
