@@ -32,6 +32,7 @@ const CommonsCirclePage = lazy(() => import("./pages/The-Commons-Circle"));
 const ElysiaArtisanCollectivePage = lazy(() => import("./pages/Elysia-Artisan-Collective"));
 const CommonsCircleAdminConsolePage = lazy(() => import("./pages/The-Commons-Circle/CommonsCircleAdminConsolePage"));
 const AdminCommunicationsPage = lazy(() => import("./pages/The-Commons-Circle/AdminCommunicationsPage"));
+const MessagingAccessAdminPage = lazy(() => import("./pages/The-Commons-Circle/MessagingAccessAdminPage"));
 const CommonsCircleSetupPage = lazy(() => import("./pages/The-Commons-Circle/CommonsCircleSetupPage"));
 const SavedShelvesPage = lazy(() => import("./pages/The-Commons-Circle/SavedShelvesPage"));
 const SignalConsolePage = lazy(() => import("./pages/The-Commons-Circle/SignalConsolePage"));
@@ -181,6 +182,7 @@ export default function App() {
             <Route path="commons-circle" element={<CommonsCirclePage />} />
             <Route path="commons-circle/admin-console" element={<CommonsCircleAdminConsolePage />} />
             <Route path="commons-circle/admin-communications" element={<AdminCommunicationsPage />} />
+            <Route path="commons-circle/admin/messaging-access" element={<MessagingAccessAdminPage />} />
             <Route path="commons-circle/saved-shelves" element={<SavedShelvesPage />} />
             <Route path="commons-circle/inbox" element={<LegacyCommunicationAlias target="/commons-circle/signals/inbox" />} />
             <Route path="commons-circle/notifications" element={<LegacyCommunicationAlias target="/commons-circle/signals/notifications" />} />

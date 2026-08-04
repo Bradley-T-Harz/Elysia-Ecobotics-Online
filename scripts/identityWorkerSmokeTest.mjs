@@ -140,6 +140,17 @@ assert(
   "Bounded messaging discovery must stay Online-only, authenticated, per-user rate-limited, strictly decoded, and service-RPC backed."
 );
 assert(
+  identityWorkerSource.includes('"/v1/staff/messaging-access": accountMessagingAdminStatus')
+    && identityWorkerSource.includes('"/v1/staff/messaging-access/enrollment": accountMessagingAdminEnrollment')
+    && identityWorkerSource.includes('"/v1/staff/messaging-access/launch-mode": accountMessagingAdminLaunchMode')
+    && identityWorkerSource.includes('requireRateLimit(env, auth.userId, "messaging_access_admin")')
+    && identityWorkerSource.includes("safeAccountMessagingAdminStatus")
+    && identityDatabaseSource.includes('"current_account_messaging_admin_status"')
+    && identityDatabaseSource.includes('"set_account_messaging_beta_enrollment"')
+    && identityDatabaseSource.includes('"set_account_messaging_launch_mode"'),
+  "Messaging launch administration must stay Online-only, authenticated, rate-limited, strictly decoded, and service-RPC backed."
+);
+assert(
   identityWorkerSource.includes('"expectedRevisionSha256"')
     && identityWorkerSource.includes("expectedRevisionSha256,")
     && identityDatabaseSource.includes("p_expected_revision_sha256: input.expectedRevisionSha256"),
@@ -632,6 +643,11 @@ const discoverySignedOut = await handleIdentityRequest(new Request(
   { headers: { "x-elysia-surface": "online" } },
 ), env);
 assert(discoverySignedOut.status === 401, "Messaging profile discovery did not require authentication.");
+const messagingAdminSignedOut = await handleIdentityRequest(new Request(
+  `${onlineOrigin}/api/identity/v1/staff/messaging-access`,
+  { headers: { "x-elysia-surface": "online" } },
+), env);
+assert(messagingAdminSignedOut.status === 401, "Messaging-access administration did not require authentication.");
 await handleIdentityScheduledMaintenance(env);
 for (const route of [
   "/v1/notifications", "/v1/guardian-relationship/start", "/v1/guardian-consent/start",
@@ -643,6 +659,7 @@ for (const route of [
   "/v1/staff/lifecycle/claim", "/v1/staff/lifecycle/item", "/v1/staff/lifecycle/transition",
   "/v1/staff/lifecycle/exports/build", "/v1/staff/lifecycle/storage/inventory",
   "/v1/staff/lifecycle/storage/cleanup", "/v1/staff/lifecycle/auth/delete",
+  "/v1/staff/messaging-access/enrollment", "/v1/staff/messaging-access/launch-mode",
 ]) {
   const response = await handleIdentityRequest(new Request(`${initialArtisanOrigin}/api/identity${route}`, {
     method: "POST",

@@ -33,6 +33,62 @@ export function searchPublicCommonsMessageProfiles(
   });
 }
 
+export function loadAccountMessagingAdminStatus(
+  client: SupabaseClient,
+  input: { actorUserId: string; targetHandle: string | null }
+): Promise<unknown> {
+  return rpc(client, "current_account_messaging_admin_status", {
+    p_actor_user_id: input.actorUserId,
+    p_target_handle: input.targetHandle,
+  });
+}
+
+export function setAccountMessagingBetaEnrollment(
+  client: SupabaseClient,
+  input: {
+    actorUserId: string;
+    actorAal: "aal1" | "aal2";
+    clientRequestId: string;
+    targetHandle: string;
+    enabled: boolean;
+    category: string;
+    confirmation: string;
+    privateReason: string;
+  }
+): Promise<unknown> {
+  return rpc(client, "set_account_messaging_beta_enrollment", {
+    p_actor_user_id: input.actorUserId,
+    p_actor_aal: input.actorAal,
+    p_client_request_id: input.clientRequestId,
+    p_target_handle: input.targetHandle,
+    p_enabled: input.enabled,
+    p_category: input.category,
+    p_confirmation: input.confirmation,
+    p_private_reason: input.privateReason,
+  });
+}
+
+export function setAccountMessagingLaunchMode(
+  client: SupabaseClient,
+  input: {
+    actorUserId: string;
+    actorAal: "aal1" | "aal2";
+    clientRequestId: string;
+    launchMode: "disabled" | "controlled_beta";
+    confirmation: string;
+    privateReason: string;
+  }
+): Promise<unknown> {
+  return rpc(client, "set_account_messaging_launch_mode", {
+    p_actor_user_id: input.actorUserId,
+    p_actor_aal: input.actorAal,
+    p_client_request_id: input.clientRequestId,
+    p_launch_mode: input.launchMode,
+    p_confirmation: input.confirmation,
+    p_private_reason: input.privateReason,
+  });
+}
+
 export function loadCurrentUserBootstrap(client: SupabaseClient): Promise<unknown> {
   return rpc(client, "current_user_artisan_bootstrap");
 }

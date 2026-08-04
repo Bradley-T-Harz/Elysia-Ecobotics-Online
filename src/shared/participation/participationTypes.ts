@@ -64,6 +64,31 @@ export type MessagingPublicProfileSearchResult = Readonly<{
   resultLimit: 8;
 }>;
 
+export type AccountMessagingLaunchMode = "disabled" | "controlled_beta" | "general_availability";
+
+export type AccountMessagingAdminTarget = Readonly<{
+  handle: string;
+  displayName: string | null;
+  avatarUrl: string | null;
+  shortPublicBio: string | null;
+  published: boolean;
+  betaEnrolled: boolean;
+  status: "enabled" | "eligible_for_enrollment" | "restricted_or_unavailable" | "unpublished";
+}>;
+
+export type AccountMessagingAdminStatus = Readonly<{
+  authorized: true;
+  launchMode: AccountMessagingLaunchMode;
+  generalAvailabilityReady: boolean;
+  target: AccountMessagingAdminTarget | null;
+}>;
+
+export type AccountMessagingEnrollmentResult = Readonly<{
+  handle: string;
+  betaEnrolled: boolean;
+  launchMode: AccountMessagingLaunchMode;
+}>;
+
 export type ArtisanMembership = Readonly<{
   status: string;
   joinedAt: string;

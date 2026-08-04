@@ -46,6 +46,7 @@ import {
   loadPublicProfileCard,
   loadPublicProfileAvatarAsset,
   loadPublicProfileBannerAsset,
+  loadAccountMessagingAdminStatus,
   searchPublicCommonsMessageProfiles,
   requestCurrentUserLifecycleAction,
   requestGuardianContentApproval,
@@ -60,6 +61,8 @@ import {
   transitionCommunityLifecycleAction,
   updateNotificationPreferencesForActor,
   setGuardianDependentProfile,
+  setAccountMessagingBetaEnrollment,
+  setAccountMessagingLaunchMode,
   setCurrentUserPublicProfile
 } from "./_shared/database.ts";
 import {
@@ -711,6 +714,132 @@ const messagingProfileSearch: IdentityHandler = async (request, env) => {
     limit: 8,
   });
   return success(safeMessagingProfileSearch(result));
+};
+
+function safeAccountMessagingAdminStatus(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new IdentityHttpError(502, "identity_database_response_invalid");
+  }
+  const row = value as Record<string, unknown>;
+  const expected = ["authorized", "launchMode", "generalAvailabilityReady", "target"];
+  if (
+    Object.keys(row).length !== expected.length
+    || expected.some((key) => !(key in row))
+    || row.authorized !== true
+    || !["disabled", "controlled_beta", "general_availability"].includes(String(row.launchMode))
+    || typeof row.generalAvailabilityReady !== "boolean"
+  ) throw new IdentityHttpError(502, "identity_database_response_invalid");
+  if (row.target === null) return row;
+  if (!row.target || typeof row.target !== "object" || Array.isArray(row.target)) {
+    throw new IdentityHttpError(502, "identity_database_response_invalid");
+  }
+  const target = row.target as Record<string, unknown>;
+  const targetKeys = ["handle", "displayName", "avatarUrl", "shortPublicBio", "published", "betaEnrolled", "status"];
+  if (
+    Object.keys(target).length !== targetKeys.length
+    || targetKeys.some((key) => !(key in target))
+    || typeof target.published !== "boolean"
+    || typeof target.betaEnrolled !== "boolean"
+    || !["enabled", "eligible_for_enrollment", "restricted_or_unavailable", "unpublished"].includes(String(target.status))
+  ) throw new IdentityHttpError(502, "identity_database_response_invalid");
+  let handle: string;
+  try { handle = publicHandleValue(target.handle); }
+  catch { throw new IdentityHttpError(502, "identity_database_response_invalid"); }
+  const displayName = target.displayName;
+  const avatarUrl = target.avatarUrl;
+  const shortPublicBio = target.shortPublicBio;
+  if (
+    (displayName !== null && (typeof displayName !== "string" || displayName.length < 1 || displayName.length > 120))
+    || (avatarUrl !== null && (typeof avatarUrl !== "string" || !/^\/api\/public\/profile-avatars\/[0-9a-f-]{36}$/i.test(avatarUrl)))
+    || (shortPublicBio !== null && (typeof shortPublicBio !== "string" || shortPublicBio.length > 280))
+  ) throw new IdentityHttpError(502, "identity_database_response_invalid");
+  return { ...row, target: { ...target, handle } };
+}
+
+function safeAccountMessagingEnrollmentResult(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new IdentityHttpError(502, "identity_database_response_invalid");
+  }
+  const row = value as Record<string, unknown>;
+  if (
+    Object.keys(row).length !== 3
+    || typeof row.betaEnrolled !== "boolean"
+    || !["disabled", "controlled_beta", "general_availability"].includes(String(row.launchMode))
+  ) throw new IdentityHttpError(502, "identity_database_response_invalid");
+  let handle: string;
+  try { handle = publicHandleValue(row.handle); }
+  catch { throw new IdentityHttpError(502, "identity_database_response_invalid"); }
+  return { handle, betaEnrolled: row.betaEnrolled, launchMode: row.launchMode };
+}
+
+function safeAccountMessagingLaunchModeResult(value: unknown): Record<string, unknown> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new IdentityHttpError(502, "identity_database_response_invalid");
+  }
+  const row = value as Record<string, unknown>;
+  if (Object.keys(row).length !== 1 || !["disabled", "controlled_beta"].includes(String(row.launchMode))) {
+    throw new IdentityHttpError(502, "identity_database_response_invalid");
+  }
+  return row;
+}
+
+const accountMessagingAdminStatus: IdentityHandler = async (request, env) => {
+  assertIdentityEnabled(env);
+  assertYouthFlagsSafe(env);
+  requireGet(request);
+  if (request.headers.get("x-elysia-surface") !== "online") throw new IdentityHttpError(403, "surface_denied");
+  const url = new URL(request.url);
+  if ([...url.searchParams.keys()].some((key) => key !== "handle")) throw new IdentityHttpError(400, "request_invalid");
+  const rawHandle = url.searchParams.get("handle");
+  const targetHandle = rawHandle === null || rawHandle === "" ? null : publicHandleValue(rawHandle);
+  const auth = await authenticateIdentityRequest(request, env);
+  await requireRateLimit(env, auth.userId, "messaging_access_admin");
+  return success(safeAccountMessagingAdminStatus(await loadAccountMessagingAdminStatus(
+    createIdentityServerClient(env),
+    { actorUserId: auth.userId, targetHandle }
+  )));
+};
+
+const accountMessagingAdminEnrollment: IdentityHandler = async (request, env) => {
+  const { auth, body } = await authenticatedMutation(request, env);
+  if (request.headers.get("x-elysia-surface") !== "online") throw new IdentityHttpError(403, "surface_denied");
+  exactKeys(body, ["clientRequestId", "targetHandle", "enabled", "category", "confirmation", "privateReason"]);
+  await requireRateLimit(env, auth.userId, "messaging_access_admin");
+  const enabled = booleanValue(body.enabled);
+  const category = enabled
+    ? enumValue(body.category, ["operator_controlled_adult_test", "production_acceptance", "staff_operations"] as const)
+    : enumValue(body.category, ["operator_revoked", "safety_review", "acceptance_complete"] as const);
+  return success(safeAccountMessagingEnrollmentResult(await setAccountMessagingBetaEnrollment(
+    createIdentityServerClient(env),
+    {
+      actorUserId: auth.userId,
+      actorAal: auth.aal,
+      clientRequestId: uuidValue(body.clientRequestId),
+      targetHandle: publicHandleValue(body.targetHandle),
+      enabled,
+      category,
+      confirmation: requiredString(body.confirmation, 9, 90),
+      privateReason: requiredString(body.privateReason, 12, 1_000),
+    }
+  )));
+};
+
+const accountMessagingAdminLaunchMode: IdentityHandler = async (request, env) => {
+  const { auth, body } = await authenticatedMutation(request, env);
+  if (request.headers.get("x-elysia-surface") !== "online") throw new IdentityHttpError(403, "surface_denied");
+  exactKeys(body, ["clientRequestId", "launchMode", "confirmation", "privateReason"]);
+  await requireRateLimit(env, auth.userId, "messaging_access_admin");
+  return success(safeAccountMessagingLaunchModeResult(await setAccountMessagingLaunchMode(
+    createIdentityServerClient(env),
+    {
+      actorUserId: auth.userId,
+      actorAal: auth.aal,
+      clientRequestId: uuidValue(body.clientRequestId),
+      launchMode: enumValue(body.launchMode, ["disabled", "controlled_beta"] as const),
+      confirmation: requiredString(body.confirmation, 12, 30),
+      privateReason: requiredString(body.privateReason, 12, 1_000),
+    }
+  )));
 };
 
 type PublicProfileImageKind = "avatar" | "banner";
@@ -2104,6 +2233,9 @@ const ROUTES: Readonly<Record<string, IdentityHandler>> = Object.freeze({
   "/v1/health": health,
   "/v1/public-profile": publicProfile,
   "/v1/messaging/public-profile-search": messagingProfileSearch,
+  "/v1/staff/messaging-access": accountMessagingAdminStatus,
+  "/v1/staff/messaging-access/enrollment": accountMessagingAdminEnrollment,
+  "/v1/staff/messaging-access/launch-mode": accountMessagingAdminLaunchMode,
   "/v1/bootstrap": bootstrap,
   "/v1/profile/publication": profilePublication,
   "/v1/legal/accept": legalAccept,

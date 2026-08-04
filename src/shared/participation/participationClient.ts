@@ -1,5 +1,7 @@
 import { z } from "zod";
 import type {
+  AccountMessagingAdminStatus,
+  AccountMessagingEnrollmentResult,
   IdentityBootstrap,
   LegalDocumentAcceptance,
   LifecycleAction,
@@ -86,6 +88,31 @@ const messagingPublicProfileSearchSchema = z.object({
   }).strict()).max(8),
   minimumQueryLength: z.literal(3),
   resultLimit: z.literal(8),
+}).strict();
+
+const accountMessagingLaunchModeSchema = z.enum(["disabled", "controlled_beta", "general_availability"]);
+const accountMessagingAdminTargetSchema = z.object({
+  handle: z.string().regex(/^[a-z0-9][a-z0-9._-]{1,79}$/),
+  displayName: z.string().min(1).max(120).nullable(),
+  avatarUrl: z.string().regex(PUBLIC_AVATAR_PATH).nullable(),
+  shortPublicBio: z.string().max(280).nullable(),
+  published: z.boolean(),
+  betaEnrolled: z.boolean(),
+  status: z.enum(["enabled", "eligible_for_enrollment", "restricted_or_unavailable", "unpublished"]),
+}).strict();
+const accountMessagingAdminStatusSchema = z.object({
+  authorized: z.literal(true),
+  launchMode: accountMessagingLaunchModeSchema,
+  generalAvailabilityReady: z.boolean(),
+  target: accountMessagingAdminTargetSchema.nullable(),
+}).strict();
+const accountMessagingEnrollmentResultSchema = z.object({
+  handle: z.string().regex(/^[a-z0-9][a-z0-9._-]{1,79}$/),
+  betaEnrolled: z.boolean(),
+  launchMode: accountMessagingLaunchModeSchema,
+}).strict();
+const accountMessagingLaunchModeResultSchema = z.object({
+  launchMode: z.enum(["disabled", "controlled_beta"]),
 }).strict();
 
 const membershipSchema = z.object({
@@ -347,6 +374,60 @@ export function searchMessagingPublicProfiles(
     `/messaging/public-profile-search?${parameters.toString()}`,
     messagingPublicProfileSearchSchema,
     { signal },
+  );
+}
+
+export function loadAccountMessagingAdminStatus(
+  accessToken: string,
+  targetHandle: string | null,
+  signal?: AbortSignal,
+): Promise<AccountMessagingAdminStatus> {
+  const parameters = new URLSearchParams();
+  if (targetHandle) parameters.set("handle", targetHandle);
+  const query = parameters.toString();
+  return identityRequest(
+    accessToken,
+    `/staff/messaging-access${query ? `?${query}` : ""}`,
+    accountMessagingAdminStatusSchema,
+    { signal },
+  );
+}
+
+export function updateAccountMessagingBetaEnrollment(
+  accessToken: string,
+  input: {
+    clientRequestId: string;
+    targetHandle: string;
+    enabled: boolean;
+    category: string;
+    confirmation: string;
+    privateReason: string;
+  },
+  signal?: AbortSignal,
+): Promise<AccountMessagingEnrollmentResult> {
+  return identityRequest(
+    accessToken,
+    "/staff/messaging-access/enrollment",
+    accountMessagingEnrollmentResultSchema,
+    { method: "POST", body: input, signal },
+  );
+}
+
+export function updateAccountMessagingLaunchMode(
+  accessToken: string,
+  input: {
+    clientRequestId: string;
+    launchMode: "disabled" | "controlled_beta";
+    confirmation: string;
+    privateReason: string;
+  },
+  signal?: AbortSignal,
+): Promise<{ launchMode: "disabled" | "controlled_beta" }> {
+  return identityRequest(
+    accessToken,
+    "/staff/messaging-access/launch-mode",
+    accountMessagingLaunchModeResultSchema,
+    { method: "POST", body: input, signal },
   );
 }
 
