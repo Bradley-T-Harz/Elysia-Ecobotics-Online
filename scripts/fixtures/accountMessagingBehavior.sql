@@ -11,7 +11,8 @@ values
   ('b1000000-0000-4000-8000-000000000004', 'message-restricted@example.invalid', now(), now(), now()),
   ('b1000000-0000-4000-8000-000000000005', 'message-admin@example.invalid', now(), now(), now()),
   ('b1000000-0000-4000-8000-000000000006', 'message-reviewer@example.invalid', now(), now(), now()),
-  ('b1000000-0000-4000-8000-000000000007', 'message-moderator@example.invalid', now(), now(), now());
+  ('b1000000-0000-4000-8000-000000000007', 'message-moderator@example.invalid', now(), now(), now()),
+  ('b1000000-0000-4000-8000-000000000008', 'message-opted-out@example.invalid', now(), now(), now());
 
 insert into public.profiles(
   id, username, display_name, commons_onboarding_completed_at, is_admin
@@ -23,7 +24,8 @@ values
   ('b1000000-0000-4000-8000-000000000004', 'message-restricted', 'Message Restricted', now(), false),
   ('b1000000-0000-4000-8000-000000000005', 'message-admin', 'Message Admin', now(), true),
   ('b1000000-0000-4000-8000-000000000006', 'message-reviewer', 'Message Reviewer', now(), false),
-  ('b1000000-0000-4000-8000-000000000007', 'message-moderator', 'Message Moderator', now(), false);
+  ('b1000000-0000-4000-8000-000000000007', 'message-moderator', 'Message Moderator', now(), false),
+  ('b1000000-0000-4000-8000-000000000008', 'message-opted-out', 'Message Opted Out', now(), false);
 
 insert into private.account_participation(
   user_id, participation_state, age_band, assurance_status
@@ -35,7 +37,8 @@ values
   ('b1000000-0000-4000-8000-000000000004', 'restricted', '18_plus', 'restricted'),
   ('b1000000-0000-4000-8000-000000000005', 'adult_eligible', '18_plus', 'self_attested'),
   ('b1000000-0000-4000-8000-000000000006', 'adult_eligible', '18_plus', 'self_attested'),
-  ('b1000000-0000-4000-8000-000000000007', 'adult_eligible', '18_plus', 'self_attested')
+  ('b1000000-0000-4000-8000-000000000007', 'adult_eligible', '18_plus', 'self_attested'),
+  ('b1000000-0000-4000-8000-000000000008', 'adult_eligible', '18_plus', 'self_attested')
 on conflict (user_id) do update
 set participation_state = excluded.participation_state,
     age_band = excluded.age_band,
@@ -54,8 +57,9 @@ insert into public.account_messaging_preferences(
 values
   ('b1000000-0000-4000-8000-000000000001', true, true, true),
   ('b1000000-0000-4000-8000-000000000002', true, true, true),
-  ('b1000000-0000-4000-8000-000000000003', false, false, true),
-  ('b1000000-0000-4000-8000-000000000005', false, true, true);
+  ('b1000000-0000-4000-8000-000000000003', true, false, true),
+  ('b1000000-0000-4000-8000-000000000005', false, true, true),
+  ('b1000000-0000-4000-8000-000000000008', false, false, true);
 
 insert into public.commune_posts(
   id, user_id, post_type, title, body, status, visibility
@@ -98,8 +102,12 @@ begin
   end if;
   if not pg_catalog.has_function_privilege(
     'authenticated', 'public.request_account_conversation(text,text,text,uuid,uuid)', 'EXECUTE'
+  ) or not pg_catalog.has_function_privilege(
+    'authenticated', 'public.resolve_account_messaging_destination(text)', 'EXECUTE'
   ) or pg_catalog.has_function_privilege(
     'authenticated', 'private.create_account_conversation_message(uuid,uuid,text,text,uuid,boolean,text,text,integer)', 'EXECUTE'
+  ) or pg_catalog.has_function_privilege(
+    'authenticated', 'private.account_direct_request_decline_cooldown_active(uuid,text)', 'EXECUTE'
   ) then
     raise exception 'account_messaging_rpc_grant_contract_failed';
   end if;
@@ -113,11 +121,30 @@ select pg_catalog.set_config('request.jwt.claims', '{"sub":"b1000000-0000-4000-8
 do $account_messaging_sender$
 declare
   v_lookup jsonb;
+  v_destination jsonb;
   v_created jsonb;
   v_replay jsonb;
   v_source jsonb;
   v_source_replay jsonb;
 begin
+  v_destination := public.resolve_account_messaging_destination('@@MESSAGE-RECIPIENT');
+  if v_destination->>'state' <> 'can_request'
+     or v_destination #>> '{profile,handle}' <> 'message-recipient'
+     or v_destination ? 'deepLink'
+     or v_destination::text ~* '(email|userId|accountId|blocked|restricted|guardian)'
+     or v_destination::text like '%b1000000-0000-4000-8000-000000000002%' then
+    raise exception 'account_messaging_destination_can_request_failed_or_leaked: %', v_destination;
+  end if;
+  foreach v_destination in array array[
+    public.resolve_account_messaging_destination('@message-sender'),
+    public.resolve_account_messaging_destination('@unknown-public-handle'),
+    public.resolve_account_messaging_destination('@message-opted-out'),
+    public.resolve_account_messaging_destination('@message-restricted')
+  ] loop
+    if v_destination <> '{"state":"unavailable"}'::jsonb then
+      raise exception 'account_messaging_destination_unavailable_oracle: %', v_destination;
+    end if;
+  end loop;
   v_lookup := public.lookup_account_messaging_recipient('@message-recipient');
   if (v_lookup->>'found')::boolean is not true
      or (v_lookup->>'canReceiveRequest')::boolean is not true
@@ -141,6 +168,12 @@ begin
   );
   if v_created->>'conversationId' is distinct from v_replay->>'conversationId' then
     raise exception 'account_conversation_request_idempotency_failed';
+  end if;
+  v_destination := public.resolve_account_messaging_destination('@message-recipient');
+  if v_destination->>'state' <> 'existing_pending_outbound'
+     or v_destination->>'deepLink' <> ('/commons-circle/signals/inbox/conversations/' || (v_created->>'conversationId'))
+     or v_destination::text ~* '(email|userId|accountId|blocked|restricted|guardian)' then
+    raise exception 'account_messaging_destination_outbound_pending_failed_or_leaked: %', v_destination;
   end if;
   begin
     perform public.request_account_conversation(
@@ -217,10 +250,62 @@ begin
 end
 $account_messaging_unrelated$;
 
+select pg_catalog.set_config('request.jwt.claim.sub', 'b1000000-0000-4000-8000-000000000001', false);
+select pg_catalog.set_config('request.jwt.claims', '{"sub":"b1000000-0000-4000-8000-000000000001","role":"authenticated"}', false);
+
+do $account_messaging_decline_cooldown_create$
+declare v_created jsonb;
+begin
+  v_created := public.request_account_conversation(
+    'message-unrelated', 'Synthetic cooldown request',
+    'SYNTHETIC_PRIVATE_COOLDOWN_MESSAGE',
+    'b1100000-0000-4000-8000-000000000008',
+    'b1200000-0000-4000-8000-000000000008'
+  );
+  perform pg_catalog.set_config(
+    'fixture.account_cooldown_conversation_id', v_created->>'conversationId', true
+  );
+end
+$account_messaging_decline_cooldown_create$;
+
+select pg_catalog.set_config('request.jwt.claim.sub', 'b1000000-0000-4000-8000-000000000003', false);
+select pg_catalog.set_config('request.jwt.claims', '{"sub":"b1000000-0000-4000-8000-000000000003","role":"authenticated"}', false);
+
+select public.respond_to_account_conversation_request(
+  pg_catalog.current_setting('fixture.account_cooldown_conversation_id')::uuid,
+  'decline',
+  'b1300000-0000-4000-8000-000000000008'
+);
+
+select pg_catalog.set_config('request.jwt.claim.sub', 'b1000000-0000-4000-8000-000000000001', false);
+select pg_catalog.set_config('request.jwt.claims', '{"sub":"b1000000-0000-4000-8000-000000000001","role":"authenticated"}', false);
+
+do $account_messaging_decline_cooldown_enforced$
+declare v_destination jsonb;
+begin
+  v_destination := public.resolve_account_messaging_destination('@message-unrelated');
+  if v_destination <> '{"state":"unavailable"}'::jsonb then
+    raise exception 'account_messaging_decline_cooldown_oracle: %', v_destination;
+  end if;
+  begin
+    perform public.request_account_conversation(
+      'message-unrelated', 'Synthetic cooldown retry',
+      'SYNTHETIC_PRIVATE_COOLDOWN_RETRY',
+      'b1100000-0000-4000-8000-000000000009',
+      'b1200000-0000-4000-8000-000000000009'
+    );
+    raise exception 'account_messaging_decline_cooldown_not_enforced';
+  exception when no_data_found then
+    if sqlerrm <> 'account_messaging_recipient_unavailable' then raise; end if;
+  end;
+end
+$account_messaging_decline_cooldown_enforced$;
+
 select pg_catalog.set_config('request.jwt.claim.sub', 'b1000000-0000-4000-8000-000000000004', false);
 select pg_catalog.set_config('request.jwt.claims', '{"sub":"b1000000-0000-4000-8000-000000000004","role":"authenticated"}', false);
 
 do $account_messaging_restricted$
+declare v_destination jsonb;
 begin
   if (public.current_user_messaging_preferences()->>'ordinaryMessagingEligible')::boolean is not false then
     raise exception 'restricted_account_was_messaging_eligible';
@@ -230,6 +315,10 @@ begin
     raise exception 'restricted_account_enabled_direct_requests';
   exception when insufficient_privilege then null;
   end;
+  v_destination := public.resolve_account_messaging_destination('@message-recipient');
+  if v_destination <> '{"state":"unavailable"}'::jsonb then
+    raise exception 'restricted_sender_messaging_destination_oracle: %', v_destination;
+  end if;
 end
 $account_messaging_restricted$;
 
@@ -244,6 +333,7 @@ declare
   v_detail jsonb;
   v_counts jsonb;
   v_report jsonb;
+  v_destination jsonb;
   v_source_conversation_id uuid;
   v_source_detail jsonb;
 begin
@@ -257,6 +347,11 @@ begin
   if pg_catalog.jsonb_array_length(v_list->'items') <> 1
      or (v_list #>> '{items,0,incomingRequest}')::boolean is not true then
     raise exception 'conversation_request_not_visible_to_recipient: %', v_list;
+  end if;
+  v_destination := public.resolve_account_messaging_destination('@message-sender');
+  if v_destination->>'state' <> 'existing_pending_inbound'
+     or v_destination->>'deepLink' <> ('/commons-circle/signals/inbox/conversations/' || v_conversation_id::text) then
+    raise exception 'account_messaging_destination_inbound_pending_failed: %', v_destination;
   end if;
   perform public.respond_to_account_conversation_request(
     v_conversation_id, 'accept', 'b1300000-0000-4000-8000-000000000001'
@@ -272,6 +367,10 @@ begin
      or v_detail #> '{conversation,sourceRecordId}' is not null
      or (v_detail #>> '{privacy,endToEndEncrypted}')::boolean is not false then
     raise exception 'participant_conversation_detail_failed: %', v_detail;
+  end if;
+  v_destination := public.resolve_account_messaging_destination('@message-sender');
+  if v_destination->>'state' <> 'existing_active' then
+    raise exception 'account_messaging_destination_active_recipient_failed: %', v_destination;
   end if;
   perform public.mark_current_user_conversation_read(v_conversation_id);
   v_source_detail := public.current_user_conversation(
@@ -305,7 +404,7 @@ select pg_catalog.set_config('request.jwt.claim.sub', 'b1000000-0000-4000-8000-0
 select pg_catalog.set_config('request.jwt.claims', '{"sub":"b1000000-0000-4000-8000-000000000001","role":"authenticated"}', false);
 
 do $account_messaging_sender_reply_and_block$
-declare v_conversation_id uuid; v_counts jsonb;
+declare v_conversation_id uuid; v_counts jsonb; v_destination jsonb;
 begin
   v_conversation_id := pg_catalog.current_setting(
     'fixture.account_conversation_id'
@@ -313,6 +412,10 @@ begin
   v_counts := public.current_user_event_counts();
   if (v_counts->>'messagesUnread')::integer <> 1 then
     raise exception 'incoming_private_message_exact_count_failed: %', v_counts;
+  end if;
+  v_destination := public.resolve_account_messaging_destination('@message-recipient');
+  if v_destination->>'state' <> 'existing_active' then
+    raise exception 'account_messaging_destination_active_sender_failed: %', v_destination;
   end if;
   perform public.set_account_conversation_block(
     v_conversation_id, true, 'b1500000-0000-4000-8000-000000000001'
@@ -324,6 +427,10 @@ begin
     raise exception 'blocked_conversation_accepted_message';
   exception when object_not_in_prerequisite_state then null;
   end;
+  v_destination := public.resolve_account_messaging_destination('@message-recipient');
+  if v_destination <> '{"state":"unavailable"}'::jsonb then
+    raise exception 'account_messaging_destination_block_oracle: %', v_destination;
+  end if;
 end
 $account_messaging_sender_reply_and_block$;
 
@@ -447,16 +554,19 @@ begin
     where safe_title like any(array[
       '%SYNTHETIC_PRIVATE_FIRST_MESSAGE%',
       '%SYNTHETIC_PRIVATE_SOURCE_MESSAGE%',
+      '%SYNTHETIC_PRIVATE_COOLDOWN_MESSAGE%',
       '%SYNTHETIC_PRIVATE_ADMIN_REQUIRED_BODY%',
       '%SYNTHETIC_PRIVATE_ANNOUNCEMENT_BODY%'
     ]) or safe_preview like any(array[
       '%SYNTHETIC_PRIVATE_FIRST_MESSAGE%',
       '%SYNTHETIC_PRIVATE_SOURCE_MESSAGE%',
+      '%SYNTHETIC_PRIVATE_COOLDOWN_MESSAGE%',
       '%SYNTHETIC_PRIVATE_ADMIN_REQUIRED_BODY%',
       '%SYNTHETIC_PRIVATE_ANNOUNCEMENT_BODY%'
     ]) or safe_payload::text like any(array[
       '%SYNTHETIC_PRIVATE_FIRST_MESSAGE%',
       '%SYNTHETIC_PRIVATE_SOURCE_MESSAGE%',
+      '%SYNTHETIC_PRIVATE_COOLDOWN_MESSAGE%',
       '%SYNTHETIC_PRIVATE_ADMIN_REQUIRED_BODY%',
       '%SYNTHETIC_PRIVATE_ANNOUNCEMENT_BODY%'
     ])
@@ -465,6 +575,7 @@ begin
     where safe_preview like any(array[
       '%SYNTHETIC_PRIVATE_FIRST_MESSAGE%',
       '%SYNTHETIC_PRIVATE_SOURCE_MESSAGE%',
+      '%SYNTHETIC_PRIVATE_COOLDOWN_MESSAGE%',
       '%SYNTHETIC_PRIVATE_ADMIN_REQUIRED_BODY%',
       '%SYNTHETIC_PRIVATE_ANNOUNCEMENT_BODY%'
     ])
@@ -511,6 +622,20 @@ begin
   end if;
 end
 $account_messaging_lifecycle$;
+
+set role authenticated;
+select pg_catalog.set_config('request.jwt.claim.sub', 'b1000000-0000-4000-8000-000000000001', false);
+select pg_catalog.set_config('request.jwt.claims', '{"sub":"b1000000-0000-4000-8000-000000000001","role":"authenticated"}', false);
+do $account_messaging_deleted_destination$
+declare v_destination jsonb;
+begin
+  v_destination := public.resolve_account_messaging_destination('@message-recipient');
+  if v_destination <> '{"state":"unavailable"}'::jsonb then
+    raise exception 'deleted_account_messaging_destination_oracle: %', v_destination;
+  end if;
+end
+$account_messaging_deleted_destination$;
+reset role;
 
 rollback;
 

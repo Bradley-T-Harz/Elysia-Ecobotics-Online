@@ -71,6 +71,7 @@ const accountCommunicationPaths = [
   "supabase/migrations/20260802050000_governed_account_conversations.sql",
   "supabase/migrations/20260802060000_account_notification_producers.sql",
   "supabase/migrations/20260803010000_release_reconcile_account_communications.sql",
+  "supabase/migrations/20260803020000_account_messaging_destination_resolution.sql",
 ];
 
 const activePaths = [
@@ -242,6 +243,9 @@ for (const marker of [
   "account_notification_reconciliation_status",
   "complete_account_delivery_v2",
   "fail_account_delivery_v2",
+  "public.resolve_account_messaging_destination",
+  "private.account_direct_request_decline_cooldown",
+  "account_conversations_declined_pair_cooldown_idx",
 ]) assert(accountCommunicationSource.includes(marker), `Account communication migration chain omits ${marker}.`);
 const accountCommunicationPlpgsqlFunctions = [...new Set(
   [...accountCommunicationSource.matchAll(/create or replace function\s+(public|private)\.([a-z0-9_]+)\s*\(/gi)]
@@ -796,6 +800,60 @@ try {
     accountMessagingBehavior.stdout.includes("account_messaging_behavior_ok"),
     "Account messaging behavior marker missing."
   );
+  await psql(["-c", `
+    insert into auth.users(id, email, email_confirmed_at, created_at, updated_at)
+    values
+      ('ba000000-0000-4000-8000-000000000001', 'concurrent-sender@example.invalid', now(), now(), now()),
+      ('ba000000-0000-4000-8000-000000000002', 'concurrent-recipient@example.invalid', now(), now(), now());
+    insert into public.profiles(id, username, display_name, commons_onboarding_completed_at, is_admin)
+    values
+      ('ba000000-0000-4000-8000-000000000001', 'concurrent-sender', 'Concurrent Sender', now(), false),
+      ('ba000000-0000-4000-8000-000000000002', 'concurrent-recipient', 'Concurrent Recipient', now(), false);
+    insert into private.account_participation(user_id, participation_state, age_band, assurance_status)
+    values
+      ('ba000000-0000-4000-8000-000000000001', 'adult_eligible', '18_plus', 'self_attested'),
+      ('ba000000-0000-4000-8000-000000000002', 'adult_eligible', '18_plus', 'self_attested')
+    on conflict (user_id) do update
+    set participation_state = excluded.participation_state,
+        age_band = excluded.age_band,
+        assurance_status = excluded.assurance_status,
+        updated_at = now();
+    insert into public.account_messaging_preferences(user_id, receive_direct_requests, receive_optional_announcements, allow_source_linked_messages)
+    values
+      ('ba000000-0000-4000-8000-000000000001', true, false, true),
+      ('ba000000-0000-4000-8000-000000000002', true, false, true);
+  `]);
+  const concurrentRequestSql = (requestId, messageId) => `
+    set role authenticated;
+    select pg_catalog.set_config('request.jwt.claim.sub', 'ba000000-0000-4000-8000-000000000001', false);
+    select pg_catalog.set_config('request.jwt.claims', '{"sub":"ba000000-0000-4000-8000-000000000001","role":"authenticated"}', false);
+    select public.request_account_conversation(
+      '@concurrent-recipient', 'Synthetic concurrent request',
+      'SYNTHETIC_PRIVATE_CONCURRENT_MESSAGE', '${requestId}', '${messageId}'
+    );
+  `;
+  const concurrentResults = await Promise.all([
+    run(containerRuntime, ["exec", container, "psql", "-q", "-v", "ON_ERROR_STOP=1", "-U", "supabase_admin", "-d", "postgres", "-c", concurrentRequestSql("ba100000-0000-4000-8000-000000000001", "ba200000-0000-4000-8000-000000000001")], { allowFailure: true }),
+    run(containerRuntime, ["exec", container, "psql", "-q", "-v", "ON_ERROR_STOP=1", "-U", "supabase_admin", "-d", "postgres", "-c", concurrentRequestSql("ba100000-0000-4000-8000-000000000002", "ba200000-0000-4000-8000-000000000002")], { allowFailure: true }),
+  ]);
+  assert(concurrentResults.filter((result) => result.code === 0).length === 1, "Exactly one concurrent direct request must win the authoritative pair race.");
+  assert(concurrentResults.filter((result) => result.code !== 0).length === 1, "One concurrent direct request must be rejected without creating a duplicate.");
+  assert(/account_conversation_already_exists|account_conversations_active_direct_pair_idx|duplicate key/i.test(concurrentResults.find((result) => result.code !== 0)?.stderr ?? ""), "The losing concurrent request did not fail at the authoritative pair-uniqueness boundary.");
+  const concurrentCount = await psql(["-tAc", `
+    select count(*) from private.account_conversations
+    where conversation_type = 'direct'
+      and subject = 'Synthetic concurrent request'
+      and state = 'requested';
+  `]);
+  assert(concurrentCount.stdout.trim() === "1", "Concurrent request race created more than one authoritative conversation.");
+  const concurrentResolution = await psql(["-tAc", `
+    set role authenticated;
+    select pg_catalog.set_config('request.jwt.claim.sub', 'ba000000-0000-4000-8000-000000000001', false);
+    select pg_catalog.set_config('request.jwt.claims', '{"sub":"ba000000-0000-4000-8000-000000000001","role":"authenticated"}', false);
+    select public.resolve_account_messaging_destination('@concurrent-recipient')->>'state';
+  `]);
+  assert(concurrentResolution.stdout.trim().endsWith("existing_pending_outbound"), "Destination resolution did not converge on the concurrent winning request.");
+  await psql(["-c", `delete from auth.users where id in ('ba000000-0000-4000-8000-000000000001', 'ba000000-0000-4000-8000-000000000002');`]);
   const accountNotificationProducerBehavior = await psql([
     "-f",
     "/tmp/accountNotificationProducerBehavior.sql",
@@ -903,13 +961,13 @@ try {
           and pg_catalog.lower(coalesce(lint.level, '')) in ('error', 'fatal')
         order by checked_function.oid::pg_catalog.regprocedure::text, lint.lineno;
       `]);
-      assert(false, `plpgsql_check found ${lintErrors.stdout.trim()} error-level findings in economic functions:\n${lintDetails.stdout.trim()}`);
+      assert(false, `plpgsql_check found ${lintErrors.stdout.trim()} error-level findings in governed cross-system functions:\n${lintDetails.stdout.trim()}`);
     }
-    console.log(`plpgsql_check found no error-level findings across ${governedPlpgsqlFunctions.length} economic and Artisan function names.`);
+    console.log(`plpgsql_check found no error-level findings across ${governedPlpgsqlFunctions.length} governed cross-system function names.`);
   } else {
     console.log("plpgsql_check is not available in the disposable Supabase Postgres image; catalog integrity checks still passed.");
   }
-  console.log("Sandbox, economic, Artisan, and Online profile database disposable migration and behavior checks ok.");
+  console.log("Sandbox, economic, Artisan, Online profile, and account communications database disposable migration and behavior checks ok.");
 } finally {
   if (started) await run(containerRuntime, ["rm", "-f", container], { allowFailure: true });
 }

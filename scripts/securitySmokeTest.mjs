@@ -104,6 +104,7 @@ const reviewedAccountCommunicationRoleMigrations = new Set([
   "supabase/migrations/20260802030000_code_proposal_account_events.sql",
   "supabase/migrations/20260802040000_account_requests_and_reviews_projection.sql",
   "supabase/migrations/20260802060000_account_notification_producers.sql",
+  "supabase/migrations/20260803020000_account_messaging_destination_resolution.sql",
 ]);
 
 function allowHit(file, line, checkName) {
