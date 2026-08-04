@@ -70,6 +70,7 @@ const forgeSubmissionDocs = await read("docs/developer-forge/submission-review-p
 const forgeWorkbenchDocs = await read("docs/developer-forge/workbench.md");
 const legalIndex = await read("src/pages/Legal/index.tsx");
 const legalPolicies = await read("src/pages/Legal/legalPolicyPages.ts");
+const siteUrls = await read("src/config/siteUrls.ts");
 const archive = await read("src/pages/The-Elysia-Archive/index.tsx");
 const styles = await read("src/styles.css");
 const commonsBackgroundCatalog = await read("src/shared/commonsBackgroundStyles.ts");
@@ -127,6 +128,7 @@ assert(styles.includes(".site-footer { display: grid; grid-template-columns: min
 
 assert(footer.includes("Elysia Ecobotics™ is an EcoSyneva Commons LLC initiative."), "Footer initiative trademark text missing.");
 assert(footer.includes("Elysia Ecobotics™ is a trademark of EcoSyneva Commons LLC."), "Footer trademark owner text missing.");
+assert(!footer.includes("ecosyneva-commons-llc.pages.dev") && !nav.includes("ecosyneva-commons-llc.pages.dev"), "EcoSyneva Commons LLC website should remain page-specific rather than becoming a footer or navigation destination.");
 assert(footer.indexOf("Commons Circle") < footer.indexOf("Artisan Collective") && footer.indexOf("Artisan Collective") < footer.indexOf("Story"), "Footer should place Artisan Collective between Commons Circle and Story.");
 assert(pageBrandMark.includes("page-brand-mark__name") && pageBrandMark.includes("page-brand-mark__tm") && pageBrandMark.includes("<sup") && pageBrandMark.includes("TM"), "Page brand mark should render text plus a separate TM superscript element.");
 assert(pageHero.includes("{brandMark && <PageBrandMark") && pageHero.includes('<h1 className="hero-title-brand-font">{title}</h1>'), "PageHero should keep the brand mark separate from the H1 title.");
@@ -611,9 +613,17 @@ const legalCombined = `${legalIndex}\n${legalPolicies}`;
 for (const forbidden of ["elysiaecobotics.example", "Draft, not attorney-reviewed", "Contact placeholders", "[Replace placeholder", "DMCA Agent Name", "Mailing Address", "Phone Number"]) {
   assert(!legalCombined.includes(forbidden), `Public legal placeholder still visible: ${forbidden}`);
 }
+const roleBasedContactParagraph = legalIndex.match(/<p>Use the role-based addresses below for public website matters:[\s\S]*?<\/p>/)?.[0] ?? "";
 for (const email of ["hello@elysiaecobotics.com", "contact@elysiaecobotics.com", "support@elysiaecobotics.com", "privacy@elysiaecobotics.com", "security@elysiaecobotics.com", "abuse@elysiaecobotics.com", "legal@elysiaecobotics.com", "dmca@elysiaecobotics.com", "marketplace@elysiaecobotics.com", "stewardship@elysiaecobotics.com", "volunteer@elysiaecobotics.com"]) {
-  assert(legalCombined.includes(email), `Role-based legal contact missing: ${email}`);
+  assert(roleBasedContactParagraph.includes(email), `Role-based legal contact missing from its operational contact paragraph: ${email}`);
 }
+assert(!roleBasedContactParagraph.includes("EcoSyneva@proton.me"), "EcoSyneva Commons LLC business email must remain separate from Elysia Ecobotics role-based operational contacts.");
+assert(legalIndex.includes('className="legal-company-contact"') && legalIndex.includes('<h3 id="ecosyneva-company-contact-heading">EcoSyneva Commons LLC</h3>'), "Legal page must expose a distinct, correctly headed EcoSyneva Commons LLC contact subsection.");
+assert(legalIndex.includes('href="mailto:EcoSyneva@proton.me"') && legalIndex.includes("General company inquiries:"), "Legal page must expose the exact public EcoSyneva Commons LLC business email as a mailto link.");
+assert(cssRuleIncludes(styles, ".legal-company-contact", ["min-width: 0", "border-top: 1px solid var(--line)"]) && cssRuleIncludes(styles, ".legal-company-contact a", ["overflow-wrap: anywhere"]), "Company contact subsection must remain visually separated and allow its email link to wrap safely.");
+assert(siteUrls.includes('export const ECOSYNEVA_COMMONS_LLC_URL = "https://ecosyneva-commons-llc.pages.dev/";'), "EcoSyneva Commons LLC website URL must remain exact and centralized.");
+assert(aboutPage.includes("EcoSyneva Commons LLC is the legal and business umbrella.") && aboutPage.includes("Elysia Ecobotics™ is the public project and brand initiative."), "About page must preserve the company and Elysia Ecobotics relationship.");
+assert(aboutPage.includes("href={ECOSYNEVA_COMMONS_LLC_URL}") && aboutPage.includes("Visit EcoSyneva Commons LLC") && aboutPage.includes("ExternalLink") && aboutPage.includes('aria-hidden="true"'), "About page must expose the centralized company website as a secondary external-link CTA.");
 for (const slug of ["support-and-billing-terms", "refund-and-cancellation-policy", "sandbox-credit-terms", "job-post-fee-terms", "marketplace-commerce-terms", "organization-services-terms", "sponsorship-independence-policy", "account-closure-financial-retention"]) {
   assert(legalPolicies.includes(`slug: "${slug}"`), `Economic legal policy missing: ${slug}`);
 }

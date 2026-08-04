@@ -120,6 +120,11 @@ export default function LegalPage() {
           <StatusBadge label="Official contacts" tone="warning" />
           <h2>Contact addresses</h2>
           <p>Use the role-based addresses below for public website matters: hello@elysiaecobotics.com, contact@elysiaecobotics.com, support@elysiaecobotics.com, privacy@elysiaecobotics.com, security@elysiaecobotics.com, abuse@elysiaecobotics.com, legal@elysiaecobotics.com, dmca@elysiaecobotics.com, marketplace@elysiaecobotics.com, stewardship@elysiaecobotics.com, and volunteer@elysiaecobotics.com.</p>
+          <section className="legal-company-contact" aria-labelledby="ecosyneva-company-contact-heading">
+            <h3 id="ecosyneva-company-contact-heading">EcoSyneva Commons LLC</h3>
+            <p>General company inquiries: <a href="mailto:EcoSyneva@proton.me">EcoSyneva@proton.me</a>. This address is for matters concerning EcoSyneva Commons LLC itself. For Elysia Ecobotics Online support, privacy, security, abuse, copyright, legal, Marketplace, stewardship, volunteer, or other operational matters, use the role-based addresses above.</p>
+            <p className="small-note">Do not send passwords, payment information, identity documents, private Elysia data, or confidential material by ordinary email.</p>
+          </section>
         </article>
       </section>
 
