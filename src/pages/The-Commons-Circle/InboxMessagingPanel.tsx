@@ -259,7 +259,11 @@ export default function InboxMessagingPanel({
 
     {preferences && <section className="account-messaging-preferences">
       <h3>Messaging status</h3>
-      <p>{preferences.broadMessagingEligibility ? "Governed account messaging is available." : "Messaging is unavailable under the current broad participation or account-safety state."}</p>
+      <p>{preferences.canInitiateDirectConversation
+        ? "New governed conversation requests are available."
+        : preferences.canUseExistingConversations
+          ? "Existing participant conversations remain available; new requests require messaging access."
+          : "Messaging is unavailable for this account."}</p>
       {!preferences.acceptsIncomingDirectRequests && preferences.canInitiateDirectConversation
         && <p>You are not accepting new conversation requests, but you may still contact eligible public profiles.</p>}
       <Link className="button-link" to="/commons-circle/signals/inbox/settings">Open messaging settings</Link>

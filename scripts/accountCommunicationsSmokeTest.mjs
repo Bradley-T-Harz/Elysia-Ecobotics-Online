@@ -4,7 +4,7 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-const [app, authPanel, refreshController, homebase, api, commonsApi, inbox, notifications, messaging, messagingSettings, newConversation, conversationPage, publicProfile, participationClient, identityWorker, identityDatabase, identityProxy, adminCommunications, adminConsole, requests, signals, signalDetails, migration, messagingMigration, destinationMigration, usabilityMigration, messagingFixture, styles] = await Promise.all([
+const [app, authPanel, refreshController, homebase, api, commonsApi, inbox, notifications, messaging, messagingSettings, newConversation, conversationPage, publicProfile, participationClient, identityWorker, identityDatabase, identityProxy, adminCommunications, adminConsole, messagingAccessAdmin, requests, signals, signalDetails, migration, messagingMigration, destinationMigration, usabilityMigration, functionalLaunchMigration, messagingFixture, styles] = await Promise.all([
   fs.readFile("src/App.tsx", "utf8"),
   fs.readFile("src/pages/The-Elysia-Marketplace/components/AuthPanel.tsx", "utf8"),
   fs.readFile("src/shared/hooks/useCoordinatedRefresh.ts", "utf8"),
@@ -24,6 +24,7 @@ const [app, authPanel, refreshController, homebase, api, commonsApi, inbox, noti
   fs.readFile("functions/api/identity/[[path]].ts", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/AdminCommunicationsPage.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/CommonsCircleAdminConsolePage.tsx", "utf8"),
+  fs.readFile("src/pages/The-Commons-Circle/MessagingAccessAdminPage.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/RequestsReviewsPage.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/SignalConsolePage.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/SignalDetailPage.tsx", "utf8"),
@@ -31,11 +32,12 @@ const [app, authPanel, refreshController, homebase, api, commonsApi, inbox, noti
   fs.readFile("supabase/migrations/20260802050000_governed_account_conversations.sql", "utf8"),
   fs.readFile("supabase/migrations/20260803020000_account_messaging_destination_resolution.sql", "utf8"),
   fs.readFile("supabase/migrations/20260803030000_messaging_capabilities_and_public_profile_search.sql", "utf8"),
+  fs.readFile("supabase/migrations/20260804010000_account_messaging_functional_launch.sql", "utf8"),
   fs.readFile("scripts/fixtures/accountMessagingBehavior.sql", "utf8"),
   fs.readFile("src/styles.css", "utf8"),
 ]);
 
-for (const route of ["commons-circle/inbox", "commons-circle/notifications", "commons-circle/requests-reviews", "commons-circle/admin-communications", "commons-circle/signals", "commons-circle/signals/inbox", "commons-circle/signals/inbox/new", "commons-circle/signals/inbox/settings", "commons-circle/signals/inbox/conversations/:conversationId", "commons-circle/signals/notifications", "commons-circle/signals/requests-reviews", "commons-circle/signals/coding-proposals", "commons-circle/signals/troubleshooting", "commons-circle/signals/research-notes", "commons-circle/signals/repository-showcases", "commons-circle/signals/iteration-showcases", "commons-circle/signals/job-posts", "commons-circle/signals/voting-room", "commons-circle/signals/official-updates", "commons-circle/signals/sandbox-reviews", "commons-circle/signals/work-with", "commons-circle/signals/marketplace-forge"]) {
+for (const route of ["commons-circle/inbox", "commons-circle/notifications", "commons-circle/requests-reviews", "commons-circle/admin-communications", "commons-circle/admin/messaging-access", "commons-circle/signals", "commons-circle/signals/inbox", "commons-circle/signals/inbox/new", "commons-circle/signals/inbox/settings", "commons-circle/signals/inbox/conversations/:conversationId", "commons-circle/signals/notifications", "commons-circle/signals/requests-reviews", "commons-circle/signals/coding-proposals", "commons-circle/signals/troubleshooting", "commons-circle/signals/research-notes", "commons-circle/signals/repository-showcases", "commons-circle/signals/iteration-showcases", "commons-circle/signals/job-posts", "commons-circle/signals/voting-room", "commons-circle/signals/official-updates", "commons-circle/signals/sandbox-reviews", "commons-circle/signals/work-with", "commons-circle/signals/marketplace-forge"]) {
   assert(app.includes(`path="${route}"`), `Missing account communications route: ${route}`);
 }
 assert(app.includes("function LegacyCommunicationAlias") && app.includes("state={location.state}") && app.includes("search: location.search") && app.includes("hash: location.hash"), "Legacy communication aliases must preserve safe state, query strings, and hash fragments.");
@@ -107,20 +109,32 @@ for (const marker of ["Search public profiles or enter an exact @handle", "Searc
 }
 assert(newConversation.includes("destination.profile?.handle !== normalizedHandle.slice(1)") && !newConversation.includes("autoSubmit"), "A public-handle deep link must be explicitly resolved before sending.");
 assert(newConversation.includes("query.trim().startsWith(\"@\")") && newConversation.includes("normalizedQuery.length < 3") && newConversation.includes("recentConversations"), "The composer must preserve exact-handle lookup, enforce bounded search input, and derive recent contacts from participant-scoped conversations.");
-assert(messagingSettings.includes("Allow eligible members to send me conversation requests") && messagingSettings.includes("Allow source-linked conversations") && messagingSettings.includes("broadMessagingEligibility"), "Dedicated messaging settings must explain and separate the existing user-controlled preferences.");
+assert(messagingSettings.includes("Allow eligible members to send me conversation requests") && messagingSettings.includes("Allow source-linked conversations") && messagingSettings.includes("canSearchPublishedProfiles") && messagingSettings.includes("ownerMessagingStatus"), "Dedicated messaging settings must explain and separate search, initiation, incoming preference, and existing-conversation capabilities.");
 assert(messagingSettings.includes("You are not accepting new conversation requests, but you may still contact eligible public profiles."), "Incoming opt-out must not be presented as an outbound-initiation prohibition.");
 assert(!publicProfile.includes("resolveMessagingDestination") && publicProfile.includes("Sign in to message") && publicProfile.includes(">Message</Link>") && !publicProfile.includes("Private messaging unavailable"), "Public profiles must navigate by handle without pre-querying or exposing private availability.");
 assert(publicProfile.includes('encodeURIComponent(`@${profile.username}`)') && !publicProfile.includes("recipient=${userId}") && !publicProfile.includes("recipient=${profile.id}"), "Public-profile messaging navigation must use only the public handle, never an account identifier.");
 assert(publicProfile.includes("isOwner && userId") && publicProfile.includes("Messaging settings"), "A profile owner must receive settings navigation without a self-message or unavailable badge.");
-for (const capability of ["broadMessagingEligibility", "canInitiateDirectConversation", "acceptsIncomingDirectRequests", "canUseExistingConversations", "currentPublicHandle"]) {
-  assert(api.includes(capability) && usabilityMigration.includes(`'${capability}'`), `Messaging capability contract omits ${capability}.`);
+for (const capability of ["broadMessagingEligibility", "canSearchPublishedProfiles", "canInitiateDirectConversation", "acceptsIncomingDirectRequests", "canUseExistingConversations", "messagingLaunchMode", "betaEnrolled", "ownerMessagingStatus", "currentPublicHandle"]) {
+  assert(api.includes(capability) && (usabilityMigration.includes(`'${capability}'`) || functionalLaunchMigration.includes(`'${capability}'`)), `Messaging capability contract omits ${capability}.`);
 }
+assert(newConversation.includes("preferences?.canSearchPublishedProfiles") && !newConversation.includes("disabled={working || !preferences?.canInitiateDirectConversation || !query.trim()}"), "Published-profile search must not be coupled to controlled-beta initiation access.");
 assert(participationClient.includes("searchMessagingPublicProfiles") && participationClient.includes("minimumQueryLength: z.literal(3)") && participationClient.includes("resultLimit: z.literal(8)"), "The browser search client must strictly decode the bounded public-only response.");
 assert(identityProxy.includes('headers.set("x-elysia-surface", "online")'), "The trusted Pages service binding must label the Online surface for messaging discovery.");
 for (const marker of ["messagingProfileSearch", '"/v1/messaging/public-profile-search"', '"x-elysia-surface"', '"messaging_profile_search"', "safeMessagingProfileSearch", "authenticateIdentityRequest"]) {
   assert(identityWorker.includes(marker), `Identity Worker messaging discovery omits ${marker}.`);
 }
 assert(identityDatabase.includes('"search_public_commons_message_profiles_for_actor"'), "Identity Worker database adapter omits the service-only search RPC.");
+for (const marker of ["account_messaging_launch_control", "account_messaging_beta_enrollments", "account_messaging_beta_actions", "account_messaging_search_allowed", "account_messaging_initiation_allowed", "account_messaging_existing_conversation_allowed", "current_account_messaging_admin_status", "set_account_messaging_beta_enrollment", "set_account_messaging_launch_mode"]) {
+  assert(functionalLaunchMigration.includes(marker), `Functional messaging launch migration omits ${marker}.`);
+}
+assert(functionalLaunchMigration.includes("'controlled_beta'") && functionalLaunchMigration.includes("general_availability") && functionalLaunchMigration.includes("generalAvailabilityReady', false"), "Messaging launch policy must be explicit and general availability must remain fail-closed.");
+assert(functionalLaunchMigration.includes("private.account_messaging_search_allowed(p_actor_user_id)") && !functionalLaunchMigration.includes("or not private.account_messaging_initiation_allowed(p_actor_user_id) then\n    return pg_catalog.jsonb_build_object('items'"), "Bounded public-profile search must have its own safety capability rather than the send gate.");
+assert(identityWorker.includes('"/v1/staff/messaging-access"') && identityWorker.includes("accountMessagingAdminEnrollment") && identityWorker.includes("accountMessagingAdminLaunchMode"), "Identity Worker omits governed messaging-access administration.");
+assert(identityDatabase.includes('"current_account_messaging_admin_status"') && identityDatabase.includes('"set_account_messaging_beta_enrollment"') && identityDatabase.includes('"set_account_messaging_launch_mode"'), "Identity Worker database adapter omits messaging access RPCs.");
+for (const marker of ["Both the protected administrator role", "ENABLE", "REVOKE", "General availability is intentionally unavailable", "loadAccountMessagingAdminStatus", "updateAccountMessagingBetaEnrollment", "updateAccountMessagingLaunchMode"]) {
+  assert(messagingAccessAdmin.includes(marker), `Dedicated messaging-access Admin page omits ${marker}.`);
+}
+assert(adminConsole.includes('href="/commons-circle/admin/messaging-access"') && adminConsole.includes("profile?.is_admin && roleState.isAdmin"), "Messaging-access navigation must require dual administrator truth.");
 assert(adminCommunications.includes("roleState.isAdmin") && adminCommunications.includes('role === "moderator"') && adminCommunications.includes('role === "commune_moderator"'), "Staff messaging UI role separation is missing.");
 assert(adminCommunications.includes("confirmationPhrase") && adminCommunications.includes("Preview exact audience"), "Administrator audience preview/confirmation is missing.");
 assert(adminConsole.includes("canOpenPrivateCommunications") && !adminConsole.includes('role === "reviewer" || role === "moderator"'), "Generic reviewers must not inherit private-message tooling.");

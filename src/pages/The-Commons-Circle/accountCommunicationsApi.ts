@@ -165,9 +165,13 @@ export type MessagingPreferences = {
   allowSourceLinkedMessages: boolean;
   ordinaryMessagingEligible: boolean;
   broadMessagingEligibility: boolean;
+  canSearchPublishedProfiles: boolean;
   canInitiateDirectConversation: boolean;
   acceptsIncomingDirectRequests: boolean;
   canUseExistingConversations: boolean;
+  messagingLaunchMode: "disabled" | "controlled_beta" | "general_availability";
+  betaEnrolled: boolean;
+  ownerMessagingStatus: "enabled" | "beta_access_required" | "account_attention_required" | "restricted_or_unavailable" | "temporarily_unavailable";
   currentPublicHandle: string | null;
   storedInSupabase: boolean;
   endToEndEncrypted: boolean;
@@ -486,6 +490,9 @@ function normalizeMessagingPreferences(value: unknown): MessagingPreferences {
     allowSourceLinkedMessages: row.allowSourceLinkedMessages !== false,
     ordinaryMessagingEligible: broadMessagingEligibility,
     broadMessagingEligibility,
+    canSearchPublishedProfiles: hasCapability("canSearchPublishedProfiles")
+      ? row.canSearchPublishedProfiles === true
+      : broadMessagingEligibility,
     canInitiateDirectConversation: hasCapability("canInitiateDirectConversation")
       ? row.canInitiateDirectConversation === true
       : broadMessagingEligibility,
@@ -495,6 +502,17 @@ function normalizeMessagingPreferences(value: unknown): MessagingPreferences {
     canUseExistingConversations: hasCapability("canUseExistingConversations")
       ? row.canUseExistingConversations === true
       : broadMessagingEligibility,
+    messagingLaunchMode: row.messagingLaunchMode === "controlled_beta" || row.messagingLaunchMode === "general_availability"
+      ? row.messagingLaunchMode
+      : "disabled",
+    betaEnrolled: row.betaEnrolled === true,
+    ownerMessagingStatus: row.ownerMessagingStatus === "enabled"
+      || row.ownerMessagingStatus === "beta_access_required"
+      || row.ownerMessagingStatus === "account_attention_required"
+      || row.ownerMessagingStatus === "restricted_or_unavailable"
+      || row.ownerMessagingStatus === "temporarily_unavailable"
+      ? row.ownerMessagingStatus
+      : broadMessagingEligibility ? "enabled" : "restricted_or_unavailable",
     currentPublicHandle: currentPublicHandle
       && /^[a-z0-9][a-z0-9._-]{1,79}$/.test(currentPublicHandle)
       ? currentPublicHandle

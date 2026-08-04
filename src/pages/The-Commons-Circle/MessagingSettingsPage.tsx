@@ -44,11 +44,11 @@ export default function MessagingSettingsPage() {
     setWorking(false);
   }
 
-  const status = !userId
-    ? "Sign-in required"
-    : preferences?.broadMessagingEligibility
-      ? "Messaging available"
-      : "Messaging unavailable for this account";
+  const status = !userId ? "Sign-in required"
+    : preferences?.ownerMessagingStatus === "enabled" ? "Messaging available"
+      : preferences?.ownerMessagingStatus === "beta_access_required" ? "Controlled messaging access required"
+        : preferences?.ownerMessagingStatus === "temporarily_unavailable" ? "Messaging temporarily unavailable"
+          : "Messaging account needs attention";
 
   return <div className="page-stack commons-circle-page commons-account-communications-page">
     <PageHero eyebrow="Private communication" title="Messaging settings">
@@ -84,16 +84,30 @@ export default function MessagingSettingsPage() {
       <div className="section-heading"><p className="eyebrow">Your choices</p><h2>Conversation permissions</h2></div>
       {loading && <p aria-live="polite">Loading messaging settings…</p>}
       {!loading && preferences && <>
-        <p>{preferences.broadMessagingEligibility
-          ? "Your account may use governed adult account-to-account messaging."
-          : "Messaging is unavailable under the current broad participation or account-safety state."}</p>
+        <dl className="mini-facts">
+          <div><dt>Published-profile search</dt><dd>{preferences.canSearchPublishedProfiles ? "Available" : "Unavailable"}</dd></div>
+          <div><dt>Start new conversations</dt><dd>{preferences.canInitiateDirectConversation ? "Available" : "Unavailable"}</dd></div>
+          <div><dt>Incoming requests</dt><dd>{preferences.acceptsIncomingDirectRequests ? "Enabled" : "Disabled"}</dd></div>
+          <div><dt>Existing conversations</dt><dd>{preferences.canUseExistingConversations ? "Available" : "Unavailable"}</dd></div>
+          <div><dt>Launch mode</dt><dd>{preferences.messagingLaunchMode === "controlled_beta" ? "Controlled beta" : preferences.messagingLaunchMode === "general_availability" ? "General availability" : "Disabled"}</dd></div>
+        </dl>
+        {preferences.ownerMessagingStatus === "beta_access_required" && <>
+          <p>Your account can search published profiles, but it is not enrolled for controlled messaging access.</p>
+          <div className="button-row"><Link className="button-link" to="/commons-circle/signals/inbox?view=messages">Contact account support</Link></div>
+        </>}
+        {preferences.ownerMessagingStatus === "account_attention_required" && <>
+          <p>Your Website Account needs attention before private messaging can be used.</p>
+          <div className="button-row"><Link className="button-link" to="/commons-circle/setup">Open account setup</Link></div>
+        </>}
+        {preferences.ownerMessagingStatus === "restricted_or_unavailable" && <p>Messaging is unavailable for this account. Contact account support if you believe this is unexpected.</p>}
+        {preferences.ownerMessagingStatus === "temporarily_unavailable" && <p>New messaging is temporarily disabled. Existing participant conversations remain governed separately.</p>}
         {!preferences.acceptsIncomingDirectRequests && preferences.canInitiateDirectConversation
           && <p className="message">You are not accepting new conversation requests, but you may still contact eligible public profiles.</p>}
         <label>
           <input
             type="checkbox"
             checked={preferences.receiveDirectRequests}
-            disabled={working || !preferences.broadMessagingEligibility}
+            disabled={working || !preferences.canInitiateDirectConversation}
             onChange={(event) => void save({ ...preferences, receiveDirectRequests: event.target.checked })}
           />
           Allow eligible members to send me conversation requests

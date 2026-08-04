@@ -197,6 +197,7 @@ try {
     { path: "/commons-circle/signals/inbox/new?recipient=%40fixture-colleague", width: 1280, heading: "Start a private conversation", kind: "new-conversation" },
     { path: "/commons-circle/signals/inbox/new?recipient=%40fixture-colleague", width: 390, heading: "Start a private conversation", kind: "new-conversation-mobile" },
     { path: "/commons-circle/signals/inbox/new", width: 1280, heading: "Start a private conversation", kind: "profile-search" },
+    { path: "/commons-circle/signals/inbox/new?fixture=search-without-initiation", width: 1280, heading: "Start a private conversation", kind: "search-without-initiation" },
     { path: "/commons-circle/signals/inbox/new?recipient=%40fixture-existing", width: 1280, heading: "Start a private conversation", kind: "existing-conversation" },
     { path: "/commons-circle/signals/inbox/settings", width: 1280, heading: "Messaging settings", kind: "messaging-settings" },
     { path: "/commons-circle/signals/inbox/settings", width: 390, heading: "Messaging settings", kind: "messaging-settings" },
@@ -210,12 +211,33 @@ try {
     { path: "/commons-circle/signals?legacy-bookmark=preserved", width: 1280, heading: "Signals", kind: "signals" },
     { path: "/commons-circle/signals", width: 390, heading: "Signals", kind: "signals" },
     { path: "/commons-circle/signals", width: 1280, heading: "Signals", kind: "signals-admin", admin: true },
+    { path: "/commons-circle/admin/messaging-access", width: 1280, heading: "Messaging access", kind: "messaging-access-denied" },
+    { path: "/commons-circle/admin/messaging-access", width: 1280, heading: "Messaging access", kind: "messaging-access-admin", admin: true },
     { path: "/commons-circle/signals/coding-proposals", width: 1280, heading: "Coding proposal signals", kind: "signal-detail" },
     { path: "/commons-circle/signals/work-with", width: 1280, heading: "Work With signals", kind: "signal-work-with" },
     { path: "/commons-circle/signals/marketplace-forge", width: 1280, heading: "Marketplace & Developer Forge signals", kind: "signal-marketplace-forge" },
   ]) {
     const context = await browser.newContext({ viewport: { width: scenario.width, height: 900 } });
-    const observed = { totalRequests: 0, inboxLoads: 0, readMutations: 0, eventCountLoads: 0, resolverLoads: 0, searchLoads: 0, requestBodies: [], preferenceBodies: [], tables: new Set() };
+    const observed = { totalRequests: 0, inboxLoads: 0, readMutations: 0, eventCountLoads: 0, resolverLoads: 0, searchLoads: 0, adminStatusLoads: 0, requestBodies: [], preferenceBodies: [], tables: new Set() };
+    const canInitiateDirectConversation = scenario.kind !== "search-without-initiation";
+    const messagingPreferences = {
+      preferenceVersion: 1,
+      receiveDirectRequests: false,
+      receiveOptionalAnnouncements: false,
+      allowSourceLinkedMessages: true,
+      ordinaryMessagingEligible: canInitiateDirectConversation,
+      broadMessagingEligibility: canInitiateDirectConversation,
+      canSearchPublishedProfiles: true,
+      canInitiateDirectConversation,
+      acceptsIncomingDirectRequests: false,
+      canUseExistingConversations: true,
+      messagingLaunchMode: "controlled_beta",
+      betaEnrolled: canInitiateDirectConversation,
+      ownerMessagingStatus: canInitiateDirectConversation ? "enabled" : "beta_access_required",
+      currentPublicHandle: "fixture-account",
+      storedInSupabase: true,
+      endToEndEncrypted: false,
+    };
     await context.addInitScript(({ storageKey, session }) => {
       localStorage.setItem(storageKey, JSON.stringify(session));
       window.__elysiaCspViolations = [];
@@ -233,6 +255,23 @@ try {
         status: 200,
         contentType: "application/json; charset=utf-8",
         body: JSON.stringify({ ok: true, data: { items: [{ handle: "fixture-colleague", displayName: "Fixture Colleague", avatarUrl: null, shortPublicBio: "Synthetic public profile descriptor." }], minimumQueryLength: 3, resultLimit: 8 } }),
+      });
+    });
+    await context.route(/\/api\/identity\/v1\/staff\/messaging-access(?:\?|$)/, async (route) => {
+      observed.adminStatusLoads += 1;
+      const request = route.request();
+      assert.equal(request.method(), "GET", "The admin page status lookup must remain read-only until an explicit confirmed action.");
+      assert.equal(request.headers().authorization, `Bearer ${accessToken}`, "Messaging-access administration must use the authenticated Identity Worker boundary.");
+      const handle = new URL(request.url()).searchParams.get("handle");
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json; charset=utf-8",
+        body: JSON.stringify({ ok: true, data: {
+          authorized: true,
+          launchMode: "controlled_beta",
+          generalAvailabilityReady: false,
+          target: handle ? { handle: "fixture-colleague", displayName: "Fixture Colleague", avatarUrl: null, shortPublicBio: "Synthetic public profile descriptor.", published: true, betaEnrolled: false, status: "eligible_for_enrollment" } : null,
+        } }),
       });
     });
     await context.route(/^https:\/\/[^/]+\.supabase\.co\//, async (route) => {
@@ -260,15 +299,17 @@ try {
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_notification_items")) return route.fulfill({ status: 200, headers, body: JSON.stringify(notificationsPayload) });
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_account_event_preferences")) return route.fulfill({ status: 200, headers, body: JSON.stringify(eventPreferencesPayload) });
       if (url.pathname.endsWith("/rest/v1/rpc/current_user_requests_and_reviews")) return route.fulfill({ status: 200, headers, body: JSON.stringify(requestsPayload) });
-      if (url.pathname.endsWith("/rest/v1/rpc/current_user_messaging_preferences")) return route.fulfill({ status: 200, headers, body: JSON.stringify({ preferenceVersion: 1, receiveDirectRequests: false, receiveOptionalAnnouncements: false, allowSourceLinkedMessages: true, ordinaryMessagingEligible: true, broadMessagingEligibility: true, canInitiateDirectConversation: true, acceptsIncomingDirectRequests: false, canUseExistingConversations: true, currentPublicHandle: "fixture-account", storedInSupabase: true, endToEndEncrypted: false }) });
+      if (url.pathname.endsWith("/rest/v1/rpc/current_user_messaging_preferences")) return route.fulfill({ status: 200, headers, body: JSON.stringify(messagingPreferences) });
       if (url.pathname.endsWith("/rest/v1/rpc/update_current_user_messaging_preferences")) {
         observed.preferenceBodies.push(request.postDataJSON());
-        return route.fulfill({ status: 200, headers, body: JSON.stringify({ preferenceVersion: 2, receiveDirectRequests: true, receiveOptionalAnnouncements: false, allowSourceLinkedMessages: true, ordinaryMessagingEligible: true, broadMessagingEligibility: true, canInitiateDirectConversation: true, acceptsIncomingDirectRequests: true, canUseExistingConversations: true, currentPublicHandle: "fixture-account", storedInSupabase: true, endToEndEncrypted: false }) });
+        return route.fulfill({ status: 200, headers, body: JSON.stringify({ ...messagingPreferences, preferenceVersion: 2, receiveDirectRequests: true, acceptsIncomingDirectRequests: true }) });
       }
       if (url.pathname.endsWith("/rest/v1/rpc/resolve_account_messaging_destination")) {
         observed.resolverLoads += 1;
         const requestBody = request.postDataJSON();
-        const payload = requestBody?.p_public_handle === "@fixture-existing"
+        const payload = scenario.kind === "search-without-initiation"
+          ? { state: "unavailable" }
+          : requestBody?.p_public_handle === "@fixture-existing"
           ? { state: "existing_active", profile: { handle: "fixture-existing", displayName: "Fixture Existing", avatarUrl: null }, deepLink: `/commons-circle/signals/inbox/conversations/${conversationId}` }
           : resolvedRecipient;
         return route.fulfill({ status: 200, headers, body: JSON.stringify(payload) });
@@ -366,6 +407,17 @@ try {
       await page.getByText("This published Commons Profile can receive a conversation request.", { exact: true }).waitFor();
       assert.equal(observed.resolverLoads, 1, "Selecting a public result must issue one privacy-safe destination resolution.");
       assert.equal(await page.getByText(userId, { exact: false }).count(), 0, "Search UI must not render a private account identifier.");
+    } else if (scenario.kind === "search-without-initiation") {
+      await page.getByText("You may search published profiles. Starting a new conversation requires controlled messaging access.", { exact: true }).waitFor();
+      const searchInput = page.getByLabel("Search public profiles or enter an exact @handle");
+      await searchInput.fill("Fixture Coll");
+      assert.equal(await page.getByRole("button", { name: "Search or check" }).isEnabled(), true, "Controlled-beta enrollment must not gate published-profile search.");
+      await page.getByRole("button", { name: "Search or check" }).click();
+      await page.getByRole("button", { name: /Fixture Colleague/ }).last().click();
+      await page.getByText("This profile is unavailable for a new private conversation.", { exact: true }).waitFor();
+      assert.equal(observed.searchLoads, 1, "A non-enrolled active account must retain one bounded public-profile search request.");
+      assert.equal(observed.resolverLoads, 1, "Selecting a result must still apply the private destination gate once.");
+      assert.equal(await page.getByLabel("Subject").count(), 0, "A search-capable but non-enrolled account must not receive the request composer.");
     } else if (scenario.kind === "messaging-settings") {
       await page.getByText("You are not accepting new conversation requests, but you may still contact eligible public profiles.", { exact: true }).waitFor();
       const directRequests = page.getByLabel("Allow eligible members to send me conversation requests");
@@ -377,6 +429,18 @@ try {
         assert.equal(observed.preferenceBodies.length, 1, "One settings change must issue one versioned preference update.");
         assert.equal(observed.preferenceBodies[0].p_receive_direct_requests, true, "Settings must update incoming opt-in without changing outbound capability.");
       }
+    } else if (scenario.kind === "messaging-access-denied") {
+      await page.getByRole("heading", { name: "Messaging access management is private.", exact: true }).waitFor();
+      assert.equal(observed.adminStatusLoads, 0, "An ordinary account must not call the staff messaging-access endpoint.");
+      assert.equal(await page.getByText("Controlled account enrollment", { exact: true }).count(), 0, "An ordinary account must not see enrollment controls.");
+    } else if (scenario.kind === "messaging-access-admin") {
+      await page.getByRole("heading", { name: "Controlled beta", exact: true }).waitFor();
+      assert.equal(observed.adminStatusLoads, 1, "An authorized administrator must load the sanitized launch status once.");
+      await page.getByLabel("Published Commons handle").fill("@fixture-colleague");
+      await page.getByRole("button", { name: "Check exact handle" }).click();
+      await page.getByText("Published public profile · Not enrolled", { exact: true }).waitFor();
+      assert.equal(observed.adminStatusLoads, 2, "One explicit exact-handle lookup must issue one additional governed status request.");
+      assert.equal(await page.getByText(userId, { exact: false }).count(), 0, "The messaging-access admin UI must not render private account identifiers.");
     } else if (scenario.kind === "existing-conversation") {
       assert.equal(observed.resolverLoads, 0, "A profile-originated handle must not auto-resolve.");
       await page.getByRole("button", { name: "Search or check" }).click();

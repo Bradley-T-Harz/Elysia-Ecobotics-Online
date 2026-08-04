@@ -147,8 +147,8 @@ export default function NewConversationPage() {
   }
 
   async function searchOrCheckRecipient() {
-    if (!preferences?.canInitiateDirectConversation) {
-      setMessage("Your account cannot start a direct conversation under the current broad messaging state. Open Messaging settings for your available controls.");
+    if (!preferences?.canSearchPublishedProfiles) {
+      setMessage("Published-profile search is unavailable for this account. Open Messaging settings for the available account action.");
       return;
     }
     const exactHandle = normalizePublicHandle(query);
@@ -250,7 +250,9 @@ export default function NewConversationPage() {
           : preferences && <div className="account-messaging-eligibility">
             <p>{preferences.canInitiateDirectConversation
               ? "Your account may start governed conversations with eligible published profiles."
-              : "Direct account messaging is unavailable under the current broad participation or account-safety state."}</p>
+              : preferences.canSearchPublishedProfiles
+                ? "You may search published profiles. Starting a new conversation requires controlled messaging access."
+                : "Published-profile search is unavailable for this account."}</p>
             {!preferences.acceptsIncomingDirectRequests && preferences.canInitiateDirectConversation
               && <p className="message">You are not accepting new conversation requests, but you may still contact eligible public profiles.</p>}
             {!preferences.canInitiateDirectConversation
@@ -270,7 +272,7 @@ export default function NewConversationPage() {
               placeholder="Name or @public-handle"
               onChange={(event) => beginDifferentCompose(() => setQuery(event.target.value))}
             />
-            <button type="submit" disabled={working || !preferences?.canInitiateDirectConversation || !query.trim()}>{working ? "Checking…" : "Search or check"}</button>
+            <button type="submit" disabled={working || !preferences?.canSearchPublishedProfiles || !query.trim()}>{working ? "Checking…" : "Search or check"}</button>
           </div>
         </label>
       </form>
