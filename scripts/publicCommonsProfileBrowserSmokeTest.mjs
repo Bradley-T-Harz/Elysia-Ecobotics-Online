@@ -11,6 +11,20 @@ const indexHtml = await fs.readFile(path.join(dist, "index.html"));
 const headersSource = await fs.readFile(path.join(root, "public/_headers"), "utf8");
 const csp = headersSource.match(/^\s*Content-Security-Policy:\s*(.+)$/m)?.[1]?.trim();
 assert(csp, "The production Content-Security-Policy must be available.");
+const assetNames = await fs.readdir(path.join(dist, "assets"));
+let projectRef = "";
+for (const assetName of assetNames.filter((name) => name.endsWith(".js"))) {
+  const source = await fs.readFile(path.join(dist, "assets", assetName), "utf8");
+  const match = source.match(/https:\/\/([a-z0-9-]+)\.supabase\.co/i);
+  if (match) { projectRef = match[1]; break; }
+}
+assert(projectRef, "The built public-profile application must include its configured public Supabase origin.");
+
+function base64Url(value) { return Buffer.from(JSON.stringify(value)).toString("base64url"); }
+const fixtureUserId = "fa900000-0000-4000-8000-000000000001";
+const fixtureUser = { id: fixtureUserId, aud: "authenticated", role: "authenticated", email: "public-profile-fixture@example.invalid", app_metadata: { provider: "email", providers: ["email"] }, user_metadata: {}, created_at: "2026-08-03T12:00:00.000Z", updated_at: "2026-08-03T12:00:00.000Z" };
+const fixtureAccessToken = `${base64Url({ alg: "none", typ: "JWT" })}.${base64Url({ sub: fixtureUserId, role: "authenticated", aud: "authenticated", exp: Math.floor(Date.now() / 1000) + 3600 })}.fixture-signature`;
+const fixtureSession = { access_token: fixtureAccessToken, refresh_token: "fixture-refresh-token", expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, token_type: "bearer", user: fixtureUser };
 
 const mediaId = "fa100000-0000-4000-8000-000000000001";
 const bannerId = "fa100000-0000-4000-8000-000000000002";
@@ -140,11 +154,14 @@ assert(address && typeof address === "object", "Local browser server did not sta
 const origin = `http://127.0.0.1:${address.port}`;
 const browser = await chromium.launch({ headless: true });
 
-async function loadCase({ handle, viewport, expected, canonicalAfterLoad }) {
+async function loadCase({ handle, viewport, expected, canonicalAfterLoad, signedIn = false, owner = false, availability = "available" }) {
   const context = await browser.newContext({
     viewport,
     isMobile: viewport.width < 600,
   });
+  if (signedIn) await context.addInitScript(({ storageKey, session }) => {
+    localStorage.setItem(storageKey, JSON.stringify(session));
+  }, { storageKey: `sb-${projectRef}-auth-token`, session: fixtureSession });
   const page = await context.newPage();
   const pageErrors = [];
   const consoleErrors = [];
@@ -186,6 +203,10 @@ async function loadCase({ handle, viewport, expected, canonicalAfterLoad }) {
       await route.fulfill({ status: 204, headers: corsHeaders, body: "" });
       return;
     }
+    if (url.pathname.endsWith("/auth/v1/user")) {
+      await route.fulfill({ status: 200, headers: corsHeaders, body: JSON.stringify(fixtureUser) });
+      return;
+    }
     if (url.pathname.endsWith("/rest/v1/rpc/get_public_commons_profile_presentation")) {
       const body = request.postDataJSON();
       rpcCalls.push(`presentation:${body.p_handle}`);
@@ -193,7 +214,7 @@ async function loadCase({ handle, viewport, expected, canonicalAfterLoad }) {
         status: 200,
         headers: corsHeaders,
         body: JSON.stringify(
-          body.p_handle === canonicalHandle ? publicPresentation : {},
+          body.p_handle === canonicalHandle ? { ...publicPresentation, isOwner: owner } : {},
         ),
       });
       return;
@@ -221,6 +242,18 @@ async function loadCase({ handle, viewport, expected, canonicalAfterLoad }) {
       await route.fulfill({ status: 200, headers: corsHeaders, body: "[]" });
       return;
     }
+    if (url.pathname.endsWith("/rest/v1/rpc/resolve_account_messaging_destination")) {
+      const body = request.postDataJSON();
+      rpcCalls.push(`messaging:${body.p_public_handle}`);
+      await route.fulfill({
+        status: 200,
+        headers: corsHeaders,
+        body: JSON.stringify(availability === "available"
+          ? { state: "can_request", profile: { handle: canonicalHandle, displayName: "Fixture Online Public", avatarUrl: `/api/public/profile-avatars/${mediaId}`, shortPublicBio: "Synthetic browser-only public profile." } }
+          : { state: "unavailable" }),
+      });
+      return;
+    }
     unknownSupabaseRequests.push(`${request.method()} ${url.pathname}`);
     await route.fulfill({
       status: 404,
@@ -244,6 +277,25 @@ async function loadCase({ handle, viewport, expected, canonicalAfterLoad }) {
   }
   assert.equal(await page.locator("header").count(), 1, "site header must render");
   assert.equal(await page.locator("footer").count(), 1, "site footer must render");
+  if (handle === canonicalHandle) {
+    if (owner) {
+      await page.getByRole("link", { name: "Edit in Commons Circle", exact: true }).waitFor();
+      assert.equal(await page.getByRole("link", { name: "Message", exact: true }).count(), 0, "Own public profile must not offer self-messaging.");
+    } else if (!signedIn) {
+      const signIn = page.getByRole("link", { name: "Sign in to contact this member", exact: true });
+      await signIn.waitFor();
+      assert.equal(await signIn.getAttribute("href"), `/commons-circle/signals/inbox/new?recipient=%40${canonicalHandle}`);
+    } else if (availability === "available") {
+      const messageLink = page.getByRole("link", { name: "Message", exact: true });
+      await messageLink.waitFor();
+      assert.equal(await messageLink.getAttribute("href"), `/commons-circle/signals/inbox/new?recipient=%40${canonicalHandle}`);
+    } else {
+      await page.getByText("Private messaging unavailable", { exact: true }).waitFor();
+      assert.equal(await page.getByRole("link", { name: "Message", exact: true }).count(), 0);
+    }
+    const messagingControlMarkup = await page.locator(".commons-profile-masthead__edit").innerHTML();
+    assert(!messagingControlMarkup.includes(fixtureUser.email) && !messagingControlMarkup.includes(fixtureUserId), "Public-profile messaging controls must not render email or private account identity.");
+  }
   assert(
     loadedScripts.some((asset) => /\/assets\/commons-circle-[^/]+\.js$/.test(asset)),
     "Commons Circle route chunk must load",
@@ -273,6 +325,29 @@ try {
     });
     assert.deepEqual(calls, [`presentation:${canonicalHandle}`]);
   }
+  const signedInCalls = await loadCase({
+    handle: canonicalHandle,
+    viewport: { width: 1280, height: 900 },
+    expected: "Fixture Online Public",
+    signedIn: true,
+  });
+  assert.deepEqual(signedInCalls, [`presentation:${canonicalHandle}`, `messaging:@${canonicalHandle}`]);
+  const unavailableCalls = await loadCase({
+    handle: canonicalHandle,
+    viewport: { width: 1280, height: 900 },
+    expected: "Fixture Online Public",
+    signedIn: true,
+    availability: "unavailable",
+  });
+  assert.deepEqual(unavailableCalls, [`presentation:${canonicalHandle}`, `messaging:@${canonicalHandle}`]);
+  const ownerCalls = await loadCase({
+    handle: canonicalHandle,
+    viewport: { width: 1280, height: 900 },
+    expected: "Fixture Online Public",
+    signedIn: true,
+    owner: true,
+  });
+  assert.deepEqual(ownerCalls, [`presentation:${canonicalHandle}`]);
   const aliasCalls = await loadCase({
     handle: "fixture-online-old",
     viewport: { width: 1280, height: 900 },

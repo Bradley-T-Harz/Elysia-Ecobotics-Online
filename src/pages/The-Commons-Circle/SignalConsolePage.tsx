@@ -134,7 +134,7 @@ export default function SignalConsolePage() {
             <h3>Inbox &amp; Private Messages</h3>
             <dl className="mini-facts"><MiniFact label="Needs attention" value={counts.events.inboxNeedsAttention} /><MiniFact label="Inbox unread" value={counts.events.inboxUnread} /><MiniFact label="Messages unread" value={counts.events.messagesUnread} /></dl>
             <p>Review account-directed actions, receive conversation requests, and use governed participant-scoped messages.</p>
-            <div className="button-row"><Link className="button-link button-link--primary" to="/commons-circle/signals/inbox">Open Inbox</Link><Link className="button-link" to="/commons-circle/signals/inbox?view=messages">Start a private conversation</Link></div>
+            <div className="button-row"><Link className="button-link button-link--primary" to="/commons-circle/signals/inbox">Open Inbox</Link><Link className="button-link" to="/commons-circle/signals/inbox/new">Start a private conversation</Link></div>
           </article>
 
           <article className="section-card commons-account-room-card signals-primary-card">

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useParams } from "react-router-dom";
+import { useAuth } from "../../shared/auth/useAuth";
 import { getCommonsBackgroundStyleOption, normalizeCommonsBackgroundStyle } from "../../shared/commonsBackgroundStyles";
 import { getCommonsDecorativeMarkerOption, normalizeCommonsDecorativeMarkerSet } from "../../shared/commonsDecorativeMarkers";
 import { getCommonsProfileLayoutOption, normalizeCommonsProfileLayout } from "../../shared/commonsProfileLayouts";
@@ -10,6 +11,7 @@ import CommonsAvatarViewer from "../../shared/components/CommonsAvatarViewer";
 import CommonsProfileLayoutFrame from "../../shared/components/CommonsProfileLayoutFrame";
 import PageHero from "../../shared/components/PageHero";
 import { artisanProfileReportUrl } from "../../config/siteUrls";
+import { resolveMessagingDestination } from "../The-Commons-Circle/accountCommunicationsApi";
 import { loadPublicCommonsProfile, resolvePublicCommonsProfileHandle } from "../The-Commons-Circle/commonsCircleApi";
 import type { PublicCommonsProfile, UserBadge } from "../The-Commons-Circle/commonsCircleApi";
 
@@ -63,11 +65,13 @@ function publicUsernameFromHandle(publicHandle: string) {
 
 export default function PublicCommonsProfilePage() {
   const { publicHandle = "" } = useParams();
+  const { userId, loading: authLoading } = useAuth();
   const username = publicUsernameFromHandle(publicHandle);
   const [profileData, setProfileData] = useState<PublicCommonsProfile | null>(null);
   const [canonicalRedirectPath, setCanonicalRedirectPath] = useState<string | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [messageAvailability, setMessageAvailability] = useState<"idle" | "loading" | "available" | "unavailable">("idle");
 
   useEffect(() => {
     let active = true;
@@ -98,6 +102,20 @@ export default function PublicCommonsProfilePage() {
     });
     return () => { active = false; };
   }, [username]);
+
+  useEffect(() => {
+    let active = true;
+    if (authLoading || !userId || !profileData || profileData.isOwner) {
+      setMessageAvailability("idle");
+      return () => { active = false; };
+    }
+    setMessageAvailability("loading");
+    resolveMessagingDestination(`@${profileData.profile.username}`).then((result) => {
+      if (!active) return;
+      setMessageAvailability(result.destination && result.destination.state !== "unavailable" ? "available" : "unavailable");
+    });
+    return () => { active = false; };
+  }, [authLoading, profileData, userId]);
 
   if (loading) {
     return <div className="page-stack"><PageHero eyebrow="Commons Profile" title="Loading public profile"><p>Checking the public Commons profile visibility settings.</p></PageHero></div>;
@@ -131,6 +149,7 @@ export default function PublicCommonsProfilePage() {
   const hasPublicIdentityDetails = Boolean((visibility.show_bio && profile.bio) || profile.organization || (visibility.show_interests && profile.interests) || (visibility.show_website && profile.website_url) || (visibility.show_github && profile.github_url) || publicLinks.length);
   const hasPublicCollections = publicCollections.length > 0;
   const hasPublicContributions = publicCommunePosts.length > 0 || publicCommuneComments.length > 0;
+  const messagePath = `/commons-circle/signals/inbox/new?recipient=${encodeURIComponent(`@${profile.username}`)}`;
   if (import.meta.env.DEV && warnings.length) console.warn("[Public Commons Profile]", warnings);
 
   return (
@@ -158,7 +177,12 @@ export default function PublicCommonsProfilePage() {
                   <div className="commons-customization-badges commons-profile-summary-card__chips commons-profile-masthead__chips" aria-label="Public profile presentation settings"><span>{getCommonsThemeModeOption(themeMode).label}</span><span>{getCommonsBackgroundStyleOption(backgroundStyle).label}</span><span>{profileLayoutOption.label}</span></div>
                 </div>
               </div>
-              {isOwner && <div className="button-row commons-profile-summary-card__edit commons-profile-masthead__edit"><a className="button-link button-link--primary" href="/commons-circle">Edit in Commons Circle</a></div>}
+              <div className="button-row commons-profile-summary-card__edit commons-profile-masthead__edit">
+                {isOwner && <a className="button-link button-link--primary" href="/commons-circle">Edit in Commons Circle</a>}
+                {!isOwner && !authLoading && !userId && <Link className="button-link button-link--primary" to={messagePath}>Sign in to contact this member</Link>}
+                {!isOwner && userId && messageAvailability === "available" && <Link className="button-link button-link--primary" to={messagePath}>Message</Link>}
+                {!isOwner && userId && messageAvailability === "unavailable" && <span className="boundary-note">Private messaging unavailable</span>}
+              </div>
             </article>
           </section>
 

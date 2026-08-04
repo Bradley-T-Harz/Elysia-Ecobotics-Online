@@ -4880,6 +4880,19 @@ button.commune-vote-option-card:disabled {
   gap: 0.5rem;
 }
 
+.account-messaging-recipient-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.9rem;
+  align-items: center;
+  margin: 1rem 0;
+}
+
+.account-messaging-recipient-card .commons-avatar {
+  width: 3.5rem;
+  height: 3.5rem;
+}
+
 .account-messaging-workspace {
   display: grid;
   grid-template-columns: minmax(15rem, 0.78fr) minmax(0, 1.6fr);
@@ -5005,6 +5018,10 @@ button.commune-vote-option-card:disabled {
   }
 
   .account-messaging-handle-row {
+    grid-template-columns: 1fr;
+  }
+
+  .account-messaging-recipient-card {
     grid-template-columns: 1fr;
   }
 

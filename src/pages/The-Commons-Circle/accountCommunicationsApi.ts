@@ -4,6 +4,7 @@ export type AccountActorCard = {
   handle: string | null;
   displayName: string | null;
   avatarUrl: string | null;
+  shortPublicBio?: string | null;
 };
 
 export type AccountEventCounts = {
@@ -174,6 +175,24 @@ export type MessagingRecipient = {
   profile: AccountActorCard | null;
 };
 
+export type MessagingDestinationState =
+  | "can_request"
+  | "existing_active"
+  | "existing_pending_outbound"
+  | "existing_pending_inbound"
+  | "unavailable";
+
+export type MessagingDestination = {
+  state: MessagingDestinationState;
+  profile: AccountActorCard | null;
+  deepLink: string | null;
+};
+
+export type ConversationRequestClientIds = {
+  requestId: string;
+  messageId: string;
+};
+
 export type ConversationSummary = {
   id: string;
   type: string;
@@ -327,6 +346,27 @@ function normalizeActor(value: unknown): AccountActorCard | null {
     handle: asNullableText(actor.handle),
     displayName: asNullableText(actor.displayName),
     avatarUrl: asNullableText(actor.avatarUrl),
+    shortPublicBio: asNullableText(actor.shortPublicBio),
+  };
+}
+
+function normalizeMessagingDestination(value: unknown): MessagingDestination {
+  const row = asRecord(value);
+  const state = asText(row.state);
+  const safeState: MessagingDestinationState = [
+    "can_request",
+    "existing_active",
+    "existing_pending_outbound",
+    "existing_pending_inbound",
+    "unavailable",
+  ].includes(state) ? state as MessagingDestinationState : "unavailable";
+  const deepLink = asNullableText(row.deepLink);
+  return {
+    state: safeState,
+    profile: safeState === "unavailable" ? null : normalizeActor(row.profile),
+    deepLink: deepLink && /^\/commons-circle\/signals\/inbox\/conversations\/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(deepLink)
+      ? deepLink
+      : null,
   };
 }
 
@@ -864,16 +904,40 @@ export async function lookupMessagingRecipient(handle: string) {
   return { recipient, warning: rpcFailure("Recipient lookup", error) };
 }
 
-export async function requestConversation(handle: string, subject: string, body: string) {
+export async function resolveMessagingDestination(handle: string) {
+  if (!supabase) return {
+    destination: null as MessagingDestination | null,
+    warning: supabaseNotConfiguredMessage,
+  };
+  const { data, error } = await supabase.rpc("resolve_account_messaging_destination", {
+    p_public_handle: handle,
+  });
+  return {
+    destination: error ? null : normalizeMessagingDestination(data),
+    warning: rpcFailure("Messaging destination", error),
+  };
+}
+
+export async function requestConversation(
+  handle: string,
+  subject: string,
+  body: string,
+  clientIds: ConversationRequestClientIds,
+) {
   if (!supabase) return { conversationId: null, warning: supabaseNotConfiguredMessage };
   const { data, error } = await supabase.rpc("request_account_conversation", {
     p_recipient_handle: handle,
     p_subject: subject,
     p_body: body,
-    p_client_request_id: newAccountCommunicationClientId(),
-    p_client_message_id: newAccountCommunicationClientId(),
+    p_client_request_id: clientIds.requestId,
+    p_client_message_id: clientIds.messageId,
   });
-  return { conversationId: error ? null : asNullableText(asRecord(data).conversationId), warning: rpcFailure("Conversation request", error) };
+  const conversationId = error ? null : asNullableText(asRecord(data).conversationId);
+  return {
+    conversationId,
+    deepLink: conversationId ? `/commons-circle/signals/inbox/conversations/${conversationId}` : null,
+    warning: rpcFailure("Conversation request", error),
+  };
 }
 
 export async function startSupportConversation(subject: string, body: string) {

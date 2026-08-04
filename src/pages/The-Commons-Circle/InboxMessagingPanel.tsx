@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { structurallyEqual, useCoordinatedRefresh } from "../../shared/hooks/useCoordinatedRefresh";
 import {
   loadConversation,
   loadConversations,
   loadMessagingPreferences,
-  lookupMessagingRecipient,
   markConversationRead,
   reportConversation,
-  requestConversation,
   respondToConversationRequest,
   sendConversationMessage,
   setConversationBlocked,
@@ -19,7 +17,6 @@ import {
   type ConversationDetail,
   type ConversationSummary,
   type MessagingPreferences,
-  type MessagingRecipient,
 } from "./accountCommunicationsApi";
 
 type PanelMessage = { tone: "info" | "error"; text: string };
@@ -56,9 +53,16 @@ function stateLabel(conversation: ConversationSummary) {
   return conversation.state.replace(/_/g, " ");
 }
 
-export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChanged: () => void }) {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const selectedFromUrl = searchParams.get("conversation");
+export default function InboxMessagingPanel({
+  onCountsChanged,
+  conversationId = null,
+}: {
+  onCountsChanged: () => void;
+  conversationId?: string | null;
+}) {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const selectedFromUrl = conversationId ?? searchParams.get("conversation");
   const sourceDomain = searchParams.get("sourceDomain");
   const sourceType = searchParams.get("sourceType");
   const sourceRecordId = searchParams.get("sourceRecord");
@@ -67,13 +71,10 @@ export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChang
     && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(sourceRecordId ?? "");
   const [working, setWorking] = useState(false);
   const [panelMessage, setPanelMessage] = useState<PanelMessage | null>(null);
-  const [composeOpen, setComposeOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const [sourceOpen, setSourceOpen] = useState(sourceContextValid);
-  const [handle, setHandle] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
-  const [recipient, setRecipient] = useState<MessagingRecipient | null>(null);
   const [reply, setReply] = useState("");
   const [reportOpen, setReportOpen] = useState(false);
   const [reportReason, setReportReason] = useState("spam");
@@ -85,7 +86,7 @@ export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChang
       loadConversations("all"),
       loadMessagingPreferences(),
     ]);
-    const selectedConversationId = selectedFromUrl || conversationResult.items[0]?.id || null;
+    const selectedConversationId = selectedFromUrl || null;
     const detailResult = selectedConversationId
       ? await loadConversation(selectedConversationId)
       : { detail: null, warning: null };
@@ -107,7 +108,7 @@ export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChang
     runExclusive,
     updateData: setWorkspace,
   } = useCoordinatedRefresh<MessagingWorkspace>({
-    resourceKey: selectedFromUrl ?? "first-conversation",
+    resourceKey: selectedFromUrl ?? "conversation-list",
     load: loadMessagingWorkspace,
     initialData: emptyMessagingWorkspace,
     pollIntervalMs: 45_000,
@@ -119,7 +120,7 @@ export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChang
   const conversations = workspace.conversations;
   const detail = workspace.detail;
   const preferences = workspace.preferences;
-  const selectedId = selectedFromUrl || conversations[0]?.id || null;
+  const selectedId = selectedFromUrl || null;
 
   useEffect(() => {
     if (!workspace.warning) return;
@@ -158,9 +159,7 @@ export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChang
   }, [detail, onCountsChanged, phase, runExclusive, selectedId, selectedSummary, setWorkspace]);
 
   function selectConversation(id: string) {
-    const next = new URLSearchParams(searchParams);
-    next.set("conversation", id);
-    setSearchParams(next, { replace: true });
+    navigate(`/commons-circle/signals/inbox/conversations/${id}`);
   }
 
   async function runMessagingOperation<T>(operation: () => Promise<T>) {
@@ -176,27 +175,6 @@ export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChang
     setPanelMessage(result.warning
       ? { tone: "error", text: result.warning }
       : { tone: "info", text: "Private communication preferences saved." });
-    setWorking(false);
-  }
-
-  async function checkRecipient() {
-    setWorking(true);
-    const result = await runMessagingOperation(() => lookupMessagingRecipient(handle));
-    setRecipient(result.recipient);
-    setPanelMessage(result.warning ? { tone: "error", text: result.warning } : null);
-    setWorking(false);
-  }
-
-  async function submitConversationRequest() {
-    setWorking(true);
-    const result = await runMessagingOperation(() => requestConversation(handle, subject, body));
-    if (result.warning || !result.conversationId) {
-      setPanelMessage({ tone: "error", text: result.warning ?? "The conversation request could not be created." });
-    } else {
-      setPanelMessage({ tone: "info", text: "Conversation request sent. The recipient must accept before replies are enabled." });
-      setComposeOpen(false); setHandle(""); setSubject(""); setBody(""); setRecipient(null);
-      selectConversation(result.conversationId);
-    }
     setWorking(false);
   }
 
@@ -222,10 +200,7 @@ export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChang
     } else {
       setPanelMessage({ tone: "info", text: "A private conversation was opened with the other proposal participant. The proposal remains authoritative." });
       setSourceOpen(false); setSubject(""); setBody("");
-      const next = new URLSearchParams(searchParams);
-      next.delete("sourceDomain"); next.delete("sourceType"); next.delete("sourceRecord");
-      next.set("conversation", result.conversationId);
-      setSearchParams(next, { replace: true });
+      selectConversation(result.conversationId);
     }
     setWorking(false);
   }
@@ -302,27 +277,30 @@ export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChang
     </details>}
 
     <div className="button-row">
-      <button className="button-primary" type="button" onClick={() => { setComposeOpen((open) => !open); setSupportOpen(false); setSourceOpen(false); }} disabled={!preferences?.ordinaryMessagingEligible}>Start a private conversation</button>
-      <button type="button" onClick={() => { setSupportOpen((open) => !open); setComposeOpen(false); setSourceOpen(false); }}>Contact account support</button>
-      {sourceContextValid && <button type="button" onClick={() => { setSourceOpen((open) => !open); setComposeOpen(false); setSupportOpen(false); }} disabled={!preferences?.ordinaryMessagingEligible}>Message proposal participant</button>}
+      <Link className="button-link button-link--primary" to="/commons-circle/signals/inbox/new">Start a private conversation</Link>
+      <button type="button" onClick={() => { setSupportOpen((open) => !open); setSourceOpen(false); }}>Contact account support</button>
+      {sourceContextValid && <button type="button" onClick={() => { setSourceOpen((open) => !open); setSupportOpen(false); }} disabled={!preferences?.ordinaryMessagingEligible}>Message proposal participant</button>}
       <button type="button" onClick={() => void refresh("manual")} disabled={busy}>Refresh conversations</button>
       {backgroundRefreshing && <span className="boundary-note" aria-live="polite">Refreshing quietly…</span>}
     </div>
 
-    {(composeOpen || supportOpen || sourceOpen) && <form className="account-messaging-compose" onSubmit={(event) => { event.preventDefault(); void (composeOpen ? submitConversationRequest() : sourceOpen ? submitSourceConversation() : submitSupportRequest()); }}>
-      <h3>{composeOpen ? "Request a professional conversation" : sourceOpen ? "Message the other proposal participant" : "Start a private account-support thread"}</h3>
+    {(supportOpen || sourceOpen) && <form className="account-messaging-compose" onSubmit={(event) => { event.preventDefault(); void (sourceOpen ? submitSourceConversation() : submitSupportRequest()); }}>
+      <h3>{sourceOpen ? "Message the other proposal participant" : "Start a private account-support thread"}</h3>
       {sourceOpen && <p className="boundary-note">This conversation references the selected code proposal. It does not copy proposal code, change proposal state, or grant proposal decision authority.</p>}
-      {composeOpen && <label><span>Public Commons handle</span><div className="account-messaging-handle-row"><input value={handle} maxLength={80} placeholder="@public-handle" onChange={(event) => { setHandle(event.target.value); setRecipient(null); }} required /><button type="button" onClick={() => void checkRecipient()} disabled={working || !handle.trim()}>Check recipient</button></div></label>}
-      {composeOpen && recipient && <p className="boundary-note">{recipient.canReceiveRequest ? `${recipient.profile?.displayName || `@${recipient.profile?.handle}`} can receive a request.` : "This account is unavailable for new conversation requests. No private reason is disclosed."}</p>}
       <label><span>Subject</span><input value={subject} maxLength={160} onChange={(event) => setSubject(event.target.value)} required /></label>
       <label><span>Plain-text message</span><textarea value={body} maxLength={8000} rows={7} onChange={(event) => setBody(event.target.value)} required /></label>
       <p className="boundary-note">Do not include secrets, credentials, unnecessary personal information, proposal code, or private attachments.</p>
-      <button type="submit" disabled={working || !subject.trim() || !body.trim() || (composeOpen && !recipient?.canReceiveRequest)}>{working ? "Working…" : composeOpen ? "Send conversation request" : sourceOpen ? "Open source-linked conversation" : "Open support conversation"}</button>
+      <button type="submit" disabled={working || !subject.trim() || !body.trim()}>{working ? "Working…" : sourceOpen ? "Open source-linked conversation" : "Open support conversation"}</button>
     </form>}
 
     <div className="account-messaging-workspace">
       <aside className="account-messaging-list" aria-label="Private conversations">
         <h3>Conversations</h3>
+        {!loading && conversations.length > 0 && <dl className="mini-facts">
+          <div><dt>Incoming requests</dt><dd>{conversations.filter((item) => item.incomingRequest).length}</dd></div>
+          <div><dt>Requests sent</dt><dd>{conversations.filter((item) => item.outgoingRequest).length}</dd></div>
+          <div><dt>Recent contacts</dt><dd>{conversations.filter((item) => item.state === "active" && item.counterpart).length}</dd></div>
+        </dl>}
         {loading && <p>Loading conversations…</p>}
         {!loading && !conversations.length && <p>No private conversations yet.</p>}
         {conversations.map((conversation) => <button type="button" className={conversation.id === selectedId ? "account-messaging-list__item account-messaging-list__item--active" : "account-messaging-list__item"} onClick={() => selectConversation(conversation.id)} key={conversation.id}>
@@ -332,11 +310,12 @@ export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChang
         </button>)}
       </aside>
 
-      <section className="account-conversation-detail" aria-live="polite">
-        {!selectedId && <div className="account-communications-empty"><h3>Select a conversation</h3><p>Private message bodies appear only after the participant-scoped conversation RPC succeeds.</p></div>}
+      {selectedId && <section className="account-conversation-detail" aria-live="polite">
         {selectedId && !detail && <p>Loading participant-scoped conversation…</p>}
         {detail && <>
           <header><p className="eyebrow">{detail.conversation.type.replace(/_/g, " ")}</p><h3>{detail.conversation.subject}</h3><p>{stateLabel(detail.conversation)}</p></header>
+          {detail.conversation.outgoingRequest && <p className="boundary-note">Request awaiting response. The recipient must accept before participant replies are enabled.</p>}
+          {detail.conversation.incomingRequest && <p className="boundary-note">This member is requesting a private conversation. Accept or decline before replying.</p>}
           {detail.conversation.sourceDomain && <p className="boundary-note">Source context: {detail.conversation.sourceDomain.replace(/_/g, " ")} · {detail.conversation.sourceType?.replace(/_/g, " ")}. The source workflow remains authoritative.</p>}
           {!detail.conversation.sourceAvailable && <p className="boundary-note">The linked source is unavailable. This conversation does not recreate source access or authority.</p>}
           {detail.conversation.incomingRequest && <div className="button-row"><button type="button" onClick={() => void respond("accept")} disabled={working}>Accept request</button><button type="button" onClick={() => void respond("decline")} disabled={working}>Decline</button></div>}
@@ -357,7 +336,7 @@ export default function InboxMessagingPanel({ onCountsChanged }: { onCountsChang
           {reportOpen && <form className="account-message-report" onSubmit={(event) => { event.preventDefault(); void submitReport(); }}><h4>Report this conversation</h4><label><span>Reason</span><select value={reportReason} onChange={(event) => setReportReason(event.target.value)}><option value="spam">Spam</option><option value="harassment">Harassment</option><option value="threats">Threats</option><option value="hate_or_abuse">Hate or abuse</option><option value="sexual_content">Sexual content</option><option value="privacy_or_pii">Privacy or personal information</option><option value="fraud_or_impersonation">Fraud or impersonation</option><option value="malicious_link">Malicious link</option><option value="other">Other</option></select></label><label><span>Optional details</span><textarea value={reportDetails} maxLength={2000} rows={4} onChange={(event) => setReportDetails(event.target.value)} /></label><button type="submit" disabled={working}>Submit report</button></form>}
           <details><summary>Technical context</summary><dl className="mini-facts"><div><dt>Conversation type</dt><dd>{detail.conversation.type.replace(/_/g, " ")}</dd></div><div><dt>State</dt><dd>{detail.conversation.state}</dd></div><div><dt>Storage</dt><dd>Supabase · participant scoped</dd></div><div><dt>Encryption claim</dt><dd>Not end-to-end encrypted</dd></div></dl></details>
         </>}
-      </section>
+      </section>}
     </div>
   </div>;
 }

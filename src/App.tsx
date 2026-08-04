@@ -37,6 +37,8 @@ const SavedShelvesPage = lazy(() => import("./pages/The-Commons-Circle/SavedShel
 const SignalConsolePage = lazy(() => import("./pages/The-Commons-Circle/SignalConsolePage"));
 const SignalDetailPage = lazy(() => import("./pages/The-Commons-Circle/SignalDetailPage"));
 const InboxPage = lazy(() => import("./pages/The-Commons-Circle/InboxPage"));
+const NewConversationPage = lazy(() => import("./pages/The-Commons-Circle/NewConversationPage"));
+const InboxConversationPage = lazy(() => import("./pages/The-Commons-Circle/InboxConversationPage"));
 const NotificationsPage = lazy(() => import("./pages/The-Commons-Circle/NotificationsPage"));
 const RequestsReviewsPage = lazy(() => import("./pages/The-Commons-Circle/RequestsReviewsPage"));
 const SupportBillingPage = lazy(() => import("./pages/The-Commons-Circle/SupportBillingPage"));
@@ -78,6 +80,26 @@ function LegacyCommunicationAlias({ target }: { target: string }) {
     state={location.state}
     to={{ pathname: target, search: location.search, hash: location.hash }}
   />;
+}
+
+function CanonicalInboxEntry() {
+  const location = useLocation();
+  const search = new URLSearchParams(location.search);
+  const conversationId = search.get("conversation");
+  if (conversationId && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(conversationId)) {
+    search.delete("conversation");
+    search.delete("view");
+    return <Navigate
+      replace
+      state={location.state}
+      to={{
+        pathname: `/commons-circle/signals/inbox/conversations/${conversationId}`,
+        search: search.toString() ? `?${search.toString()}` : "",
+        hash: location.hash,
+      }}
+    />;
+  }
+  return <InboxPage />;
 }
 
 export default function App() {
@@ -163,7 +185,9 @@ export default function App() {
             <Route path="commons-circle/notifications" element={<LegacyCommunicationAlias target="/commons-circle/signals/notifications" />} />
             <Route path="commons-circle/requests-reviews" element={<LegacyCommunicationAlias target="/commons-circle/signals/requests-reviews" />} />
             <Route path="commons-circle/signals" element={<SignalConsolePage />} />
-            <Route path="commons-circle/signals/inbox" element={<InboxPage />} />
+            <Route path="commons-circle/signals/inbox" element={<CanonicalInboxEntry />} />
+            <Route path="commons-circle/signals/inbox/new" element={<NewConversationPage />} />
+            <Route path="commons-circle/signals/inbox/conversations/:conversationId" element={<InboxConversationPage />} />
             <Route path="commons-circle/signals/notifications" element={<NotificationsPage />} />
             <Route path="commons-circle/signals/requests-reviews" element={<RequestsReviewsPage />} />
             <Route path="commons-circle/signals/coding-proposals" element={<SignalDetailPage section="coding-proposals" />} />
