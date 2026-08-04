@@ -4,7 +4,7 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-const [app, authPanel, refreshController, homebase, api, commonsApi, inbox, notifications, messaging, messagingSettings, newConversation, conversationPage, publicProfile, participationClient, identityWorker, identityDatabase, identityProxy, adminCommunications, adminConsole, messagingAccessAdmin, requests, signals, signalDetails, migration, messagingMigration, destinationMigration, usabilityMigration, functionalLaunchMigration, messagingFixture, styles] = await Promise.all([
+const [app, authPanel, refreshController, homebase, api, commonsApi, inbox, inboxNavigation, notifications, messaging, messagingSettings, newConversation, conversationPage, publicProfile, participationClient, identityWorker, identityDatabase, identityProxy, adminCommunications, adminConsole, messagingAccessAdmin, requests, signals, signalDetails, migration, messagingMigration, destinationMigration, usabilityMigration, functionalLaunchMigration, messagingFixture, styles] = await Promise.all([
   fs.readFile("src/App.tsx", "utf8"),
   fs.readFile("src/pages/The-Elysia-Marketplace/components/AuthPanel.tsx", "utf8"),
   fs.readFile("src/shared/hooks/useCoordinatedRefresh.ts", "utf8"),
@@ -12,6 +12,7 @@ const [app, authPanel, refreshController, homebase, api, commonsApi, inbox, noti
   fs.readFile("src/pages/The-Commons-Circle/accountCommunicationsApi.ts", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/commonsCircleApi.ts", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/InboxPage.tsx", "utf8"),
+  fs.readFile("src/pages/The-Commons-Circle/InboxSectionNavigation.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/NotificationsPage.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/InboxMessagingPanel.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/MessagingSettingsPage.tsx", "utf8"),
@@ -102,7 +103,20 @@ assert(messaging.includes("Attachments, HTML, embeds, and anonymous messages are
 assert(messaging.includes("Accept request") && messaging.includes("Block account") && messaging.includes("Submit report"), "Participant messaging safety controls are incomplete.");
 assert(messaging.includes("acknowledgedReadRef") && messaging.includes("selectedSummary.unreadCount <= 0") && messaging.includes('document.visibilityState !== "visible"'), "Messaging must acknowledge genuinely unread visible conversations only once.");
 assert(!messaging.includes("refreshDetail") && messaging.includes("runMessagingOperation"), "Messaging list, detail, participant state, and mutations must use one refresh owner.");
-assert(messaging.includes('to="/commons-circle/signals/inbox/new"') && messaging.includes('to="/commons-circle/signals/inbox/settings"') && !messaging.includes("lookupMessagingRecipient"), "The conversation list must route to dedicated composer and settings pages instead of retaining duplicate inline controls.");
+for (const page of [inbox, newConversation, messagingSettings, conversationPage]) {
+  assert(page.includes("<InboxSectionNavigation />"), "Every canonical Inbox page must render the shared section navigation after its account gate.");
+}
+for (const label of ["Inbox", "Start a private conversation", "Messaging settings"]) {
+  assert(inboxNavigation.includes(`>${label}</Link>`), `Shared Inbox navigation omits ${label}.`);
+}
+for (const destination of ["INBOX_ROOT", "`${INBOX_ROOT}/new`", "`${INBOX_ROOT}/settings`"]) {
+  assert(inboxNavigation.includes(`to={${destination}}`), `Shared Inbox navigation omits ${destination}.`);
+}
+assert(inboxNavigation.includes('aria-current={isInbox ? "page" : isConversation ? "location" : undefined}') && inboxNavigation.includes('aria-current={isNewConversation ? "page" : undefined}') && inboxNavigation.includes('aria-current={isSettings ? "page" : undefined}'), "Shared Inbox navigation must expose route-aware active state while retaining Inbox as the conversation-detail parent.");
+assert(!messaging.includes('to="/commons-circle/signals/inbox/new"') && !messaging.includes('to="/commons-circle/signals/inbox/settings"') && messaging.includes("Messaging status") && messaging.includes("Contact account support"), "The Messages panel must retain status and contextual support without duplicating primary Inbox navigation.");
+assert(!inbox.includes('activeTab !== "messages" && <Link className="button-link button-link--primary"') && !conversationPage.includes("Back to Messages") && !messagingSettings.includes("Back to Messages"), "Canonical Inbox pages must not retain page-local copies of the shared primary navigation.");
+assert(!styles.includes(".inbox-section-navigation {\n  position: sticky") && styles.includes(".inbox-section-navigation") && styles.includes("flex-wrap: wrap") && styles.includes("max-width: 560px"), "Inbox section navigation must clear the sticky global header and wrap without mobile overflow.");
+assert(!messaging.includes("lookupMessagingRecipient"), "The conversation list must not retain the removed inline recipient lookup.");
 assert(conversationPage.includes("conversationId={conversationId}") && conversationPage.includes("participant-scoped conversation contract"), "Conversation detail must use the governed participant-scoped page contract.");
 for (const marker of ["Search public profiles or enter an exact @handle", "Search or check", "Send conversation request", "resolveMessagingDestination", "searchMessagingPublicProfiles", "clientIdsRef", "newClientIds", "stored in Supabase", "not end-to-end encrypted", "You are not accepting new conversation requests, but you may still contact eligible public profiles."]) {
   assert(newConversation.includes(marker), `Focused new-conversation flow omits ${marker}.`);

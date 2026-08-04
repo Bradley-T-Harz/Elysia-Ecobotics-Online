@@ -15,6 +15,7 @@ import {
   type InboxView,
 } from "./accountCommunicationsApi";
 import InboxMessagingPanel from "./InboxMessagingPanel";
+import InboxSectionNavigation from "./InboxSectionNavigation";
 
 type InboxTab = InboxView | "sent";
 type PriorityFilter = "all" | "high" | "standard";
@@ -167,10 +168,12 @@ export default function InboxPage() {
       />
     </section>
 
+    <InboxSectionNavigation />
+
     {result?.signedIn && <section className="section-card">
       <div className="section-heading section-heading--inline">
         <div><p className="eyebrow">Private actions</p><h2>{result.counts.inboxNeedsAttention} items need attention</h2></div>
-        <div className="button-row">{activeTab !== "messages" && <Link className="button-link button-link--primary" to="/commons-circle/signals/inbox/new">Start a private conversation</Link>}<button type="button" onClick={() => void refresh("manual")} disabled={busy}>Refresh</button>{backgroundRefreshing && <span className="boundary-note" aria-live="polite">Refreshing quietly…</span>}</div>
+        <div className="button-row"><button type="button" onClick={() => void refresh("manual")} disabled={busy}>Refresh</button>{backgroundRefreshing && <span className="boundary-note" aria-live="polite">Refreshing quietly…</span>}</div>
       </div>
       <dl className="mini-facts">
         <div><dt>Needs attention</dt><dd>{result.counts.inboxNeedsAttention}</dd></div>

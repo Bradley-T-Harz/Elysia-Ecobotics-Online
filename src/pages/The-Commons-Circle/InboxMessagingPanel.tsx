@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { structurallyEqual, useCoordinatedRefresh } from "../../shared/hooks/useCoordinatedRefresh";
 import {
   loadConversation,
@@ -266,11 +266,9 @@ export default function InboxMessagingPanel({
           : "Messaging is unavailable for this account."}</p>
       {!preferences.acceptsIncomingDirectRequests && preferences.canInitiateDirectConversation
         && <p>You are not accepting new conversation requests, but you may still contact eligible public profiles.</p>}
-      <Link className="button-link" to="/commons-circle/signals/inbox/settings">Open messaging settings</Link>
     </section>}
 
     <div className="button-row">
-      <Link className="button-link button-link--primary" to="/commons-circle/signals/inbox/new">Start a private conversation</Link>
       <button type="button" onClick={() => { setSupportOpen((open) => !open); setSourceOpen(false); }}>Contact account support</button>
       {sourceContextValid && <button type="button" onClick={() => { setSourceOpen((open) => !open); setSupportOpen(false); }} disabled={!preferences?.canInitiateDirectConversation}>Message proposal participant</button>}
       <button type="button" onClick={() => void refresh("manual")} disabled={busy}>Refresh conversations</button>

@@ -9,6 +9,7 @@ import {
   updateMessagingPreferences,
   type MessagingPreferences,
 } from "./accountCommunicationsApi";
+import InboxSectionNavigation from "./InboxSectionNavigation";
 
 export default function MessagingSettingsPage() {
   const location = useLocation();
@@ -55,16 +56,6 @@ export default function MessagingSettingsPage() {
       <p>Choose which governed conversation requests your Website Account accepts. These preferences do not grant source, review, moderation, or economic authority.</p>
     </PageHero>
 
-    <section className="section-card signal-detail-navigation">
-      <div className="section-heading section-heading--inline">
-        <div><p className="eyebrow">Inbox settings</p><h2>{status}</h2></div>
-        <div className="button-row">
-          <Link className="button-link" to="/commons-circle/signals/inbox?view=messages">Back to Messages</Link>
-          <Link className="button-link button-link--primary" to="/commons-circle/signals/inbox/new">Start a conversation</Link>
-        </div>
-      </div>
-    </section>
-
     <section className="section-card">
       <AuthPanel
         onMessage={setMessage}
@@ -80,8 +71,10 @@ export default function MessagingSettingsPage() {
       />
     </section>
 
+    <InboxSectionNavigation />
+
     {!authLoading && userId && <section className="section-card account-messaging-preferences">
-      <div className="section-heading"><p className="eyebrow">Your choices</p><h2>Conversation permissions</h2></div>
+      <div className="section-heading"><p className="eyebrow">Your choices</p><h2>Conversation permissions</h2><p className="boundary-note">Account status: {status}</p></div>
       {loading && <p aria-live="polite">Loading messaging settings…</p>}
       {!loading && preferences && <>
         <dl className="mini-facts">

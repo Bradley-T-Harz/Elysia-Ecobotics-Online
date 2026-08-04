@@ -20,6 +20,7 @@ import {
   type MessagingDestination,
   type MessagingPreferences,
 } from "./accountCommunicationsApi";
+import InboxSectionNavigation from "./InboxSectionNavigation";
 
 function normalizePublicHandle(value: string) {
   const handle = value.trim().replace(/^@+/, "").toLowerCase();
@@ -218,16 +219,6 @@ export default function NewConversationPage() {
       <p>Search published public Commons Profiles, or enter one exact @handle. Selecting a profile checks the governed destination without exposing private account state.</p>
     </PageHero>
 
-    <section className="section-card signal-detail-navigation">
-      <div className="section-heading section-heading--inline">
-        <div><p className="eyebrow">Focused Inbox task</p><h2>New conversation request</h2></div>
-        <div className="button-row">
-          <Link className="button-link" to="/commons-circle/signals/inbox?view=messages">Back to Messages</Link>
-          <Link className="button-link" to="/commons-circle/signals/inbox/settings">Messaging settings</Link>
-        </div>
-      </div>
-    </section>
-
     <section className="section-card">
       <AuthPanel
         onMessage={setMessage}
@@ -242,6 +233,8 @@ export default function NewConversationPage() {
         }}
       />
     </section>
+
+    <InboxSectionNavigation />
 
     {!authLoading && userId && <section className="section-card account-messaging-compose account-messaging-discovery">
       <div className="section-heading"><p className="eyebrow">Published Commons Profiles</p><h2>Find a recipient</h2></div>

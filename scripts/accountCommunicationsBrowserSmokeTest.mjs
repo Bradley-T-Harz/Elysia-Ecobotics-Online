@@ -201,6 +201,8 @@ try {
     { path: "/commons-circle/signals/inbox/new?recipient=%40fixture-existing", width: 1280, heading: "Start a private conversation", kind: "existing-conversation" },
     { path: "/commons-circle/signals/inbox/settings", width: 1280, heading: "Messaging settings", kind: "messaging-settings" },
     { path: "/commons-circle/signals/inbox/settings", width: 390, heading: "Messaging settings", kind: "messaging-settings" },
+    { path: `/commons-circle/signals/inbox/conversations/${conversationId}`, width: 1280, heading: "Private conversation", kind: "conversation-detail" },
+    { path: `/commons-circle/signals/inbox/conversations/${conversationId}`, width: 390, heading: "Private conversation", kind: "conversation-detail" },
     { path: "/commons-circle/inbox?domain=code_proposals#inbox-list", canonical: "/commons-circle/signals/inbox?domain=code_proposals#inbox-list", width: 1280, heading: "Inbox", kind: "inbox" },
     { path: `/commons-circle/inbox?conversation=${conversationId}&from=stored-link#message`, canonical: `/commons-circle/signals/inbox/conversations/${conversationId}?from=stored-link#message`, width: 1280, heading: "Private conversation", kind: "conversation-alias" },
     { path: "/commons-circle/signals/notifications", width: 1280, heading: "Notifications", kind: "notifications" },
@@ -346,13 +348,54 @@ try {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2), false, `${scenario.path} must not overflow at ${scenario.width}px.`);
     assert.deepEqual(await page.evaluate(() => window.__elysiaCspViolations ?? []), [], `${scenario.path} must not violate CSP.`);
     assert.deepEqual(pageErrors, [], `${scenario.path} should have no page errors.`);
+    if (new URL(page.url()).pathname.startsWith("/commons-circle/signals/inbox")) {
+      const inboxNavigation = page.getByRole("navigation", { name: "Inbox section navigation" });
+      await inboxNavigation.waitFor();
+      const inboxLink = inboxNavigation.getByRole("link", { name: "Inbox", exact: true });
+      const newConversationLink = inboxNavigation.getByRole("link", { name: "Start a private conversation", exact: true });
+      const settingsLink = inboxNavigation.getByRole("link", { name: "Messaging settings", exact: true });
+      assert.equal(await inboxLink.getAttribute("href"), "/commons-circle/signals/inbox");
+      assert.equal(await newConversationLink.getAttribute("href"), "/commons-circle/signals/inbox/new");
+      assert.equal(await settingsLink.getAttribute("href"), "/commons-circle/signals/inbox/settings");
+      const canonicalPath = new URL(page.url()).pathname;
+      if (canonicalPath.endsWith("/new")) assert.equal(await newConversationLink.getAttribute("aria-current"), "page", "New conversation must expose its active Inbox destination.");
+      else if (canonicalPath.endsWith("/settings")) assert.equal(await settingsLink.getAttribute("aria-current"), "page", "Messaging settings must expose its active Inbox destination.");
+      else if (canonicalPath.includes("/conversations/")) assert.equal(await inboxLink.getAttribute("aria-current"), "location", "Conversation detail must retain Inbox as its active parent destination.");
+      else assert.equal(await inboxLink.getAttribute("aria-current"), "page", "Inbox overview must expose its active destination.");
+      await inboxLink.focus();
+      await inboxLink.press("Tab");
+      assert.equal(await newConversationLink.evaluate((element) => document.activeElement === element), true, "Inbox navigation must follow a predictable keyboard order.");
+      await newConversationLink.press("Tab");
+      assert.equal(await settingsLink.evaluate((element) => document.activeElement === element), true, "Messaging settings must remain keyboard reachable after New conversation.");
+      const clearance = await page.evaluate(() => {
+        const header = document.querySelector(".site-header")?.getBoundingClientRect();
+        const navigation = document.querySelector(".inbox-section-navigation")?.getBoundingClientRect();
+        return {
+          clearsHeader: Boolean(header && navigation && navigation.top >= header.bottom - 1),
+          position: navigation ? getComputedStyle(document.querySelector(".inbox-section-navigation")).position : "missing",
+        };
+      });
+      assert.equal(clearance.clearsHeader, true, "Inbox navigation must render below the sticky global header without obscuring content.");
+      assert.equal(clearance.position, "static", "Inbox navigation must not add a second sticky layer beneath the variable-height global header.");
+      assert.equal(await inboxNavigation.evaluate((element) => element.scrollWidth > element.clientWidth + 2), false, "Inbox navigation must not overflow its own desktop or mobile bounds.");
+    }
     if (scenario.kind === "inbox") {
       await page.getByRole("tab", { name: /Needs attention/ }).waitFor();
       assert.equal(await page.getByRole("link", { name: "Start a private conversation" }).first().getAttribute("href"), "/commons-circle/signals/inbox/new");
+      if (scenario.width === 1280 && !scenario.canonical) {
+        for (const tabName of ["Sent", "Completed", "Archived"]) {
+          await page.getByRole("tab", { name: tabName, exact: true }).click();
+          assert.equal(await page.getByRole("link", { name: "Messaging settings", exact: true }).count(), 1, `Messaging settings must remain persistently available from ${tabName}.`);
+          assert.equal(await page.getByRole("navigation", { name: "Inbox section navigation" }).count(), 1, `${tabName} must retain exactly one shared Inbox navigation instance.`);
+        }
+        await page.getByRole("tab", { name: /Needs attention/ }).click();
+      }
       await page.getByText("A revision proposal is ready for review", { exact: true }).waitFor();
       assert.equal(await page.getByRole("link", { name: "Review Proposal" }).getAttribute("href"), `/commune/coding-cornucopia/review?proposal=${proposalId}`);
       await page.getByRole("tab", { name: "Messages" }).click();
       await page.getByText("Governed private communication", { exact: true }).waitFor();
+      assert.equal(await page.getByRole("link", { name: "Messaging settings", exact: true }).count(), 1, "Messages must use the shared Messaging settings destination without a duplicate status-panel link.");
+      assert.equal(await page.getByRole("link", { name: "Start a private conversation", exact: true }).count(), 1, "Messages must use the shared New conversation destination without a duplicate panel action.");
       await page.getByText("Fixture professional conversation", { exact: true }).first().waitFor();
       assert.equal(await page.getByText("SYNTHETIC_BROWSER_PRIVATE_MESSAGE", { exact: true }).count(), 0, "The concise conversation list must not preload private message bodies.");
       await page.getByRole("button", { name: /Fixture professional conversation/ }).click();
@@ -422,7 +465,7 @@ try {
       await page.getByText("You are not accepting new conversation requests, but you may still contact eligible public profiles.", { exact: true }).waitFor();
       const directRequests = page.getByLabel("Allow eligible members to send me conversation requests");
       assert.equal(await directRequests.isChecked(), false, "Incoming request opt-in must render independently from outbound eligibility.");
-      assert.equal(await page.getByRole("link", { name: "Start a conversation" }).getAttribute("href"), "/commons-circle/signals/inbox/new");
+      assert.equal(await page.getByRole("link", { name: "Start a private conversation", exact: true }).getAttribute("href"), "/commons-circle/signals/inbox/new");
       if (scenario.width === 1280) {
         await directRequests.check();
         await page.getByText("Messaging settings saved.", { exact: true }).waitFor();
@@ -447,9 +490,9 @@ try {
       await page.getByText("SYNTHETIC_BROWSER_PRIVATE_MESSAGE", { exact: true }).waitFor();
       assert.equal(observed.resolverLoads, 1, "Existing-conversation reuse must come from one explicit resolver call.");
       assert.equal(new URL(page.url()).pathname, `/commons-circle/signals/inbox/conversations/${conversationId}`);
-    } else if (scenario.kind === "conversation-alias") {
+    } else if (scenario.kind === "conversation-alias" || scenario.kind === "conversation-detail") {
       await page.getByText("SYNTHETIC_BROWSER_PRIVATE_MESSAGE", { exact: true }).waitFor();
-      assert.equal(observed.readMutations, 1, "Stored legacy conversation links must resolve to one focused participant view and one read acknowledgment.");
+      assert.equal(observed.readMutations, 1, "Canonical and stored legacy conversation links must resolve to one focused participant view and one read acknowledgment.");
     } else if (scenario.kind === "notifications") {
       await page.getByRole("tab", { name: "Unread (2)" }).waitFor();
       await page.getByText("Your revision proposal was accepted", { exact: true }).waitFor();
