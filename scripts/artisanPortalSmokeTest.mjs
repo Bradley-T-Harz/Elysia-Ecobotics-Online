@@ -13,7 +13,7 @@ function assert(condition, message) {
 
 const [
   app,
-  nav,
+  publicNavigation,
   footer,
   portal,
   urls,
@@ -28,7 +28,7 @@ const [
   styles
 ] = await Promise.all([
   read("src/App.tsx"),
-  read("src/shared/components/SiteNav.tsx"),
+  read("src/shared/navigation/publicNavigation.ts"),
   read("src/shared/components/SiteFooter.tsx"),
   read("src/pages/Elysia-Artisan-Collective/index.tsx"),
   read("src/config/siteUrls.ts"),
@@ -46,7 +46,27 @@ const [
 assert(app.includes('import("./pages/Elysia-Artisan-Collective")'), "Artisan portal component is not lazy-loaded by the Online router.");
 assert(app.includes('path="artisan-collective" element={<ElysiaArtisanCollectivePage />}'), "Missing /artisan-collective route.");
 
-for (const source of [nav, footer]) {
+const territoryModel = publicNavigation.slice(publicNavigation.indexOf("export const publicNavigationTerritories = ["));
+const publicDestinations = [...territoryModel.matchAll(/\{\s*label:\s*"([^"]+)",\s*to:\s*"([^"]+)",\s*description:/g)].map(
+  ([, label, to]) => ({ label, to })
+);
+
+function uniquePublicDestination(label) {
+  const matches = publicDestinations.filter((destination) => destination.label === label);
+  assert(matches.length === 1, `${label} must appear exactly once in the shared public navigation model.`);
+  return { ...matches[0], index: publicDestinations.indexOf(matches[0]) };
+}
+
+const commonsDestination = uniquePublicDestination("Commons Circle");
+const artisanDestination = uniquePublicDestination("Artisan Collective");
+const storyDestination = uniquePublicDestination("Story");
+assert(artisanDestination.to === "/artisan-collective", "Artisan Collective must use the canonical Online bridge route.");
+assert(
+  commonsDestination.index + 1 === artisanDestination.index && artisanDestination.index + 1 === storyDestination.index,
+  "The shared public navigation model must order Commons Circle, Artisan Collective, and Story consecutively."
+);
+
+for (const source of [footer]) {
   const commons = source.indexOf("Commons Circle");
   const artisan = source.indexOf("Artisan Collective");
   const story = source.indexOf("Story");
