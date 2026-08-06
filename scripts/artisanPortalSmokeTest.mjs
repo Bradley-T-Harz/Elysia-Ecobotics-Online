@@ -1,7 +1,12 @@
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 
 async function read(file) {
   return fs.readFile(new URL(`../${file}`, import.meta.url), "utf8");
+}
+
+async function readBytes(file) {
+  return fs.readFile(new URL(`../${file}`, import.meta.url));
 }
 
 function assert(condition, message) {
@@ -25,6 +30,7 @@ const [
   sitemap,
   robots,
   headers,
+  socialPreviewImage,
   styles
 ] = await Promise.all([
   read("src/App.tsx"),
@@ -40,6 +46,7 @@ const [
   read("public/sitemap.xml"),
   read("public/robots.txt"),
   read("public/_headers"),
+  readBytes("public/images/social/Elysia_Ecobotics_Link_Image.png"),
   read("src/styles.css")
 ]);
 
@@ -92,12 +99,28 @@ for (const phrase of [
 assert(portal.includes('href={ARTISAN_COLLECTIVE_URL}') && !portal.includes('target="_blank"'), "The portal CTA must use the centralized destination with normal same-tab navigation.");
 assert(portal.includes('brandMark="standard"'), "The portal must retain the native Online page brand treatment.");
 
-for (const marker of ["og:title", "og:description", "og:url", "twitter:card", 'link[rel="canonical"]']) {
+for (const marker of ["og:title", "og:description", "og:url", "og:image", "twitter:card", "twitter:image", 'link[rel="canonical"]']) {
   assert(metadata.includes(marker), `Route metadata helper is missing ${marker}.`);
 }
 assert(portalDocument.includes('<link rel="canonical" href="https://elysiaecobotics.com/artisan-collective"'), "Direct portal HTML is missing its exact canonical URL.");
 assert(portalDocument.includes('property="og:url" content="https://elysiaecobotics.com/artisan-collective"'), "Direct portal HTML is missing its Open Graph URL.");
-assert(portalDocument.includes('name="twitter:card" content="summary"'), "Direct portal HTML is missing Twitter card metadata.");
+assert(portalDocument.includes('name="twitter:card" content="summary_large_image"'), "Direct portal HTML is missing large-image Twitter card metadata.");
+for (const marker of [
+  'property="og:image"',
+  'property="og:image:secure_url"',
+  'property="og:image:type" content="image/png"',
+  'property="og:image:width" content="1733"',
+  'property="og:image:height" content="907"',
+  'property="og:image:alt"',
+  'name="twitter:image"',
+  'name="twitter:image:alt"',
+  "https://elysiaecobotics.com/images/social/Elysia_Ecobotics_Link_Image.png",
+  "Elysia Ecobotics™ eco-futurist circuit-city exchanging energy and data with a living forest."
+]) assert(portalDocument.includes(marker), `Direct portal HTML is missing social-preview metadata: ${marker}`);
+assert(
+  createHash("sha256").update(socialPreviewImage).digest("hex") === "c50584f3afd10138055cddd4cacdecd33f67540265330982a5237785651a7f7b",
+  "The public social-preview image is missing or does not match the approved source."
+);
 assert(viteConfig.includes('artisanCollective: new URL("./artisan-collective.html"'), "Vite must emit the direct portal metadata entry.");
 
 assert(!redirects.includes("/artisan-collective "), "Pages serves artisan-collective.html at its clean URL automatically; an explicit rewrite would create a redirect loop.");
