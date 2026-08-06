@@ -110,7 +110,7 @@ export default function AccountForgotPasswordPage() {
           <p>Open the newest recovery message on the same browser when possible. Older links may expire after a newer request.</p>
           <div className="button-row"><button type="button" onClick={() => { setComplete(false); setEmail(""); }}>Request another link</button><Link className="button-link" to="/commons-circle">Return to sign in</Link></div>
         </> : <>
-          <label htmlFor="recovery-email"><span>Website Account email</span><input id="recovery-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" inputMode="email" required autoFocus /></label>
+          <label htmlFor="recovery-email"><span>Website Account email</span><input id="recovery-email" type="email" value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" inputMode="email" required /></label>
           {error && <div className="validation validation--bad" role="alert" tabIndex={-1} ref={errorRef}>{error}</div>}
           <AuthTurnstile
             ref={authTurnstileRef}

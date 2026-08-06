@@ -153,7 +153,10 @@ export function ForgeWorkbenchSurface({
     <div className="forge-editor-stack">
       <div className="forge-editor-tabs">{files.map((file) => <button type="button" className={file.path === active.path ? "active" : ""} key={file.path} onClick={() => onSelect(file.path)}>{file.label}</button>)}</div>
       <ForgeWorkspaceEditor file={active} readOnly={readOnly} onChange={(value) => onChange(active.path, value)} />
-      {active.language === "markdown" && <ForgeMarkdownPreview markdown={active.value} />}
+      {active.language === "markdown" && <section id={active.path === "README.md" ? "forge-readme-preview" : undefined} className="forge-markdown-preview-region" aria-labelledby={active.path === "README.md" ? "forge-readme-preview-heading" : undefined}>
+        <h3 id={active.path === "README.md" ? "forge-readme-preview-heading" : undefined}>{active.label} preview</h3>
+        <ForgeMarkdownPreview markdown={active.value} />
+      </section>}
       {visibleDiagnostics.length > 0 && <div className="forge-diagnostics-strip">
         {visibleDiagnostics.map((diagnostic, index) => <span key={`${diagnostic.code}-${index}`} className={`forge-result--${diagnostic.severity}`}>{diagnostic.severity}: {diagnostic.code}</span>)}
       </div>}

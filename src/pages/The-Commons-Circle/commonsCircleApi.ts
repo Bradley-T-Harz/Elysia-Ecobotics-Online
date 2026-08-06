@@ -1373,7 +1373,7 @@ export async function loadSignalConsole(scope: SignalDetailScope, requestedPage 
     ...proposal,
     source_room: proposalPostById.get(proposal.post_id)?.post_type === "troubleshooting" ? "troubleshooting_grove" as const : "coding_cornucopia" as const,
     post_title: proposalPostById.get(proposal.post_id)?.title ?? null,
-    action_url: (proposalPostById.get(proposal.post_id)?.post_type === "troubleshooting" ? "/commune/troubleshooting-grove/review" : "/commune/coding-cornucopia/review") + "?proposal=" + proposal.id
+    action_url: (proposalPostById.get(proposal.post_id)?.post_type === "troubleshooting" ? "/commune/troubleshooting-grove/review" : "/commune/coding-cornucopia/review") + "?proposal=" + proposal.id + "#coding-workbench-heading"
   }));
   const needsMyReview = codeProposalActivity.filter((proposal) => proposal.original_author_user_id === userId && ["submitted", "needs_changes"].includes(proposal.proposal_status));
   const mySubmittedProposals = codeProposalActivity.filter((proposal) => proposal.proposer_user_id === userId);

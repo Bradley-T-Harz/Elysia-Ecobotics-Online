@@ -1,5 +1,5 @@
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
@@ -151,6 +151,7 @@ function DraftWorkspace({ draft, catalog, onChanged }: { draft: AddonDraft; cata
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [packageMessage, setPackageMessage] = useState("");
   const [activeFilePath, setActiveFilePath] = useState("manifest.json");
+  const [pendingNavigationTarget, setPendingNavigationTarget] = useState<string | null>(null);
   const [workspaceFiles, setWorkspaceFiles] = useState<ForgeWorkspaceFile[]>(() => draftWorkspaceFiles(draft, JSON.stringify(draft.manifest_json, null, 2)));
   useEffect(() => {
     const nextManifestText = JSON.stringify(draft.manifest_json, null, 2);
@@ -160,6 +161,21 @@ function DraftWorkspace({ draft, catalog, onChanged }: { draft: AddonDraft; cata
     setActiveFilePath("manifest.json");
     setResults([]);
   }, [draft.id]);
+  useLayoutEffect(() => {
+    if (!pendingNavigationTarget) return;
+    const target = document.getElementById(pendingNavigationTarget);
+    if (!target) return;
+    const heading = target.matches("h1, h2, h3, h4, h5, h6")
+      ? target as HTMLElement
+      : target.querySelector<HTMLElement>("h1, h2, h3, h4, h5, h6") ?? target;
+    if (!heading.matches("[tabindex]")) {
+      heading.tabIndex = -1;
+      heading.addEventListener("blur", () => heading.removeAttribute("tabindex"), { once: true });
+    }
+    target.scrollIntoView({ block: "start", inline: "nearest", behavior: "auto" });
+    heading.focus({ preventScroll: true });
+    setPendingNavigationTarget(null);
+  }, [activeFilePath, pendingNavigationTarget]);
   const parsed = useMemo(() => validateManifest(manifestText, catalog), [manifestText, catalog]);
   const compatibility = useMemo(() => checkCompatibility(parsed.manifest), [parsed.manifest]);
   const selectedPermissions = new Set(parsed.manifest?.permissions ?? []);
@@ -278,10 +294,14 @@ function DraftWorkspace({ draft, catalog, onChanged }: { draft: AddonDraft; cata
     ["Publication", "reviewer_only_placeholder"],
     ["Revocation", "none_known"]
   ];
+  function openWorkspaceTarget(targetId: string, filePath?: string) {
+    if (filePath) setActiveFilePath(filePath);
+    setPendingNavigationTarget(targetId);
+  }
   const commands: ForgeCommandAction[] = [
-    { id: "open-overview", group: "Navigate", label: "Open overview", run: () => document.getElementById("forge-overview")?.scrollIntoView({ behavior: "smooth" }) },
-    { id: "open-manifest", group: "Navigate", label: "Open manifest", run: () => { setActiveFilePath("manifest.json"); document.getElementById("forge-manifest")?.scrollIntoView({ behavior: "smooth" }); } },
-    { id: "open-readme", group: "Navigate", label: "Open README preview", run: () => { setActiveFilePath("README.md"); document.getElementById("forge-manifest")?.scrollIntoView({ behavior: "smooth" }); } },
+    { id: "open-overview", group: "Navigate", label: "Open overview", run: () => openWorkspaceTarget("forge-overview") },
+    { id: "open-manifest", group: "Navigate", label: "Open manifest", run: () => openWorkspaceTarget("forge-manifest", "manifest.json") },
+    { id: "open-readme", group: "Navigate", label: "Open README preview", run: () => openWorkspaceTarget("forge-readme-preview", "README.md") },
     { id: "validate-manifest", group: "Validate", label: "Validate manifest", run: () => void validate() },
     { id: "format-manifest", group: "Edit", label: "Format manifest JSON", disabled: readOnly, run: () => void formatManifest() },
     { id: "format-active", group: "Edit", label: "Format active file", disabled: readOnly, run: () => void formatActiveFile() },

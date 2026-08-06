@@ -499,6 +499,15 @@ try {
       await page.getByText("Fixture Author", { exact: false }).waitFor();
       await page.getByText("Choose optional in-app and email delivery", { exact: true }).waitFor();
       assert.equal(await page.getByText(notificationId, { exact: false }).count(), 0, "Raw notification identifiers must not render as ordinary UI text.");
+      if (scenario.width === 1280 && !scenario.canonical) {
+        await page.evaluate(() => scrollTo(0, Math.min(400, document.documentElement.scrollHeight - innerHeight)));
+        const beforeFilterScroll = await page.evaluate(() => Math.round(scrollY));
+        await page.getByRole("tab", { name: "Unread (2)" }).evaluate((element) => element.click());
+        await page.waitForURL((url) => url.pathname === "/commons-circle/signals/notifications" && url.searchParams.get("filter") === "unread");
+        await page.waitForTimeout(200);
+        const afterFilterScroll = await page.evaluate(() => Math.round(scrollY));
+        assert(Math.abs(afterFilterScroll - beforeFilterScroll) <= 2, `Notification query-only filter navigation must preserve the in-page position (${beforeFilterScroll} -> ${afterFilterScroll}).`);
+      }
       const settledTitle = page.getByText("Your revision proposal was accepted", { exact: true });
       const requestsBeforeResume = observed.totalRequests;
       await page.evaluate(() => {

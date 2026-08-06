@@ -644,7 +644,7 @@ assert(page.includes('parentIsPublished ? "published" : "attached"'), "Coding Co
 assert(page.includes("Propose edit in Coding Workbench") && page.includes("View proposals"), "Coding Cornucopia post snippets should expose one governed proposal-workbench entry.");
 assert(!page.includes("&mode=propose"), "Post snippets must not retain a duplicate direct propose-edit link.");
 assert(page.includes("View proposed fixes") && page.includes("/commune/troubleshooting-grove/review"), "Troubleshooting Grove snippets should retain the governed proposed-fix workflow.");
-assert(page.includes("workbenchHeadingRef") && page.includes('id="coding-workbench-heading"') && page.includes('tabIndex={-1}') && page.includes('scrollIntoView({ block: "start", inline: "nearest" })'), "Coding Workbench routes should deliberately focus and align their meaningful heading after client-side navigation.");
+assert(page.includes('id="coding-workbench-heading"') && page.includes('tabIndex={-1}') && page.includes('#coding-workbench-heading'), "Coding Workbench routes should declare their meaningful heading as an explicit shareable task target.");
 assert(page.includes("function CodeRevisionProposalWorkspace"), "Coding Cornucopia Workbench should include the proposal workspace.");
 assert(page.includes("Propose changes without overwriting") && page.includes('? "published" : "attached"'), "Proposal workspace should make the truthful no-overwrite boundary clear.");
 assert(page.includes("Propose fixes without overwriting the") && page.includes('? "public" : "attached"'), "Troubleshooting Grove workbench should make the truthful no-overwrite proposed-fix boundary clear.");

@@ -28,7 +28,7 @@ const postId = "a1100000-0000-4000-8000-000000000001";
 const snippetId = "a1200000-0000-4000-8000-000000000001";
 const acceptedRevisionId = "a1300000-0000-4000-8000-000000000001";
 const userId = "a1400000-0000-4000-8000-000000000001";
-const routePath = `/commune/coding-cornucopia/review?post=${postId}&snippet=${snippetId}`;
+const routePath = `/commune/coding-cornucopia/review?post=${postId}&snippet=${snippetId}#coding-workbench-heading`;
 
 let currentPost = publicPost();
 let currentSnippet = snippetVersion(1);
@@ -344,7 +344,7 @@ async function loadWorkbench(browser, browserName, viewport, comprehensive, scen
     assert.equal(destination.searchParams.get("post"), postId);
     assert.equal(destination.searchParams.get("snippet"), snippetId);
     assert.equal(destination.searchParams.has("mode"), false, `${browserName} workbench entry should not depend on the obsolete direct-propose mode.`);
-    assert.equal(destination.hash, "", `${browserName} workbench entry should not include a lower-page fragment.`);
+    assert.equal(destination.hash, "#coding-workbench-heading", `${browserName} workbench entry should declare its approved task target.`);
     assert.equal(await codePreview.evaluate((element) => element.scrollWidth > element.clientWidth + 2), false, `${browserName} ${viewport.width}px post action row should not overflow horizontally.`);
 
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
@@ -362,7 +362,7 @@ async function loadWorkbench(browser, browserName, viewport, comprehensive, scen
     await waitFor(async () => await page.evaluate(() => document.activeElement?.id === "coding-workbench-heading"), `${browserName} should move focus to the Coding Workbench heading.`);
     const headingBox = await heading.boundingBox();
     assert(headingBox && headingBox.y >= 0 && headingBox.y < viewport.height / 2, `${browserName} should align the Coding Workbench heading near the meaningful beginning of the viewport.`);
-    assert.equal(new URL(page.url()).hash, "", `${browserName} workbench navigation should remain fragment-free.`);
+    assert.equal(new URL(page.url()).hash, "#coding-workbench-heading", `${browserName} workbench navigation should retain its explicit task target.`);
     assert.equal(await workspace.getByRole("button", { name: "Submit proposed revision" }).count(), 1, `${browserName} should keep the governed proposal workflow reachable.`);
   }
   const previewArticles = workspace.locator("article.commune-code-preview");
@@ -606,7 +606,7 @@ try {
   } else {
     console.warn(`Firefox visual check skipped because ${firefoxExecutable} is unavailable.`);
   }
-  console.log("Coding Workbench production-build browser regression passed for the single post edit entry, fragment-free route and heading arrival, five-field immutability, reset, sandbox input separation, Plain-text no-request enforcement, truthful language errors, failed submission, stale-version protection, publication truth, CSP, Chromium, mobile width, installed Brave when available, and Firefox when available.");
+  console.log("Coding Workbench production-build browser regression passed for the single post edit entry, explicit task-target route and heading arrival, five-field immutability, reset, sandbox input separation, Plain-text no-request enforcement, truthful language errors, failed submission, stale-version protection, publication truth, CSP, Chromium, mobile width, installed Brave when available, and Firefox when available.");
 } finally {
   if (activeBrowser) await activeBrowser.close();
   await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

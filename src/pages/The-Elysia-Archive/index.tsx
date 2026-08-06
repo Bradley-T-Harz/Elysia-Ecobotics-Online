@@ -20,10 +20,17 @@ export default function ArchivePage() {
           <article className="feature-card"><p className="eyebrow">Separate and optional</p><h3>Contribute toward release work</h3><p>People who want to help with release engineering, security, hosting, documentation, and accessibility may choose a one-time contribution. Checkout is separate and does not make the unavailable release appear or grant earlier access.</p><p className="boundary-note">Choosing support opens an optional Stripe test-mode flow. Leaving or canceling it never blocks the $0 path.</p><Link className="button-link" to="/support?source=products#support-checkout">Consider optional support</Link></article>
         </div>
       </section>
-      <section className="feature-grid feature-grid--three" id="release-availability" aria-label="Official release availability">
-        <FeatureCard title="Latest Elysia download"><p>No public installer exists yet. Linux-first release cards will appear here for AppImage, .deb, tarball, and source build options when they are ready.</p><StatusBadge label="Coming soon" tone="warning" /></FeatureCard>
-        <FeatureCard title="Public source repository reserved"><p><a href="https://github.com/Bradley-T-Harz/Elysia" target="_blank" rel="noreferrer">https://github.com/Bradley-T-Harz/Elysia</a></p><p>The public Elysia repository has been reserved, but cleaned public source code has not been published yet. The first legal public source release will appear there when it is ready.</p></FeatureCard>
-        <FeatureCard title="Historical archive"><p>Release notes, compatibility notes, known issues, system requirements, older-version warnings, and historical versions are all preparing for later public releases.</p></FeatureCard>
+      <section className="page-stack archive-release-availability" aria-labelledby="release-availability">
+        <div className="section-heading">
+          <p className="eyebrow">Official release status</p>
+          <h2 id="release-availability">Release availability</h2>
+          <p>The same public release status and verification materials apply whether or not someone chooses separate financial support.</p>
+        </div>
+        <div className="feature-grid feature-grid--three">
+          <FeatureCard title="Latest Elysia download"><p>No public installer exists yet. Linux-first release cards will appear here for AppImage, .deb, tarball, and source build options when they are ready.</p><StatusBadge label="Coming soon" tone="warning" /></FeatureCard>
+          <FeatureCard title="Public source repository reserved"><p><a href="https://github.com/Bradley-T-Harz/Elysia" target="_blank" rel="noreferrer">https://github.com/Bradley-T-Harz/Elysia</a></p><p>The public Elysia repository has been reserved, but cleaned public source code has not been published yet. The first legal public source release will appear there when it is ready.</p></FeatureCard>
+          <FeatureCard title="Historical archive"><p>Release notes, compatibility notes, known issues, system requirements, older-version warnings, and historical versions are all preparing for later public releases.</p></FeatureCard>
+        </div>
       </section>
       <section className="section-card">
         <h2>What this page will track</h2>
@@ -44,7 +51,7 @@ export default function ArchivePage() {
         <h2>Downloads remain independent of payment</h2>
         <p>Local Elysia remains free and local-first. When a public release is ready, its ordinary download will not require a Website Account, recurring plan, donation, or supporter badge.</p>
         <p>People who choose to help sustain release engineering, hosting, documentation, and security can use the separate Support page. Payment does not create earlier release access, governance authority, trust, or a preferred place in the Commons.</p>
-        <div className="button-row"><a className="button-link button-link--primary" href="#release-availability">Use the $0 release path</a><Link className="button-link" to="/support?source=products#support-checkout">Learn about separate optional support</Link></div>
+        <div className="button-row"><a className="button-link button-link--primary" href="#release-availability">Use the $0 release path</a><Link className="button-link" to="/support?source=products">Learn about separate optional support</Link></div>
       </section>
       <section className="section-card">
         <h2>Release status and safety notes</h2>

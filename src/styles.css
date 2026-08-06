@@ -75,6 +75,7 @@ dd { margin: 0.2rem 0 0; overflow-wrap: anywhere; }
 .empty-state { border: 1px dashed var(--line); border-radius: 16px; padding: 1rem; color: var(--muted); }
 @media (max-width: 940px) { .hero, .two-column { grid-template-columns: 1fr; } .app-shell { padding-top: 7rem; } .section-heading--inline { display: block; } }
 .page-card, [id] { scroll-margin-top: 7rem; }
+[data-route-entry-focus="true"]:focus { outline: none; }
 code { color: var(--teal); overflow-wrap: anywhere; }
 
 
@@ -1704,6 +1705,17 @@ code { color: var(--teal); overflow-wrap: anywhere; }
   display: flex;
   flex-wrap: wrap;
   gap: 0.55rem;
+  align-items: center;
+}
+
+.commons-setup-validation-slot {
+  min-block-size: 5.25rem;
+  overflow-anchor: none;
+}
+
+.commons-setup-validation-slot .validation {
+  min-block-size: 5.25rem;
+  display: flex;
   align-items: center;
 }
 

@@ -65,6 +65,8 @@ assert(
     && archive.includes("no public artifact exists yet")
     && archive.includes('href="#release-availability"')
     && archive.includes('to="/support?source=products#support-checkout"')
+    && archive.includes('to="/support?source=products">Learn about separate optional support</Link>')
+    && archive.includes('id="release-availability">Release availability</h2>')
     && support.includes('searchParams.get("source") === "products"')
     && support.includes('supportSourceRoute = fromLocalRelease ? "/products"')
     && support.includes('useState<string>(fromLocalRelease ? "" : "500")')
@@ -171,11 +173,11 @@ assert(
 assert(
   forgotPassword.includes('htmlFor="recovery-email"')
     && forgotPassword.includes('autoComplete="email"')
-    && forgotPassword.includes("autoFocus")
+    && !forgotPassword.includes("autoFocus")
     && forgotPassword.includes('role="alert" tabIndex={-1} ref={errorRef}')
     && forgotPassword.includes("errorRef.current?.focus()")
     && forgotPassword.includes("does not confirm whether an account exists"),
-  "Forgot-password form must retain labels, autocomplete, initial focus, focused errors, and anti-enumeration copy."
+  "Forgot-password form must retain labels, autocomplete, user-triggered focused errors, and anti-enumeration copy without route-entry autofocus."
 );
 assert(
   recovery.includes('htmlFor="new-password"')

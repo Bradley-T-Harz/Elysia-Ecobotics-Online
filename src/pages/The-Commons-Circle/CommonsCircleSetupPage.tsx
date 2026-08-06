@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
 import CommonsAvatarViewer from "../../shared/components/CommonsAvatarViewer";
@@ -260,9 +260,11 @@ export default function CommonsCircleSetupPage() {
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
+  const [validationMessage, setValidationMessage] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
+  const validationRef = useRef<HTMLDivElement>(null);
   const groupedOrganizations = useMemo(groupOrganizations, []);
   const stepIndex = Math.max(0, setupSteps.indexOf(step as SetupStep));
 
@@ -295,11 +297,19 @@ export default function CommonsCircleSetupPage() {
   }, [pushMessage]);
 
   useEffect(() => { void refreshProfile(); }, [refreshProfile]);
+  useLayoutEffect(() => {
+    if (validationMessage) validationRef.current?.focus({ preventScroll: true });
+  }, [validationMessage]);
 
   if (!setupSteps.includes(step as SetupStep)) return <Navigate to="/commons-circle/setup/profile" replace />;
 
   function go(next: SetupStep) {
+    setValidationMessage("");
     navigate(`/commons-circle/setup/${next}`);
+  }
+
+  function showValidation(message: string) {
+    setValidationMessage(message);
   }
 
   function updateProfileDraft(next: MarketplaceProfileDraft) {
@@ -348,9 +358,10 @@ export default function CommonsCircleSetupPage() {
 
   function continueFromProfile() {
     if (!profileDraft.username.trim()) {
-      pushMessage("Choose a Commons username before continuing.");
+      showValidation("Choose a Commons username before continuing.");
       return;
     }
+    setValidationMessage("");
     writeSession(sessionKeys.profileDraft, profileDraft);
     go("stewardship");
   }
@@ -367,9 +378,10 @@ export default function CommonsCircleSetupPage() {
 
   function prepareStewardship() {
     if (!stewardshipDraft.organizationId) {
-      pushMessage("Choose an organization or skip stewardship for now.");
+      showValidation("Choose an organization or skip stewardship for now.");
       return;
     }
+    setValidationMessage("");
     updateStewardshipDraft({ ...stewardshipDraft, skipped: false, status: "draft_local" });
     pushMessage("Stewardship recognition draft prepared locally for the setup summary. Receipt upload is not enabled yet.");
     go("work-with");
@@ -388,9 +400,10 @@ export default function CommonsCircleSetupPage() {
   function prepareWorkWith() {
     const validation = validateResumeFile(resumeFile);
     if (validation) {
-      pushMessage(validation);
+      showValidation(validation);
       return;
     }
+    setValidationMessage("");
     updateWorkWithDraft({ ...workWithDraft, prepared: true, skipped: false });
     pushMessage("Work With request prepared for final confirmation.");
     go("confirm");
@@ -643,6 +656,9 @@ export default function CommonsCircleSetupPage() {
     ["work-with", "3. Work With"],
     ["confirm", "4. Final confirmation"]
   ] as const;
+  const validationSlot = <div className="commons-setup-validation-slot">
+    {validationMessage && <div className="validation validation--bad" role="alert" tabIndex={-1} ref={validationRef}>{validationMessage}</div>}
+  </div>;
 
   return (
     <div className="page-stack commons-circle-page commons-setup-page">
@@ -708,6 +724,7 @@ export default function CommonsCircleSetupPage() {
             <label className="wide-field"><span>Featured public links, optional</span><textarea rows={3} value={formatFeaturedLinks(profileDraft.featured_public_links)} placeholder={"Label | https://example.com | website"} onChange={(event) => updateProfileDraft({ ...profileDraft, featured_public_links: parseFeaturedLinks(event.target.value) })} /></label>
             <label className="checkbox-line"><input type="checkbox" checked={profileDraft.is_developer} onChange={(event) => updateProfileDraft({ ...profileDraft, is_developer: event.target.checked })} /><span>Request developer profile flag. This is not reviewer, moderator, admin, or authority access.</span></label>
           </div>
+          {validationSlot}
           <div className="button-row"><button type="button" className="button-primary" onClick={continueFromProfile}>Continue: Stewardship & Donations</button><a className="button-link" href="/commons-circle">Cancel setup</a></div>
         </section>
       </section>}
@@ -741,14 +758,16 @@ export default function CommonsCircleSetupPage() {
             if (validation) {
               setReceiptFile(null);
               event.currentTarget.value = "";
-              pushMessage(validation);
+              showValidation(validation);
               return;
             }
+            setValidationMessage("");
             setReceiptFile(nextFile);
           }} /></label>
           <div className="wide-field boundary-note">{receiptFile ? `Selected private receipt/proof: ${receiptFile.name} (${Math.ceil(receiptFile.size / 1024)} KB).` : "No receipt/proof selected. You may request recognition without uploading a file."}</div>
           <label className="checkbox-line wide-field"><input type="checkbox" checked={stewardshipDraft.redactionConfirmed} onChange={(event) => updateStewardshipDraft({ ...stewardshipDraft, redactionConfirmed: event.target.checked })} /><span>I understand this file will be stored privately in Elysia Ecobotics Online's Supabase backend for administrator review, I have redacted unnecessary sensitive information, and stewardship recognition does not grant authority, paid status, moderation access, reviewer access, administrator access, or employment.</span></label>
         </div>
+        {validationSlot}
         <div className="button-row"><button type="button" onClick={prepareStewardship}>Prepare stewardship recognition</button><button type="button" onClick={skipStewardship}>Skip stewardship for now</button><button type="button" className="button-primary" onClick={() => go("work-with")}>Continue to Work With Elysia Ecobotics</button></div>
       </section>}
 
@@ -772,9 +791,10 @@ export default function CommonsCircleSetupPage() {
             if (validation) {
               setResumeFile(null);
               event.currentTarget.value = "";
-              pushMessage(validation);
+              showValidation(validation);
               return;
             }
+            setValidationMessage("");
             setResumeFile(nextFile);
           }} /></label>
           <div className="wide-field boundary-note">Resume/CV upload uses the existing private Work With storage path only after final confirmation, while signed in. It never creates a public URL. {resumeFile ? `Selected: ${resumeFile.name} (${Math.ceil(resumeFile.size / 1024)} KB).` : "No resume/CV selected."}</div>
@@ -782,6 +802,7 @@ export default function CommonsCircleSetupPage() {
           <label className="checkbox-line wide-field"><input type="checkbox" checked={workWithDraft.understandsPublicPrivacy} onChange={(event) => updateWorkWithDraft({ ...workWithDraft, understandsPublicPrivacy: event.target.checked })} /><span>I will not include secrets, private Elysia memory, credentials, .env files, private logs, or sensitive personal/customer data.</span></label>
           <label className="checkbox-line wide-field"><input type="checkbox" checked={workWithDraft.understandsReview} onChange={(event) => updateWorkWithDraft({ ...workWithDraft, understandsReview: event.target.checked })} /><span>I understand this request requires administrator review and does not automatically grant a role, badge, membership tier, moderator authority, reviewer authority, or paid position.</span></label>
         </div>
+        {validationSlot}
         <div className="button-row"><button type="button" onClick={prepareWorkWith}>Prepare Work With request</button><button type="button" onClick={skipWorkWith}>Skip for now</button><button type="button" className="button-primary" onClick={() => go("confirm")}>Continue to final confirmation</button></div>
       </section>}
 

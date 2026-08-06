@@ -2278,7 +2278,7 @@ function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPos
         {roomPostComposer && <Link className="button-link button-link--primary" to={createPath}>{createLabel}</Link>}
         {type.backendValue === "repository_showcase" && <Link className="button-link button-link--primary" to={createPath}>{createLabel}</Link>}
         {type.backendValue === "elysia_iteration_showcase" && <Link className="button-link" to="/commune/elysia-iteration-showcase/sandbox-request">Review selected iteration artifact</Link>}
-        {type.backendValue === "code_sharing" && <><Link className="button-link button-link--primary" to={createPath}>Draft Coding Cornucopia Post</Link><Link className="button-link" to="/commune/coding-cornucopia/review">Open Coding Workbench</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Prepare Sandbox Review Request</Link></>}
+        {type.backendValue === "code_sharing" && <><Link className="button-link button-link--primary" to={createPath}>Draft Coding Cornucopia Post</Link><Link className="button-link" to="/commune/coding-cornucopia/review#coding-workbench-heading">Open Coding Workbench</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Prepare Sandbox Review Request</Link></>}
         {type.backendValue === "community_vote" && (isAdmin ? <Link className="button-link button-link--primary" to={createPath}>Create community vote</Link> : <Link className="button-link button-link--primary" to={postsPath}>Browse guidance votes</Link>)}
         {type.backendValue === "official_update" && (isAdmin ? <Link className="button-link button-link--primary" to={createPath}>Publish Official Update</Link> : <Link className="button-link button-link--primary" to={postsPath}>Read official updates</Link>)}
         {mode !== "posts" && <Link className="button-link" to={postsPath}>View all posts</Link>}
@@ -2300,7 +2300,7 @@ function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPos
       {roomPosts.length ? <div className="commune-feed-grid">{roomPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} signedIn={signedIn} officialUpdate={officialByPostId.get(post.id)} troubleshooting={troubleshootingByPostId.get(post.id)} jobPost={jobByPostId.get(post.id)} researchNote={researchByPostId.get(post.id)} communityVote={voteByPostId.get(post.id)} />)}</div> : <p className="commune-empty-state">Published posts will appear here after moderation. Start with a careful draft when you are ready.</p>}
     </section>}
     {type.backendValue === "repository_showcase" && mode === "hub" && <section className="section-card commune-repo-card"><p className="eyebrow">Repository Showcase boundaries</p><h2>Metadata and presentation only, never execution</h2><p>A public repository is not automatically safe, compatible, licensed, or free of secrets. This room does not access private repositories or fetch, clone, install, build, run, execute, or validate repository code.</p><StatusBadges labels={["Public metadata only", "No private repository access", "Selected-artifact review separate", "Developer Forge separate", "Marketplace separate"]} /><p className="boundary-note">Selected-artifact sandbox review is a separate governed request for a bounded artifact. It does not approve, trust, or execute the whole repository.</p><p className="boundary-note">Admin guidance/template posts explain safe room use. They remain guidance, not repository listings, compatibility guarantees, Developer Forge approval, Marketplace approval, install recommendations, or trust signals.</p><div className="button-row"><Link className="button-link button-link--primary" to={createPath}>Open repository showcase form</Link><Link className="button-link" to="/commune/repository-showcase/sandbox-request">Review selected repository artifact</Link></div></section>}
-    {mode === "hub" && type.backendValue === "code_sharing" && <section className="section-card commune-sandbox-card coding-cornucopia-tools"><p className="eyebrow">Coding Cornucopia Tools</p><h2>Collaborative code review, snapshots, diagnostics, and sandbox-gated runs.</h2><p>Shared code is public knowledge, not automatic trust. The browser page never executes snippets; configured sandbox runs use explicit snapshots, network-disabled containers, resource limits, and audit records.</p><StatusBadges labels={["CodeMirror editor", "Static diagnostics", "Snapshot runs", "No terminal", "No package install", "Marketplace separate"]} /><div className="button-row"><Link className="button-link" to="/commune/coding-cornucopia/review">Open Coding Workbench</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Prepare Sandbox Review Request</Link></div></section>}
+    {mode === "hub" && type.backendValue === "code_sharing" && <section className="section-card commune-sandbox-card coding-cornucopia-tools"><p className="eyebrow">Coding Cornucopia Tools</p><h2>Collaborative code review, snapshots, diagnostics, and sandbox-gated runs.</h2><p>Shared code is public knowledge, not automatic trust. The browser page never executes snippets; configured sandbox runs use explicit snapshots, network-disabled containers, resource limits, and audit records.</p><StatusBadges labels={["CodeMirror editor", "Static diagnostics", "Snapshot runs", "No terminal", "No package install", "Marketplace separate"]} /><div className="button-row"><Link className="button-link" to="/commune/coding-cornucopia/review#coding-workbench-heading">Open Coding Workbench</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Prepare Sandbox Review Request</Link></div></section>}
     {mode === "hub" && type.backendValue === "official_update" && <section className="section-card"><p className="eyebrow">Official Updates</p><h2>{isAdmin ? "Administrator authoring enabled" : "Read-only for community members"}</h2><p>Official release, security, roadmap, and governance notices are restricted to authorized Elysia Ecobotics administrators. Community users cannot self-assign official publishing authority.</p></section>}
     {mode === "composer" && <div id="commune-room-composer">
       <section className="section-card commune-room-composer-shell">
@@ -3753,7 +3753,7 @@ function CommuneSideChannelPanel() {
       <p className="eyebrow">Code and sandbox paths</p>
       <h2>Coding Cornucopia and sandbox handoff stay focused.</h2>
       <p>Use Coding Cornucopia for inert review documents, manual snapshots, static diagnostics, and governed sandbox requests. The browser page does not install dependencies, clone repositories, open a terminal, or call Local Elysia.</p>
-      <div className="button-row"><Link className="button-link" to="/commune/coding-cornucopia/review">Coding workbench</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Sandbox request</Link></div>
+      <div className="button-row"><Link className="button-link" to="/commune/coding-cornucopia/review#coding-workbench-heading">Coding workbench</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Sandbox request</Link></div>
     </article>
   </section>;
 }
@@ -3806,8 +3806,8 @@ function AttachedCodeSnippets({ snippets, authorUsername, signedIn, postType, pa
         <div className="button-row">
           <button type="button" onClick={() => copyText(snippet.code_text, onMessage)}>Copy snippet</button>
           {sandboxCapable && <>
-            <Link className="button-link" to={`${workbenchPath}?post=${snippet.post_id}&snippet=${snippet.id}`}>Propose edit in Coding Workbench</Link>
-            <Link className="button-link" to={`${workbenchPath}?post=${snippet.post_id}&snippet=${snippet.id}&mode=proposals`}>{isTroubleshooting ? "View proposed fixes" : "View proposals"}</Link>
+            <Link className="button-link" to={`${workbenchPath}?post=${snippet.post_id}&snippet=${snippet.id}#coding-workbench-heading`}>Propose edit in Coding Workbench</Link>
+            <Link className="button-link" to={`${workbenchPath}?post=${snippet.post_id}&snippet=${snippet.id}&mode=proposals#coding-workbench-heading`}>{isTroubleshooting ? "View proposed fixes" : "View proposals"}</Link>
           </>}
         </div>
         {sandboxCapable && <CodingSandboxRunPanel snapshotId={snippet.accepted_revision_id ?? snippet.id} sourceType="commune_post_snippet" sourceId={snippet.id} postId={snippet.post_id} language={snippet.language ?? "text"} fileName={snippet.file_name} code={snippet.code_text} signedIn={signedIn} runLabel="Run in sandbox" />}
@@ -4830,7 +4830,6 @@ function CodeRevisionProposalWorkspace({ account, onMessage }: { account: { sign
 
 function CollaborativeCodeReviewPanel() {
   const location = useLocation();
-  const workbenchHeadingRef = useRef<HTMLHeadingElement>(null);
   const workbenchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const proposalContextActive = Boolean(workbenchParams.get("post") || workbenchParams.get("proposal"));
   const [published, setPublished] = useState<CodeDocument[]>([]);
@@ -4850,13 +4849,6 @@ function CollaborativeCodeReviewPanel() {
   const selected = selectedId ? documents.find((document) => document.id === selectedId) ?? null : null;
   const secretWarnings = detectSecretLikeCodeText([form.title, form.fileName, form.summary, form.text].join("\n"));
   const canEditSelected = account.signedIn && (!selected || selected.owner_user_id === account.userId || account.isModerator);
-
-  useLayoutEffect(() => {
-    const heading = workbenchHeadingRef.current;
-    if (!heading) return;
-    heading.focus({ preventScroll: true });
-    heading.scrollIntoView({ block: "start", inline: "nearest" });
-  }, [location.key]);
 
   const refreshDocuments = useCallback(async () => {
     if (proposalContextActive) {
@@ -4969,7 +4961,7 @@ function CollaborativeCodeReviewPanel() {
   const currentDiagnostics = runStaticCodingDiagnostics({ language: form.language, fileName: form.fileName, code: form.text });
 
   return <section className="section-card commune-code-review-card" id="commune-code-review">
-    <div className="section-heading section-heading--inline"><div><p className="eyebrow">Coding Cornucopia Workbench</p><h2 id="coding-workbench-heading" ref={workbenchHeadingRef} tabIndex={-1}>{proposalContextActive ? "Proposal revision workbench" : "Shared code documents, snapshots, diagnostics, and governed sandbox runs"}</h2><p>{proposalContextActive ? "The attached code version, proposed revision draft, sandbox diagnostics, and submission stay together here. The general document workbench is separate." : "Code here is text for discussion and review. Real execution is allowed only from explicit snapshots through the configured isolated sandbox service."}</p></div>{proposalContextActive ? <Link className="button-link" to="/commune/coding-cornucopia/review">Open general document workbench</Link> : <button type="button" onClick={() => void refreshDocuments()}>Refresh</button>}</div>
+    <div className="section-heading section-heading--inline"><div><p className="eyebrow">Coding Cornucopia Workbench</p><h2 id="coding-workbench-heading" tabIndex={-1}>{proposalContextActive ? "Proposal revision workbench" : "Shared code documents, snapshots, diagnostics, and governed sandbox runs"}</h2><p>{proposalContextActive ? "The attached code version, proposed revision draft, sandbox diagnostics, and submission stay together here. The general document workbench is separate." : "Code here is text for discussion and review. Real execution is allowed only from explicit snapshots through the configured isolated sandbox service."}</p></div>{proposalContextActive ? <Link className="button-link" to="/commune/coding-cornucopia/review#coding-workbench-heading">Open general document workbench</Link> : <button type="button" onClick={() => void refreshDocuments()}>Refresh</button>}</div>
     <StatusBadges labels={["CodeMirror editor", "manual snapshots", "line annotations", "simple edit lock", "static diagnostics", "snapshot sandbox runs", "no terminal"]} />
     <p className="boundary-note">Do not paste credentials, private local Elysia logs, private files, vault data, tokens, or secrets. Coding Cornucopia documents are cloud-hosted community data. Successful sandbox output is evidence, not approval or trust.</p>
     <CodeRevisionProposalWorkspace account={account} onMessage={setMessage} />
@@ -4977,7 +4969,7 @@ function CollaborativeCodeReviewPanel() {
       <p className="eyebrow">Separate workspace hidden</p>
       <h3>General documents are not shown on proposal routes</h3>
       <p>The active flow is: attached code version, proposed revision draft, run proposed revision, then submit proposal. Opening the general document workbench will not submit or overwrite this proposal.</p>
-      <Link className="button-link" to="/commune/coding-cornucopia/review">Open general Coding Cornucopia documents</Link>
+      <Link className="button-link" to="/commune/coding-cornucopia/review#coding-workbench-heading">Open general Coding Cornucopia documents</Link>
     </section> : <div className="commune-code-review-layout">
       <aside className="commune-code-doc-list"><h3>Documents</h3>{!documents.length && <p className="commune-empty-state">No code review documents yet.</p>}{documents.map((document) => <button type="button" className={selected?.id === document.id ? "commune-room-button commune-room-button--active" : "commune-room-button"} key={document.id} onClick={() => setSelectedId(document.id)}><strong>{document.title}</strong><span>{document.language} · {document.visibility_state} · {new Date(document.updated_at).toLocaleDateString()}</span></button>)}<button type="button" onClick={() => { setSelectedId(null); setForm({ title: "", language: "text", fileName: "review.txt", summary: "", text: "" }); setVersions([]); setAnnotations([]); setSession(null); }}>New document</button></aside>
       <div className="commune-code-workbench">
