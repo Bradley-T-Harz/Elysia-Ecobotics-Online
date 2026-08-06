@@ -30,6 +30,7 @@ function cssRuleIncludes(css, selector, requiredParts) {
 }
 
 const nav = await read("src/shared/components/SiteNav.tsx");
+const publicNavigation = await read("src/shared/navigation/publicNavigation.ts");
 const footer = await read("src/shared/components/SiteFooter.tsx");
 const app = await read("src/App.tsx");
 const artisanPortal = await read("src/pages/Elysia-Artisan-Collective/index.tsx");
@@ -113,17 +114,19 @@ const authPanel = await read("src/pages/The-Elysia-Marketplace/components/AuthPa
 const safeInternalActionPath = await read("src/shared/navigation/safeInternalActionPath.ts");
 const authProvider = await read("src/shared/auth/AuthProvider.tsx");
 
-const expectedNav = ["Home", "Archive", "Marketplace", "Products", "Lab", "Developer Forge", "Living Library", "Commune", "Work With", "Commons Circle", "Artisan Collective", "Story", "About", "Mission", "Support", "Legal"];
+const expectedNav = ["Get Elysia", "Archive & Release Status", "Explore", "Marketplace", "Products", "Living Library", "Build", "Developer Forge", "Lab", "Community", "Commune", "Work With Elysia Ecobotics", "Commons Circle", "Artisan Collective", "About & Trust", "Story", "About", "Mission", "Support", "Legal"];
 let cursor = -1;
 for (const label of expectedNav) {
-  const next = nav.indexOf(`label: "${label}"`);
+  const next = publicNavigation.indexOf(`label: "${label}"`, cursor + 1);
   assert(next > cursor, `Nav order missing or out of order: ${label}`);
   cursor = next;
 }
-assert(nav.includes('aria-controls="site-navigation-links"') && nav.includes("aria-expanded={open}"), "Responsive site navigation should expose its controlled menu and open state to assistive technology.");
-assert(nav.includes('data-open={open ? "true" : "false"}') && nav.includes("onClick={() => setOpen(false)}"), "Responsive site navigation should expose its visual state and close after route selection.");
-assert(cssRuleIncludes(styles, ".site-nav", ["flex-wrap: wrap", "overflow-x: visible"]), "Desktop site navigation should wrap without a persistent horizontal scrollbar.");
-assert(styles.includes('.site-nav[data-open="true"] { display: grid; }') && cssRuleIncludes(styles, ".site-nav-toggle", ["display: none"]), "Responsive site navigation should use an explicit accessible disclosure instead of horizontal overflow.");
+assert(nav.includes("aria-controls={isOpen ? panelId : undefined}") && nav.includes("aria-expanded={isOpen}") && nav.includes("{isOpen && (") && nav.includes('id={panelId}'), "Desktop territory navigation should expose a valid controlled-panel relationship only while open.");
+assert(nav.includes('aria-controls="site-navigation-mobile"') && nav.includes("aria-expanded={mobileOpen}"), "Mobile site navigation should expose its controlled menu and open state.");
+assert(nav.includes('event.key !== "Escape"') && nav.includes("trigger?.focus()") && nav.includes("mobileToggleRef.current?.focus()"), "Responsive site navigation should support Escape and focus return.");
+assert(nav.includes('document.addEventListener("pointerdown"') && nav.includes("location.pathname"), "Responsive site navigation should close after outside interaction and route changes.");
+assert(styles.includes(".site-nav-desktop") && styles.includes(".site-nav-panel") && styles.includes(".site-nav-mobile__territories"), "Desktop and staged mobile navigation styles are missing.");
+assert(styles.includes('.site-nav-mobile[data-open="true"] { display: block; }') && cssRuleIncludes(styles, ".site-nav-toggle", ["display: none"]), "Responsive site navigation should use an explicit accessible disclosure.");
 assert(styles.includes(".site-footer { display: grid; grid-template-columns: minmax(18rem, 0.6fr) minmax(0, 1.4fr);"), "Desktop footer should reserve readable space for its identity text while allowing its link collection to wrap.");
 
 assert(footer.includes("Elysia Ecobotics™ is an EcoSyneva Commons LLC initiative."), "Footer initiative trademark text missing.");
