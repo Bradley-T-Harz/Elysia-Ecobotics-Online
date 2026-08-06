@@ -281,8 +281,8 @@ assert(accountApi.includes("export async function submitTroubleshootingPost") &&
 assert(accountApi.includes("updateTroubleshootingStatus") && accountApi.includes("markTroubleshootingResolved"), "Troubleshooting Grove API should support status and accepted fix/workaround updates.");
 assert(page.includes("Troubleshooting Grove detail") && page.includes("Structured issue report") && page.includes("Accepted fix / workaround"), "Troubleshooting Grove post detail should render structured support panels.");
 assert(page.includes("Author resolution controls") && page.includes("Record accepted fix/workaround"), "Troubleshooting Grove post detail should expose author-controlled resolution controls.");
-assert(page.includes("Code attached for troubleshooting") && page.includes("Reproduction snippet") && page.includes("Propose fix"), "Troubleshooting Grove detail should keep reproduction snippets attached to the post flow with propose-fix affordances.");
-assert(page.includes("Open troubleshooting workbench") && page.includes("/commune/troubleshooting-grove/review"), "Troubleshooting Grove code snippets should route to the troubleshooting workbench.");
+assert(page.includes("Code attached for troubleshooting") && page.includes("Reproduction snippet") && page.includes("Propose edit in Coding Workbench"), "Troubleshooting Grove detail should keep reproduction snippets attached to the governed workbench flow.");
+assert(page.includes("/commune/troubleshooting-grove/review"), "Troubleshooting Grove code snippets should route to the troubleshooting workbench.");
 for (const troubleshootingCodeWarning of [".env files", "private logs", "local Elysia memory", "vault data", "credentials"]) {
   assert(page.includes(troubleshootingCodeWarning), `Troubleshooting Grove code warning missing: ${troubleshootingCodeWarning}`);
 }
@@ -641,8 +641,10 @@ assert(page.includes("Code attached for troubleshooting") && page.includes("Repr
 assert(page.includes('postType={post.post_type}'), "Attached code snippets should receive post type context for room-native labels.");
 assert(page.includes("Coding Cornucopia snippet") && page.includes("attached by {authorLink(authorUsername)}"), "Coding Cornucopia snippets should carry post-author attachment attribution.");
 assert(page.includes('parentIsPublished ? "published" : "attached"'), "Coding Cornucopia snippets should use truthful published/attached snapshot language.");
-assert(page.includes("Propose edit") && page.includes("View proposals"), "Coding Cornucopia post snippets should link into author-controlled proposal workflows.");
-assert(page.includes("Propose fix") && page.includes("View proposed fixes") && page.includes("/commune/troubleshooting-grove/review"), "Troubleshooting Grove snippets should link into proposed-fix workflows.");
+assert(page.includes("Propose edit in Coding Workbench") && page.includes("View proposals"), "Coding Cornucopia post snippets should expose one governed proposal-workbench entry.");
+assert(!page.includes("&mode=propose"), "Post snippets must not retain a duplicate direct propose-edit link.");
+assert(page.includes("View proposed fixes") && page.includes("/commune/troubleshooting-grove/review"), "Troubleshooting Grove snippets should retain the governed proposed-fix workflow.");
+assert(page.includes("workbenchHeadingRef") && page.includes('id="coding-workbench-heading"') && page.includes('tabIndex={-1}') && page.includes('scrollIntoView({ block: "start", inline: "nearest" })'), "Coding Workbench routes should deliberately focus and align their meaningful heading after client-side navigation.");
 assert(page.includes("function CodeRevisionProposalWorkspace"), "Coding Cornucopia Workbench should include the proposal workspace.");
 assert(page.includes("Propose changes without overwriting") && page.includes('? "published" : "attached"'), "Proposal workspace should make the truthful no-overwrite boundary clear.");
 assert(page.includes("Propose fixes without overwriting the") && page.includes('? "public" : "attached"'), "Troubleshooting Grove workbench should make the truthful no-overwrite proposed-fix boundary clear.");

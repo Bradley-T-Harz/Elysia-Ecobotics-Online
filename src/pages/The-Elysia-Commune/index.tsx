@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { cpp } from "@codemirror/lang-cpp";
 import { css } from "@codemirror/lang-css";
@@ -3803,7 +3803,13 @@ function AttachedCodeSnippets({ snippets, authorUsername, signedIn, postType, pa
         {sandboxCapable && snippet.accepted_revision_summary && <p className="boundary-note">Accepted revision: {snippet.accepted_revision_summary}</p>}
         <CodeWorkspaceEditor value={snippet.code_text} language={snippet.language} readOnly minHeight="260px" />
         {sandboxCapable && <DiagnosticsList diagnostics={runStaticCodingDiagnostics({ language: snippet.language, fileName: snippet.file_name, code: snippet.code_text })} />}
-        <div className="button-row"><button type="button" onClick={() => copyText(snippet.code_text, onMessage)}>Copy snippet</button>{sandboxCapable && <><Link className="button-link" to={`${workbenchPath}?post=${snippet.post_id}&snippet=${snippet.id}`}>{isTroubleshooting ? "Open troubleshooting workbench" : "Open Coding Workbench"}</Link>{signedIn && <Link className="button-link" to={`${workbenchPath}?post=${snippet.post_id}&snippet=${snippet.id}&mode=propose`}>{isTroubleshooting ? "Propose fix" : "Propose edit"}</Link>}<Link className="button-link" to={`${workbenchPath}?post=${snippet.post_id}&snippet=${snippet.id}&mode=proposals`}>{isTroubleshooting ? "View proposed fixes" : "View proposals"}</Link></>}</div>
+        <div className="button-row">
+          <button type="button" onClick={() => copyText(snippet.code_text, onMessage)}>Copy snippet</button>
+          {sandboxCapable && <>
+            <Link className="button-link" to={`${workbenchPath}?post=${snippet.post_id}&snippet=${snippet.id}`}>Propose edit in Coding Workbench</Link>
+            <Link className="button-link" to={`${workbenchPath}?post=${snippet.post_id}&snippet=${snippet.id}&mode=proposals`}>{isTroubleshooting ? "View proposed fixes" : "View proposals"}</Link>
+          </>}
+        </div>
         {sandboxCapable && <CodingSandboxRunPanel snapshotId={snippet.accepted_revision_id ?? snippet.id} sourceType="commune_post_snippet" sourceId={snippet.id} postId={snippet.post_id} language={snippet.language ?? "text"} fileName={snippet.file_name} code={snippet.code_text} signedIn={signedIn} runLabel="Run in sandbox" />}
         <p className="boundary-note">{isMediaGarden ? "Media Garden code is shown as visual/read-only material. The website did not execute this snippet, and visibility is not a trust label." : <>Code is shown for discussion only. The website did not execute this snippet. {isTroubleshooting ? "Accepted fixes" : "Accepted revisions"} preserve version history and proposer attribution; rejected proposals leave this {parentIsPublished ? "published" : "attached"} code unchanged.</>}</p>
       </article>)}
@@ -4824,6 +4830,7 @@ function CodeRevisionProposalWorkspace({ account, onMessage }: { account: { sign
 
 function CollaborativeCodeReviewPanel() {
   const location = useLocation();
+  const workbenchHeadingRef = useRef<HTMLHeadingElement>(null);
   const workbenchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const proposalContextActive = Boolean(workbenchParams.get("post") || workbenchParams.get("proposal"));
   const [published, setPublished] = useState<CodeDocument[]>([]);
@@ -4843,6 +4850,13 @@ function CollaborativeCodeReviewPanel() {
   const selected = selectedId ? documents.find((document) => document.id === selectedId) ?? null : null;
   const secretWarnings = detectSecretLikeCodeText([form.title, form.fileName, form.summary, form.text].join("\n"));
   const canEditSelected = account.signedIn && (!selected || selected.owner_user_id === account.userId || account.isModerator);
+
+  useLayoutEffect(() => {
+    const heading = workbenchHeadingRef.current;
+    if (!heading) return;
+    heading.focus({ preventScroll: true });
+    heading.scrollIntoView({ block: "start", inline: "nearest" });
+  }, [location.key]);
 
   const refreshDocuments = useCallback(async () => {
     if (proposalContextActive) {
@@ -4955,7 +4969,7 @@ function CollaborativeCodeReviewPanel() {
   const currentDiagnostics = runStaticCodingDiagnostics({ language: form.language, fileName: form.fileName, code: form.text });
 
   return <section className="section-card commune-code-review-card" id="commune-code-review">
-    <div className="section-heading section-heading--inline"><div><p className="eyebrow">Coding Cornucopia Workbench</p><h2>{proposalContextActive ? "Proposal revision workbench" : "Shared code documents, snapshots, diagnostics, and governed sandbox runs"}</h2><p>{proposalContextActive ? "The attached code version, proposed revision draft, sandbox diagnostics, and submission stay together here. The general document workbench is separate." : "Code here is text for discussion and review. Real execution is allowed only from explicit snapshots through the configured isolated sandbox service."}</p></div>{proposalContextActive ? <Link className="button-link" to="/commune/coding-cornucopia/review">Open general document workbench</Link> : <button type="button" onClick={() => void refreshDocuments()}>Refresh</button>}</div>
+    <div className="section-heading section-heading--inline"><div><p className="eyebrow">Coding Cornucopia Workbench</p><h2 id="coding-workbench-heading" ref={workbenchHeadingRef} tabIndex={-1}>{proposalContextActive ? "Proposal revision workbench" : "Shared code documents, snapshots, diagnostics, and governed sandbox runs"}</h2><p>{proposalContextActive ? "The attached code version, proposed revision draft, sandbox diagnostics, and submission stay together here. The general document workbench is separate." : "Code here is text for discussion and review. Real execution is allowed only from explicit snapshots through the configured isolated sandbox service."}</p></div>{proposalContextActive ? <Link className="button-link" to="/commune/coding-cornucopia/review">Open general document workbench</Link> : <button type="button" onClick={() => void refreshDocuments()}>Refresh</button>}</div>
     <StatusBadges labels={["CodeMirror editor", "manual snapshots", "line annotations", "simple edit lock", "static diagnostics", "snapshot sandbox runs", "no terminal"]} />
     <p className="boundary-note">Do not paste credentials, private local Elysia logs, private files, vault data, tokens, or secrets. Coding Cornucopia documents are cloud-hosted community data. Successful sandbox output is evidence, not approval or trust.</p>
     <CodeRevisionProposalWorkspace account={account} onMessage={setMessage} />
