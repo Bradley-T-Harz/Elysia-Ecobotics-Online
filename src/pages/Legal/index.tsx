@@ -98,6 +98,7 @@ function PolicyQuickLinks() {
       <Link to="/legal/community-guidelines">Community Guidelines</Link>
       <Link to="/legal/vulnerability-disclosure-policy">Security</Link>
       <Link to="/legal/trademark-notice">Trademark Notice</Link>
+      <Link to="/legal/living-library-third-party-resources">Living Library Resources</Link>
     </nav>
   );
 }
@@ -106,7 +107,7 @@ export default function LegalPage() {
   return (
     <div className="page-stack legal-page">
       <PageHero eyebrow="Legal" title="Legal, Safety, and Community Policies" brandMark="standard">
-        <p>Elysia Ecobotics Online is a public website and commons around a private local-first Elysia core. These policies explain how the public site handles privacy, accounts, community participation, Marketplace add-ons, security review, copyright, volunteer requests, stewardship recognition, optional support, paid online services, seller preparation, and sponsorship independence.</p>
+        <p>Elysia Ecobotics Online is a public website and commons around a private local-first Elysia core. These policies explain how the public site handles privacy, accounts, community participation, Marketplace add-ons, security review, copyright, third-party research-resource discovery, volunteer requests, stewardship recognition, optional support, paid online services, seller preparation, and sponsorship independence.</p>
         <p>The public website is cloud-facing. The private local Elysia core remains local, governed, and user-controlled. These policies do not turn private local Elysia memory, files, vaults, logs, passwords, or credentials into public website data.</p>
       </PageHero>
 
@@ -136,7 +137,7 @@ export default function LegalPage() {
               <h2>{group.category}</h2>
               <p>{group.description}</p>
             </div>
-            <StatusBadge label={`${group.slugs.length} policies`} tone="safe" />
+            <StatusBadge label={group.slugs.length === 1 ? "1 policy" : `${group.slugs.length} policies`} tone="safe" />
           </div>
           <div className="legal-policy-grid">
             {group.slugs.map((slug) => {

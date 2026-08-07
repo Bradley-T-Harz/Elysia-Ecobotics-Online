@@ -153,6 +153,7 @@ async function exercise(browserType, browserName, viewportName, viewport) {
     await settle(page, "#library-source-detail");
     assert.equal(await page.getByText("Account, API, download, and cloud", { exact: true }).isVisible(), true, `${browserName}/${viewportName}: structured access section missing.`);
     assert.equal(await page.getByText("Rights are record-specific", { exact: true }).isVisible(), true, `${browserName}/${viewportName}: licensing section missing.`);
+    assert.equal(await page.getByText(/Independent listing\. This third-party resource is operated by the organization identified above\./).isVisible(), true, `${browserName}/${viewportName}: independent-listing notice missing.`);
     const external = page.locator("a.library-external-link").first();
     assert.equal(await external.getAttribute("target"), "_blank", `${browserName}/${viewportName}: external destination must open a new tab.`);
     assert.match(await external.getAttribute("aria-label"), /external site, opens in a new tab/, `${browserName}/${viewportName}: external destination needs an accessible boundary label.`);
@@ -182,6 +183,7 @@ async function exercise(browserType, browserName, viewportName, viewport) {
       await settle(page, "#library-source-detail");
       assert.equal(await page.getByRole("heading", { level: 1, name: sourceName }).isVisible(), true, `${browserName}/${viewportName}: ${sourceId} detail route is missing.`);
       assert.equal(await page.getByText("Account, API, download, and cloud", { exact: true }).isVisible(), true, `${browserName}/${viewportName}: ${sourceId} access metadata is missing.`);
+      assert.equal(await page.locator(".library-independence-note").isVisible(), true, `${browserName}/${viewportName}: ${sourceId} independent-listing notice is missing.`);
       assert.equal(await page.locator(".library-link-list a").count() >= 4, true, `${browserName}/${viewportName}: ${sourceId} typed links are incomplete.`);
     }
 
@@ -202,12 +204,32 @@ async function exercise(browserType, browserName, viewportName, viewport) {
     assert.equal(await page.getByRole("link", { name: /View historical context — external site/ }).isVisible(), true, `${browserName}/${viewportName}: retired route must label its surviving destination as historical context.`);
     assert.equal(await page.getByText("Historical context only; this is not a current active resource destination.", { exact: true }).isVisible(), true, `${browserName}/${viewportName}: retired route needs an explicit historical-link caution.`);
 
+    await page.goto(`${origin}/legal`, { waitUntil: "domcontentloaded" });
+    await settle(page, ".legal-page");
+    assert.equal(await page.getByRole("heading", { level: 1, name: "Legal, Safety, and Community Policies" }).isVisible(), true, `${browserName}/${viewportName}: Legal heading missing.`);
+    const externalResourcesSection = page.locator(".legal-category-section").filter({ has: page.getByRole("heading", { level: 2, name: "Research, Reference, and External Resources" }) });
+    assert.equal(await externalResourcesSection.isVisible(), true, `${browserName}/${viewportName}: third-party-resource Legal section missing.`);
+    assert.equal(await externalResourcesSection.getByText("1 policy", { exact: true }).isVisible(), true, `${browserName}/${viewportName}: third-party-resource Legal count is incorrect.`);
+    const policyLink = externalResourcesSection.getByRole("link", { name: /Living Library & Third-Party Resources/ });
+    await policyLink.click();
+    await page.waitForURL((url) => url.pathname === "/legal/living-library-third-party-resources");
+    await settle(page, ".legal-policy-page");
+    assert.equal(await page.locator(".legal-policy-header").getByRole("heading", { level: 1, name: "Living Library & Third-Party Resources" }).isVisible(), true, `${browserName}/${viewportName}: dedicated policy route missing.`);
+    assert.equal(await page.getByText(/independently curated discovery index and gateway/).isVisible(), true, `${browserName}/${viewportName}: policy purpose missing.`);
+    assert.equal(await page.getByText(/None automatically establishes peer review, an open license, public-domain status/).isVisible(), true, `${browserName}/${viewportName}: policy reuse boundary missing.`);
+    const legalLayout = await page.evaluate(() => ({ overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth }));
+    assert(legalLayout.overflow <= 1, `${browserName}/${viewportName}: Legal policy has horizontal overflow (${legalLayout.overflow}px).`);
+    await page.goBack({ waitUntil: "domcontentloaded" });
+    await page.waitForURL((url) => url.pathname === "/legal");
+    assert.equal(await page.getByRole("heading", { level: 2, name: "Research, Reference, and External Resources" }).isVisible(), true, `${browserName}/${viewportName}: Back did not restore Legal index.`);
+    await page.goForward({ waitUntil: "domcontentloaded" });
+    await page.waitForURL((url) => url.pathname === "/legal/living-library-third-party-resources");
+
     if (viewportName === "mobile") {
       const mobileLayout = await page.evaluate(() => ({
         overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
-        actionColumns: getComputedStyle(document.querySelector(".library-detail-actions")).gridTemplateColumns,
       }));
-      assert(mobileLayout.overflow <= 1, `${browserName}/mobile: source detail has horizontal overflow (${mobileLayout.overflow}px).`);
+      assert(mobileLayout.overflow <= 1, `${browserName}/mobile: Legal policy has horizontal overflow (${mobileLayout.overflow}px).`);
     }
 
     await page.goto(`${origin}/living-library?q=atmospheric`, { waitUntil: "domcontentloaded" });

@@ -7,6 +7,10 @@ function DetailRow({ term, children }: { term: string; children: React.ReactNode
   return <div><dt>{term}</dt><dd>{children}</dd></div>;
 }
 
+function IndependentListingNotice() {
+  return <p className="library-independence-note"><strong>Independent listing.</strong> This third-party resource is operated by the organization identified above. Inclusion in The Living Library does not imply affiliation, sponsorship, endorsement, or partnership with Elysia Ecobotics or EcoSyneva Commons LLC.</p>;
+}
+
 export default function LivingLibrarySourceDetail({
   source,
   relatedSources,
@@ -149,6 +153,7 @@ export default function LivingLibrarySourceDetail({
             <DetailRow term="Method">{source.verification.method}</DetailRow>
           </dl>
           {source.verification.limitation ? <p className="boundary-note">{source.verification.limitation}</p> : null}
+          <IndependentListingNotice />
         </article>
       </section>
 

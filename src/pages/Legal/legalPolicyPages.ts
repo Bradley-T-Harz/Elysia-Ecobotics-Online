@@ -478,6 +478,48 @@ Contact privacy@elysiaecobotics.com for broader privacy requests and support@ely
   }
 );
 
+legalPolicyPages.push({
+  slug: "living-library-third-party-resources",
+  route: "/legal/living-library-third-party-resources",
+  title: "Living Library & Third-Party Resources",
+  status: "Public operating policy",
+  lastUpdated: "2026-08-07",
+  body: `## 1. Purpose and scope
+
+The Living Library is an independently curated discovery index and gateway maintained by Elysia Ecobotics, an initiative of EcoSyneva Commons LLC. It catalogs and links to scientific, educational, governmental, academic, nonprofit, commercial, and other resources operated independently by third parties.
+
+The Living Library ordinarily helps people discover external research infrastructure. It does not claim to own or operate the resources it lists.
+
+## 2. Independent listings and identifiers
+
+Inclusion does not imply affiliation, sponsorship, endorsement, partnership, or approval by Elysia Ecobotics, EcoSyneva Commons LLC, or the listed organization unless a relationship is expressly stated. Names, trademarks, service marks, and other identifiers remain the property of their respective owners.
+
+Resource descriptions, classifications, access labels, and caution notes are independent editorial summaries prepared for research and discovery. They are not statements issued or approved by the listed organizations unless expressly identified as quotations or official guidance.
+
+## 3. Third-party sites and changing information
+
+Elysia Ecobotics does not control third-party sites and cannot guarantee their continued availability, accuracy, security, accessibility, licensing, privacy practices, peer-review status, content, or access requirements. Resource information can change after a listing is reviewed. A verification date records a bounded catalog review; it is not a continuing certification of the destination or every item available there.
+
+## 4. Linking rather than reproducing
+
+The Living Library ordinarily links to third-party material rather than reproducing, mirroring, or redistributing it. Any third-party material actually reproduced or incorporated by Elysia Ecobotics must have a lawful basis, such as permission, an applicable license, public-domain status, or another legally supportable basis.
+
+Citations and attribution support responsible scholarship, but they do not by themselves grant permission to copy, redistribute, mine, train on, or otherwise reuse protected material.
+
+## 5. Access, licensing, and reuse
+
+Public availability, open access, download access, bulk access, repository inclusion, and indexing describe different conditions. None automatically establishes peer review, an open license, public-domain status, redistribution rights, or permission for text and data mining or AI training.
+
+Before relying on, downloading, redistributing, mining, training on, or otherwise reusing third-party material, users should review the current destination-site terms, record-level licenses, attribution and citation requirements, privacy policies, access controls, and relevant ethical or community restrictions.
+
+## 6. Corrections, rights concerns, and removal requests
+
+Resource operators and users may ask Elysia Ecobotics to review an inaccurate description, broken link, rights concern, attribution issue, or removal request. Use the Living Library's broken-link/reporting workflow when available, or contact legal@elysiaecobotics.com. Copyright notices may be sent to dmca@elysiaecobotics.com. Send only the information reasonably necessary to evaluate the request.
+
+Elysia Ecobotics may correct, qualify, archive, or remove a listing when evidence supports that action. This policy describes the Library's operating approach; it does not excuse infringement, deception, or other unlawful conduct.
+`
+});
+
 const governedSandboxLegalNotices: Record<string, string> = {
   "privacy-policy": "## Governed code sandbox processing\n\nWhen a signed-in user deliberately requests a Coding Cornucopia sandbox run, the submitted code is transmitted through Cloudflare Pages Functions and Cloudflare Access to an isolated runner hosted on a Hetzner server. The code is used only for the requested execution or static diagnostics. The browser does not receive the private runner credential, and the runner does not receive the user's Supabase token, email, roles, private notes, secrets, or private Elysia context.\n\nSupabase may retain bounded metadata such as the requesting account identifier, idempotency key, source reference, code hash, language, status, timing, limited output previews, and diagnostics. Raw runner input and output are deleted promptly after processing; short-lived failure cleanup and bounded security audit records may remain for operational recovery and abuse prevention. Do not submit secrets, personal data, confidential code, or material you do not have authority to process.",
   "terms-of-use": "## Governed code sandbox\n\nCoding Cornucopia sandbox execution is optional, authenticated, rate-limited, resource-limited, and intended only as evidence about one submitted snapshot. Submitted code crosses Cloudflare and an isolated Hetzner-hosted runner, and bounded run metadata may be recorded privately in Supabase. Network access, package installation, shell access, host repositories, private paths, credentials, and private Elysia context are not provided to the execution container.\n\nA successful execution is not security review, trust, compatibility, licensing clearance, Marketplace approval, moderation approval, or a promise that the code is safe in another environment. You are responsible for the code you submit and must not attempt to escape limits, access secrets or private systems, overload the service, or use the sandbox to facilitate prohibited conduct."
@@ -584,7 +626,11 @@ export const legalPolicyMetadata: Record<string, LegalPolicyMetadata> = {
   "marketplace-commerce-terms": { category: "Marketplace and Add-ons", description: "Commercial offers, licenses, seller preparation, commissions, payouts, review, and local installation authority." },
   "sponsorship-independence-policy": { category: "Organizations and Sponsorship", description: "Disclosure, editorial independence, privacy, conflicts, and the authority that sponsorship cannot buy." },
   "organization-services-terms": { category: "Organizations and Sponsorship", description: "Human-reviewed scopes, proposals, contracts, invoices, confidentiality, processors, cancellation, refunds, and no-pay-to-govern boundaries." },
-  "account-closure-financial-retention": { category: "Core Website", description: "How account closure, subscriptions, entitlements, licenses, economic records, and lawful retention remain distinct." }
+  "account-closure-financial-retention": { category: "Core Website", description: "How account closure, subscriptions, entitlements, licenses, economic records, and lawful retention remain distinct." },
+  "living-library-third-party-resources": {
+    category: "Research, Reference, and External Resources",
+    description: "How The Living Library independently describes and links to third-party research resources without implying ownership, affiliation, endorsement, or blanket reuse rights."
+  }
 };
 
 export const legalPolicyGroups: LegalPolicyGroup[] = [
@@ -622,6 +668,11 @@ export const legalPolicyGroups: LegalPolicyGroup[] = [
     category: "Organizations and Sponsorship",
     description: "Human-reviewed professional services and ethical sponsorship with privacy, independence, and conflict boundaries.",
     slugs: ["organization-services-terms", "sponsorship-independence-policy"]
+  },
+  {
+    category: "Research, Reference, and External Resources",
+    description: "Independent resource listings, external-site boundaries, editorial summaries, and record-specific rights and reuse responsibilities.",
+    slugs: ["living-library-third-party-resources"]
   }
 ];
 

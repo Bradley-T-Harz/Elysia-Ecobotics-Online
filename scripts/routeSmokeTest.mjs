@@ -14,7 +14,7 @@ const requiredRoutes = [
   "/legal/vulnerability-disclosure-policy", "/legal/dmca-copyright-policy",
   "/legal/acceptable-use-policy", "/legal/code-of-conduct",
   "/legal/volunteer-contributor-disclaimer", "/legal/donation-recognition-terms",
-  "/legal/trademark-notice", "/legal/support-and-billing-terms", "/legal/refund-and-cancellation-policy", "/legal/sandbox-credit-terms", "/legal/job-post-fee-terms", "/legal/marketplace-commerce-terms", "/legal/organization-services-terms", "/legal/sponsorship-independence-policy", "/legal/account-closure-financial-retention", "/admin", "/admin/moderation", "/admin/reports", "/admin/economic-operations",
+  "/legal/trademark-notice", "/legal/support-and-billing-terms", "/legal/refund-and-cancellation-policy", "/legal/sandbox-credit-terms", "/legal/job-post-fee-terms", "/legal/marketplace-commerce-terms", "/legal/organization-services-terms", "/legal/sponsorship-independence-policy", "/legal/account-closure-financial-retention", "/legal/living-library-third-party-resources", "/admin", "/admin/moderation", "/admin/reports", "/admin/economic-operations",
   "/admin/addon-submissions", "/admin/developers", "/admin/library-sources",
   "/admin/work-submissions", "/admin/review", "/admin/review/work-with",
   "/admin/review/stewardship", "/admin/review/commune", "/admin/review/living-library",
