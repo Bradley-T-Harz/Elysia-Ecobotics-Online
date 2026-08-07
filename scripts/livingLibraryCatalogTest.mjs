@@ -33,8 +33,8 @@ const {
   searchLivingLibrarySources,
 } = catalog;
 
-assert.equal(allLivingLibrarySources.length, 171, "all audited IDs must remain resolvable");
-assert.equal(activeLivingLibrarySources.length, 139, "active catalog count changed unexpectedly");
+assert.equal(allLivingLibrarySources.length, 228, "the 171-record baseline plus 57 approved active additions must remain resolvable");
+assert.equal(activeLivingLibrarySources.length, 196, "active catalog count changed unexpectedly");
 assert.equal(legacyLivingLibrarySources.length, 32, "legacy/tombstone count changed unexpectedly");
 assert.equal(new Set(allLivingLibrarySources.map((source) => source.id)).size, allLivingLibrarySources.length, "source IDs must be unique");
 assert.equal(new Set(activeLivingLibrarySources.map((source) => source.id)).size, activeLivingLibrarySources.length, "active source IDs must be unique");
@@ -56,6 +56,25 @@ for (const source of allLivingLibrarySources) {
   if (source.lifecycle.successorId) assert.ok(resolveLivingLibrarySource(source.lifecycle.successorId), `source ${source.id} successor must resolve`);
 }
 assert.ok(activeLivingLibrarySources.every((source) => source.lifecycle.status === "active"), "legacy sources must not leak into active discovery");
+for (const baselineSource of allLivingLibrarySources.slice(0, 171)) {
+  assert.equal(resolveLivingLibrarySource(baselineSource.id)?.id, baselineSource.id, `baseline source ${baselineSource.id} must retain stable resolution`);
+}
+
+const expansionIds = [
+  "npmx", "lter-network", "codap", "earthscope-consortium", "open-earth-monitor", "climate-us", "raspberry-pi-foundation", "data-nuggets", "hugging-face-hub", "datacite-commons", "re3data", "opendoar", "orcid-registry", "ror", "openaire", "opencitations", "scielo", "la-referencia", "ajol", "j-stage", "cinii-research", "hal-open-science", "cessda-data-catalogue", "gesis-search", "shodhganga", "ndltd", "icpsr", "pangaea", "nsf-neon", "hydroshare", "obis", "bco-dmo", "ameriflux", "movebank", "embl-ebi", "ncbi-geo", "europe-pmc", "clinicaltrials-gov", "materials-cloud", "nomad", "crystallography-open-database", "cern-open-data", "inspire-hep", "hepdata", "mast", "simbad", "gaia-archive", "zbmath-open", "nist-dlmf", "oeis", "osti-gov", "nasa-ntrs", "national-academies-publications", "phet", "openstax", "hhmi-biointeractive", "clean",
+];
+assert.equal(expansionIds.length, 57, "approved expansion ID fixture must describe all new active records");
+for (const id of expansionIds) {
+  const expanded = allLivingLibrarySources.find((entry) => entry.id === id);
+  assert.ok(expanded?.active, `${id} must be a unique active expansion record`);
+  assert.ok(expanded.searchKeywords.length >= 15, `${id} needs at least 15 truthful discovery terms`);
+  assert.ok(expanded.aliases.length >= 2, `${id} needs useful aliases or acronyms`);
+  assert.ok(expanded.links.every((entry) => entry.url.startsWith("https://")), `${id} active links should use HTTPS`);
+  assert.ok(expanded.access.note.length >= 40, `${id} needs an access annotation`);
+  assert.ok(expanded.content.note.length >= 40, `${id} needs a hosting/review annotation`);
+  assert.ok(expanded.license.summary.length >= 40, `${id} needs a reuse annotation`);
+  assert.ok(expanded.citation.creator && expanded.citation.title && expanded.citation.url, `${id} needs structured citation metadata`);
+}
 
 function source(id) {
   const value = resolveLivingLibrarySource(id);
@@ -73,6 +92,18 @@ assert.ok(source("common-crawl").links.some((link) => link.url === "https://comm
 for (const id of ["microsoft-academic-graph-legacy", "epa-ejscreen", "papers-with-code", "nasa-earthdata-cloud", "the-stack"]) {
   assert.equal(source(id).active, false, `${id} must not appear in active discovery`);
 }
+assert.equal(source("epa-ejscreen").lifecycle.status, "legacy");
+assert.equal(source("epa-ejscreen").officialUrl, "https://19january2021snapshot.epa.gov/ejscreen_.html");
+assert.equal(source("epa-ejscreen").links[0].role, "historical");
+assert.match(source("epa-ejscreen").name, /Archived Historical EPA Resource/);
+assert.match(source("epa-ejscreen").limitationsCautions, /January 19, 2021/);
+assert.doesNotMatch(source("epa-ejscreen").lifecycle.legacyReason ?? "", /replacement/i, "EJSCREEN must not imply a successor");
+assert.equal(source("cinii-research").access.api, "key/token required");
+assert.match(source("national-academies-publications").license.trainingCaution, /machine learning|artificial-intelligence training/i);
+assert.equal(source("hugging-face-datasets").lifecycle.parentId, "hugging-face-hub");
+assert.match(source("ndltd").content.note, /taken offline/i);
+assert.match(source("ndltd").verification.limitation ?? "", /no completion date/i);
+assert.ok(source("ndltd").links.every((link) => link.url.startsWith("https://")), "NDLTD must not expose the offline Global ETD Search endpoint as an active link");
 for (const id of ["microsoft-academic-graph-legacy", "papers-with-code"]) {
   assert.equal(source(id).links[0].role, "historical", `${id} must not present historical context as a current official destination`);
   assert.match(source(id).links[0].caution ?? "", /Historical context only/, `${id} historical link must carry a caution`);
@@ -195,12 +226,76 @@ const corpus = [
   ["software", ["software-heritage", "github"]],
   ["licensing", ["creative-commons", "hugging-face-dataset-cards"]],
   ["API", ["noaa-ncei-access-data-service", "crossref", "u-s-census-apis"]],
+  ["repository finder", ["re3data", "opendoar"]],
+  ["African journals", ["ajol", "scielo"]],
+  ["doctoral thesis India", ["shodhganga"]],
+  ["long term ecology", ["lter-network", "nsf-neon"]],
+  ["cryosphere", ["nasa-nsidc"]],
+  ["ice elevation", ["nasa-nsidc"]],
+  ["GNSS", ["earthscope-consortium"]],
+  ["seismology", ["earthscope-consortium"]],
+  ["marine biodiversity", ["obis"]],
+  ["animal tracking", ["movebank"]],
+  ["eddy covariance", ["ameriflux", "nsf-neon"]],
+  ["carbon flux", ["ameriflux", "nsf-neon"]],
+  ["water models", ["hydroshare"]],
+  ["functional genomics", ["ncbi-geo", "embl-ebi"]],
+  ["clinical trial", ["clinicaltrials-gov"]],
+  ["crystal structures", ["crystallography-open-database", "materials-cloud"]],
+  ["high energy physics", ["cern-open-data", "inspire-hep", "hepdata"]],
+  ["LHC data", ["cern-open-data"]],
+  ["space telescope data", ["mast"]],
+  ["Gaia", ["gaia-archive"]],
+  ["mathematics papers", ["zbmath-open"]],
+  ["special functions", ["nist-dlmf"]],
+  ["integer sequence", ["oeis"]],
+  ["DOE research", ["osti-gov"]],
+  ["NASA reports", ["nasa-ntrs"]],
+  ["science textbook", ["openstax"]],
+  ["climate lesson", ["clean"]],
+  ["data literacy", ["codap", "data-nuggets"]],
+  ["AI models", ["hugging-face-hub"]],
+  ["AI datasets", ["hugging-face-hub"]],
+  ["package registry", ["npmx"]],
+  ["interactive graphs", ["codap"]],
+  ["former Climate.gov team", ["climate-us"]],
+  ["physical computing lessons", ["raspberry-pi-foundation"]],
+  ["real scientist classroom data", ["data-nuggets"]],
+  ["DOI metadata search", ["datacite-commons"]],
+  ["researcher identifier", ["orcid-registry"]],
+  ["organization identifier", ["ror"]],
+  ["research graph", ["openaire", "datacite-commons"]],
+  ["open citation index", ["opencitations"]],
+  ["Latin American journals", ["scielo"]],
+  ["Latin American repositories", ["la-referencia"]],
+  ["Japanese journals", ["j-stage"]],
+  ["Japanese papers", ["cinii-research"]],
+  ["French research", ["hal-open-science"]],
+  ["European social data", ["cessda-data-catalogue"]],
+  ["survey datasets", ["gesis-search", "icpsr"]],
+  ["global theses", ["ndltd"]],
+  ["georeferenced data", ["pangaea"]],
+  ["ocean biogeochemistry", ["bco-dmo"]],
+  ["animal trajectories", ["movebank"]],
+  ["life science databases", ["embl-ebi"]],
+  ["biomedical preprints", ["europe-pmc"]],
+  ["computational materials", ["materials-cloud", "nomad"]],
+  ["publication plot data", ["hepdata"]],
+  ["astronomical objects", ["simbad"]],
+  ["astrometry star catalog", ["gaia-archive"]],
+  ["open integer sequences", ["oeis"]],
+  ["consensus report", ["national-academies-publications"]],
+  ["physics simulation", ["phet"]],
+  ["biology teaching resources", ["hhmi-biointeractive"]],
 ];
 for (const [query, expectedIds] of corpus) expectAny(query, expectedIds);
 const atmospheric = search("atmospheric");
 assert.ok(atmospheric.includes("nasa-earthdata"), "atmospheric must include NASA Earthdata");
 assert.ok(atmospheric.includes("noaa-climate-data-online"), "atmospheric must include NOAA Climate Data Online");
 assert.ok(atmospheric.includes("epa-tri--toxics-release-inventory") || atmospheric.includes("nasa-firms"), "atmospheric should include a relevant air-quality/fire observation resource");
+const aiDatasets = search("AI datasets");
+assert.ok(aiDatasets.includes("hugging-face-hub"), "AI datasets must surface Hugging Face Hub");
+assert.ok(aiDatasets.length <= 12, `AI acronym matching must not degrade into a broad substring match; got ${aiDatasets.length} results`);
 
 // Citation access date and verification date are deliberately distinct.
 const citationSource = source("crossref");

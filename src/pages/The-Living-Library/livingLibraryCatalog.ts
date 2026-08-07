@@ -2,6 +2,7 @@ import {
   livingLibrarySources as auditedLivingLibraryRecords,
   type LivingLibrarySource as AuditedLivingLibrarySource,
 } from "./livingLibrarySources";
+import { globalExpansionLivingLibrarySources } from "./livingLibraryGlobalExpansion";
 
 export type LivingLibraryLinkRole =
   | "official"
@@ -96,6 +97,14 @@ export type LivingLibraryReviewStatus =
 
 export type LivingLibraryLifecycle = "active" | "legacy" | "deprecated" | "retired" | "successor available";
 
+export type LivingLibraryCitationMetadata = {
+  creator: string;
+  title: string;
+  publicationYear: string;
+  publisher?: string;
+  url: string;
+};
+
 export type LivingLibrarySource = AuditedLivingLibrarySource & {
   active: boolean;
   aliases: string[];
@@ -144,6 +153,7 @@ export type LivingLibrarySource = AuditedLivingLibrarySource & {
     limitation?: string;
   };
   citationType: string;
+  citation: LivingLibraryCitationMetadata;
 };
 
 type CatalogOverride = Partial<Pick<LivingLibrarySource,
@@ -174,6 +184,10 @@ type CatalogOverride = Partial<Pick<LivingLibrarySource,
   attributionRequired?: boolean | "varies";
   trainingCaution?: string;
   citationType?: string;
+  citationCreator?: string;
+  citationTitle?: string;
+  citationYear?: string;
+  citationPublisher?: string;
   version?: string;
   parentId?: string;
   verificationStatus?: LivingLibrarySource["verification"]["status"];
@@ -200,7 +214,11 @@ export const livingLibraryBrowseCategories: Array<{ id: string; name: LivingLibr
 
 const legacyDispositions: Record<string, LegacyDisposition> = {
   "nasa-earthdata-cloud": { status: "successor available", successorId: "nasa-earthdata", reason: "Folded into NASA Earthdata as cloud-workflow guidance; it is not a standalone discovery portal." },
-  "epa-ejscreen": { status: "retired", reason: "Removed from active discovery because the official resource is unavailable and no equivalent official successor is confirmed." },
+  "epa-ejscreen": {
+    status: "legacy",
+    reason: "Archived historical EPA resource reflecting the agency website as it existed on January 19, 2021. It is no longer updated and must not be treated as current environmental-justice data; no one-to-one modern successor is asserted.",
+    historicalUrl: "https://19january2021snapshot.epa.gov/ejscreen_.html",
+  },
   "papers-with-code": { status: "retired", reason: "The former benchmark portal is discontinued; Hugging Face Trending Papers and the surviving data dump are not equivalent replacements.", historicalUrl: "https://github.com/paperswithcode/paperswithcode-data" },
   "microsoft-academic-graph-legacy": { status: "retired", reason: "Microsoft retired the website, APIs, and graph updates on 2021-12-31.", historicalUrl: "https://www.microsoft.com/en-us/research/project/academic/" },
   "the-stack": { status: "legacy", successorId: "the-stack-v2", reason: "Version 1 is retained only for saved-source and version-history compatibility; The Stack v2 is the active family record." },
@@ -239,6 +257,7 @@ const aliasesById: Record<string, string[]> = {
   "who-global-health-observatory": ["WHO GHO", "Global Health Observatory"],
   "hdx--humanitarian-data-exchange": ["HDX", "Humanitarian Data Exchange"],
   "nasa-nsidc": ["NSIDC", "NSIDC DAAC", "National Snow and Ice Data Center"],
+  "hugging-face-datasets": ["Hugging Face Datasets", "HF Datasets"],
   "noaa-climate-data-online": ["NOAA CDO", "Climate Data Online"],
   "noaa-ncei-access-data-service": ["NCEI ADS", "NOAA Access Data Service"],
   "nasa-firms": ["FIRMS", "Fire Information for Resource Management System"],
@@ -276,7 +295,7 @@ const atmosphericKeywords = ["atmosphere", "atmospheric", "meteorology", "weathe
 const vocabularyById: Record<string, string[]> = {
   "nasa-earthdata": [...atmosphericKeywords, "earth observation", "satellite", "remote sensing", "ocean", "land", "hydrology"],
   "nasa-open-data-portal": ["NASA datasets", "space science", "earth science", "atmospheric data", "aeronautics"],
-  "nasa-nsidc": [...atmosphericKeywords, "cryosphere", "ice", "glaciers", "sea ice", "snow", "polar", "satellite"],
+  "nasa-nsidc": [...atmosphericKeywords, "cryosphere", "ice", "glaciers", "sea ice", "snow", "polar", "satellite", "frozen ground", "permafrost", "ice sheet", "ice shelf", "ice elevation", "surface elevation", "altimetry", "ICESat", "ICESat-2", "OpenAltimetry", "polar data", "Earthdata Login", "snow cover", "soil moisture"],
   "noaa-climate-data-online": [...atmosphericKeywords, "climate stations", "historical weather", "drought", "ocean"],
   "noaa-ncei-access-data-service": [...atmosphericKeywords, "REST API", "climate API", "ocean", "environmental data"],
   "nasa-firms": ["wildfire", "wildfires", "fire", "active fire", "hotspots", "smoke", "air quality", "satellite", "remote sensing", "atmospheric"],
@@ -447,6 +466,43 @@ const operatorOverrides: Record<string, [string, string]> = {
 };
 
 const overrides: Record<string, CatalogOverride> = {
+  "epa-ejscreen": {
+    name: "EJSCREEN — Archived Historical EPA Resource",
+    operator: "U.S. Environmental Protection Agency",
+    operatorType: "U.S. federal environmental agency (historical snapshot)",
+    resourceType: "Data catalog or portal",
+    browseCategory: "Earth, Environment & Climate",
+    scienceDomains: ["Environmental justice", "Environmental health", "Demography", "Environmental screening"],
+    geography: ["United States"],
+    languages: ["English"],
+    publicAccess: "retired/unavailable",
+    apiAccess: "unknown/unverified",
+    cloudAccess: "not required",
+    downloadAccess: "unknown",
+    accessNote: "This is a public January 19, 2021 EPA website snapshot. It is no longer updated; links and downloads inside the archive can fail. It must not be used as current environmental-justice data.",
+    reviewStatus: "not applicable",
+    hostsContent: "mixed",
+    contentNote: "The archived EJSCREEN materials document the former EPA screening and mapping tool, its environmental and demographic indicators, downloadable-data architecture, and technical limitations. No current one-to-one replacement is asserted.",
+    licenseReuseNotes: "Historical U.S. government material can include third-party maps, data, imagery, and linked products with separate terms. Cite the archived page and original dataset/version where available.",
+    termsUrl: "https://19january2021snapshot.epa.gov/ejscreen/technical-information-about-ejscreen_.html",
+    attributionRequired: true,
+    trainingCaution: "Archived screening indicators are not current, are not causal findings, and are not a safe basis for profiling communities or training consequential models.",
+    bestFor: "Historical research into the former EPA EJSCREEN tool, its 2021-era indicators, methods, and limitations.",
+    whyItBelongs: "Preserved as an archive-only record so citations, saved shelves, and historical research remain resolvable without implying a current EPA service.",
+    limitationsCautions: "Historical snapshot only. It reflects the EPA website as it existed on January 19, 2021, is no longer maintained, and may contain broken links. Do not use it for current screening or decisions.",
+    privacyEthicsWarnings: "Environmental and demographic screening indicators can stigmatize or mischaracterize communities. Never treat area-level indicators as individual facts or proof of harm, causation, or legal violation.",
+    citationAttributionNotes: "Cite it explicitly as an archived January 19, 2021 EPA web snapshot and record the action-time access date; do not cite it as current EJSCREEN data.",
+    citationCreator: "U.S. Environmental Protection Agency",
+    citationTitle: "EJSCREEN — archived historical EPA resource",
+    citationYear: "2021",
+    citationType: "archived historical web resource",
+    links: [
+      { role: "documentation", label: "Archived technical information", url: "https://19january2021snapshot.epa.gov/ejscreen/technical-information-about-ejscreen_.html", caution: "Historical 2021 snapshot; no longer updated." },
+      { role: "documentation", label: "Archived demographic-indicator overview", url: "https://19january2021snapshot.epa.gov/ejscreen/overview-demographic-indicators-ejscreen_.html", caution: "Historical 2021 snapshot; do not interpret as current data." },
+    ],
+    verificationStatus: "legacy",
+    verificationLimitation: "The archive's historical status and warnings were verified. No official notice was found proving the snapshot is scheduled to disappear, so this catalog makes no such claim.",
+  },
   "data-gov-in": {
     primaryUrl: "https://www.data.gov.in/",
     verificationStatus: "manual/gated",
@@ -476,7 +532,28 @@ const overrides: Record<string, CatalogOverride> = {
   "nasa-nsidc": {
     name: "NASA NSIDC DAAC",
     publicAccess: "account required",
-    accessNote: "Catalog information is public; downloading DAAC data requires NASA Earthdata Login. NSIDC is part of CIRES at CU Boulder and operates this NASA-managed DAAC.",
+    apiAccess: "key/token required",
+    cloudAccess: "optional",
+    downloadAccess: "yes",
+    scienceDomains: ["Cryosphere", "Snow and ice", "Climate", "Geophysics", "Remote sensing"],
+    accessNote: "NSIDC discovery and OpenAltimetry browsing are public. Downloading NASA DAAC products requires a free Earthdata Login; direct S3 workflows also use temporary AWS credentials tied to that login.",
+    contentNote: "NSIDC at CIRES preserves and serves cryosphere and related geophysical data through several programs. This card describes the NASA-managed NSIDC DAAC while linking the broader NSIDC catalog and the specialized OpenAltimetry child tool.",
+    licenseReuseNotes: "NASA and NSIDC datasets are free to access, but dataset citations are required and collection-level terms can vary. Use each dataset DOI and its current citation and reuse instructions.",
+    termsUrl: "https://nsidc.org/data/user-resources/get-started-nsidc-data",
+    attributionRequired: true,
+    parentId: "nasa-earthdata",
+    links: [
+      { role: "data", label: "Explore NSIDC data", url: "https://nsidc.org/data" },
+      { role: "documentation", label: "About the NASA NSIDC DAAC", url: "https://nsidc.org/data/data-programs/nsidc-daac/about" },
+      { role: "data", label: "OpenAltimetry — ICESat and ICESat-2 child tool", url: "https://openaltimetry.earthdatacloud.nasa.gov/data/", caution: "Specialized NSIDC/NASA map tool; some downloads and saved annotations require Earthdata Login." },
+      { role: "documentation", label: "OpenAltimetry documentation", url: "https://nsidc.org/openaltimetry/about" },
+    ],
+  },
+  "hugging-face-datasets": {
+    parentId: "hugging-face-hub",
+    contentNote: "The datasets service is a child collection within Hugging Face Hub. Records are community- and organization-published; licenses, provenance, documentation, gating, privacy, and scientific suitability vary by dataset.",
+    accessNote: "Public dataset pages can be browsed without an account. Private or gated datasets require login, acceptance of terms, and usually an access token for programmatic download.",
+    licenseReuseNotes: "A Hub listing is not a reuse license. Check the dataset card, repository files, upstream sources, gated terms, and any personal-data or consent constraints before reuse or model training.",
   },
   "nasa-earthdata": {
     publicAccess: "mixed/record-dependent",
@@ -901,7 +978,7 @@ function createCatalogSource(source: AuditedLivingLibrarySource): LivingLibraryS
   const operator = override.operator ?? operatorOverrides[source.id]?.[0] ?? source.organization;
   const operatorType = override.operatorType ?? operatorOverrides[source.id]?.[1] ?? (source.category === "Trusted Data Portals" ? "official public infrastructure" : "resource operator");
   const publicAccess = legacy?.status === "retired" ? "retired/unavailable" : override.publicAccess ?? defaultPublicAccess(source);
-  const aliases = unique([...(aliasesById[source.id] ?? []), source.organization !== operator ? source.organization : undefined]);
+  const aliases = unique([...(aliasesById[source.id] ?? []), ...(override.aliases ?? []), source.organization !== operator ? source.organization : undefined]);
   const scienceDomains = override.scienceDomains ?? defaultDomains(source, browseCategory);
   const searchKeywords = unique([
     ...(vocabularyById[source.id] ?? []),
@@ -974,14 +1051,27 @@ function createCatalogSource(source: AuditedLivingLibrarySource): LivingLibraryS
       limitation: override.verificationLimitation ?? (institutionalIds.has(source.id) ? "Full authenticated functionality and entitlement scope were not independently verified without an account or subscription." : undefined),
     },
     citationType: override.citationType ?? defaultCitationType(resourceType),
+    citation: {
+      creator: override.citationCreator ?? operator,
+      title: override.citationTitle ?? (override.name ?? source.name),
+      publicationYear: override.citationYear ?? "n.d.",
+      publisher: override.citationPublisher,
+      url: primaryUrl,
+    },
   };
 }
 
-export const allLivingLibrarySources = auditedLivingLibraryRecords.map(createCatalogSource);
+export const allLivingLibrarySources = [
+  ...auditedLivingLibraryRecords.map(createCatalogSource),
+  ...globalExpansionLivingLibrarySources,
+];
 export const activeLivingLibrarySources = allLivingLibrarySources.filter((source) => source.active);
 export const legacyLivingLibrarySources = allLivingLibrarySources.filter((source) => !source.active);
 
-export const livingLibrarySourceAliases: Record<string, string> = {};
+export const livingLibrarySourceAliases: Record<string, string> = {
+  unavco: "earthscope-consortium",
+  "hugging-face": "hugging-face-hub",
+};
 export const livingLibrarySourceSuccessors = Object.fromEntries(
   Object.entries(legacyDispositions).flatMap(([id, disposition]) => disposition.successorId ? [[id, disposition.successorId]] : []),
 );
@@ -1004,5 +1094,8 @@ export function formatLivingLibraryAccessDate(value: Date = new Date()) {
 
 export function formatLivingLibraryCitation(source: LivingLibrarySource, accessDate: Date = new Date()) {
   const recordType = source.active ? source.citationType : `${source.citationType}; ${source.lifecycle.status} catalog record`;
-  return `${source.operator}. ${source.name} [${recordType}]. ${source.officialUrl}. Accessed ${formatLivingLibraryAccessDate(accessDate)}.`;
+  const publisher = source.citation.publisher && source.citation.publisher !== source.citation.creator
+    ? ` ${source.citation.publisher}.`
+    : "";
+  return `${source.citation.creator}. (${source.citation.publicationYear}). ${source.citation.title} [${recordType}].${publisher} ${source.citation.url}. Accessed ${formatLivingLibraryAccessDate(accessDate)}.`;
 }

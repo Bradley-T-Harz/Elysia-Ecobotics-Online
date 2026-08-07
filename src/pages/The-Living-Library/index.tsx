@@ -58,7 +58,7 @@ const featuredIds = [
   "world-bank-data", "data-gov", "usgs-epa-water-quality-portal", "ncbi-datasets", "arxiv", "software-heritage",
 ];
 
-const queryExamples = ["atmospheric", "ocean", "hydrology", "biodiversity", "wildfire", "peer reviewed", "preprint", "DOI", "genomics", "materials", "API"];
+const queryExamples = ["atmospheric", "long term ecology", "repository finder", "marine biodiversity", "doctoral thesis India", "peer reviewed", "preprint", "DOI", "genomics", "materials", "AI models", "API"];
 
 const legacyCategoryHashMap: Record<string, LivingLibraryBrowseCategory> = {
   "library-trusted-data-portals": "General & Government Data",
@@ -369,11 +369,16 @@ export default function LivingLibraryPage() {
         <section className="section-card"><h2>Return to active discovery</h2><p>No source, alias, or compatibility tombstone matches <code>{sourceId}</code>.</p><Link className="button-link" to="/living-library">Search the Living Library</Link></section>
       </div>;
     }
-    const related = activeLivingLibrarySources.filter((candidate) => candidate.id !== source.id && candidate.browseCategory === source.browseCategory).slice(0, 4);
+    const parent = resolveLivingLibrarySource(source.lifecycle.parentId);
+    const children = activeLivingLibrarySources.filter((candidate) => candidate.lifecycle.parentId === source.id);
+    const relationshipIds = new Set([source.id, parent?.id, ...children.map((candidate) => candidate.id)].filter(Boolean));
+    const related = activeLivingLibrarySources.filter((candidate) => !relationshipIds.has(candidate.id) && candidate.browseCategory === source.browseCategory).slice(0, 4);
     return <>
       <LivingLibrarySourceDetail
         source={source}
         relatedSources={related}
+        parent={parent}
+        children={children}
         successor={resolveLivingLibrarySource(source.lifecycle.successorId)}
         saved={savedSourceIds.includes(source.id)}
         citationSaved={savedCitationIds.includes(source.id)}

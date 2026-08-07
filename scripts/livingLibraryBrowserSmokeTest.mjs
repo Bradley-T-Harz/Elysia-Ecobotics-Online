@@ -107,6 +107,11 @@ async function exercise(browserType, browserName, viewportName, viewport) {
     for (const [query, expectedId] of [
       ["peer reviewed", "pubmed"], ["preprint", "arxiv"], ["DOI", "crossref"],
       ["genomics", "ncbi-datasets"], ["materials", "materials-project"], ["hydrology", "usgs-epa-water-quality-portal"],
+      ["repository finder", "re3data"], ["African journals", "ajol"], ["doctoral thesis India", "shodhganga"],
+      ["long term ecology", "lter-network"], ["GNSS", "earthscope-consortium"], ["marine biodiversity", "obis"],
+      ["clinical trial", "clinicaltrials-gov"], ["high energy physics", "cern-open-data"],
+      ["space telescope data", "mast"], ["special functions", "nist-dlmf"],
+      ["DOE research", "osti-gov"], ["science textbook", "openstax"], ["AI models", "hugging-face-hub"],
     ]) {
       await search.fill(query);
       await page.getByRole("button", { name: "Search the library" }).click();
@@ -116,10 +121,10 @@ async function exercise(browserType, browserName, viewportName, viewport) {
     }
 
     await page.goBack({ waitUntil: "domcontentloaded" });
-    await page.waitForURL((url) => url.searchParams.get("q") === "materials");
-    assert((await resultIds(page)).includes("materials-project"), `${browserName}/${viewportName}: Back must restore materials results.`);
+    await page.waitForURL((url) => url.searchParams.get("q") === "science textbook");
+    assert((await resultIds(page)).includes("openstax"), `${browserName}/${viewportName}: Back must restore science-textbook results.`);
     await page.goForward({ waitUntil: "domcontentloaded" });
-    await page.waitForURL((url) => url.searchParams.get("q") === "hydrology");
+    await page.waitForURL((url) => url.searchParams.get("q") === "AI models");
 
     const filters = page.locator(".library-filter-panel");
     await filters.locator("summary").click();
@@ -160,6 +165,17 @@ async function exercise(browserType, browserName, viewportName, viewport) {
     assert(stored.ids.includes("nasa-earthdata"), `${browserName}/${viewportName}: v1 saved-source compatibility key not preserved.`);
     assert.equal(stored.citations[0]?.sourceId, "nasa-earthdata", `${browserName}/${viewportName}: v2 citation record missing.`);
     assert.match(stored.citations[0]?.citationText ?? "", /Accessed \d{4}-\d{2}-\d{2}/, `${browserName}/${viewportName}: stored citation lacks its action-time date.`);
+
+    await page.goto(`${origin}/living-library/source/hugging-face-datasets`, { waitUntil: "domcontentloaded" });
+    await settle(page, "#library-source-detail");
+    const family = page.locator('[aria-labelledby="library-source-family-heading"]');
+    assert.equal(await family.getByText("Resource family", { exact: true }).isVisible(), true, `${browserName}/${viewportName}: parent/child resource family is missing.`);
+    assert.equal(await family.getByRole("link", { name: "Hugging Face Hub", exact: true }).isVisible(), true, `${browserName}/${viewportName}: Hugging Face parent link is missing.`);
+
+    await page.goto(`${origin}/living-library/source/ndltd`, { waitUntil: "domcontentloaded" });
+    await settle(page, "#library-source-detail");
+    assert.equal(await page.getByText(/former Global ETD Search is currently offline/).isVisible(), true, `${browserName}/${viewportName}: NDLTD's offline search status is not visible.`);
+    assert.equal(await page.locator('a[href*="search.ndltd.org"]').count(), 0, `${browserName}/${viewportName}: offline Global ETD Search endpoint must not be exposed.`);
 
     await page.goto(`${origin}/living-library/source/microsoft-academic-graph-legacy`, { waitUntil: "domcontentloaded" });
     await settle(page);

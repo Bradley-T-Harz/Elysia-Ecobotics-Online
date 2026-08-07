@@ -65,7 +65,7 @@ function fieldMatch(query: string, queryTokens: string[], fieldValue: string) {
   const fieldTokens = searchableTokens(normalized);
   const phrase = Boolean(query) && normalized.includes(query);
   const exact = normalized === query;
-  const tokenMatches = queryTokens.filter((token) => fieldTokens.has(token) || normalized.includes(token)).length;
+  const tokenMatches = queryTokens.filter((token) => fieldTokens.has(token) || (token.length >= 4 && normalized.includes(token))).length;
   return { exact, phrase, tokenMatches };
 }
 
@@ -129,7 +129,7 @@ export function searchLivingLibrarySources(
         if (match.exact) score += field.weight * 3;
         const normalized = normalizeText(value);
         queryTokens.forEach((token) => {
-          if (searchableTokens(normalized).has(token) || normalized.includes(token)) matchedTokens.add(token);
+          if (searchableTokens(normalized).has(token) || (token.length >= 4 && normalized.includes(token))) matchedTokens.add(token);
         });
       }
       if (fieldMatched) matchedIn.push(field.label);

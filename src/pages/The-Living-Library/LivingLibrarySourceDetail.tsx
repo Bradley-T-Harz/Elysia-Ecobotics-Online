@@ -10,6 +10,8 @@ function DetailRow({ term, children }: { term: string; children: React.ReactNode
 export default function LivingLibrarySourceDetail({
   source,
   relatedSources,
+  parent,
+  children,
   successor,
   saved,
   citationSaved,
@@ -19,6 +21,8 @@ export default function LivingLibrarySourceDetail({
 }: {
   source: LivingLibrarySource;
   relatedSources: LivingLibrarySource[];
+  parent?: LivingLibrarySource;
+  children: LivingLibrarySource[];
   successor?: LivingLibrarySource;
   saved: boolean;
   citationSaved: boolean;
@@ -111,6 +115,16 @@ export default function LivingLibrarySourceDetail({
           </article>)}
         </div>
       </section>
+
+      {parent || children.length ? <section className="section-card" aria-labelledby="library-source-family-heading">
+        <p className="eyebrow">Resource family</p>
+        <h2 id="library-source-family-heading">How this source fits its larger hub</h2>
+        {parent ? <p>This is a specialized child resource within <Link to={`/living-library/source/${parent.id}`}><strong>{parent.name}</strong></Link>. The child has its own access, license, and scientific-role notes; the parent describes the broader infrastructure family.</p> : <p>This is a parent gateway. Its specialized children remain distinct where their access, scientific role, or reuse conditions deserve separate treatment.</p>}
+        <div className="library-related-grid">
+          {parent ? <Link to={`/living-library/source/${parent.id}`}><strong>{parent.name}</strong><span>Parent hub · {parent.resourceType}</span></Link> : null}
+          {children.map((child) => <Link key={child.id} to={`/living-library/source/${child.id}`}><strong>{child.name}</strong><span>Specialized child · {child.resourceType}</span></Link>)}
+        </div>
+      </section> : null}
 
       <section className="library-detail-columns" id="library-license-verification">
         <article className="section-card">
