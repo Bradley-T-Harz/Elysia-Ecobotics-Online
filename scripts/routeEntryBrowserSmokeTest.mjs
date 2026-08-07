@@ -230,12 +230,12 @@ try {
 
     await page.goto(`${origin}/living-library`, { waitUntil: "domcontentloaded" });
     await settle(page);
-    const categoryLink = page.locator(".library-category-nav a").first();
-    const categoryHash = new URL(await categoryLink.getAttribute("href"), origin).hash;
+    const categoryLink = page.locator(".library-browse-grid a").first();
     await categoryLink.click();
-    await settle(page, categoryHash);
-    assert.equal(await page.locator(categoryHash).locator("h1, h2, h3").first().evaluate((element) => element === document.activeElement), true, `${viewportName} Living Library target should receive accessible heading focus.`);
-    const categoryPosition = await pagePosition(page, categoryHash);
+    await page.waitForURL((url) => url.pathname.startsWith("/living-library/browse/"));
+    await settle(page, "#library-results");
+    assert.equal(await page.locator("#library-results h2").first().evaluate((element) => element === document.activeElement), true, `${viewportName} Living Library browse route should focus the results heading.`);
+    const categoryPosition = await pagePosition(page, "#library-results");
     assert(categoryPosition.targetTop >= categoryPosition.headerBottom + 4, `${viewportName} Living Library target should clear the sticky header.`);
 
     await page.goto(`${origin}/commune/rooms/coding-cornucopia`, { waitUntil: "domcontentloaded" });

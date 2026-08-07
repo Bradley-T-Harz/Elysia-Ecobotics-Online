@@ -6,7 +6,7 @@
     "repository": "Elysia-Ecobotics-Online",
     "branchPoint": "97bfc8b95f295c9c6dae98c9feb914e88c91b036",
     "routerSource": "src/App.tsx",
-    "routerDeclarationCount": 129,
+    "routerDeclarationCount": 131,
     "deployedBehaviorClaimed": false
   },
   "invariants": [
@@ -152,6 +152,20 @@
       "kind": "closed-registry",
       "sources": ["src/pages/Legal/legalPolicyPages.ts"],
       "rule": "Use only slugs defined by legalPolicyPages."
+    },
+    "living-library-category-slug": {
+      "kind": "closed-registry",
+      "sources": [
+        "src/pages/The-Living-Library/livingLibraryCatalog.ts"
+      ],
+      "rule": "Use only category IDs defined by livingLibraryBrowseCategories."
+    },
+    "living-library-source-id": {
+      "kind": "closed-registry-with-legacy-tombstones",
+      "sources": [
+        "src/pages/The-Living-Library/livingLibraryCatalog.ts"
+      ],
+      "rule": "Use only stable IDs resolved by resolveLivingLibrarySource; active, retired, folded, and successor-mapped records remain addressable."
     }
   },
   "currentNavigationBaselines": {
@@ -317,7 +331,9 @@
     { "id": "RT-0126", "declaredPath": "submit", "resolvedPattern": "/submit", "kind": "redirect", "parentId": "RT-0001", "owner": "Navigate", "redirectTarget": "/marketplace/submit", "stateProfile": "redirect-path-only", "dynamicSource": null, "accessProfile": "alias-inherits-target", "statusProfile": "registered-compatibility", "zone": "orange-boundary", "reachability": ["legacy-direct-load"], "smokePaths": ["/submit"] },
     { "id": "RT-0127", "declaredPath": "trust", "resolvedPattern": "/trust", "kind": "redirect", "parentId": "RT-0001", "owner": "Navigate", "redirectTarget": "/marketplace/trust", "stateProfile": "redirect-path-only", "dynamicSource": null, "accessProfile": "alias-inherits-target", "statusProfile": "registered-compatibility", "zone": "orange-boundary", "reachability": ["legacy-direct-load"], "smokePaths": ["/trust"] },
     { "id": "RT-0128", "declaredPath": "manifest-api", "resolvedPattern": "/manifest-api", "kind": "redirect", "parentId": "RT-0001", "owner": "Navigate", "redirectTarget": "/marketplace/manifest-api", "stateProfile": "redirect-path-only", "dynamicSource": null, "accessProfile": "alias-inherits-target", "statusProfile": "registered-compatibility", "zone": "orange-boundary", "reachability": ["legacy-direct-load"], "smokePaths": ["/manifest-api"] },
-    { "id": "RT-0129", "declaredPath": "*", "resolvedPattern": "*", "kind": "wildcard", "parentId": "RT-0001", "owner": "Navigate", "redirectTarget": "/", "stateProfile": "redirect-path-only", "dynamicSource": null, "accessProfile": "unknown-fallback", "statusProfile": "registered-compatibility", "zone": "infrastructure", "reachability": ["unknown-path-fallback"], "smokePaths": [] }
+    { "id": "RT-0129", "declaredPath": "*", "resolvedPattern": "*", "kind": "wildcard", "parentId": "RT-0001", "owner": "Navigate", "redirectTarget": "/", "stateProfile": "redirect-path-only", "dynamicSource": null, "accessProfile": "unknown-fallback", "statusProfile": "registered-compatibility", "zone": "infrastructure", "reachability": ["unknown-path-fallback"], "smokePaths": [] },
+    { "id": "RT-0130", "declaredPath": "living-library/browse/:categorySlug", "resolvedPattern": "/living-library/browse/:categorySlug", "kind": "dynamic", "parentId": "RT-0001", "owner": "LivingLibraryPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": "living-library-category-slug", "accessProfile": "public-record", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["page-local", "shareable-search-state", "direct-load"], "smokePaths": ["/living-library/browse/earth-environment"] },
+    { "id": "RT-0131", "declaredPath": "living-library/source/:sourceId", "resolvedPattern": "/living-library/source/:sourceId", "kind": "dynamic", "parentId": "RT-0001", "owner": "LivingLibraryPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": "living-library-source-id", "accessProfile": "public-record", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["page-local", "saved-shelf", "shareable-source-detail", "direct-load"], "smokePaths": ["/living-library/source/nasa-earthdata"] }
   ],
   "externalDestinations": [
     { "id": "EXT-0001", "url": "https://elysiaartisancollective.pages.dev", "kind": "external", "owner": "ElysiaArtisanCollectivePage", "accessProfile": "external-approved-boundary", "statusProfile": "approved-external-boundary", "zone": "orange-boundary", "reachability": ["artisan-bridge-page-only"] },

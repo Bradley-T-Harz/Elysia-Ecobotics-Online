@@ -1,35 +1,37 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
-import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
 import { createReviewItem } from "../../shared/review/reviewClient";
+import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
 import {
-  livingLibraryAccountFunctions,
+  activeLivingLibrarySources,
+  allLivingLibrarySources,
+  formatLivingLibraryCitation,
+  legacyLivingLibrarySources,
+  livingLibraryBrowseCategories,
+  livingLibraryCategorySlug,
+  resolveLivingLibrarySource,
+  type LivingLibraryBrowseCategory,
+  type LivingLibrarySource,
+} from "./livingLibraryCatalog";
+import {
+  defaultLivingLibraryFilters,
+  livingLibrarySearchParams,
+  parseLivingLibrarySearchParams,
+  searchLivingLibrarySources,
+  type LivingLibrarySearchFilters,
+} from "./livingLibrarySearch";
+import {
   livingLibraryEthicsPrinciples,
   livingLibraryPageCopy,
-  livingLibrarySources,
   livingLibraryStarterPacks,
-  type LivingLibrarySource
 } from "./livingLibrarySources";
+import LivingLibrarySourceCard from "./LivingLibrarySourceCard";
+import LivingLibrarySourceDetail from "./LivingLibrarySourceDetail";
 
-type LibraryFilters = {
-  search: string;
-  category: string;
-  sourceType: string;
-  topic: string;
-  usefulFor: string;
-  riskLabel: string;
-  signupRequired: string;
-  cloudRequired: string;
-  apiAvailable: string;
-  bulkDownloadAvailable: string;
-};
-
-type LocalCollection = {
-  name: string;
-  sourceIds: string[];
-};
-
+type LocalCollection = { name: string; sourceIds: string[] };
+type SavedCitationRecord = { sourceId: string; citationText: string; accessedAt: string };
 type LocalDraft = {
   id: string;
   kind: "suggestion" | "broken-link";
@@ -41,55 +43,36 @@ type LocalDraft = {
   createdAt: string;
 };
 
-const STORAGE_KEYS = {
+export const livingLibraryStorageKeys = {
   savedSources: "elysiaLivingLibrary.savedSources.v1",
   savedCitations: "elysiaLivingLibrary.savedCitations.v1",
+  savedCitationRecords: "elysiaLivingLibrary.savedCitationRecords.v2",
   bookmarkedPacks: "elysiaLivingLibrary.bookmarkedPacks.v1",
   collections: "elysiaLivingLibrary.collections.v1",
-  drafts: "elysiaLivingLibrary.drafts.v1"
+  drafts: "elysiaLivingLibrary.drafts.v1",
 } as const;
 
-const defaultFilters: LibraryFilters = {
-  search: "",
-  category: "all",
-  sourceType: "all",
-  topic: "all",
-  usefulFor: "all",
-  riskLabel: "all",
-  signupRequired: "all",
-  cloudRequired: "all",
-  apiAvailable: "all",
-  bulkDownloadAvailable: "all"
-};
-
-const categoryOrder = [
-  "Trusted Data Portals",
-  "Model Training Commons",
-  "Environmental Data",
-  "Social & Economic Data",
-  "Physical Science Data",
-  "Biology & Health Data",
-  "Code Datasets",
-  "Research Papers & Scholarly Graphs",
-  "Dataset Ethics & Licensing",
-  "Stewardship Organizations",
-  "Local AI Tools",
-  "Elysia Technical Foundations"
+const pageSize = 12;
+const featuredIds = [
+  "nasa-earthdata", "noaa-climate-data-online", "gbif", "pubmed", "crossref", "materials-project",
+  "world-bank-data", "data-gov", "usgs-epa-water-quality-portal", "ncbi-datasets", "arxiv", "software-heritage",
 ];
 
-const categoryDescriptions: Record<string, string> = {
-  "Trusted Data Portals": "Official public data portals, APIs, and civic discovery shelves with provenance and dataset-specific terms.",
-  "Model Training Commons": "Dataset repositories and benchmark sources that require careful license, privacy, and training-use review.",
-  "Environmental Data": "Climate, biodiversity, land, water, air, agriculture, ecosystem, and geospatial source pathways.",
-  "Social & Economic Data": "Public-interest, economic, housing, demographic, health, and policy data with human-context cautions.",
-  "Physical Science Data": "Chemistry, materials, space, geology, hazards, and physical-science repositories.",
-  "Biology & Health Data": "Biomedical, genomic, neuroscience, health, and life-science sources with extra privacy care.",
-  "Code Datasets": "Code archives, package ecosystems, public repositories, and software-source datasets with license risk made visible.",
-  "Research Papers & Scholarly Graphs": "Scholarly metadata, open papers, citation graphs, research repositories, and evidence-map starting points.",
-  "Dataset Ethics & Licensing": "License, consent, provenance, attribution, and training-use guidance sources.",
-  "Stewardship Organizations": "Organizations people may learn from or support directly, without implied affiliation or partnership.",
-  "Local AI Tools": "Local-first and self-hostable AI tools, search, model, and data infrastructure references.",
-  "Elysia Technical Foundations": "Technical foundations for private local Elysia, secure releases, governed local tools, and public infrastructure."
+const queryExamples = ["atmospheric", "ocean", "hydrology", "biodiversity", "wildfire", "peer reviewed", "preprint", "DOI", "genomics", "materials", "API"];
+
+const legacyCategoryHashMap: Record<string, LivingLibraryBrowseCategory> = {
+  "library-trusted-data-portals": "General & Government Data",
+  "library-model-training-commons": "Code, Models & Technical Infrastructure",
+  "library-environmental-data": "Earth, Environment & Climate",
+  "library-social-economic-data": "Social, Economic & Policy Data",
+  "library-physical-science-data": "Physical Sciences & Space",
+  "library-research-papers-scholarly-graphs": "Scholarly Literature & Citations",
+  "library-biology-health-data": "Life Sciences & Health",
+  "library-code-datasets": "Code, Models & Technical Infrastructure",
+  "library-elysia-technical-foundations": "Code, Models & Technical Infrastructure",
+  "library-local-ai-tools": "Code, Models & Technical Infrastructure",
+  "library-dataset-ethics-licensing": "Research Practice & Education",
+  "library-stewardship-organizations": "Research Practice & Education",
 };
 
 function readStorage<T>(key: string, fallback: T): T {
@@ -108,63 +91,10 @@ function writeStorage<T>(key: string, value: T) {
 }
 
 function uniqueSorted(values: string[]) {
-  return Array.from(new Set(values.filter(Boolean))).sort((a, b) => a.localeCompare(b));
-}
-
-function categoryAnchor(category: string) {
-  return `library-${category.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}`;
-}
-
-function orderedCategories(categories: string[]) {
-  const known = categoryOrder.filter((category) => categories.includes(category));
-  const extra = uniqueSorted(categories.filter((category) => !categoryOrder.includes(category)));
-  return [...known, ...extra];
-}
-
-function accessBadge(label: string, value: string) {
-  const normalized = value.toLowerCase();
-  const tone = normalized === "yes" ? "library-badge--warning" : normalized === "no" ? "library-badge--safe" : "library-badge--neutral";
-  return <span className={`library-badge ${tone}`}>{label}: {value}</span>;
-}
-
-function sourceCitation(source: LivingLibrarySource) {
-  return `${source.name}. Official website. ${source.officialUrl}. Accessed ${source.lastChecked}. ${source.citationAttributionNotes}`;
-}
-
-function matchesFilter(value: string, selected: string) {
-  return selected === "all" || value === selected;
-}
-
-function sourceMatches(source: LivingLibrarySource, filters: LibraryFilters) {
-  const haystack = [
-    source.name,
-    source.organization,
-    source.category,
-    source.sourceType,
-    source.bestFor,
-    source.licenseReuseNotes,
-    source.privacyEthicsWarnings,
-    source.whyItBelongs,
-    source.limitationsCautions,
-    ...source.primaryTopics,
-    ...source.usefulFor,
-    ...source.riskLabels
-  ].join(" ").toLowerCase();
-  const searchOk = !filters.search.trim() || haystack.includes(filters.search.trim().toLowerCase());
-  return searchOk
-    && matchesFilter(source.category, filters.category)
-    && matchesFilter(source.sourceType, filters.sourceType)
-    && (filters.topic === "all" || source.primaryTopics.includes(filters.topic))
-    && (filters.usefulFor === "all" || source.usefulFor.includes(filters.usefulFor))
-    && (filters.riskLabel === "all" || source.riskLabels.includes(filters.riskLabel))
-    && matchesFilter(source.signupRequired, filters.signupRequired)
-    && matchesFilter(source.cloudRequired, filters.cloudRequired)
-    && matchesFilter(source.apiAvailable, filters.apiAvailable)
-    && matchesFilter(source.bulkDownloadAvailable, filters.bulkDownloadAvailable);
+  return [...new Set(values.filter(Boolean))].sort((left, right) => left.localeCompare(right));
 }
 
 function downloadText(filename: string, text: string, type: string) {
-  if (typeof window === "undefined") return;
   const blob = new Blob([text], { type });
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -174,183 +104,153 @@ function downloadText(filename: string, text: string, type: string) {
   window.URL.revokeObjectURL(url);
 }
 
-function collectionToMarkdown(name: string, sources: LivingLibrarySource[]) {
+function collectionToMarkdown(name: string, sources: LivingLibrarySource[], accessDate: Date) {
   return [
     `# ${name}`,
     "",
-    "Saved locally in this browser for now. Account sync can come later after Supabase tables and RLS are intentionally designed.",
-    `Export date: ${new Date().toISOString().slice(0, 10)}`,
+    `Export date: ${accessDate.toISOString()}`,
     "",
     ...sources.flatMap((source) => [
       `## ${source.name}`,
       `- Official URL: ${source.officialUrl}`,
-      `- Category: ${source.category}`,
-      `- Source type: ${source.sourceType}`,
-      `- Best for: ${source.bestFor}`,
-      `- Primary topics: ${source.primaryTopics.join(", ")}`,
-      `- Useful for: ${source.usefulFor.join(", ")}`,
-      `- Risk labels: ${source.riskLabels.join(", ") || "None listed"}`,
-      `- License/reuse notes: ${source.licenseReuseNotes}`,
-      `- Privacy/ethics warnings: ${source.privacyEthicsWarnings}`,
-      `- Citation: ${sourceCitation(source)}`,
-      ""
-    ])
+      `- Operator: ${source.operator}`,
+      `- Resource type: ${source.resourceType}`,
+      `- Scientific fields: ${source.scienceDomains.join(", ")}`,
+      `- Access: ${source.access.public}; API ${source.access.api}; download ${source.access.download}`,
+      `- Content status: ${source.content.reviewStatus}`,
+      `- License/reuse: ${source.license.summary}`,
+      `- Citation: ${formatLivingLibraryCitation(source, accessDate)}`,
+      "",
+    ]),
   ].join("\n");
 }
 
-function SourceCard({
-  source,
-  saved,
-  citationSaved,
-  onSave,
-  onToggleCitation,
-  onCopyCitation,
-  onAddToCollection
-}: {
-  source: LivingLibrarySource;
-  saved: boolean;
-  citationSaved: boolean;
-  onSave: (sourceId: string) => void;
-  onToggleCitation: (sourceId: string) => void;
-  onCopyCitation: (source: LivingLibrarySource) => void;
-  onAddToCollection: (sourceId: string) => void;
-}) {
-  return (
-    <article className="library-source-card">
-      <div className="library-source-card__topline">
-        <span className="eyebrow">{source.category}</span>
-        <span className="library-last-checked">Last checked {source.lastChecked}</span>
-      </div>
-      <h3>{source.name}</h3>
-      <p className="library-source-type">{source.sourceType} by {source.organization}</p>
-      <p>{source.bestFor}</p>
-      <p><a href={source.officialUrl} target="_blank" rel="noreferrer">Official source</a></p>
-      <div className="library-badge-row">
-        {accessBadge("Signup", source.signupRequired)}
-        {accessBadge("Cloud", source.cloudRequired)}
-        {accessBadge("API", source.apiAvailable)}
-        {accessBadge("Bulk", source.bulkDownloadAvailable)}
-      </div>
-      <div className="library-chip-row" aria-label="Primary topics">
-        {source.primaryTopics.slice(0, 5).map((topic) => <span key={topic}>{topic}</span>)}
-      </div>
-      <div className="library-chip-row" aria-label="Useful-for tags">
-        {source.usefulFor.slice(0, 5).map((tag) => <span key={tag}>{tag}</span>)}
-      </div>
-      <div className="library-risk-row">
-        {source.riskLabels.length ? source.riskLabels.map((risk) => <span key={risk}>{risk}</span>) : <span>No special risk label listed</span>}
-      </div>
-      <p className="library-card-caution"><strong>Caution:</strong> {source.limitationsCautions}</p>
-      <details>
-        <summary>Details, cautions, citation</summary>
-        <dl className="library-detail-list">
-          <div><dt>Useful for</dt><dd>{source.usefulFor.join(", ")}</dd></div>
-          <div><dt>Why it belongs</dt><dd>{source.whyItBelongs}</dd></div>
-          <div><dt>License/reuse notes</dt><dd>{source.licenseReuseNotes}</dd></div>
-          <div><dt>Privacy/ethics warnings</dt><dd>{source.privacyEthicsWarnings}</dd></div>
-          <div><dt>Attribution/citation</dt><dd>{source.citationAttributionNotes}</dd></div>
-          <div><dt>Plain citation</dt><dd>{sourceCitation(source)}</dd></div>
-          <div><dt>Limitations/cautions</dt><dd>{source.limitationsCautions}</dd></div>
-        </dl>
-      </details>
-      <div className="button-row library-card-actions">
-        <button type="button" onClick={() => onSave(source.id)}>{saved ? "Unsave" : "Save"}</button>
-        <button type="button" onClick={() => onToggleCitation(source.id)}>{citationSaved ? "Drop citation" : "Save citation"}</button>
-        <button type="button" onClick={() => onCopyCitation(source)}>Copy citation</button>
-        <button type="button" onClick={() => onAddToCollection(source.id)}>Add to collection</button>
-      </div>
-    </article>
-  );
+function facetLabel(value: string) {
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 export default function LivingLibraryPage() {
-  const [filters, setFilters] = useState<LibraryFilters>(defaultFilters);
-  const [savedSourceIds, setSavedSourceIds] = useState<string[]>(() => readStorage(STORAGE_KEYS.savedSources, []));
-  const [savedCitationIds, setSavedCitationIds] = useState<string[]>(() => readStorage(STORAGE_KEYS.savedCitations, []));
-  const [bookmarkedPackIds, setBookmarkedPackIds] = useState<string[]>(() => readStorage(STORAGE_KEYS.bookmarkedPacks, []));
-  const [collections, setCollections] = useState<LocalCollection[]>(() => readStorage(STORAGE_KEYS.collections, [{ name: "Research shelf", sourceIds: [] }]));
+  const { sourceId, categorySlug } = useParams();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const parsedState = useMemo(
+    () => parseLivingLibrarySearchParams(searchParams, activeLivingLibrarySources),
+    [searchParams],
+  );
+  const routeCategory = livingLibraryBrowseCategories.find((category) => category.id === categorySlug || livingLibraryCategorySlug(category.name) === categorySlug)?.name;
+  const invalidCategoryRoute = Boolean(categorySlug && !routeCategory);
+  const effectiveFilters = useMemo(() => routeCategory ? { ...parsedState.filters, category: routeCategory } : parsedState.filters, [parsedState.filters, routeCategory]);
+  const [searchDraft, setSearchDraft] = useState(parsedState.query);
+  const [visibleCount, setVisibleCount] = useState(pageSize);
+  const [savedSourceIds, setSavedSourceIds] = useState<string[]>(() => readStorage(livingLibraryStorageKeys.savedSources, []));
+  const [savedCitationIds, setSavedCitationIds] = useState<string[]>(() => readStorage(livingLibraryStorageKeys.savedCitations, []));
+  const [savedCitationRecords, setSavedCitationRecords] = useState<SavedCitationRecord[]>(() => readStorage(livingLibraryStorageKeys.savedCitationRecords, []));
+  const [bookmarkedPackIds, setBookmarkedPackIds] = useState<string[]>(() => readStorage(livingLibraryStorageKeys.bookmarkedPacks, []));
+  const [collections, setCollections] = useState<LocalCollection[]>(() => readStorage(livingLibraryStorageKeys.collections, [{ name: "Research shelf", sourceIds: [] }]));
   const [activeCollectionName, setActiveCollectionName] = useState(() => collections[0]?.name ?? "Research shelf");
   const [collectionName, setCollectionName] = useState("");
-  const [drafts, setDrafts] = useState<LocalDraft[]>(() => readStorage(STORAGE_KEYS.drafts, []));
+  const [drafts, setDrafts] = useState<LocalDraft[]>(() => readStorage(livingLibraryStorageKeys.drafts, []));
   const [suggestion, setSuggestion] = useState({ sourceName: "", officialUrl: "", category: "", notes: "", submitterNote: "" });
   const [brokenLink, setBrokenLink] = useState({ sourceName: "", officialUrl: "", notes: "" });
-  const [statusMessage, setStatusMessage] = useState("Saved locally in this browser for now. Account sync can come later after Supabase tables and RLS are intentionally designed.");
+  const [citationPanel, setCitationPanel] = useState<SavedCitationRecord | null>(null);
+  const [statusMessage, setStatusMessage] = useState("Local shelf ready. Saving here writes only to this browser unless you explicitly sync through Commons Circle.");
 
+  useEffect(() => setSearchDraft(parsedState.query), [parsedState.query]);
+  useEffect(() => setVisibleCount(pageSize), [location.pathname, location.search]);
+
+  useEffect(() => {
+    const target = location.hash.slice(1);
+    const category = legacyCategoryHashMap[target];
+    if (!category || location.pathname !== "/living-library") return;
+    const params = livingLibrarySearchParams({ ...parsedState.filters, category }, parsedState.query);
+    navigate({ pathname: "/living-library", search: `?${params.toString()}` }, { replace: true, state: { routeEntry: { targetId: "library-results" } } });
+  }, [location.hash, location.pathname, navigate, parsedState.filters, parsedState.query]);
+
+  const categoryCounts = useMemo(() => new Map(livingLibraryBrowseCategories.map((category) => [
+    category.name,
+    activeLivingLibrarySources.filter((source) => source.browseCategory === category.name).length,
+  ])), []);
   const filterOptions = useMemo(() => ({
-    categories: uniqueSorted(livingLibrarySources.map((source) => source.category)),
-    sourceTypes: uniqueSorted(livingLibrarySources.map((source) => source.sourceType)),
-    topics: uniqueSorted(livingLibrarySources.flatMap((source) => source.primaryTopics)),
-    usefulFor: uniqueSorted(livingLibrarySources.flatMap((source) => source.usefulFor)),
-    riskLabels: uniqueSorted(livingLibrarySources.flatMap((source) => source.riskLabels)),
-    accessValues: uniqueSorted(livingLibrarySources.flatMap((source) => [source.signupRequired, source.cloudRequired, source.apiAvailable, source.bulkDownloadAvailable]))
+    resourceTypes: uniqueSorted(activeLivingLibrarySources.map((source) => source.resourceType)),
+    publicAccess: uniqueSorted(activeLivingLibrarySources.map((source) => source.access.public)),
+    reviewStatuses: uniqueSorted(activeLivingLibrarySources.map((source) => source.content.reviewStatus)),
+    apiAccess: uniqueSorted(activeLivingLibrarySources.map((source) => source.access.api)),
+    downloads: uniqueSorted(activeLivingLibrarySources.map((source) => source.access.download)),
   }), []);
 
-  const filteredSources = useMemo(() => livingLibrarySources.filter((source) => sourceMatches(source, filters)), [filters]);
-  const activeFiltersCount = Object.values(filters).filter((value) => value !== "" && value !== "all").length;
-  const groupedSources = useMemo(() => {
-    const categories = orderedCategories(uniqueSorted(filteredSources.map((source) => source.category)));
-    return categories.map((category) => ({
-      category,
-      description: categoryDescriptions[category] ?? "Curated sources with visible access, license, reuse, and caution notes.",
-      sources: filteredSources.filter((source) => source.category === category)
-    })).filter((section) => section.sources.length > 0);
-  }, [filteredSources]);
-  const categoryCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    livingLibrarySources.forEach((source) => counts.set(source.category, (counts.get(source.category) ?? 0) + 1));
-    return counts;
-  }, []);
-  const navCategories = orderedCategories(uniqueSorted(livingLibrarySources.map((source) => source.category)));
+  const searchResults = useMemo(() => {
+    const results = searchLivingLibrarySources(activeLivingLibrarySources, parsedState.query, effectiveFilters);
+    const hasDiscoveryState = Boolean(parsedState.query.trim()) || Object.values(effectiveFilters).some((value) => value !== "all");
+    if (hasDiscoveryState) return results;
+    const featuredOrder = new Map(featuredIds.map((id, index) => [id, index]));
+    return results.slice().sort((left, right) => {
+      const leftRank = featuredOrder.get(left.source.id) ?? Number.MAX_SAFE_INTEGER;
+      const rightRank = featuredOrder.get(right.source.id) ?? Number.MAX_SAFE_INTEGER;
+      return leftRank - rightRank || left.source.name.localeCompare(right.source.name);
+    });
+  }, [effectiveFilters, parsedState.query]);
+  const visibleResults = searchResults.slice(0, visibleCount);
+  const activeFiltersCount = Object.values(effectiveFilters).filter((value) => value !== "all").length;
   const activeCollection = collections.find((collection) => collection.name === activeCollectionName) ?? collections[0];
-  const savedSources = livingLibrarySources.filter((source) => savedSourceIds.includes(source.id));
-  const activeCollectionSources = livingLibrarySources.filter((source) => activeCollection?.sourceIds.includes(source.id));
-  const stewardshipSources = livingLibrarySources.filter((source) => source.category === "Stewardship Organizations");
+  const activeCollectionSources = (activeCollection?.sourceIds ?? []).map(resolveLivingLibrarySource).filter((source): source is LivingLibrarySource => Boolean(source));
 
   function updateSavedSources(next: string[]) {
     setSavedSourceIds(next);
-    writeStorage(STORAGE_KEYS.savedSources, next);
+    writeStorage(livingLibraryStorageKeys.savedSources, next);
   }
 
-  function updateSavedCitations(next: string[]) {
-    setSavedCitationIds(next);
-    writeStorage(STORAGE_KEYS.savedCitations, next);
-  }
-
-  function updateBookmarkedPacks(next: string[]) {
-    setBookmarkedPackIds(next);
-    writeStorage(STORAGE_KEYS.bookmarkedPacks, next);
+  function updateCitationState(nextIds: string[], nextRecords: SavedCitationRecord[]) {
+    setSavedCitationIds(nextIds);
+    setSavedCitationRecords(nextRecords);
+    writeStorage(livingLibraryStorageKeys.savedCitations, nextIds);
+    writeStorage(livingLibraryStorageKeys.savedCitationRecords, nextRecords);
   }
 
   function updateCollections(next: LocalCollection[]) {
     setCollections(next);
-    writeStorage(STORAGE_KEYS.collections, next);
+    writeStorage(livingLibraryStorageKeys.collections, next);
   }
 
-  function updateDrafts(next: LocalDraft[]) {
-    setDrafts(next);
-    writeStorage(STORAGE_KEYS.drafts, next);
+  function toggleSavedSource(id: string) {
+    const wasSaved = savedSourceIds.includes(id);
+    updateSavedSources(wasSaved ? savedSourceIds.filter((sourceId) => sourceId !== id) : [...savedSourceIds, id]);
+    setStatusMessage(wasSaved ? "Source removed from this browser's local shelf." : "Source saved to this browser's local shelf.");
   }
 
-  function toggleSavedSource(sourceId: string) {
-    const next = savedSourceIds.includes(sourceId) ? savedSourceIds.filter((id) => id !== sourceId) : [...savedSourceIds, sourceId];
-    updateSavedSources(next);
-    setStatusMessage(savedSourceIds.includes(sourceId) ? "Source removed from this browser's local saves." : "Source saved locally in this browser.");
+  function openCitation(id: string) {
+    const source = resolveLivingLibrarySource(id);
+    if (!source) return;
+    const existing = savedCitationRecords.find((record) => record.sourceId === id);
+    const accessedAt = new Date().toISOString();
+    setCitationPanel(existing ?? { sourceId: id, citationText: formatLivingLibraryCitation(source, new Date(accessedAt)), accessedAt });
+    setStatusMessage(`Citation prepared for ${source.name} using today's access date.`);
   }
 
-  function toggleCitation(sourceId: string) {
-    const next = savedCitationIds.includes(sourceId) ? savedCitationIds.filter((id) => id !== sourceId) : [...savedCitationIds, sourceId];
-    updateSavedCitations(next);
-    setStatusMessage(savedCitationIds.includes(sourceId) ? "Citation removed from local saved citations." : "Citation saved locally in this browser.");
+  function saveCitationRecord(record: SavedCitationRecord) {
+    const nextIds = [...new Set([...savedCitationIds, record.sourceId])];
+    const nextRecords = [...savedCitationRecords.filter((item) => item.sourceId !== record.sourceId), record];
+    updateCitationState(nextIds, nextRecords);
+    setStatusMessage("Citation saved locally with its action-time access date.");
   }
 
-  async function copyCitation(source: LivingLibrarySource) {
-    const citation = sourceCitation(source);
+  function removeCitationRecord(sourceIdToRemove: string) {
+    updateCitationState(savedCitationIds.filter((id) => id !== sourceIdToRemove), savedCitationRecords.filter((record) => record.sourceId !== sourceIdToRemove));
+    setStatusMessage("Citation removed from this browser's local shelf.");
+  }
+
+  async function copyCitation(record: SavedCitationRecord) {
     try {
-      await navigator.clipboard.writeText(citation);
-      setStatusMessage(`Copied citation for ${source.name}.`);
+      await navigator.clipboard.writeText(record.citationText);
+      setStatusMessage("Citation copied. Its access date is the date this citation was created, not the catalog verification date.");
     } catch {
-      setStatusMessage(`Citation ready: ${citation}`);
+      setStatusMessage(`Copy unavailable. Citation text: ${record.citationText}`);
     }
+  }
+
+  function updateBookmarkedPacks(next: string[]) {
+    setBookmarkedPackIds(next);
+    writeStorage(livingLibraryStorageKeys.bookmarkedPacks, next);
   }
 
   function createCollection() {
@@ -367,37 +267,43 @@ export default function LivingLibraryPage() {
     setStatusMessage(`Created local collection: ${name}.`);
   }
 
-  function addToActiveCollection(sourceId: string) {
+  function addToActiveCollection(id: string) {
     if (!activeCollection) return;
     const next = collections.map((collection) => collection.name === activeCollection.name
-      ? { ...collection, sourceIds: Array.from(new Set([...collection.sourceIds, sourceId])) }
+      ? { ...collection, sourceIds: [...new Set([...collection.sourceIds, id])] }
       : collection);
     updateCollections(next);
-    setStatusMessage("Added source to the active local collection.");
+    setStatusMessage(`Added ${resolveLivingLibrarySource(id)?.name ?? "source"} to ${activeCollection.name}.`);
   }
 
   function exportActiveCollection(format: "markdown" | "json") {
     if (!activeCollection) return;
+    const actionDate = new Date();
+    const filename = activeCollection.name.replace(/[^a-z0-9_-]+/gi, "-").toLowerCase() || "living-library-collection";
     if (format === "markdown") {
-      downloadText(`${activeCollection.name.replace(/[^a-z0-9_-]+/gi, "-").toLowerCase() || "living-library-collection"}.md`, collectionToMarkdown(activeCollection.name, activeCollectionSources), "text/markdown");
+      downloadText(`${filename}.md`, collectionToMarkdown(activeCollection.name, activeCollectionSources, actionDate), "text/markdown");
     } else {
-      downloadText(`${activeCollection.name.replace(/[^a-z0-9_-]+/gi, "-").toLowerCase() || "living-library-collection"}.json`, JSON.stringify({ note: statusMessage, collection: activeCollection, sources: activeCollectionSources }, null, 2), "application/json");
+      downloadText(`${filename}.json`, JSON.stringify({ exportedAt: actionDate.toISOString(), collection: activeCollection, sources: activeCollectionSources.map((source) => ({ ...source, citation: formatLivingLibraryCitation(source, actionDate) })) }, null, 2), "application/json");
     }
-    setStatusMessage(`Exported ${activeCollection.name} as ${format.toUpperCase()} from local browser state.`);
+    setStatusMessage(`Exported ${activeCollection.name} as ${format.toUpperCase()} with action-time citation access dates.`);
   }
 
   async function saveDraft(kind: LocalDraft["kind"], draft: { sourceName: string; officialUrl: string; category?: string; submitterNote?: string; notes: string }) {
     if (!draft.sourceName.trim() && !draft.officialUrl.trim() && !draft.notes.trim()) return;
-    const localDraft = { id: `${kind}-${Date.now()}`, kind, sourceName: draft.sourceName, officialUrl: draft.officialUrl, category: draft.category, submitterNote: draft.submitterNote, notes: draft.notes, createdAt: new Date().toISOString() };
+    const localDraft: LocalDraft = { id: `${kind}-${Date.now()}`, kind, sourceName: draft.sourceName, officialUrl: draft.officialUrl, category: draft.category, submitterNote: draft.submitterNote, notes: draft.notes, createdAt: new Date().toISOString() };
+    const saveLocally = (message: string) => {
+      const next = [localDraft, ...drafts];
+      setDrafts(next);
+      writeStorage(livingLibraryStorageKeys.drafts, next);
+      setStatusMessage(message);
+    };
     if (!hasSupabaseConfig || !supabase) {
-      updateDrafts([localDraft, ...drafts]);
-      setStatusMessage(`${supabaseNotConfiguredMessage} ${kind === "suggestion" ? "Source request" : "Broken-link report"} saved locally as a draft.`);
+      saveLocally(`${supabaseNotConfiguredMessage} ${kind === "suggestion" ? "Source request" : "Broken-link report"} saved locally as a draft.`);
       return;
     }
     const { data: auth } = await supabase.auth.getUser();
     if (!auth.user) {
-      updateDrafts([localDraft, ...drafts]);
-      setStatusMessage(`Sign in to a Website Account to save this ${kind === "suggestion" ? "source suggestion" : "broken-link report"} for review. A local draft was saved.`);
+      saveLocally(`Sign in to submit this ${kind === "suggestion" ? "source request" : "broken-link report"} for review. A browser-local draft was saved instead.`);
       return;
     }
     const requestId = crypto.randomUUID?.() ?? `${kind}-${Date.now()}`;
@@ -411,201 +317,296 @@ export default function LivingLibraryPage() {
         why_it_belongs: draft.notes.trim() || null,
         privacy_ethics_notes: draft.submitterNote?.trim() || null,
         submitter_notes: draft.submitterNote?.trim() || null,
-        status: "pending_review"
+        status: "pending_review",
       });
       if (error) {
-        updateDrafts([localDraft, ...drafts]);
-        setStatusMessage(`Could not save source suggestion remotely: ${error.message}. A local draft was saved.`);
+        saveLocally(`Remote source request failed: ${error.message}. A browser-local draft was saved.`);
         return;
       }
       const reviewResult = await createReviewItem({ domain: "living_library_source", sourceTable: "living_library_source_suggestions", sourceId: requestId, submittedBy: auth.user.id, title: draft.sourceName.trim(), summary: draft.notes.trim().slice(0, 280) });
-      setStatusMessage(reviewResult.ok ? "Source suggestion saved for source-reviewer review." : `Source suggestion saved, but review routing needs attention: ${reviewResult.warning}`);
+      setStatusMessage(reviewResult.ok ? "Source request submitted for source-reviewer review." : `Source request saved, but review routing needs attention: ${reviewResult.warning}`);
       setSuggestion({ sourceName: "", officialUrl: "", category: "", notes: "", submitterNote: "" });
     } else {
       const { error } = await supabase.from("broken_link_reports").insert({
         id: requestId,
         user_id: auth.user.id,
-        page_url: typeof window === "undefined" ? "/living-library" : window.location.pathname,
+        page_url: window.location.pathname,
         broken_url: draft.officialUrl.trim(),
         source_context: draft.sourceName.trim() || "Living Library",
         report_note: draft.notes.trim() || null,
-        status: "pending_review"
+        status: "pending_review",
       });
       if (error) {
-        updateDrafts([localDraft, ...drafts]);
-        setStatusMessage(`Could not save broken-link report remotely: ${error.message}. A local draft was saved.`);
+        saveLocally(`Remote broken-link report failed: ${error.message}. A browser-local draft was saved.`);
         return;
       }
       const reviewResult = await createReviewItem({ domain: "living_library_broken_link", sourceTable: "broken_link_reports", sourceId: requestId, submittedBy: auth.user.id, title: `Broken link: ${draft.sourceName || draft.officialUrl}`, summary: draft.notes.trim().slice(0, 280) });
-      setStatusMessage(reviewResult.ok ? "Broken-link report saved for review." : `Broken-link report saved, but review routing needs attention: ${reviewResult.warning}`);
+      setStatusMessage(reviewResult.ok ? "Broken-link report submitted for review." : `Broken-link report saved, but review routing needs attention: ${reviewResult.warning}`);
       setBrokenLink({ sourceName: "", officialUrl: "", notes: "" });
     }
   }
 
+  function commitDiscovery(query: string, filters: LivingLibrarySearchFilters, pathname = location.pathname) {
+    const params = livingLibrarySearchParams(filters, query);
+    navigate({ pathname, search: params.toString() ? `?${params.toString()}` : "" }, { state: { routeEntry: { targetId: "library-results" } } });
+  }
+
+  function updateFilter<Key extends keyof LivingLibrarySearchFilters>(key: Key, value: LivingLibrarySearchFilters[Key]) {
+    const next = { ...effectiveFilters, [key]: value };
+    commitDiscovery(parsedState.query, next, key === "category" ? "/living-library" : location.pathname);
+  }
+
+  function clearDiscovery() {
+    setSearchDraft("");
+    navigate("/living-library", { state: { routeEntry: { targetId: "library-search" } } });
+  }
+
+  if (sourceId) {
+    const source = resolveLivingLibrarySource(sourceId);
+    if (!source) {
+      return <div className="page-stack living-library-page">
+        <PageHero eyebrow="SOURCE NOT FOUND" title="That Living Library record does not exist" brandMark="standard"><p>The source ID is unknown or malformed.</p></PageHero>
+        <section className="section-card"><h2>Return to active discovery</h2><p>No source, alias, or compatibility tombstone matches <code>{sourceId}</code>.</p><Link className="button-link" to="/living-library">Search the Living Library</Link></section>
+      </div>;
+    }
+    const related = activeLivingLibrarySources.filter((candidate) => candidate.id !== source.id && candidate.browseCategory === source.browseCategory).slice(0, 4);
+    return <>
+      <LivingLibrarySourceDetail
+        source={source}
+        relatedSources={related}
+        successor={resolveLivingLibrarySource(source.lifecycle.successorId)}
+        saved={savedSourceIds.includes(source.id)}
+        citationSaved={savedCitationIds.includes(source.id)}
+        onSave={toggleSavedSource}
+        onCite={openCitation}
+        onAddToCollection={addToActiveCollection}
+      />
+      {citationPanel ? <CitationPanel
+        record={citationPanel}
+        source={resolveLivingLibrarySource(citationPanel.sourceId)}
+        saved={savedCitationIds.includes(citationPanel.sourceId)}
+        onClose={() => setCitationPanel(null)}
+        onCopy={copyCitation}
+        onSave={saveCitationRecord}
+        onRemove={removeCitationRecord}
+      /> : null}
+      <p className="library-status-live" role="status" aria-live="polite">{statusMessage}</p>
+    </>;
+  }
+
   return (
     <div className="page-stack living-library-page">
-      <PageHero eyebrow={livingLibraryPageCopy.heroEyebrow} title={livingLibraryPageCopy.heroTitle} brandMark="standard">
-        <p>{livingLibraryPageCopy.heroBody}</p>
+      <PageHero eyebrow="GLOBAL SCIENCE GATEWAY" title="The Living Library" brandMark="standard">
+        <p>A search-first gateway to scientific papers, data portals, repositories, observatories, APIs, and trustworthy research infrastructure around the world.</p>
       </PageHero>
 
-      <section className="library-truth-grid">
-        <WarningCallout title="Research commons doctrine"><p>{livingLibraryPageCopy.doctrineCallout}</p></WarningCallout>
-        <WarningCallout title="Private Elysia boundary"><p>{livingLibraryPageCopy.privateBoundary}</p></WarningCallout>
-        <WarningCallout title="Training safety warning"><p>{livingLibraryPageCopy.trainingSafetyWarning}</p></WarningCallout>
-        <WarningCallout title="Last checked"><p>{livingLibraryPageCopy.lastCheckedNote}</p></WarningCallout>
-      </section>
-
-      <section className="section-card library-status-card">
-        <p className="boundary-note">Some official links may change over time. Broken-link reports and source updates will be reviewed through the future administrator workflow.</p>
-        <p className="eyebrow">Local Library Shelf</p>
-        <h2>Browser-local tools, no account sync yet.</h2>
-        <p>{statusMessage}</p>
-        <div className="library-stats-row">
-          <span>{livingLibrarySources.length} sources</span>
-          <span>{savedSourceIds.length} saved</span>
-          <span>{savedCitationIds.length} citations</span>
-          <span>{bookmarkedPackIds.length} starter packs</span>
-          <span>{drafts.length} local drafts</span>
-        </div>
-      </section>
-
-      <section className="section-card library-filter-card">
-        <div className="section-heading section-heading--inline">
+      <section className="section-card library-search-hero" id="library-search" data-route-focus-target>
+        <div className="library-search-hero__intro">
           <div>
-            <p className="eyebrow">Search & Filters</p>
-            <h2>{filteredSources.length} matching sources</h2>
+            <p className="eyebrow">Find science without knowing the brand name</p>
+            <h2>What are you trying to understand?</h2>
+            <p>Search ordinary scientific language. Results explain who operates each resource, what it hosts or indexes, and what access or reuse cautions matter.</p>
           </div>
-          <button type="button" onClick={() => setFilters(defaultFilters)}>Reset filters</button>
-        </div>
-        <div className="library-category-nav" aria-label="Living Library category navigation">
-          {(activeFiltersCount ? groupedSources.map((section) => section.category) : navCategories).map((category) => {
-            const matchingCount = groupedSources.find((section) => section.category === category)?.sources.length;
-            const count = activeFiltersCount ? matchingCount ?? 0 : categoryCounts.get(category) ?? 0;
-            return <a key={category} href={`#${categoryAnchor(category)}`}>{category} ({count})</a>;
-          })}
-        </div>
-        <div className="library-filter-grid">
-          <label><span>Search</span><input value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="Search names, topics, cautions..." /></label>
-          <label><span>Category</span><select value={filters.category} onChange={(event) => setFilters({ ...filters, category: event.target.value })}><option value="all">All categories</option>{filterOptions.categories.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-          <label><span>Source type</span><select value={filters.sourceType} onChange={(event) => setFilters({ ...filters, sourceType: event.target.value })}><option value="all">All source types</option>{filterOptions.sourceTypes.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-          <label><span>Topic</span><select value={filters.topic} onChange={(event) => setFilters({ ...filters, topic: event.target.value })}><option value="all">All topics</option>{filterOptions.topics.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-          <label><span>Useful for</span><select value={filters.usefulFor} onChange={(event) => setFilters({ ...filters, usefulFor: event.target.value })}><option value="all">All uses</option>{filterOptions.usefulFor.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-          <label><span>Risk label</span><select value={filters.riskLabel} onChange={(event) => setFilters({ ...filters, riskLabel: event.target.value })}><option value="all">All risk labels</option>{filterOptions.riskLabels.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-          <label><span>Signup</span><select value={filters.signupRequired} onChange={(event) => setFilters({ ...filters, signupRequired: event.target.value })}><option value="all">Any signup state</option>{filterOptions.accessValues.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-          <label><span>Cloud</span><select value={filters.cloudRequired} onChange={(event) => setFilters({ ...filters, cloudRequired: event.target.value })}><option value="all">Any cloud state</option>{filterOptions.accessValues.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-          <label><span>API</span><select value={filters.apiAvailable} onChange={(event) => setFilters({ ...filters, apiAvailable: event.target.value })}><option value="all">Any API state</option>{filterOptions.accessValues.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-          <label><span>Bulk download</span><select value={filters.bulkDownloadAvailable} onChange={(event) => setFilters({ ...filters, bulkDownloadAvailable: event.target.value })}><option value="all">Any bulk state</option>{filterOptions.accessValues.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
-        </div>
-      </section>
-
-      <section className="section-card">
-        <p className="eyebrow">Starter Packs</p>
-        <h2>Curated first shelves</h2>
-        <div className="library-pack-grid">
-          {livingLibraryStarterPacks.map((pack) => (
-            <article className="library-pack-card" key={pack.id}>
-              <h3>{pack.name}</h3>
-              <p>{pack.description}</p>
-              <p><strong>Best for:</strong> {pack.bestFor}</p>
-              <p><strong>Sources:</strong> {pack.sourceNames.join(", ")}</p>
-              <p><strong>Risk notes:</strong> {pack.riskNotes}</p>
-              <div className="library-chip-row">{pack.tags.map((tag) => <span key={tag}>{tag}</span>)}</div>
-              <button type="button" onClick={() => updateBookmarkedPacks(bookmarkedPackIds.includes(pack.id) ? bookmarkedPackIds.filter((id) => id !== pack.id) : [...bookmarkedPackIds, pack.id])}>{bookmarkedPackIds.includes(pack.id) ? "Unbookmark starter pack" : "Bookmark starter pack"}</button>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="section-card library-local-tools">
-        <p className="eyebrow">Local Collections</p>
-        <h2>Save, cite, group, and export locally.</h2>
-        <p className="boundary-note">Saved locally in this browser for now. Account sync can come later after Supabase tables and RLS are intentionally designed.</p>
-        <div className="library-filter-grid library-filter-grid--compact">
-          <label><span>Active collection</span><select value={activeCollectionName} onChange={(event) => setActiveCollectionName(event.target.value)}>{collections.map((collection) => <option key={collection.name} value={collection.name}>{collection.name}</option>)}</select></label>
-          <label><span>New collection name</span><input value={collectionName} onChange={(event) => setCollectionName(event.target.value)} placeholder="Watershed research shelf" /></label>
-        </div>
-        <div className="button-row"><button type="button" onClick={createCollection}>Create local collection</button><button type="button" onClick={() => exportActiveCollection("markdown")}>Export active collection as Markdown</button><button type="button" onClick={() => exportActiveCollection("json")}>Export active collection as JSON</button></div>
-        <p>{activeCollection?.name ?? "No active collection"}: {activeCollectionSources.length} sources. Saved sources: {savedSources.length}.</p>
-        <div className="library-account-grid">
-          {livingLibraryAccountFunctions.map((item) => <article key={item.name}><h3>{item.name}</h3><p className="library-source-type">{item.status}</p><p>{item.copy}</p></article>)}
-        </div>
-      </section>
-
-      <section className="section-card library-draft-panel">
-        <p className="eyebrow">Local Drafts</p>
-        <h2>Request a new source</h2>
-        <p>Source requests save locally when signed out and save for source-reviewer review when signed in with Supabase configured.</p>
-        <div className="two-column">
-          <div>
-            <h3>Request a new source</h3>
-            <label><span>Source name</span><input value={suggestion.sourceName} onChange={(event) => setSuggestion({ ...suggestion, sourceName: event.target.value })} /></label>
-            <label><span>Official URL</span><input value={suggestion.officialUrl} onChange={(event) => setSuggestion({ ...suggestion, officialUrl: event.target.value })} /></label>
-            <label><span>Category</span><input value={suggestion.category} onChange={(event) => setSuggestion({ ...suggestion, category: event.target.value })} placeholder="Environmental Data" /></label>
-            <label><span>Why it belongs</span><textarea value={suggestion.notes} onChange={(event) => setSuggestion({ ...suggestion, notes: event.target.value })} rows={4} /></label>
-            <label><span>Caution/license/privacy notes or submitter contact</span><textarea value={suggestion.submitterNote} onChange={(event) => setSuggestion({ ...suggestion, submitterNote: event.target.value })} rows={3} /></label>
-            <button type="button" onClick={() => void saveDraft("suggestion", suggestion)}>Save source request draft locally</button>
-          </div>
-          <div>
-            <h3>Draft broken-link report</h3>
-            <label><span>Source name</span><input value={brokenLink.sourceName} onChange={(event) => setBrokenLink({ ...brokenLink, sourceName: event.target.value })} /></label>
-            <label><span>Official URL</span><input value={brokenLink.officialUrl} onChange={(event) => setBrokenLink({ ...brokenLink, officialUrl: event.target.value })} /></label>
-            <label><span>What seems broken?</span><textarea value={brokenLink.notes} onChange={(event) => setBrokenLink({ ...brokenLink, notes: event.target.value })} rows={4} /></label>
-            <button type="button" onClick={() => void saveDraft("broken-link", brokenLink)}>Save broken-link draft locally</button>
+          <div className="library-stats-row" aria-label="Catalog size">
+            <span>{activeLivingLibrarySources.length} active resources</span>
+            <span>{livingLibraryBrowseCategories.length} fields</span>
+            <span>{legacyLivingLibrarySources.length} compatibility records</span>
           </div>
         </div>
+        <form className="library-primary-search" onSubmit={(event) => {
+          event.preventDefault();
+          commitDiscovery(searchDraft, { ...defaultLivingLibraryFilters }, "/living-library");
+        }} role="search">
+          <label htmlFor="living-library-search-input">Search scientific resources</label>
+          <div>
+            <input id="living-library-search-input" value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder="Try atmospheric, peer reviewed, genomics, materials, or API" autoComplete="off" />
+            <button type="submit">Search the library</button>
+          </div>
+        </form>
+        <div className="library-query-examples" aria-label="Example searches">
+          <span>Try:</span>{queryExamples.map((query) => <button key={query} type="button" onClick={() => { setSearchDraft(query); commitDiscovery(query, defaultLivingLibraryFilters, "/living-library"); }}>{query}</button>)}
+        </div>
+        <nav className="library-intent-grid" aria-label="Common discovery paths">
+          <Link to="/living-library?q=papers" state={{ routeEntry: { targetId: "library-results" } }}><strong>Find papers</strong><span>Indexes, repositories, preprints, citations</span></Link>
+          <Link to="/living-library?q=datasets" state={{ routeEntry: { targetId: "library-results" } }}><strong>Find data</strong><span>Portals, observatories, repositories, downloads</span></Link>
+          <a href="#library-browse"><strong>Browse by field</strong><span>Eight clear scientific and technical areas</span></a>
+        </nav>
       </section>
 
-      <section className="section-card library-source-sections-card">
-        <p className="eyebrow">Source Cards</p>
-        <h2>{activeFiltersCount ? `${filteredSources.length} filtered sources grouped by category` : "Official links grouped by category"}</h2>
-        <p>Long license, privacy, citation, and caution notes stay inside each card's details toggle so the library remains browsable.</p>
-        {filteredSources.length === 0 ? <div className="empty-state">No Living Library sources match the current search and filters. Clear filters to return to the full category shelf.</div> : null}
-        <div className="library-grouped-sections">
-          {groupedSources.map((section) => (
-            <section className="library-category-section" id={categoryAnchor(section.category)} key={section.category}>
-              <div className="library-category-heading">
-                <div>
-                  <p className="eyebrow">{section.category}</p>
-                  <h3>{section.category}</h3>
-                  <p>{section.description}</p>
-                </div>
-                <span>{section.sources.length} {activeFiltersCount ? "matching" : "total"} source{section.sources.length === 1 ? "" : "s"}</span>
-              </div>
-              <div className="library-source-grid">
-                {section.sources.map((source) => (
-                  <SourceCard
-                    key={source.id}
-                    source={source}
-                    saved={savedSourceIds.includes(source.id)}
-                    citationSaved={savedCitationIds.includes(source.id)}
-                    onSave={toggleSavedSource}
-                    onToggleCitation={toggleCitation}
-                    onCopyCitation={copyCitation}
-                    onAddToCollection={addToActiveCollection}
-                  />
-                ))}
-              </div>
-            </section>
-          ))}
+      {citationPanel ? <CitationPanel
+        record={citationPanel}
+        source={resolveLivingLibrarySource(citationPanel.sourceId)}
+        saved={savedCitationIds.includes(citationPanel.sourceId)}
+        onClose={() => setCitationPanel(null)}
+        onCopy={copyCitation}
+        onSave={saveCitationRecord}
+        onRemove={removeCitationRecord}
+      /> : null}
+
+      <section className="section-card library-results-section" id="library-results">
+        {Object.keys(legacyCategoryHashMap).map((id) => <span className="library-legacy-anchor" id={id} key={id} aria-hidden="true" />)}
+        <div className="library-results-heading">
+          <div>
+            <p className="eyebrow">{routeCategory ? "Browse field" : parsedState.query ? "Search results" : "Curated starting points"}</p>
+            <h2 tabIndex={-1}>{invalidCategoryRoute ? "Unknown browse field" : routeCategory ?? (parsedState.query ? `${searchResults.length} resources for “${parsedState.query}”` : "Explore the catalog")}</h2>
+            <p aria-live="polite">{invalidCategoryRoute ? "This field route is not recognized." : `${searchResults.length} matching active resources. Showing ${Math.min(visibleCount, searchResults.length)}.`}</p>
+          </div>
+          <div className="library-results-heading__actions">
+            {(parsedState.query || activeFiltersCount || routeCategory) ? <button type="button" onClick={clearDiscovery}>Clear search and filters</button> : null}
+            {routeCategory ? <Link className="button-link button-link--quiet" to="/living-library">All fields</Link> : null}
+          </div>
+        </div>
+
+        {!invalidCategoryRoute ? <details className="library-filter-panel">
+          <summary><span>Filters</span><span>{activeFiltersCount ? `${activeFiltersCount} active` : "Optional"}</span></summary>
+          <div className="library-filter-grid">
+            <label><span>Science field</span><select value={effectiveFilters.category} onChange={(event) => updateFilter("category", event.target.value as LivingLibrarySearchFilters["category"])}><option value="all">All fields</option>{livingLibraryBrowseCategories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}</select></label>
+            <label><span>Resource type</span><select value={effectiveFilters.resourceType} onChange={(event) => updateFilter("resourceType", event.target.value)}><option value="all">All resource types</option>{filterOptions.resourceTypes.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>
+            <label><span>Public access</span><select value={effectiveFilters.publicAccess} onChange={(event) => updateFilter("publicAccess", event.target.value as LivingLibrarySearchFilters["publicAccess"])}><option value="all">Any public access</option>{filterOptions.publicAccess.map((value) => <option key={value} value={value}>{facetLabel(value)}</option>)}</select></label>
+            <label><span>Content / review status</span><select value={effectiveFilters.reviewStatus} onChange={(event) => updateFilter("reviewStatus", event.target.value as LivingLibrarySearchFilters["reviewStatus"])}><option value="all">Any content status</option>{filterOptions.reviewStatuses.map((value) => <option key={value} value={value}>{facetLabel(value)}</option>)}</select></label>
+            <label><span>API access</span><select value={effectiveFilters.apiAccess} onChange={(event) => updateFilter("apiAccess", event.target.value as LivingLibrarySearchFilters["apiAccess"])}><option value="all">Any API status</option>{filterOptions.apiAccess.map((value) => <option key={value} value={value}>{facetLabel(value)}</option>)}</select></label>
+            <label><span>Download / bulk</span><select value={effectiveFilters.downloadAccess} onChange={(event) => updateFilter("downloadAccess", event.target.value as LivingLibrarySearchFilters["downloadAccess"])}><option value="all">Any download status</option>{filterOptions.downloads.map((value) => <option key={value} value={value}>{facetLabel(value)}</option>)}</select></label>
+          </div>
+        </details> : null}
+
+        {invalidCategoryRoute ? <div className="empty-state"><p>No field matches <code>{categorySlug}</code>.</p><Link className="button-link" to="/living-library#library-browse">Browse the current fields</Link></div> : searchResults.length === 0 ? <div className="empty-state library-no-results"><h3>No active resources match this search</h3><p>Try a broader scientific term, remove one filter, or browse by field. Retired and removed records do not appear in ordinary search.</p><button type="button" onClick={clearDiscovery}>Clear search and filters</button></div> : <>
+          <div className="library-results-grid">
+            {visibleResults.map((result) => <LivingLibrarySourceCard key={result.source.id} result={result} saved={savedSourceIds.includes(result.source.id)} citationSaved={savedCitationIds.includes(result.source.id)} onSave={toggleSavedSource} onCite={openCitation} />)}
+          </div>
+          {visibleCount < searchResults.length ? <div className="library-load-more"><button type="button" onClick={() => setVisibleCount((count) => count + pageSize)}>Load {Math.min(pageSize, searchResults.length - visibleCount)} more</button><span>{searchResults.length - visibleCount} remain</span></div> : null}
+        </>}
+      </section>
+
+      <section className="section-card library-browse-section" id="library-browse">
+        <p className="eyebrow">Browse by field</p>
+        <h2>Choose a scientific neighborhood</h2>
+        <p>Fields stay broad enough for beginners. More precise resource, access, review, API, and download facets are available in results.</p>
+        <div className="library-browse-grid">
+          {livingLibraryBrowseCategories.map((category) => <Link key={category.id} to={`/living-library/browse/${category.id}`} state={{ routeEntry: { targetId: "library-results" } }}>
+            <span>{categoryCounts.get(category.name) ?? 0} resources</span>
+            <strong>{category.name}</strong>
+            <p>{category.description}</p>
+          </Link>)}
         </div>
       </section>
 
-      <section className="section-card">
-        <p className="eyebrow">Dataset Ethics & Licensing</p>
-        <h2>Principles before reuse</h2>
-        <div className="library-ethics-grid">
-          {livingLibraryEthicsPrinciples.map((principle) => <article key={principle.title}><h3>{principle.title}</h3><p>{principle.body}</p></article>)}
-        </div>
+      <section className="library-progressive-tools" aria-label="Library tools and guidance">
+        <details className="section-card">
+          <summary><span><span className="eyebrow">LOCAL SHELF</span><strong>Save, cite, collect, and export</strong></span><span>{savedSourceIds.length} saved</span></summary>
+          <div className="library-tools-body">
+            <WarningCallout title="Local-first boundary"><p>{statusMessage}</p></WarningCallout>
+            <div className="library-stats-row"><span>{savedSourceIds.length} sources</span><span>{savedCitationIds.length} citations</span><span>{bookmarkedPackIds.length} starter packs</span><span>{drafts.length} local drafts</span></div>
+            <div className="library-filter-grid library-filter-grid--compact">
+              <label><span>Active collection</span><select value={activeCollectionName} onChange={(event) => setActiveCollectionName(event.target.value)}>{collections.map((collection) => <option key={collection.name} value={collection.name}>{collection.name}</option>)}</select></label>
+              <label><span>New collection name</span><input value={collectionName} onChange={(event) => setCollectionName(event.target.value)} placeholder="Watershed research shelf" /></label>
+            </div>
+            <div className="button-row"><button type="button" onClick={createCollection}>Create local collection</button><button type="button" onClick={() => exportActiveCollection("markdown")}>Export Markdown</button><button type="button" onClick={() => exportActiveCollection("json")}>Export JSON</button><Link className="button-link button-link--quiet" to="/commons-circle/saved-shelves">Open Commons Circle shelves</Link></div>
+            <p>{activeCollection?.name ?? "No active collection"}: {activeCollectionSources.length} source{activeCollectionSources.length === 1 ? "" : "s"}.</p>
+          </div>
+        </details>
+
+        <details className="section-card">
+          <summary><span><span className="eyebrow">STARTER SHELVES</span><strong>Curated ways into the catalog</strong></span><span>{livingLibraryStarterPacks.length} packs</span></summary>
+          <div className="library-pack-grid library-tools-body">
+            {livingLibraryStarterPacks.map((pack) => <article className="library-pack-card" key={pack.id}>
+              <h3>{pack.name}</h3><p>{pack.description}</p><p><strong>Best for:</strong> {pack.bestFor}</p><p className="boundary-note">{pack.riskNotes}</p>
+              <button type="button" aria-pressed={bookmarkedPackIds.includes(pack.id)} onClick={() => updateBookmarkedPacks(bookmarkedPackIds.includes(pack.id) ? bookmarkedPackIds.filter((id) => id !== pack.id) : [...bookmarkedPackIds, pack.id])}>{bookmarkedPackIds.includes(pack.id) ? "Bookmarked" : "Bookmark pack"}</button>
+            </article>)}
+          </div>
+        </details>
+
+        <details className="section-card">
+          <summary><span><span className="eyebrow">RESPONSIBLE REUSE</span><strong>Licensing, privacy, and training cautions</strong></span><span>Read before reuse</span></summary>
+          <div className="library-tools-body">
+            <p>{livingLibraryPageCopy.doctrineCallout}</p>
+            <p className="boundary-note">{livingLibraryPageCopy.trainingSafetyWarning}</p>
+            <div className="library-ethics-grid">{livingLibraryEthicsPrinciples.map((principle) => <article key={principle.title}><h3>{principle.title}</h3><p>{principle.body}</p></article>)}</div>
+          </div>
+        </details>
+
+        <details className="section-card library-draft-panel">
+          <summary><span><span className="eyebrow">CATALOG CARE</span><strong>Request a source or report a broken link</strong></span><span>Writes only when you act</span></summary>
+          <div className="library-tools-body two-column">
+            <div>
+              <h3>Request a source</h3>
+              <p>Signed-in requests go to source-reviewer review when Supabase is configured; otherwise a browser-local draft is saved.</p>
+              <label><span>Source name</span><input value={suggestion.sourceName} onChange={(event) => setSuggestion({ ...suggestion, sourceName: event.target.value })} /></label>
+              <label><span>Official URL</span><input inputMode="url" value={suggestion.officialUrl} onChange={(event) => setSuggestion({ ...suggestion, officialUrl: event.target.value })} /></label>
+              <label><span>Suggested field</span><select value={suggestion.category} onChange={(event) => setSuggestion({ ...suggestion, category: event.target.value })}><option value="">Choose a field</option>{livingLibraryBrowseCategories.map((category) => <option key={category.id} value={category.name}>{category.name}</option>)}</select></label>
+              <label><span>Why it belongs</span><textarea value={suggestion.notes} onChange={(event) => setSuggestion({ ...suggestion, notes: event.target.value })} rows={4} /></label>
+              <label><span>License, privacy, or contact note</span><textarea value={suggestion.submitterNote} onChange={(event) => setSuggestion({ ...suggestion, submitterNote: event.target.value })} rows={3} /></label>
+              <button type="button" onClick={() => void saveDraft("suggestion", suggestion)}>Save or submit source request</button>
+            </div>
+            <div>
+              <h3>Report a broken link</h3>
+              <p>Nothing is sent until you use the button. Signed-out reports remain browser-local drafts.</p>
+              <label><span>Source name</span><input value={brokenLink.sourceName} onChange={(event) => setBrokenLink({ ...brokenLink, sourceName: event.target.value })} /></label>
+              <label><span>Official URL</span><input inputMode="url" value={brokenLink.officialUrl} onChange={(event) => setBrokenLink({ ...brokenLink, officialUrl: event.target.value })} /></label>
+              <label><span>What seems broken?</span><textarea value={brokenLink.notes} onChange={(event) => setBrokenLink({ ...brokenLink, notes: event.target.value })} rows={4} /></label>
+              <button type="button" onClick={() => void saveDraft("broken-link", brokenLink)}>Save or submit broken-link report</button>
+            </div>
+          </div>
+        </details>
       </section>
 
-      <section className="section-card">
-        <p className="eyebrow">Stewardship Organizations</p>
-        <h2>Stewardship Organizations We Encourage Members to Support</h2>
-        <p className="boundary-note">This listing is informational and does not imply affiliation, sponsorship, or partnership.</p>
-        <div className="library-stewardship-list">
-          {stewardshipSources.map((source) => <a key={source.id} href={source.officialUrl} target="_blank" rel="noreferrer">{source.name}</a>)}
-        </div>
+      <section className="section-card library-legacy-note">
+        <p className="eyebrow">Continuity without clutter</p>
+        <h2>Saved legacy records still resolve</h2>
+        <p>{legacyLivingLibrarySources.length} retired, superseded, folded, or out-of-scope records remain available by stable source ID for old shelves and citations. They never rank in ordinary active search.</p>
+        <Link className="button-link button-link--quiet" to="/living-library/source/microsoft-academic-graph-legacy">View a retired-record example</Link>
       </section>
+
+      <p className="library-status-live" role="status" aria-live="polite">{statusMessage}</p>
     </div>
   );
 }
+
+function CitationPanel({
+  record,
+  source,
+  saved,
+  onClose,
+  onCopy,
+  onSave,
+  onRemove,
+}: {
+  record: SavedCitationRecord;
+  source?: LivingLibrarySource;
+  saved: boolean;
+  onClose: () => void;
+  onCopy: (record: SavedCitationRecord) => Promise<void>;
+  onSave: (record: SavedCitationRecord) => void;
+  onRemove: (sourceId: string) => void;
+}) {
+  const titleRef = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    const returnTarget = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    titleRef.current?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      onClose();
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      if (returnTarget?.isConnected) returnTarget.focus();
+    };
+  }, [onClose]);
+
+  return <section className="section-card library-citation-panel" role="dialog" aria-modal="false" aria-labelledby="library-citation-title" aria-describedby="library-citation-access-note">
+    <div>
+      <p className="eyebrow">Citation</p>
+      <h2 id="library-citation-title" ref={titleRef} tabIndex={-1}>{source?.name ?? record.sourceId}</h2>
+      <p>{record.citationText}</p>
+      <p className="library-citation-date" id="library-citation-access-note">Access date generated at this citation action: {record.accessedAt.slice(0, 10)}. Catalog verification dates remain separate.</p>
+    </div>
+    <div className="button-row">
+      <button type="button" onClick={() => void onCopy(record)}>Copy citation</button>
+      {saved ? <button type="button" onClick={() => onRemove(record.sourceId)}>Remove saved citation</button> : <button type="button" onClick={() => onSave(record)}>Save citation locally</button>}
+      <button type="button" onClick={onClose}>Close</button>
+    </div>
+  </section>;
+}
+
+export { activeLivingLibrarySources, allLivingLibrarySources };

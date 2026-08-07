@@ -3,8 +3,11 @@ import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
 import { seedAddons } from "../The-Elysia-Marketplace/data/seedAddons";
 import type { AddonManifest } from "../The-Elysia-Marketplace/types";
-import { livingLibrarySources } from "../The-Living-Library/livingLibrarySources";
-import type { LivingLibrarySource } from "../The-Living-Library/livingLibrarySources";
+import {
+  allLivingLibrarySources,
+  formatLivingLibraryCitation,
+  type LivingLibrarySource,
+} from "../The-Living-Library/livingLibraryCatalog";
 import {
   loadCommonsHomebase,
   markFollowedThreadRead,
@@ -41,12 +44,8 @@ function ShelfPills({ labels }: { labels: string[] }) {
 }
 
 function sourceCitation(source: LivingLibrarySource | SavedLivingSourcePreview) {
-  if ("officialUrl" in source) return `${source.name}. ${source.officialUrl}. Last checked ${source.lastChecked}.`;
+  if ("officialUrl" in source) return formatLivingLibraryCitation(source);
   return `${source.source_name}. ${source.source_url ?? "Official source URL not stored"}.`;
-}
-
-function categoryAnchor(category?: string | null) {
-  return category ? `library-${category.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}` : "";
 }
 
 function asUrl(value: unknown) {
@@ -76,23 +75,23 @@ function marketplaceExternalUrl(addon?: AddonManifest | null) {
   return url && !isPlaceholderUrl(url) ? url : null;
 }
 
-function OfficialSourceAction({ url }: { url: string | null }) {
+function OfficialSourceAction({ url, label = "saved source", historical = false }: { url: string | null; label?: string; historical?: boolean }) {
   return url
-    ? <a className="button-link saved-shelf-official-link" href={url} target="_blank" rel="noreferrer">Official source</a>
+    ? <a className="button-link saved-shelf-official-link" href={url} target="_blank" rel="noopener noreferrer" aria-label={`${historical ? "View historical context for" : "Open"} ${label} — external site, opens in a new tab`}>{historical ? "View historical context" : `Open ${label}`} <span aria-hidden="true">↗</span></a>
     : <span className="saved-shelf-link-missing">Official source link unavailable</span>;
 }
 
 function livingLibraryLink(source?: unknown) {
   const flexibleSource = source as Record<string, unknown> | null | undefined;
-  const anchor = categoryAnchor(typeof flexibleSource?.category === "string" ? flexibleSource.category : null);
-  return anchor ? `/living-library#${anchor}` : "/living-library";
+  const id = typeof flexibleSource?.id === "string" ? flexibleSource.id : typeof flexibleSource?.source_id === "string" ? flexibleSource.source_id : null;
+  return id ? `/living-library/source/${id}` : "/living-library";
 }
 
 export default function SavedShelvesPage() {
   const [homebase, setHomebase] = useState<CommonsHomebaseData | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
   const [activeFilter, setActiveFilter] = useState<ShelfFilter>("all");
-  const sourceById = useMemo(() => new Map(livingLibrarySources.map((source) => [source.id, source])), []);
+  const sourceById = useMemo(() => new Map(allLivingLibrarySources.map((source) => [source.id, source])), []);
   const addonBySlug = useMemo(() => new Map(seedAddons.map((addon) => [addon.id, addon])), []);
 
   const pushMessages = useCallback((next: string[]) => {
@@ -199,18 +198,18 @@ export default function SavedShelvesPage() {
             <p className="eyebrow">{fullSource?.category ?? saved.category ?? "Saved source"}</p>
             <h3>{fullSource?.name ?? saved.source_name}</h3>
             <p>{fullSource?.bestFor ?? saved.notes ?? "Saved Living Library source."}</p>
-            {fullSource ? <ShelfPills labels={[fullSource.sourceType, ...fullSource.primaryTopics, ...fullSource.riskLabels, `Last checked ${fullSource.lastChecked}`]} /> : <ShelfPills labels={[saved.category ?? "category not stored", saved.saved_at ? `saved ${new Date(saved.saved_at).toLocaleDateString()}` : "account-backed"]} />}
-            {fullSource && <p className="boundary-note">{fullSource.limitationsCautions}</p>}
-            <div className="button-row"><OfficialSourceAction url={officialUrl} /><a className="button-link" href={livingLibraryLink(fullSource ?? saved)}>View in Living Library</a><button type="button" onClick={() => void navigator.clipboard?.writeText(citation)}>Copy citation</button><button type="button" onClick={() => void runAction(() => saveCitationToAccount(saved.source_id, citation))}>Save citation</button><button type="button" onClick={() => void runAction(() => removeSavedLivingSource(saved.source_id))}>Remove from saved</button></div>
+            {fullSource ? <ShelfPills labels={[fullSource.resourceType, fullSource.lifecycle.status, ...fullSource.scienceDomains, `Verified ${fullSource.verification.urlLastVerified}`]} /> : <ShelfPills labels={[saved.category ?? "category not stored", saved.saved_at ? `saved ${new Date(saved.saved_at).toLocaleDateString()}` : "account-backed"]} />}
+            {fullSource && <p className="boundary-note">{fullSource.active ? fullSource.limitationsCautions : `Legacy record: ${fullSource.lifecycle.legacyReason}`}</p>}
+            <div className="button-row"><OfficialSourceAction url={fullSource?.verification.status === "unavailable" ? null : officialUrl} label={fullSource?.name ?? saved.source_name} historical={fullSource?.links[0]?.role === "historical"} /><a className="button-link" href={livingLibraryLink(fullSource ?? saved)}>View source details</a><button type="button" onClick={() => void navigator.clipboard?.writeText(citation)}>Copy current citation</button><button type="button" onClick={() => void runAction(() => saveCitationToAccount(saved.source_id, citation))}>Save current citation</button><button type="button" onClick={() => void runAction(() => removeSavedLivingSource(saved.source_id))}>Remove from saved</button></div>
           </article>;
         }) : null}
         {!accountSources.length && localSources.length ? localSources.map((source) => <article className="saved-shelf-card saved-source-card" key={source.id}>
           <p className="eyebrow">{source.category}</p>
           <h3>{source.name}</h3>
           <p>{source.bestFor}</p>
-          <ShelfPills labels={[source.sourceType, ...source.primaryTopics, "browser-local"]} />
+          <ShelfPills labels={[source.resourceType, source.lifecycle.status, ...source.scienceDomains, "browser-local"]} />
           <p className="boundary-note">This source is saved locally in this browser. Use explicit sync from Commons Circle to copy browser-local saves to your Website Account.</p>
-          <div className="button-row"><OfficialSourceAction url={officialSourceUrl(source)} /><a className="button-link" href={livingLibraryLink(source)}>View in Living Library</a><button type="button" onClick={() => void navigator.clipboard?.writeText(sourceCitation(source))}>Copy citation</button><button type="button" disabled>Account removal after sync</button></div>
+          <div className="button-row"><OfficialSourceAction url={source.verification.status === "unavailable" ? null : officialSourceUrl(source)} label={source.name} historical={source.links[0]?.role === "historical"} /><a className="button-link" href={livingLibraryLink(source)}>View source details</a><button type="button" onClick={() => void navigator.clipboard?.writeText(sourceCitation(source))}>Copy current citation</button><button type="button" disabled>Account removal after sync</button></div>
         </article>) : null}
         {!accountSources.length && !localSources.length && <EmptyShelf>No saved Living Library sources yet.</EmptyShelf>}
       </div>
@@ -226,7 +225,7 @@ export default function SavedShelvesPage() {
         <h3>{source?.name ?? citation.source_id}</h3>
         <p>{citation.citation_text}</p>
         <ShelfPills labels={[citation.saved_at ? `saved ${new Date(citation.saved_at).toLocaleDateString()}` : "account-backed"]} />
-        <div className="button-row"><OfficialSourceAction url={officialSourceUrl(source)} /><a className="button-link" href={livingLibraryLink(source)}>View source card</a><button type="button" onClick={() => void navigator.clipboard?.writeText(citation.citation_text)}>Copy citation</button>{citation.id ? <button type="button" onClick={() => void runAction(() => removeSavedCitation(citation.id!))}>Remove</button> : <button type="button" disabled>Remove unavailable</button>}</div>
+        <div className="button-row"><OfficialSourceAction url={source?.verification.status === "unavailable" ? null : officialSourceUrl(source)} label={source?.name ?? citation.source_id} historical={source?.links[0]?.role === "historical"} /><a className="button-link" href={livingLibraryLink(source ?? citation)}>View source details</a><button type="button" onClick={() => void navigator.clipboard?.writeText(citation.citation_text)}>Copy saved citation</button>{citation.id ? <button type="button" onClick={() => void runAction(() => removeSavedCitation(citation.id!))}>Remove</button> : <button type="button" disabled>Remove unavailable</button>}</div>
       </article>;
       }) : localCitations.length ? localCitations.map((citation) => {
         const source = sourceById.get(citation.source_id);
@@ -234,7 +233,7 @@ export default function SavedShelvesPage() {
         <p className="eyebrow">browser-local</p>
         <h3>{source?.name ?? citation.source_id}</h3>
         <p>{citation.citation_text}</p>
-        <div className="button-row"><OfficialSourceAction url={officialSourceUrl(source)} /><a className="button-link" href={livingLibraryLink(source)}>View source card</a><button type="button" onClick={() => void navigator.clipboard?.writeText(citation.citation_text)}>Copy citation</button></div>
+        <div className="button-row"><OfficialSourceAction url={source?.verification.status === "unavailable" ? null : officialSourceUrl(source)} label={source?.name ?? citation.source_id} historical={source?.links[0]?.role === "historical"} /><a className="button-link" href={livingLibraryLink(source ?? citation)}>View source details</a><button type="button" onClick={() => void navigator.clipboard?.writeText(citation.citation_text)}>Copy saved citation</button></div>
       </article>;
       }) : <EmptyShelf>No saved citations yet.</EmptyShelf>}</div>
     </section>}
@@ -249,7 +248,7 @@ export default function SavedShelvesPage() {
         <ShelfPills labels={[`${collection.source_count} sources`, collection.created_at ? `created ${new Date(collection.created_at).toLocaleDateString()}` : "account-backed"]} />
         <details><summary>Collection details</summary>{collection.source_ids?.length ? <ul className="saved-shelf-source-list">{collection.source_ids.map((sourceId) => {
           const source = sourceById.get(sourceId);
-          return <li key={sourceId}><span>{source?.name ?? sourceId}</span><OfficialSourceAction url={officialSourceUrl(source)} /></li>;
+          return <li key={sourceId}><span>{source?.name ?? sourceId}</span><OfficialSourceAction url={source?.verification.status === "unavailable" ? null : officialSourceUrl(source)} label={source?.name ?? sourceId} /></li>;
         })}</ul> : <p>Source previews will expand here as account-backed collection item metadata grows. Current count: {collection.source_count}.</p>}</details>
         <div className="button-row"><button type="button" onClick={() => void navigator.clipboard?.writeText(`${collection.title}\n${collection.description ?? ""}`)}>Export summary</button>{collection.id && <><button type="button" onClick={() => void runAction(() => updateSourceCollectionVisibility(collection.id!, collection.visibility === "public" ? "private" : "public"))}>{collection.visibility === "public" ? "Make private" : "Make public"}</button><button type="button" onClick={() => void runAction(() => removeSourceCollection(collection.id!))}>Remove collection</button></>}<a className="button-link" href="/living-library">View in Living Library</a></div>
       </article>) : localCollections.length ? localCollections.map((collection) => <article className="saved-shelf-card" key={collection.id || collection.title}>
@@ -259,7 +258,7 @@ export default function SavedShelvesPage() {
         <ShelfPills labels={[`${collection.source_count} sources`, collection.visibility]} />
         <details><summary>Collection details</summary>{collection.source_ids?.length ? <ul className="saved-shelf-source-list">{collection.source_ids.map((sourceId) => {
           const source = sourceById.get(sourceId);
-          return <li key={sourceId}><span>{source?.name ?? sourceId}</span><OfficialSourceAction url={officialSourceUrl(source)} /></li>;
+          return <li key={sourceId}><span>{source?.name ?? sourceId}</span><OfficialSourceAction url={source?.verification.status === "unavailable" ? null : officialSourceUrl(source)} label={source?.name ?? sourceId} /></li>;
         })}</ul> : <p>No source links are stored for this local collection yet.</p>}</details>
         <button type="button" disabled>Account-backed management after sync</button>
       </article>) : <EmptyShelf>No source collections yet.</EmptyShelf>}</div>

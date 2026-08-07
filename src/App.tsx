@@ -241,6 +241,8 @@ export default function App() {
             <Route path="trust" element={<Navigate to="/marketplace/trust" replace />} />
             <Route path="manifest-api" element={<Navigate to="/marketplace/manifest-api" replace />} />
             <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="living-library/browse/:categorySlug" element={<LivingLibraryPage />} />
+            <Route path="living-library/source/:sourceId" element={<LivingLibraryPage />} />
             </Route>
             </Routes>
           </Suspense>

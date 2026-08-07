@@ -1,5 +1,8 @@
-import { livingLibrarySources } from "../The-Living-Library/livingLibrarySources";
-import type { LivingLibrarySource } from "../The-Living-Library/livingLibrarySources";
+import {
+  formatLivingLibraryCitation,
+  resolveLivingLibrarySource,
+  type LivingLibrarySource,
+} from "../The-Living-Library/livingLibraryCatalog";
 import type { FeaturedPublicLink, MarketplaceProfile } from "../The-Elysia-Marketplace/types";
 import { loadCurrentProfile } from "../The-Elysia-Marketplace/lib/marketplaceApi";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
@@ -800,6 +803,7 @@ function decodePublicProfileHandleResolution(value: unknown): PublicProfileHandl
 }
 
 type LocalCollection = { name?: string; title?: string; description?: string; sourceIds?: string[]; visibility?: string };
+type LocalCitationRecord = { sourceId?: string; citationText?: string; accessedAt?: string };
 type LocalCommuneDraft = { id?: string; title?: string; status?: string; postType?: string; createdAt?: string; updatedAt?: string };
 type LocalThread = { id?: string; title?: string; threadId?: string; muted?: boolean };
 
@@ -939,19 +943,25 @@ export function writeLocalStorage<T>(key: string, value: T) {
 }
 
 function citationFor(source: LivingLibrarySource) {
-  return `${source.name}. ${source.officialUrl}. Last checked ${source.lastChecked}.`;
+  return formatLivingLibraryCitation(source);
 }
 
 function localLivingSnapshot(): LocalLivingSnapshot {
   const savedSourceIds = readLocalStorage<string[]>("elysiaLivingLibrary.savedSources.v1", []);
   const savedCitationIds = readLocalStorage<string[]>("elysiaLivingLibrary.savedCitations.v1", []);
+  const savedCitationRecords = readLocalStorage<LocalCitationRecord[]>("elysiaLivingLibrary.savedCitationRecords.v2", []);
   const rawCollections = readLocalStorage<LocalCollection[]>("elysiaLivingLibrary.collections.v1", []);
-  const savedSources = livingLibrarySources.filter((source) => savedSourceIds.includes(source.id));
+  const savedSources = savedSourceIds.map(resolveLivingLibrarySource).filter((source): source is LivingLibrarySource => Boolean(source));
   return {
     savedSourceIds,
     savedSources,
     savedCitationIds,
-    savedCitations: livingLibrarySources.filter((source) => savedCitationIds.includes(source.id)).map((source) => ({ source_id: source.id, citation_text: citationFor(source), citation_format: "plain" })),
+    savedCitations: savedCitationIds.flatMap((sourceId) => {
+      const source = resolveLivingLibrarySource(sourceId);
+      if (!source) return [];
+      const stored = savedCitationRecords.find((record) => record.sourceId === sourceId && typeof record.citationText === "string");
+      return [{ source_id: source.id, citation_text: stored?.citationText ?? citationFor(source), citation_format: "plain" }];
+    }),
     rawCollections,
     collections: rawCollections.map((collection, index) => ({
       id: `local-${index}`,
