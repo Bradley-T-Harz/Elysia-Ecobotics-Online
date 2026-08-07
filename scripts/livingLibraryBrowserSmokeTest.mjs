@@ -73,6 +73,7 @@ async function exercise(browserType, browserName, viewportName, viewport) {
     await page.goto(`${origin}/living-library`, { waitUntil: "domcontentloaded" });
     await settle(page);
     assert.equal(await page.getByRole("heading", { level: 1, name: "The Living Library" }).isVisible(), true, `${browserName}/${viewportName}: landing heading missing.`);
+    assert.equal(await page.getByText("200 active resources", { exact: true }).isVisible(), true, `${browserName}/${viewportName}: public active-resource count must be exactly 200.`);
     assert.equal(await page.getByRole("search").count(), 1, `${browserName}/${viewportName}: expected one primary search region.`);
     assert.equal(await page.locator(".library-result-card").count(), 12, `${browserName}/${viewportName}: landing must mount only the first 12 source cards.`);
     const structure = await page.evaluate(() => ({
@@ -101,6 +102,7 @@ async function exercise(browserType, browserName, viewportName, viewport) {
     const atmospheric = await resultIds(page);
     assert(atmospheric.includes("nasa-earthdata"), `${browserName}/${viewportName}: atmospheric must surface NASA Earthdata.`);
     assert(atmospheric.some((id) => id?.includes("noaa")), `${browserName}/${viewportName}: atmospheric must surface NOAA.`);
+    assert(atmospheric.includes("openaq"), `${browserName}/${viewportName}: atmospheric must surface OpenAQ.`);
     assert(atmospheric.some((id) => id?.includes("air") || id?.includes("epa") || id?.includes("firms")), `${browserName}/${viewportName}: atmospheric must surface air-quality or wildfire infrastructure.`);
     assert.equal(await page.locator("#library-results h2").evaluate((element) => element === document.activeElement), true, `${browserName}/${viewportName}: committed search must focus the results heading.`);
 
@@ -111,6 +113,10 @@ async function exercise(browserType, browserName, viewportName, viewport) {
       ["long term ecology", "lter-network"], ["GNSS", "earthscope-consortium"], ["marine biodiversity", "obis"],
       ["clinical trial", "clinicaltrials-gov"], ["high energy physics", "cern-open-data"],
       ["space telescope data", "mast"], ["special functions", "nist-dlmf"],
+      ["systematic review", "cochrane-library"], ["treatment effectiveness evidence", "cochrane-library"],
+      ["brain cell types", "allen-brain-map"], ["spatial transcriptomics brain", "allen-brain-map"],
+      ["fossil occurrences", "paleobiology-database"], ["deep time biodiversity", "paleobiology-database"],
+      ["ground level air quality", "openaq"], ["PM2.5 sensors", "openaq"],
       ["DOE research", "osti-gov"], ["science textbook", "openstax"], ["AI models", "hugging-face-hub"],
     ]) {
       await search.fill(query);
@@ -165,6 +171,19 @@ async function exercise(browserType, browserName, viewportName, viewport) {
     assert(stored.ids.includes("nasa-earthdata"), `${browserName}/${viewportName}: v1 saved-source compatibility key not preserved.`);
     assert.equal(stored.citations[0]?.sourceId, "nasa-earthdata", `${browserName}/${viewportName}: v2 citation record missing.`);
     assert.match(stored.citations[0]?.citationText ?? "", /Accessed \d{4}-\d{2}-\d{2}/, `${browserName}/${viewportName}: stored citation lacks its action-time date.`);
+
+    for (const [sourceId, sourceName] of [
+      ["cochrane-library", "Cochrane Library"],
+      ["allen-brain-map", "Allen Brain Map"],
+      ["paleobiology-database", "Paleobiology Database"],
+      ["openaq", "OpenAQ"],
+    ]) {
+      await page.goto(`${origin}/living-library/source/${sourceId}`, { waitUntil: "domcontentloaded" });
+      await settle(page, "#library-source-detail");
+      assert.equal(await page.getByRole("heading", { level: 1, name: sourceName }).isVisible(), true, `${browserName}/${viewportName}: ${sourceId} detail route is missing.`);
+      assert.equal(await page.getByText("Account, API, download, and cloud", { exact: true }).isVisible(), true, `${browserName}/${viewportName}: ${sourceId} access metadata is missing.`);
+      assert.equal(await page.locator(".library-link-list a").count() >= 4, true, `${browserName}/${viewportName}: ${sourceId} typed links are incomplete.`);
+    }
 
     await page.goto(`${origin}/living-library/source/hugging-face-datasets`, { waitUntil: "domcontentloaded" });
     await settle(page, "#library-source-detail");

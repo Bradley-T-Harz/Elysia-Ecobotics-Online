@@ -33,8 +33,8 @@ const {
   searchLivingLibrarySources,
 } = catalog;
 
-assert.equal(allLivingLibrarySources.length, 228, "the 171-record baseline plus 57 approved active additions must remain resolvable");
-assert.equal(activeLivingLibrarySources.length, 196, "active catalog count changed unexpectedly");
+assert.equal(allLivingLibrarySources.length, 232, "the 171-record baseline, 57-resource expansion, and four-resource quality expansion must remain resolvable");
+assert.equal(activeLivingLibrarySources.length, 200, "active catalog count changed unexpectedly");
 assert.equal(legacyLivingLibrarySources.length, 32, "legacy/tombstone count changed unexpectedly");
 assert.equal(new Set(allLivingLibrarySources.map((source) => source.id)).size, allLivingLibrarySources.length, "source IDs must be unique");
 assert.equal(new Set(activeLivingLibrarySources.map((source) => source.id)).size, activeLivingLibrarySources.length, "active source IDs must be unique");
@@ -74,6 +74,28 @@ for (const id of expansionIds) {
   assert.ok(expanded.content.note.length >= 40, `${id} needs a hosting/review annotation`);
   assert.ok(expanded.license.summary.length >= 40, `${id} needs a reuse annotation`);
   assert.ok(expanded.citation.creator && expanded.citation.title && expanded.citation.url, `${id} needs structured citation metadata`);
+}
+
+const miniExpansionIds = ["cochrane-library", "allen-brain-map", "paleobiology-database", "openaq"];
+assert.equal(miniExpansionIds.length, 4, "the 200-resource quality expansion must contain exactly four records");
+for (const id of miniExpansionIds) {
+  const expanded = allLivingLibrarySources.find((entry) => entry.id === id);
+  assert.ok(expanded?.active, `${id} must be a unique active quality-expansion record`);
+  assert.ok(expanded.searchKeywords.length >= 40, `${id} needs at least 40 truthful discovery terms`);
+  assert.ok(expanded.aliases.length >= 4, `${id} needs useful aliases and acronyms`);
+  assert.ok(expanded.links.length >= 4, `${id} needs a primary link and substantive typed official links`);
+  assert.ok(expanded.links.every((entry) => entry.url.startsWith("https://")), `${id} active links should use HTTPS`);
+  assert.ok(expanded.access.note.length >= 120, `${id} needs a nuanced access annotation`);
+  assert.ok(expanded.content.note.length >= 120, `${id} needs a nuanced hosting/review annotation`);
+  assert.ok(expanded.license.summary.length >= 120, `${id} needs a nuanced reuse annotation`);
+  assert.ok(expanded.citation.creator && expanded.citation.title && expanded.citation.url, `${id} needs structured citation metadata`);
+}
+const miniExpansionDomains = miniExpansionIds.map((id) => new URL(allLivingLibrarySources.find((entry) => entry.id === id).officialUrl).hostname.replace(/^www\./, ""));
+assert.equal(new Set(miniExpansionDomains).size, miniExpansionIds.length, "the four additions must not duplicate one another's primary service domain");
+for (const id of miniExpansionIds) {
+  const added = allLivingLibrarySources.find((entry) => entry.id === id);
+  const normalizedName = added.name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  assert.equal(allLivingLibrarySources.filter((entry) => entry.name.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim() === normalizedName).length, 1, `${id} must not duplicate an existing normalized display name`);
 }
 
 function source(id) {
@@ -287,12 +309,25 @@ const corpus = [
   ["consensus report", ["national-academies-publications"]],
   ["physics simulation", ["phet"]],
   ["biology teaching resources", ["hhmi-biointeractive"]],
+  ["systematic review", ["cochrane-library"]],
+  ["treatment effectiveness evidence", ["cochrane-library"]],
+  ["controlled trial evidence synthesis", ["cochrane-library"]],
+  ["brain cell types", ["allen-brain-map"]],
+  ["spatial transcriptomics brain", ["allen-brain-map"]],
+  ["neural connectivity atlas", ["allen-brain-map"]],
+  ["fossil occurrences", ["paleobiology-database"]],
+  ["deep time biodiversity", ["paleobiology-database"]],
+  ["taphonomy stratigraphy", ["paleobiology-database"]],
+  ["ground level air quality", ["openaq"]],
+  ["PM2.5 sensors", ["openaq"]],
+  ["global pollution monitoring", ["openaq"]],
 ];
 for (const [query, expectedIds] of corpus) expectAny(query, expectedIds);
 const atmospheric = search("atmospheric");
 assert.ok(atmospheric.includes("nasa-earthdata"), "atmospheric must include NASA Earthdata");
 assert.ok(atmospheric.includes("noaa-climate-data-online"), "atmospheric must include NOAA Climate Data Online");
 assert.ok(atmospheric.includes("epa-tri--toxics-release-inventory") || atmospheric.includes("nasa-firms"), "atmospheric should include a relevant air-quality/fire observation resource");
+assert.ok(atmospheric.includes("openaq"), "atmospheric must include OpenAQ's scientifically relevant ground-level observations");
 const aiDatasets = search("AI datasets");
 assert.ok(aiDatasets.includes("hugging-face-hub"), "AI datasets must surface Hugging Face Hub");
 assert.ok(aiDatasets.length <= 12, `AI acronym matching must not degrade into a broad substring match; got ${aiDatasets.length} results`);
@@ -305,6 +340,15 @@ assert.doesNotMatch(citation, /Accessed 2026-08-07/);
 assert.match(citation, /DOI and scholarly metadata service/i);
 assert.equal(citationSource.verification.urlLastVerified, "2026-08-07");
 assert.match(formatLivingLibraryCitation(source("microsoft-academic-graph-legacy"), new Date("2031-04-05T12:00:00Z")), /retired catalog record/);
+for (const id of miniExpansionIds) {
+  const miniCitation = formatLivingLibraryCitation(source(id), new Date("2031-04-05T12:00:00Z"));
+  assert.match(miniCitation, /Accessed 2031-04-05/, `${id} citation must use the action-time access date`);
+  assert.doesNotMatch(miniCitation, /Accessed 2026-08-07/, `${id} citation must not reuse the catalog verification date`);
+}
+assert.equal(source("openaq").access.api, "key/token required");
+assert.equal(source("allen-brain-map").access.api, "open/no credential");
+assert.equal(source("paleobiology-database").license.attributionRequired, true);
+assert.match(source("cochrane-library").license.trainingCaution, /training rights|AI-training/i);
 
 // Route, accessibility, and structural performance contracts.
 const appSource = await readFile(new URL("../src/App.tsx", import.meta.url), "utf8");
