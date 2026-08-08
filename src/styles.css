@@ -1757,6 +1757,53 @@ code { color: var(--teal); overflow-wrap: anywhere; }
   grid-column: 1 / -1;
 }
 
+.commune-field-help {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.commune-form-grid .commune-links-field {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.72rem;
+  border: 1px solid rgba(142, 232, 220, 0.16);
+  border-radius: 15px;
+  background: rgba(5, 12, 20, 0.38);
+}
+
+.commune-form-grid .commune-links-field > label {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.commune-form-grid textarea[id$="-links"] {
+  min-height: 7.5rem;
+  resize: vertical;
+}
+
+.commune-links-list {
+  min-width: 0;
+}
+
+.commune-links-list ul {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.commune-links-list a,
+.commune-links-list span {
+  overflow-wrap: anywhere;
+}
+
+.commune-links-preview {
+  align-self: start;
+}
+
 .commune-checklist {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));

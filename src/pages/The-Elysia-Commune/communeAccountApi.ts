@@ -4,6 +4,7 @@ import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../Th
 import { attributionMap, loadPublicCommuneAttributions } from "./communeAttribution";
 import { communeFallbackCategories, communeReportReasons, parseCommuneTags, scanCommuneTextForSecrets, validateCommuneMediaFile } from "./communeSafety";
 import type { ParentPublicationState } from "./codeRevisionDraftState";
+import { parseCommuneLinksInput } from "../../shared/communeLinks";
 
 export type CommunePostType = "media_garden" | "troubleshooting" | "code_sharing" | "repository_showcase" | "community_network" | "job_post" | "research_note" | "elysia_iteration_showcase" | "community_vote" | "official_update";
 export type CommunePostStatus = "draft" | "pending_review" | "in_review" | "needs_information" | "approved" | "published" | "rejected" | "hidden" | "archived" | "deleted_by_user" | "removed_by_moderator";
@@ -295,7 +296,7 @@ export type ElysiaIterationShowcaseMetadata = {
   created_at?: string | null;
   updated_at?: string | null;
 };
-export type CommuneModerationItem = { id: string; kind: "post" | "comment" | "upload" | "repo" | "iteration" | "job" | "sandbox" | "report"; title: string; status: string; created_at?: string | null; summary?: string | null };
+export type CommuneModerationItem = { id: string; kind: "post" | "comment" | "upload" | "repo" | "iteration" | "job" | "sandbox" | "report"; title: string; status: string; created_at?: string | null; summary?: string | null; links?: string[] | null };
 export type CommuneAccountState = { signedIn: boolean; userId: string | null; username: string | null; roles: AppRole[]; isAdmin: boolean; isModerator: boolean; warnings: string[] };
 export type LoadCommuneData = { rooms: CommuneRoom[]; posts: CommunePost[]; comments: CommuneComment[]; threads: CommuneThread[]; media: CommuneMediaAttachment[]; troubleshootingPosts: TroubleshootingMetadata[]; jobPosts: JobPostMetadata[]; researchNotes: ResearchNotesMetadata[]; repositoryShowcases: RepositoryShowcaseMetadata[]; iterationShowcases: ElysiaIterationShowcaseMetadata[]; officialUpdates: OfficialUpdateMetadata[]; officialCodeSnippets: OfficialUpdateCodeSnippet[]; votePosts: CommunityVoteView[]; savedPostIds: string[]; followedThreadIds: string[]; account: CommuneAccountState; warnings: string[] };
 export type CommuneCategory = { id: string; slug: string; title: string; description?: string | null; sort_order?: number | null; is_active?: boolean | null };
@@ -366,7 +367,7 @@ const canonicalCommuneTables = {
 } as const;
 
 function fallback<T>(data: T, warning = supabaseNotConfiguredMessage) { return { data, warnings: [warning] }; }
-function splitList(value: string) { return value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean); }
+function splitList(value: string) { return parseCommuneLinksInput(value); }
 function excerpt(value: string) { return value.replace(/\s+/g, " ").trim().slice(0, 220); }
 function publicHttpUrlOrNull(value?: string | null) {
   const text = String(value ?? "").trim();
@@ -2937,7 +2938,7 @@ export async function loadCommuneModerationQueue(): Promise<{ items: CommuneMode
   if (!account.isModerator) return { items: [], warnings: ["Commune moderation requires administrator, moderator, commune_moderator, or guardian_reviewer role."] };
   const warnings: string[] = [];
   const [posts, comments, uploads, repos, iterations, jobs, sandboxes, reports] = await Promise.all([
-    supabase.from("commune_posts").select("id,title,status,created_at,excerpt").in("status", ["pending_review", "in_review", "needs_information", "hidden"]).order("created_at", { ascending: false }).limit(30),
+    supabase.from("commune_posts").select("id,title,status,created_at,excerpt,links").in("status", ["pending_review", "in_review", "needs_information", "hidden"]).order("created_at", { ascending: false }).limit(30),
     supabase.from("commune_comments").select("id,body,status,created_at").in("status", ["pending_review", "hidden"]).order("created_at", { ascending: false }).limit(30),
     supabase.from(canonicalCommuneTables.media).select("id,file_name,visibility_state,created_at").in("visibility_state", ["submitted", "flagged", "hidden"]).order("created_at", { ascending: false }).limit(30),
     supabase.from(canonicalCommuneTables.repositoryShowcases).select("id,project_name,status,created_at,project_summary").in("status", ["pending_review", "in_review", "needs_information"]).order("created_at", { ascending: false }).limit(30),
@@ -2948,7 +2949,7 @@ export async function loadCommuneModerationQueue(): Promise<{ items: CommuneMode
   ]);
   for (const result of [posts, comments, uploads, repos, iterations, jobs, sandboxes, reports]) if (result.error) warnings.push(result.error.message);
   const items: CommuneModerationItem[] = [
-    ...((posts.data ?? []) as Array<{ id: string; title: string; status: string; created_at?: string; excerpt?: string }>).map((row) => ({ id: row.id, kind: "post" as const, title: row.title, status: row.status, created_at: row.created_at, summary: row.excerpt })),
+    ...((posts.data ?? []) as Array<{ id: string; title: string; status: string; created_at?: string; excerpt?: string; links?: string[] | null }>).map((row) => ({ id: row.id, kind: "post" as const, title: row.title, status: row.status, created_at: row.created_at, summary: row.excerpt, links: row.links })),
     ...((comments.data ?? []) as Array<{ id: string; body: string; status: string; created_at?: string }>).map((row) => ({ id: row.id, kind: "comment" as const, title: "Comment", status: row.status, created_at: row.created_at, summary: excerpt(row.body) })),
     ...((uploads.data ?? []) as Array<{ id: string; file_name: string; visibility_state: string; created_at?: string }>).map((row) => ({ id: row.id, kind: "upload" as const, title: row.file_name, status: row.visibility_state, created_at: row.created_at })),
     ...((repos.data ?? []) as Array<{ id: string; project_name: string; status: string; created_at?: string; project_summary?: string }>).map((row) => ({ id: row.id, kind: "repo" as const, title: row.project_name, status: row.status, created_at: row.created_at, summary: row.project_summary })),

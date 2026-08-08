@@ -34,6 +34,7 @@ export type ReviewItem = {
   content_status?: string | null;
   content_visibility?: string | null;
   content_preview?: string | null;
+  content_links?: string[] | null;
   moderation_reason?: string | null;
   content_updated_at?: string | null;
 };
@@ -191,6 +192,7 @@ type CommunePostModerationRow = {
   title?: string | null;
   body?: string | null;
   excerpt?: string | null;
+  links?: string[] | null;
   status?: string | null;
   visibility?: string | null;
   visibility_state?: string | null;
@@ -250,7 +252,7 @@ async function enrichCommuneReviewItems(items: ReviewItem[], warnings: string[])
   }
 
   if (postIds.length) {
-    const { data, error } = await supabase.from("commune_posts").select("id,title,body,excerpt,status,visibility,visibility_state,moderation_status,hidden_at,removed_at,archived_at,moderation_reason,published_at,updated_at").in("id", postIds);
+    const { data, error } = await supabase.from("commune_posts").select("id,title,body,excerpt,links,status,visibility,visibility_state,moderation_status,hidden_at,removed_at,archived_at,moderation_reason,published_at,updated_at").in("id", postIds);
     if (error) warnings.push(`Commune post moderation state could not be loaded: ${friendlyReviewWarning(error.message)}`);
     for (const row of (data ?? []) as CommunePostModerationRow[]) postMap.set(row.id, row);
   }
@@ -285,6 +287,7 @@ async function enrichCommuneReviewItems(items: ReviewItem[], warnings: string[])
         content_status: row.status ?? null,
         content_visibility: row.visibility ?? row.visibility_state ?? null,
         content_preview: summarizeText(row.excerpt ?? row.body),
+        content_links: row.links ?? [],
         moderation_reason: row.moderation_reason ?? null,
         content_updated_at: row.updated_at ?? row.published_at ?? null
       };

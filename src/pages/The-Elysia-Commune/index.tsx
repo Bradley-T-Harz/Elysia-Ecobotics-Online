@@ -194,6 +194,7 @@ import {
   type ParentPublicationState,
   type PublishedSnapshot
 } from "./codeRevisionDraftState";
+import { parseCommuneLinksInput, safeCommuneLinkHref } from "../../shared/communeLinks";
 
 type CommuneStatus =
   | "draft_local"
@@ -1588,6 +1589,27 @@ function TagChips({ tags }: { tags?: string[] | string | null }) {
   return <div className="tag-row">{normalizedTags.map((tag) => <span key={tag}>{tag}</span>)}</div>;
 }
 
+function CommuneLinksField({ id, value, onChange }: { id: string; value: string; onChange: (value: string) => void }) {
+  const descriptionId = `${id}-description`;
+  return <div className="commune-links-field wide-field">
+    <label htmlFor={id}>Links</label>
+    <textarea id={id} rows={4} value={value} onChange={(event) => onChange(event.target.value)} aria-describedby={descriptionId} placeholder={"https://example.com/first\nhttps://example.com/second"} />
+    <span className="commune-field-help" id={descriptionId}>One link per line.</span>
+  </div>;
+}
+
+function CommuneLinksList({ links, label = "Links", className = "" }: { links?: string[] | string | null; label?: string; className?: string }) {
+  const items = (Array.isArray(links) ? links : parseCommuneLinksInput(links ?? "")).map((item) => item.trim()).filter(Boolean);
+  if (!items.length) return null;
+  return <article className={`commune-room-native-field commune-links-list ${className}`.trim()} aria-label={label}>
+    <h3>{label}</h3>
+    <ul>{items.map((item, index) => {
+      const href = safeCommuneLinkHref(item);
+      return <li key={`${item}-${index}`}>{href ? <a href={href} target="_blank" rel="noreferrer">{item}</a> : <span>{item}</span>}</li>;
+    })}</ul>
+  </article>;
+}
+
 function normalize(value: string) {
   return value.toLowerCase().replace(/#/g, "").replace(/[_-]+/g, " ");
 }
@@ -2062,7 +2084,8 @@ function CommunityVoteComposer({ roomId, onRefresh, isAdmin }: { roomId?: string
       <label><span>Opens at</span><input type="datetime-local" value={form.opensAt} onChange={(event) => setForm({ ...form, opensAt: event.target.value })} /></label>
       <label><span>Closes at</span><input type="datetime-local" value={form.closesAt} onChange={(event) => setForm({ ...form, closesAt: event.target.value })} /></label>
       <label className="wide-field"><span>Tags</span><input value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} /></label>
-      <label className="wide-field"><span>Links</span><input value={form.links} onChange={(event) => setForm({ ...form, links: event.target.value })} placeholder="Public HTTP(S) links only" /></label>
+      <CommuneLinksField id="commune-vote-links" value={form.links} onChange={(links) => setForm({ ...form, links })} />
+      <CommuneLinksList links={form.links} label="Links preview" className="wide-field commune-links-preview" />
       <label className="wide-field"><span>Manual Official Update post id, optional</span><input value={form.officialUpdatePostId} onChange={(event) => setForm({ ...form, officialUpdatePostId: event.target.value })} placeholder="Optional later admin-filled link only" /></label>
       <label className="checkbox-row wide-field"><input type="checkbox" checked={form.allowComments} onChange={(event) => setForm({ ...form, allowComments: event.target.checked })} /> Allow comments</label>
       <label className="checkbox-row wide-field"><input type="checkbox" checked={form.acknowledgement} onChange={(event) => setForm({ ...form, acknowledgement: event.target.checked })} /> I confirm this is advisory guidance, not automatic governance or Official Update publishing.</label>
@@ -2667,7 +2690,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       summary: form.summary || body.slice(0, 180),
       body,
       tags: normalizedTags.map(formatCommuneTag).join(", "),
-      sourceLinks: [form.links, form.repositoryUrl].filter(Boolean).join(", "),
+      sourceLinks: [form.links, form.repositoryUrl].filter(Boolean).join("\n"),
       licenseNotes: "",
       redactionNotes: troubleshooting ? "Troubleshooting content should be redacted before sharing." : "Room-native public contribution. No private local Elysia data should be included.",
       intendedAudience: "Community review",
@@ -3129,7 +3152,8 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       <label><span>Title</span><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
       <label><span>Summary</span><input value={form.summary} onChange={(event) => setForm({ ...form, summary: event.target.value })} /></label>
       <label><span>Tags</span><input value={form.tags} onChange={(event) => setForm({ ...form, tags: event.target.value })} placeholder="Add tags like #wetlands, #qgis, local-ai" /></label>
-      <label><span>Links</span><input value={form.links} onChange={(event) => setForm({ ...form, links: event.target.value })} /></label>
+      <CommuneLinksField id="commune-post-links" value={form.links} onChange={(links) => setForm({ ...form, links })} />
+      <CommuneLinksList links={form.links} label="Links preview" className="wide-field commune-links-preview" />
       {showRepositoryField && <label><span>Repository URL optional</span><input value={form.repositoryUrl} onChange={(event) => setForm({ ...form, repositoryUrl: event.target.value })} /></label>}
       {showAttachmentField && <><label><span>Attachment optional</span><input type="file" accept=".pdf,.png,.jpg,.jpeg,.webp,.txt,.md,.csv,.json" onChange={(event) => setFile(event.target.files?.[0] ?? null)} /></label><p className="boundary-note">Supported attachments: PNG, JPEG, WebP, PDF, TXT, Markdown, CSV, and JSON. Images are supported now. Video uploads are not enabled for this room yet. Video support is planned.</p>{showOfficialFields && <p className="boundary-note">Official attachments must not expose private admin pages, Supabase keys, service-role keys, .env files, local paths, private user data, hidden moderator notes, credentials, logs, vaults, or local Elysia data.</p>}</>}
       {showTroubleshootingFields && <><label><span>Issue type</span><input value={form.issueType} onChange={(event) => setForm({ ...form, issueType: event.target.value })} placeholder="bug, install issue, known issue, workaround" /></label><label><span>Affected area</span><input value={form.affectedArea} onChange={(event) => setForm({ ...form, affectedArea: event.target.value })} /></label><label><span>OS</span><input value={form.os} onChange={(event) => setForm({ ...form, os: event.target.value })} /></label><label><span>Browser/app</span><input value={form.browser} onChange={(event) => setForm({ ...form, browser: event.target.value })} /></label><label><span>Elysia version optional</span><input value={form.version} onChange={(event) => setForm({ ...form, version: event.target.value })} /></label><label><span>Status</span><select value={form.issueStatus} onChange={(event) => setForm({ ...form, issueStatus: event.target.value })}>{["Open", "Needs information", "In progress", "Workaround found", "Fix proposed", "Resolved", "Closed", "Archived"].map((value) => <option key={value}>{value}</option>)}</select></label><label className="wide-field"><span>Environment notes</span><textarea rows={3} value={form.environmentNotes} onChange={(event) => setForm({ ...form, environmentNotes: event.target.value })} placeholder="Public-safe version/build context only. No private machine inventories or local paths." /></label><label className="wide-field"><span>Steps to reproduce / tried</span><textarea rows={4} value={form.stepsTried} onChange={(event) => setForm({ ...form, stepsTried: event.target.value })} /></label><label className="wide-field"><span>Expected behavior</span><textarea rows={3} value={form.expectedBehavior} onChange={(event) => setForm({ ...form, expectedBehavior: event.target.value })} /></label><label className="wide-field"><span>Actual behavior</span><textarea rows={3} value={form.actualBehavior} onChange={(event) => setForm({ ...form, actualBehavior: event.target.value })} /></label><label className="wide-field"><span>Error message</span><textarea rows={3} value={form.errorMessage} onChange={(event) => setForm({ ...form, errorMessage: event.target.value })} placeholder="Paste only the public-safe error message. Redact tokens, paths, emails, IDs, and account data." /></label><label className="wide-field"><span>Redacted logs</span><textarea rows={4} value={form.redactedLogs} onChange={(event) => setForm({ ...form, redactedLogs: event.target.value })} placeholder="Logs must be redacted. No .env, credentials, API keys, local Elysia memory/logs/vaults, or private user data." /></label><label className="wide-field"><span>Known workaround</span><textarea rows={3} value={form.workaround} onChange={(event) => setForm({ ...form, workaround: event.target.value })} /></label><p className="wide-field boundary-note">Troubleshooting Grove is public support context. Redact logs, screenshots, private paths, account details, credentials, tokens, .env contents, private local Elysia data, and sensitive user/customer data before submitting.</p></>}
@@ -4510,6 +4534,20 @@ function PostDetail({ postId }: { postId: string }) {
   const commentsLocked = (isOfficialUpdate && officialUpdate?.comments_enabled === false) || (isCommunityVote && communityVote?.vote.allow_comments === false);
   const bodyMarkdown = bodyMarkdownForPost(post);
   const genericRoomNativeDetails = post.post_type === "community_network" ? legacyCommunityNetworkDetails(parsedBody) : [];
+  const roomDetailLinks = new Set<string>();
+  if (isResearchNotes) {
+    const researchDetailLinks = researchNote?.source_links?.length
+      ? researchNote.source_links
+      : parseCommuneLinksInput(explicitFormSectionValue(parsedBody, "Source links"));
+    researchDetailLinks.forEach((link) => roomDetailLinks.add(link));
+  }
+  if (isRepositoryShowcase) [repositoryShowcase?.repository_url, post.repository_url].filter(Boolean).forEach((link) => roomDetailLinks.add(link as string));
+  if (isIterationShowcase) [iterationShowcase?.related_repo_url, post.repository_url].filter(Boolean).forEach((link) => roomDetailLinks.add(link as string));
+  if (isOfficialUpdate) {
+    officialUpdate?.related_links?.forEach((link) => roomDetailLinks.add(link.url));
+    if (officialUpdate?.related_repo_url) roomDetailLinks.add(officialUpdate.related_repo_url);
+  }
+  const additionalLinks = post.links?.filter((link) => !roomDetailLinks.has(link)) ?? [];
   return <>
     <section className={isOfficialUpdate ? "section-card commune-post-detail commune-official-post-detail" : isCommunityVote ? "section-card commune-post-detail commune-vote-post-detail" : "section-card commune-post-detail"}>
       <p className="eyebrow">{post.post_type === "research_note" ? "Research Notes" : post.post_type === "community_vote" ? "Community Voting Room" : post.post_type.replace(/_/g, " ")}</p>
@@ -4526,6 +4564,7 @@ function PostDetail({ postId }: { postId: string }) {
       {isResearchNotes && <ResearchNotesDetail post={post} researchNote={researchNote} parsedBody={parsedBody} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}
       {isJobPost && <JobPostDetail post={post} jobPost={jobPost} parsedBody={parsedBody} userId={state.userId} accessToken={accessToken} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}
       <CommunePostBody body={bodyMarkdown} />
+      <CommuneLinksList links={additionalLinks} />
       {attachments.length > 0 && <div className="commune-media-section"><p className="eyebrow">Attached media</p><p className="commune-media-attribution">Attached to this post by {isOfficialUpdate ? "Elysia Ecobotics Official" : authorLink(post.author_username)}.</p><p className="boundary-note">Published attachments are read-only and remain governed by Commune moderation and safety policies.</p><div className="commune-media-grid">{attachments.map((item) => <article className="commune-media-card" key={item.id}>{item.media_kind === "image" && item.signed_url ? <button className="commune-media-image-button" type="button" onClick={() => setActiveMedia(item)}><img src={item.signed_url} alt={`Attached media: ${item.file_name}`} loading="lazy" /></button> : <div className="commune-media-unavailable"><strong>{item.file_name}</strong><p>{item.signed_url ? "This attachment can be opened from its signed public review URL." : "Attachment unavailable or still under review."}</p></div>}<div className="commune-media-meta"><strong>{item.file_name}</strong><span>{item.mime_type ?? item.media_kind}{item.file_size ? ` · ${item.file_size} bytes` : ""}</span></div></article>)}</div></div>}
       {isOfficialUpdate ? <OfficialCodeSnippets officialUpdate={officialUpdate} officialCodeSnippets={officialCodeSnippets} fallbackSnippets={snippets} isAdmin={state.isAdmin} onMessage={setMessage} onChanged={refresh} /> : !isCommunityVote && <AttachedCodeSnippets snippets={snippets} authorUsername={post.author_username} postType={post.post_type} parentIsPublished={isActivePublicCommunePost(post)} signedIn={state.signedIn} onMessage={setMessage} />}
       <TagChips tags={post.tags} />
@@ -4559,7 +4598,7 @@ function ModerationPanel() {
     setDeleteTarget(null);
     await refresh();
   }
-  return <section className="section-card"><p className="eyebrow">Role-gated moderation</p><h2>Commune moderation queue</h2><p className="boundary-note">Normal users cannot access RLS-protected pending posts, comments, uploads, reports, or moderation events.</p><label><span>Moderation note</span><input value={reason} onChange={(event) => setReason(event.target.value)} /></label><div className="commune-draft-grid">{items.map((item) => <article key={`${item.kind}-${item.id}`}><h3>{item.title}</h3><StatusBadges labels={[item.kind, item.status]} /><p>{item.summary}</p><div className="button-row"><button onClick={() => void act(item, "approve")}>Approve/publish</button><button onClick={() => void act(item, "needs_information")}>Needs info</button><button onClick={() => void act(item, "reject")}>Reject/remove</button><button onClick={() => void act(item, "hide")}>Hide</button><button onClick={() => void act(item, "archive")}>Archive</button><button onClick={() => void act(item, "escalate")}>Escalate</button>{(item.kind === "post" || item.kind === "comment") && <><button type="button" onClick={() => void contentAct(item, "flag")}>Flag for removal</button><button type="button" onClick={() => setDeleteTarget(item)}>Delete</button></>}</div>{deleteTarget?.id === item.id && deleteTarget.kind === item.kind && <div className="commune-delete-confirm"><h3>Delete/remove this Commune content?</h3><p>This removes the item from public views and leaves admin-only History evidence.</p><div className="button-row"><button type="button" onClick={() => void contentAct(item, "delete")}>Yes, delete/remove</button><button type="button" onClick={() => setDeleteTarget(null)}>No, keep it</button></div></div>}</article>)}</div>{!items.length && <p>Moderation items will appear here for authorized roles when account-backed Commune tables are active.</p>}<p className="message">{message}</p></section>;
+  return <section className="section-card"><p className="eyebrow">Role-gated moderation</p><h2>Commune moderation queue</h2><p className="boundary-note">Normal users cannot access RLS-protected pending posts, comments, uploads, reports, or moderation events.</p><label><span>Moderation note</span><input value={reason} onChange={(event) => setReason(event.target.value)} /></label><div className="commune-draft-grid">{items.map((item) => <article key={`${item.kind}-${item.id}`}><h3>{item.title}</h3><StatusBadges labels={[item.kind, item.status]} /><p>{item.summary}</p><CommuneLinksList links={item.links} label="Submitted links" /><div className="button-row"><button onClick={() => void act(item, "approve")}>Approve/publish</button><button onClick={() => void act(item, "needs_information")}>Needs info</button><button onClick={() => void act(item, "reject")}>Reject/remove</button><button onClick={() => void act(item, "hide")}>Hide</button><button onClick={() => void act(item, "archive")}>Archive</button><button onClick={() => void act(item, "escalate")}>Escalate</button>{(item.kind === "post" || item.kind === "comment") && <><button type="button" onClick={() => void contentAct(item, "flag")}>Flag for removal</button><button type="button" onClick={() => setDeleteTarget(item)}>Delete</button></>}</div>{deleteTarget?.id === item.id && deleteTarget.kind === item.kind && <div className="commune-delete-confirm"><h3>Delete/remove this Commune content?</h3><p>This removes the item from public views and leaves admin-only History evidence.</p><div className="button-row"><button type="button" onClick={() => void contentAct(item, "delete")}>Yes, delete/remove</button><button type="button" onClick={() => setDeleteTarget(null)}>No, keep it</button></div></div>}</article>)}</div>{!items.length && <p>Moderation items will appear here for authorized roles when account-backed Commune tables are active.</p>}<p className="message">{message}</p></section>;
 }
 
 function proposalStatusLabel(status: string) {
