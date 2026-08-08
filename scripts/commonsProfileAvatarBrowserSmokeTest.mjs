@@ -53,9 +53,16 @@ const fixtureProfile = {
   featured_public_links: [],
   is_developer: false,
   is_admin: false,
-  commons_onboarding_completed_at: null,
+  commons_onboarding_completed_at: "2026-07-24T12:00:00.000Z",
   stewardship_onboarding_skipped_at: null,
   work_with_onboarding_skipped_at: null,
+};
+const fixtureFreeMemberAward = {
+  badge_key: "free_member",
+  awarded_at: "2026-07-24T12:00:00.000Z",
+  award_source: "system",
+  visibility: "public",
+  revoked_at: null,
 };
 const safePng = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII=",
@@ -206,6 +213,10 @@ async function loadProfileEditor(viewport, exerciseMedia) {
           headers: corsHeaders,
           body: JSON.stringify(objectResponse ? fixtureProfile : [fixtureProfile]),
         });
+        return;
+      }
+      if (table === "user_badges" && request.method() === "GET") {
+        await route.fulfill({ status: 200, headers: corsHeaders, body: JSON.stringify([fixtureFreeMemberAward]) });
         return;
       }
       if (table === "profile_media" && request.method() === "POST") {
@@ -369,6 +380,7 @@ async function loadHomebaseAvatar({ imageFailure = null }) {
         const objectResponse = request.headers().accept?.includes("application/vnd.pgrst.object+json");
         return route.fulfill({ status: 200, headers: corsHeaders, body: JSON.stringify(objectResponse ? fixtureProfile : [fixtureProfile]) });
       }
+      if (table === "user_badges") return route.fulfill({ status: 200, headers: corsHeaders, body: JSON.stringify([fixtureFreeMemberAward]) });
       if (table === "profile_media") return route.fulfill({ status: 200, headers: corsHeaders, body: JSON.stringify([mediaRow]) });
       if (table === "profile_customization") return route.fulfill({ status: 200, headers: corsHeaders, body: JSON.stringify([{ avatar_media_id: fixtureMediaId }]) });
       return route.fulfill({ status: 200, headers: corsHeaders, body: "[]" });

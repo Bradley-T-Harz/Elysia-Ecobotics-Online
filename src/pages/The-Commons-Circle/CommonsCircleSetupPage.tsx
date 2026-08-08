@@ -51,9 +51,9 @@ type WorkWithDraft = {
 
 const setupSteps: SetupStep[] = ["profile", "stewardship", "work-with", "confirm"];
 const sessionKeys = {
-  profileDraft: "commonsCircle.profileSetupDraft.v1",
-  stewardshipDraft: "commonsCircle.setupStewardshipDraft.v1",
-  workWithDraft: "commonsCircle.setupWorkWithDraft.v1"
+  profileDraft: "commonsCircle.profileSetupDraft.v2",
+  stewardshipDraft: "commonsCircle.setupStewardshipDraft.v2",
+  workWithDraft: "commonsCircle.setupWorkWithDraft.v2"
 } as const;
 const localStorageKeys = {
   onboarding: "commonsCircle.onboarding.v1",
@@ -149,6 +149,10 @@ function writeSession<T>(key: string, value: T) {
   window.sessionStorage.setItem(key, JSON.stringify(value));
 }
 
+function accountSessionKey(key: string, userId: string) {
+  return `${key}.${userId}`;
+}
+
 function readStorage<T>(key: string, fallback: T): T {
   if (typeof window === "undefined") return fallback;
   try {
@@ -222,8 +226,7 @@ function notifyCommonsCircle() {
   }
 }
 
-function profileFromExisting(profile: ProfileWithSetup | null): MarketplaceProfileDraft {
-  if (!profile) return readSession(sessionKeys.profileDraft, initialProfileDraft);
+function profileFromExisting(profile: ProfileWithSetup): MarketplaceProfileDraft {
   return {
     username: profile.username ?? "",
     display_name: profile.display_name ?? "",
@@ -254,9 +257,9 @@ export default function CommonsCircleSetupPage() {
   const { step = "profile" } = useParams<{ step: SetupStep }>();
   const navigate = useNavigate();
   const [profile, setProfile] = useState<ProfileWithSetup | null>(null);
-  const [profileDraft, setProfileDraft] = useState<MarketplaceProfileDraft>(() => readSession(sessionKeys.profileDraft, initialProfileDraft));
-  const [stewardshipDraft, setStewardshipDraft] = useState<StewardshipDraft>(() => readSession(sessionKeys.stewardshipDraft, initialStewardshipDraft));
-  const [workWithDraft, setWorkWithDraft] = useState<WorkWithDraft>(() => readSession(sessionKeys.workWithDraft, initialWorkWithDraft));
+  const [profileDraft, setProfileDraft] = useState<MarketplaceProfileDraft>(initialProfileDraft);
+  const [stewardshipDraft, setStewardshipDraft] = useState<StewardshipDraft>(initialStewardshipDraft);
+  const [workWithDraft, setWorkWithDraft] = useState<WorkWithDraft>(initialWorkWithDraft);
   const [resumeFile, setResumeFile] = useState<File | null>(null);
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
@@ -265,8 +268,11 @@ export default function CommonsCircleSetupPage() {
   const [busy, setBusy] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const validationRef = useRef<HTMLDivElement>(null);
+  const draftOwnerUserIdRef = useRef<string | null>(null);
+  const refreshSequenceRef = useRef(0);
   const groupedOrganizations = useMemo(groupOrganizations, []);
   const stepIndex = Math.max(0, setupSteps.indexOf(step as SetupStep));
+  const existingCommonsProfile = Boolean(profile?.commons_onboarding_completed_at);
 
   const pushMessage = useCallback((message: string) => {
     const trimmed = message.trim();
@@ -279,19 +285,50 @@ export default function CommonsCircleSetupPage() {
   }
 
   const refreshProfile = useCallback(async () => {
-    const result = await loadCurrentProfile();
-    result.warnings.forEach(pushMessage);
-    const loaded = result.data as ProfileWithSetup | null;
-    setProfile(loaded);
-    setAvatarUrl(loaded?.avatar_url ?? null);
-    if (loaded) {
-      const nextDraft = profileFromExisting(loaded);
-      setProfileDraft(nextDraft);
-      writeSession(sessionKeys.profileDraft, nextDraft);
+    const refreshSequence = ++refreshSequenceRef.current;
+    let userId: string | null = null;
+    if (hasSupabaseConfig && supabase) {
+      const { data: auth, error: authError } = await supabase.auth.getUser();
+      if (refreshSequence !== refreshSequenceRef.current) return;
+      if (authError) pushMessage("The signed-in Website Account could not be verified, so public profile fields remain blank.");
+      userId = auth.user?.id ?? null;
     }
+
+    if (draftOwnerUserIdRef.current !== userId) {
+      draftOwnerUserIdRef.current = userId;
+      setProfile(null);
+      setProfileDraft(initialProfileDraft);
+      setStewardshipDraft(initialStewardshipDraft);
+      setWorkWithDraft(initialWorkWithDraft);
+      setResumeFile(null);
+      setReceiptFile(null);
+      setAvatarUrl(null);
+      setValidationMessage("");
+    }
+
+    const result = await loadCurrentProfile();
+    if (refreshSequence !== refreshSequenceRef.current) return;
+    result.warnings.forEach(pushMessage);
+    const loaded = result.demoMode ? null : result.data as ProfileWithSetup | null;
+    const setupComplete = Boolean(loaded?.commons_onboarding_completed_at);
+    setProfile(loaded);
+    const nextProfileDraft = setupComplete && loaded
+      ? profileFromExisting(loaded)
+      : userId
+        ? readSession(accountSessionKey(sessionKeys.profileDraft, userId), initialProfileDraft)
+        : initialProfileDraft;
+    setProfileDraft(nextProfileDraft);
+    setStewardshipDraft(userId
+      ? readSession(accountSessionKey(sessionKeys.stewardshipDraft, userId), initialStewardshipDraft)
+      : initialStewardshipDraft);
+    setWorkWithDraft(userId
+      ? readSession(accountSessionKey(sessionKeys.workWithDraft, userId), initialWorkWithDraft)
+      : initialWorkWithDraft);
+    setAvatarUrl(setupComplete ? loaded?.avatar_url ?? null : null);
     const homebaseResult = await loadCommonsHomebase();
+    if (refreshSequence !== refreshSequenceRef.current) return;
     logSetupDiagnostics("homebase", homebaseResult.warnings);
-    if (homebaseResult.customization.avatar_url) {
+    if (setupComplete && homebaseResult.customization.avatar_url) {
       setAvatarUrl(homebaseResult.customization.avatar_url);
     }
   }, [pushMessage]);
@@ -314,17 +351,17 @@ export default function CommonsCircleSetupPage() {
 
   function updateProfileDraft(next: MarketplaceProfileDraft) {
     setProfileDraft(next);
-    writeSession(sessionKeys.profileDraft, next);
+    if (draftOwnerUserIdRef.current) writeSession(accountSessionKey(sessionKeys.profileDraft, draftOwnerUserIdRef.current), next);
   }
 
   function updateStewardshipDraft(next: StewardshipDraft) {
     setStewardshipDraft(next);
-    writeSession(sessionKeys.stewardshipDraft, next);
+    if (draftOwnerUserIdRef.current) writeSession(accountSessionKey(sessionKeys.stewardshipDraft, draftOwnerUserIdRef.current), next);
   }
 
   function updateWorkWithDraft(next: WorkWithDraft) {
     setWorkWithDraft(next);
-    writeSession(sessionKeys.workWithDraft, next);
+    if (draftOwnerUserIdRef.current) writeSession(accountSessionKey(sessionKeys.workWithDraft, draftOwnerUserIdRef.current), next);
   }
 
   async function handleAvatarUpload(file: File | null) {
@@ -362,7 +399,7 @@ export default function CommonsCircleSetupPage() {
       return;
     }
     setValidationMessage("");
-    writeSession(sessionKeys.profileDraft, profileDraft);
+    if (draftOwnerUserIdRef.current) writeSession(accountSessionKey(sessionKeys.profileDraft, draftOwnerUserIdRef.current), profileDraft);
     go("stewardship");
   }
 
@@ -688,8 +725,9 @@ export default function CommonsCircleSetupPage() {
         />
         <section className="section-card commons-setup-form-card">
           <p className="eyebrow">Commons Profile draft</p>
-          <h2>{profile ? "Review Commons Profile draft" : "Draft Commons Profile"}</h2>
+          <h2>{existingCommonsProfile ? "Review Commons Profile draft" : "Draft Commons Profile"}</h2>
           <p>Your Commons Profile is the public profile connected to your signed-in Website Account. It is not a second account and not a second login. It will not be created or updated until the final confirmation step.</p>
+          {!existingCommonsProfile && <p className="boundary-note">Start with the public identity you choose. Nothing here is copied from your private account email, account name, sign-in provider, or provider profile metadata.</p>}
           <section className="commons-profile-mantle" aria-label="Public profile picture preview">
             <CommonsAvatarViewer src={avatarUrl} alt="Public Commons profile picture" fallback={(profileDraft.display_name || profileDraft.username || "C").slice(0, 1).toUpperCase()} viewLabel="View full public Commons profile picture" />
             <div>
@@ -713,10 +751,10 @@ export default function CommonsCircleSetupPage() {
             </div>
           </section>
           <div className="commons-form-grid">
-            <label><span>Username</span><input value={profileDraft.username} placeholder="bradley-harz" onChange={(event) => updateProfileDraft({ ...profileDraft, username: event.target.value })} /></label>
-            <label><span>Display name</span><input value={profileDraft.display_name} placeholder="Bradley T. Harz" onChange={(event) => updateProfileDraft({ ...profileDraft, display_name: event.target.value })} /></label>
-            <label className="wide-field"><span>Headline, optional</span><input value={profileDraft.headline ?? ""} placeholder="Public Commons profile headline" onChange={(event) => updateProfileDraft({ ...profileDraft, headline: event.target.value })} /></label>
-            <label className="wide-field"><span>Bio</span><textarea rows={3} value={profileDraft.bio} placeholder="Short public Commons bio" onChange={(event) => updateProfileDraft({ ...profileDraft, bio: event.target.value })} /></label>
+            <label><span>Username</span><input value={profileDraft.username} placeholder="Choose a public username" onChange={(event) => updateProfileDraft({ ...profileDraft, username: event.target.value })} /></label>
+            <label><span>Display name</span><input value={profileDraft.display_name} placeholder="How you'd like to appear" onChange={(event) => updateProfileDraft({ ...profileDraft, display_name: event.target.value })} /></label>
+            <label className="wide-field"><span>Headline, optional</span><input value={profileDraft.headline ?? ""} placeholder="A short public headline about what you do or care about" onChange={(event) => updateProfileDraft({ ...profileDraft, headline: event.target.value })} /></label>
+            <label className="wide-field"><span>Bio</span><textarea rows={3} value={profileDraft.bio} placeholder="Share a little about yourself and how you'd like to participate" onChange={(event) => updateProfileDraft({ ...profileDraft, bio: event.target.value })} /></label>
             <label><span>Interests</span><input value={profileDraft.interests ?? ""} onChange={(event) => updateProfileDraft({ ...profileDraft, interests: event.target.value })} /></label>
             <label><span>Website</span><input value={profileDraft.website_url ?? ""} onChange={(event) => updateProfileDraft({ ...profileDraft, website_url: event.target.value })} /></label>
             <label><span>GitHub</span><input value={profileDraft.github_url ?? ""} onChange={(event) => updateProfileDraft({ ...profileDraft, github_url: event.target.value })} /></label>
