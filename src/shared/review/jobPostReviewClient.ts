@@ -7,7 +7,7 @@ export type JobPostReviewResult = {
   action: JobPostReviewAction;
   contentApproved: boolean;
   contentStatus: "approved" | "rejected" | "archived" | "needs_information" | "in_review";
-  economicStatus: "not_assessed" | "not_required" | "payment_required" | "payment_pending" | "satisfied" | "waived" | "subsidized" | "refunded" | "disputed";
+  economicStatus: "not_assessed" | "not_required" | "payment_required" | "payment_pending" | "satisfied" | "waived" | "subsidized" | "refunded" | "disputed" | "reconciliation_required";
   publicationStatus: "approved" | "published" | "removed_by_moderator" | "hidden" | "archived" | "needs_information" | "in_review";
   published: boolean;
   feeEnforcement: boolean;
@@ -21,7 +21,7 @@ type BackendError = { message?: string | null; code?: string | null; details?: s
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const actions = new Set<JobPostReviewAction>(["approve", "reject", "hide", "archive", "needs_information", "escalate"]);
 const contentStatuses = new Set<JobPostReviewResult["contentStatus"]>(["approved", "rejected", "archived", "needs_information", "in_review"]);
-const economicStatuses = new Set<JobPostReviewResult["economicStatus"]>(["not_assessed", "not_required", "payment_required", "payment_pending", "satisfied", "waived", "subsidized", "refunded", "disputed"]);
+const economicStatuses = new Set<JobPostReviewResult["economicStatus"]>(["not_assessed", "not_required", "payment_required", "payment_pending", "satisfied", "waived", "subsidized", "refunded", "disputed", "reconciliation_required"]);
 const publicationStatuses = new Set<JobPostReviewResult["publicationStatus"]>(["approved", "published", "removed_by_moderator", "hidden", "archived", "needs_information", "in_review"]);
 
 function record(value: unknown): UnknownRecord | null {

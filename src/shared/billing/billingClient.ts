@@ -3290,7 +3290,7 @@ export async function openEconomicOperatorReconciliationCase(input: OperatorReco
 }
 
 const operatorJobClassifications = new Set<OperatorJobPostClassification>(["community_free", "commercial", "waived", "subsidized"]);
-const operatorJobEconomicStatuses = new Set(["not_assessed", "not_required", "payment_required", "payment_pending", "satisfied", "waived", "subsidized", "refunded", "disputed"]);
+const operatorJobEconomicStatuses = new Set(["not_assessed", "not_required", "payment_required", "payment_pending", "satisfied", "waived", "subsidized", "refunded", "disputed", "reconciliation_required"]);
 
 export async function assessEconomicOperatorJobPostFee(input: OperatorJobPostFeeAssessmentInput, accessToken: string): Promise<OperatorJobPostFeeAssessmentResult> {
   const jobPostId = normalizedOperatorUuid(input.jobPostId, "Job Post ID");

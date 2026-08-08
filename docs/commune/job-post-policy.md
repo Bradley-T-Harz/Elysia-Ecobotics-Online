@@ -1,94 +1,54 @@
-# Job Post Policy
+# Opportunity Commons / Job Post Policy
 
-Job Post is the Commune room for public opportunity listings: community job posts, EcoSyneva/Elysia opportunities, volunteer calls, paid roles, stipends, research roles, contributor calls, internships when clearly labeled, contract opportunities, moderator/reviewer needs, Developer Forge contributor calls, Marketplace reviewer calls, Living Library curator calls, field/research support, and public project recruitment.
+Job Post keeps its stable `job-post` route and `job_post` internal type while Opportunity Commons v2 broadens the public form beyond ordinary employment. It supports paid employment, contracts/freelance work, internships, apprenticeships/traineeships, fellowships/funded placements, research, volunteer/community service, community/open-source contribution, testing/feedback calls, future-role interest/talent pools, and clearly explained other opportunities.
 
-Job Post asks: what public opportunity is available, what is the role, what is the pay/volunteer status, where is it located or remote, how can people safely ask questions, and what must be clear before publication?
+The governing principle is: broad enough for legitimate collaboration, structured enough that relationship and compensation cannot be hidden, private enough that applications do not become public dossiers, and moderated enough that publication does not become a scammer's free billboard.
 
-## Room Identity
+## Separate public concepts
 
-- User-facing room name: Job Post.
-- Stable route slug: `job-post`.
-- Internal post type: `job_post`.
-- Structured metadata lives in `commune_job_posts` and remains linked to a normal `commune_posts` row and thread.
+V2 stores these separately:
 
-Job Post is not Work With Elysia Ecobotics, a private application system, a resume/CV board, a LinkedIn clone, payroll, contract signing, identity-document intake, or a private applicant database.
+- opportunity type;
+- affirmative compensation status and one or more compatible compensation models;
+- amount/range, currency, and period when compensation is quantifiable;
+- work arrangement;
+- time basis and duration;
+- poster/organization type;
+- optional experience/eligibility;
+- legitimate application-route type and destination/instructions.
 
-## Publication Rule
+Relationship labels do not decide worker classification. Posters remain responsible for complying with applicable wage, employment, contractor, internship, volunteer, pay-transparency, nondiscrimination, privacy, and other laws.
 
-Normal community users may submit Job Posts, but they must not publish Job Posts directly. Every normal-user Job Post requires admin approval before becoming public.
+## Compensation truth
 
-Administrators may publish directly. Admin direct-publish still preserves the structured metadata, public thread, anti-scam state, and review/history context where the current Commune review system supports it.
+Every v2 opportunity must declare one of: paid; stipend/funded; unpaid/volunteer; reimbursement only; academic credit only; mixed/multiple; future compensation not established; or other. “Future compensation not established” is available only for an explicit future-role interest/talent-pool notice. It is never a generic escape hatch.
 
-## Structured Fields
+Salary, hourly, fixed-fee, milestone, stipend, fellowship, and honorarium models require a positive amount/minimum, three-letter currency, and amount basis. Commission, reimbursement, academic credit, mixed, and other terms require an explanation. Blank or `must_clarify` is not a valid v2 compensation declaration.
 
-Job Post separates:
+## Progressive disclosure
 
-- role title
-- organization/project
-- role type
-- paid/volunteer status
-- compensation clarity
-- location/remote/hybrid mode
-- location details
-- time commitment
-- deadline
-- contact/application path
-- requirements/skills
-- role summary
-- application status
-- anti-scam review status
-- public safety notes
-- Work With private intake bridge note
-- public correction/clarification note
+The composer is a single accessible page using native fieldsets, selects, inputs, checkboxes, and textareas. It reveals only the details relevant to the selected relationship, compensation, and application route. Testing/feedback calls require a participation/privacy note. Future-role notices require an acknowledgement that no opening, offer, or promise exists. “Other” requires an explanation.
 
-The public detail page should render these fields as a structured opportunity listing, not as an undifferentiated generic body.
+## Publication and verification
 
-## Anti-Scam Review States
+Ordinary-user submissions require governed review before publication. Administrator submissions still pass through the governed Job Post review RPC and the independent economic publication condition. Payment cannot buy approval, publication, trust, or ranking.
 
-Reviewer/admin anti-scam states are:
+Publication is not endorsement or verification. Elysia Ecobotics does not guarantee a poster's identity, legitimacy, compensation, safety, accuracy, or legal compliance. Readers must verify the organization and application destination independently.
 
-- not reviewed
-- reviewed clear
-- needs pay clarification
-- needs contact clarification
-- needs location clarification
-- suspicious
-- removed
+## Application privacy
 
-These states are moderation/review signals, not public trust badges. Public users cannot self-assign `reviewed_clear`.
+Public posts and comments must not contain resumes/CVs, Social Security numbers, tax or bank information, identity documents, private addresses, private phone numbers, account credentials, contracts, or sensitive application packets. Serious applications must use an independently verified official application page, organization contact, repository/contribution route, or authorized first-party Work With flow.
 
-## Listing Status
+The Work With route is not generic. Only an authorized administrator posting for Elysia Ecobotics or EcoSyneva may select the canonical private Work With route; frontend validation and restrictive RLS both enforce that boundary.
 
-Public listing statuses are:
+## Review and anti-scam signals
 
-- open
-- reviewing
-- filled
-- closed
-- archived
-- needs clarification
+Reviewers see the generic post and structured sidecar as one presentation case while both underlying review records and audit history remain intact. Advisory signals can prioritize applicant-payment language, sensitive-information requests, domain mismatch, pressure/guarantee language, missing organization context, and unpaid opportunities from for-profit posters. Signals are not legal conclusions, automated scam findings, or automatic rejection.
 
-Listing status does not turn the room into private applicant tracking. It only describes the public listing lifecycle.
+Decision reasons are submitter-visible. Private reviewer notes use RLS-protected `review_comments` with `visibility = 'internal'`; new code must never store a private note in the public-row `commune_job_posts.private_application_note` legacy column.
 
-## Work With Boundary
+## Compatibility
 
-Job Post is the public board. Work With Elysia Ecobotics is the private application/intake path.
+Existing rows remain `model_version = 1`. No ambiguous legacy value is guessed. Deterministic mappings may describe contract, internship, volunteer, paid/stipend/unpaid/mixed, and remote/hybrid/onsite/field-based values, while unclear legacy rows stay visibly legacy. New rows use `model_version = 2` and dual-write legacy fields for old consumers.
 
-Use Job Post for public listing details and public questions. Use Work With for resumes/CVs, private contact details, private application materials, private attachments, and administrator-review requests.
-
-The Work With/private application notice is system-owned and permanent. Normal Job Post authors cannot erase, weaken, or override the warning that resumes/CVs, identity documents, private contact details, SSNs, bank details, and private application materials belong in Work With Elysia Ecobotics or another safe application path, not public Job Post comments.
-
-## Safety Rules
-
-Job Posts and public comments must not ask for or expose:
-
-- resumes or CVs
-- SSNs, tax IDs, bank details, payroll details, or identity documents
-- private addresses or private phone numbers
-- private application packets or contracts
-- private applicant data
-- Work With uploads
-- credentials, API keys, `.env` files, service-role keys, or private local Elysia data
-- hidden review notes or private admin email
-
-Attachments remain governed by Commune media upload, moderation, and public display policies.
+Generic Commune links, media, tags, comments, reports, saves, notifications, moderation, and billing remain shared and unchanged in authority.

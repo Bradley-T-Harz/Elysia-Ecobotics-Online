@@ -1,42 +1,35 @@
-# Job Post Security Boundary
+# Opportunity Commons Security Boundary
 
-Job Post is a public, moderated opportunity listing room. It is not private hiring infrastructure and must not store or expose applicant secrets, resumes/CVs, identity documents, financial data, or Work With private uploads.
+Opportunity Commons is a public, moderated listing room. It is not an applicant-tracking system, staffing agency, identity-verification service, payroll system, contract-signing system, or private hiring database.
 
-## What Job Post May Store
+## Public data allowed
 
-- Public opportunity title and summary.
-- Public organization/project context.
-- Public role type, pay/volunteer clarity, location/remote mode, time commitment, deadline, and requirements.
-- Public-safe contact or application path.
-- Public status such as open, reviewing, filled, closed, archived, or needs clarification.
-- Reviewer/admin anti-scam state.
-- Public correction or clarification note when needed.
-- Public attachments allowed by Commune media policy.
+- Opportunity, poster, compensation, work, time, eligibility, location, deadline, and requirements.
+- Public-safe organization website and legitimate application destination/instructions.
+- Public correction and listing-lifecycle state.
+- Shared Commune links and policy-allowed public attachments.
 
-## What Job Post Must Not Store
+## Public data prohibited
 
-- Resumes, CVs, private application packets, private contracts, or private applicant profiles.
-- SSNs, tax IDs, bank details, payroll details, identity documents, private addresses, or private phone numbers.
-- Work With Elysia Ecobotics private uploads or private intake details.
-- Private account email, hidden reviewer notes, private admin email, or private identity fields.
-- Service-role keys, `.env` files, credentials, tokens, logs, vault data, local paths, private local Elysia memory/files, or machine data.
+- Resumes/CVs, applicant profiles, application packets, contracts, or Work With uploads.
+- SSNs, tax IDs/forms, bank or payroll details, identity documents, private addresses, or private phone numbers.
+- Credentials, tokens, `.env` content, service-role keys, private logs, vault data, local paths, or local Elysia private data.
+- Hidden reviewer notes or investigation details.
 
-## Public Read Boundary
+## Database and RLS
 
-`commune_job_posts` public reads are allowed only when the linked `commune_posts` row is a published public `job_post`. Authors can read their own rows, and assigned reviewers/admins can read rows for moderation.
+`commune_job_posts` is publicly readable only with its linked published/public `commune_posts` row, or to its owner/reviewers under existing policy. V2 check constraints require complete structured truth and compatible conditional combinations. Restrictive insert/update policies reserve `private_work_with` for a current administrator, an exact first-party organization, and `/work-with-elysia-ecobotics`.
 
-## Admin Approval Boundary
+Ordinary-user publication remains backend governed through RLS, review RPCs, publication functions, service restrictions, and fail-closed triggers. V2 does not weaken those controls. The separately deferred transactional Job creation RPC is not part of this implementation.
 
-Normal-user Job Posts must remain `pending_review` until admin approval. Admin direct-publish is allowed, but it still records structured metadata and does not weaken media, report, comment, or anti-scam safety rules.
+## Private reviewer notes
 
-## Anti-Scam Boundary
+`commune_job_posts.private_application_note` is a legacy column on a publicly row-readable table and therefore is not a private storage location. V2 clients do not select or write it. Protected notes are inserted into `review_comments` as `internal`, whose RLS allows only authorized reviewers to read them. Decision reasons remain separately visible to submitters.
 
-Anti-scam review states are assigned by moderators/reviewers/admins. They are not user-controlled trust badges and do not prove employment legitimacy, legal compliance, payment safety, or suitability.
+## Advisory review signals
 
-## Work With Boundary
+Client-side signals help reviewers prioritize suspicious payment, gift-card/crypto/fake-check/equipment-purchase language, sensitive-information requests, pressure/guarantee language, domain mismatch, missing organization context, and unpaid-for-profit combinations. They do not certify safety and do not automatically accuse, reject, publish, or alter payment state.
 
-Work With Elysia Ecobotics remains the private intake path. Job Post may link to Work With, but it must not expose Work With uploads, private applications, resumes, CVs, or applicant data.
+## Non-endorsement and no execution
 
-## No Execution Boundary
-
-Job Post does not execute code, clone repositories, install packages, run shell commands, or invoke sandbox execution by default. It is an opportunity board, not a code runtime or application processor.
+Moderation, publication, labels, and payment state are not identity or opportunity verification. Opportunity labels do not determine legal worker status. Job Post content never executes code, clones repositories, installs packages, runs commands, or invokes a sandbox by default.

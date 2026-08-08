@@ -5991,6 +5991,107 @@ button.commune-vote-option-card:disabled {
   border-left: 3px solid var(--color-accent, #4c8f72);
 }
 
+.job-opportunity-fields {
+  display: grid;
+  gap: 1rem;
+}
+
+.commune-progressive-fieldset {
+  min-width: 0;
+  margin: 0;
+  padding: 0.9rem;
+  border: 1px solid rgba(142, 232, 220, 0.24);
+  border-radius: 17px;
+  background: rgba(4, 11, 18, 0.48);
+}
+
+.commune-progressive-fieldset legend {
+  padding: 0 0.45rem;
+  color: var(--gold);
+  font-weight: 900;
+}
+
+.commune-progressive-fieldset .commune-form-grid {
+  margin-bottom: 0;
+}
+
+.job-opportunity-basics-grid {
+  align-items: start;
+}
+
+.job-opportunity-basics-grid > label {
+  align-self: start;
+}
+
+.commune-form-grid .job-application-route-type-field {
+  grid-column: 1 / -1;
+  justify-self: start;
+  width: min(100%, 46rem);
+}
+
+.field-help,
+.field-error {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.field-help {
+  color: var(--muted);
+}
+
+.field-error {
+  color: #ffc2b8;
+}
+
+.job-compensation-models,
+.commune-job-discovery-filters {
+  padding: 0.8rem;
+  border: 1px solid rgba(142, 232, 220, 0.16);
+  border-radius: 15px;
+  background: rgba(5, 12, 20, 0.38);
+}
+
+.job-compensation-models > p {
+  margin-top: 0;
+  font-weight: 850;
+}
+
+.opportunity-required-ack {
+  padding: 0.9rem;
+  border: 1px solid rgba(216, 182, 111, 0.32);
+  border-radius: 15px;
+  background: rgba(216, 182, 111, 0.06);
+}
+
+.commune-job-discovery-filters {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+  gap: 0.75rem;
+  align-items: end;
+  margin: 1rem 0;
+}
+
+.commune-job-application-route {
+  border-left: 3px solid var(--teal);
+}
+
+@media (max-width: 760px) {
+  .commune-progressive-fieldset {
+    padding: 0.72rem;
+  }
+
+  .commune-form-grid .job-application-route-type-field {
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .commune-job-discovery-filters {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Voluntary support, private billing, and account recovery */
 .support-checkout-card,
 .account-recovery-card,

@@ -1,97 +1,45 @@
-# Job Post API Contract
+# Opportunity Commons / Job Post API Contract
 
-Job Post uses the existing Commune post/thread/comment backbone plus a structured sidecar table.
+Stable identifiers remain `job-post`, `job_post`, and `public.commune_job_posts`. V2 is an additive sidecar extension, not a new room or replacement table.
 
-## Stable Identifiers
+## Creation flow
 
-- User-facing room name: Job Post.
-- Route slug: `job-post`.
-- Internal post type: `job_post`.
-- Sidecar table: `commune_job_posts`.
+`submitJobPost` still creates the generic `commune_posts` record, thread, structured sidecar, optional shared media, and review items. Creation is not yet transactional; the separately proposed transactional RPC is explicitly deferred. All ordinary-user posts start non-public. Administrators use the same governed Job Post review boundary after the subject and sidecar exist.
 
-## Submit Flow
+## Versions and compatibility
 
-`submitJobPost` creates:
+- Existing records default to `model_version = 1` and retain every legacy column and constraint.
+- V2 records set `model_version = 2` and populate the new structured columns.
+- New submissions dual-write deterministic legacy `role_type`, `paid_volunteer_status`, `location_mode`, `compensation_clarity`, and `contact_path` values.
+- Readers request v2 columns first and fall back to the legacy projection if code is temporarily running before the additive migration.
+- Legacy rows are not rewritten or guessed. Deterministic presentation mappings are explicitly limited.
 
-1. `commune_posts` with `post_type = 'job_post'`.
-2. `commune_threads` for public questions/comments.
-3. `commune_job_posts` for structured opportunity metadata.
-4. Optional `commune_media` attachment through the shared Commune media pipeline.
-5. Review items/history/user notification rows where the current account-backed systems support them.
+## V2 columns
 
-Normal users submit into `pending_review`; their Job Posts are not public until admin approval. Admin users can publish directly.
+`opportunity_type`, `opportunity_details`, `poster_type`, `organization_website`, `compensation_status`, `compensation_models`, `compensation_currency`, `compensation_min_amount`, `compensation_max_amount`, `compensation_period`, `compensation_details`, `benefits_summary`, `work_arrangement`, `time_basis`, `duration_type`, `experience_level`, `application_route_type`, `application_destination`, `application_instructions`, `testing_privacy_note`, and `future_interest_acknowledged`.
 
-## Sidecar Fields
+Legacy title, organization, location text, time commitment, deadline, requirements, safety, summary, application lifecycle, moderation, correction, and timestamp fields remain in place.
 
-`commune_job_posts` includes:
+## Validation layers
 
-- `post_id`
-- `thread_id`
-- `author_user_id`
-- `role_title`
-- `organization_project`
-- `role_type`
-- `paid_volunteer_status`
-- `location_mode`
-- `location_text`
-- `time_commitment`
-- `deadline`
-- `compensation_clarity`
-- `contact_path`
-- `requirements_skills`
-- `safety_notes`
-- `role_summary`
-- `application_status`
-- `anti_scam_review_status`
-- `work_with_link_enabled`
-- `private_application_note` as optional admin/reviewer-only public-safe clarification, never the permanent system warning
-- `public_correction_note`
-- reviewer and lifecycle timestamps
+The centralized `jobOpportunityModel.ts` owns TypeScript types, option lists, normalization, labels, display formatting, conditional validation, dual-write mapping, deterministic legacy projection, public URL/email rules, and advisory reviewer signals. The composer and API both validate. PostgreSQL CHECK constraints independently enforce allowed values, v2 completeness, compensation compatibility, amounts, conditional text, and route shape.
 
-Hidden reviewer notes must stay in private review/admin systems. Public correction notes may be displayed when they clarify a listing safely.
+The `private_work_with` route additionally requires a restrictive database policy: administrator authority, exact first-party organization name, and canonical destination.
 
-## Review and Status Helpers
+## Review projection
 
-- `updateJobPostApplicationStatus` updates public listing lifecycle state.
-- `updateJobPostReviewStatus` updates anti-scam review state and requires a reviewer/admin role.
-- `loadJobPostForPost` and the general Commune loader read sidecar rows by linked post id.
+The admin client joins `commune_posts` and `commune_job_posts` review records into one presentation case keyed by post id. It keeps all underlying ids and history. The case shows opportunity, poster, compensation, work/time, location, application route/domain, organization website, requirements, safety context, submitted generic links, and advisory flags.
 
-Author listing-status updates use `update_own_commune_job_post_application_status`, a narrow RPC that updates only lifecycle fields. It cannot set `reviewed_clear`, anti-scam state, hidden reviewer notes, or trust/safety labels.
+Submitter-visible decision reasons continue through governed review. Protected reviewer notes use `review_comments.visibility = 'internal'`. V2 never writes `private_application_note`.
 
-## Public Rendering
+## Public projection and discovery
 
-The public post detail page should render a Job Post detail panel with role title, organization/project, role type, pay/volunteer clarity, location, status, anti-scam state, role summary, compensation, contact path, requirements, safety notes, Work With private intake bridge, tags, links, attachments, reactions, reports, comments, and admin controls.
+Cards remain compact: opportunity, compensation status/summary, work arrangement, and listing status. Detail pages show the structured model, safe application destination, privacy warning, and publication-not-verification statement. Legacy listings are identified and never presented as v2-complete.
 
-## Signal Console
+Only three public Job Post filters are added: opportunity type, compensation status, and work arrangement. Search also includes the structured values. No ATS-style filter explosion or public applicant state is introduced.
 
-Signal Console loads Job Post activity from both `user_notifications` rows and direct `commune_job_posts` rows. It separates:
+## Billing and moderation independence
 
-- my Job Posts
-- listings needing admin approval or anti-scam follow-up
-- filled/closed/needs-clarification/status activity
+Opportunity type does not classify a post as commercial/free/waived/subsidized. Existing private economic classification and its two-fact publication gate remain independent. Fee enforcement stays disabled/test-gated unless separately configured and approved. `reconciliation_required` is a valid fail-closed economic result.
 
-Empty states should only show when there are no notification rows and no relevant Job Post rows.
-
-## Search
-
-Room/feed filtering should include structured Job Post values in addition to title, summary, body, tags, and generic Commune fields:
-
-- role title
-- organization/project
-- role type
-- paid/volunteer status
-- location mode/details
-- time commitment
-- deadline
-- compensation clarity
-- contact path
-- requirements/skills
-- role summary
-- application status
-- anti-scam review state
-
-## Work With Bridge
-
-Job Post links to Work With Elysia Ecobotics for private application/intake material. Work With links back to the public Job Post board. Neither side should expose the other side's private data.
-
-The permanent Work With/private application warning is system-owned UI copy, not author-owned metadata. Normal Job Post authors cannot erase, weaken, or override it through the composer. The `private_application_note` field is only an optional public-safe admin/reviewer clarification layered after the permanent warning.
+Payment never grants content approval. Content approval never fabricates payment. Neither proves identity, legitimacy, compensation, safety, or legal compliance.

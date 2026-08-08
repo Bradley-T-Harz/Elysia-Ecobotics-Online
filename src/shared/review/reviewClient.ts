@@ -1,5 +1,19 @@
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../../pages/The-Elysia-Marketplace/lib/supabase";
 import { jobPostReviewResultMessage, resolveCommuneJobPostId, reviewCommuneJobPost, type JobPostReviewAction, type JobPostReviewResult } from "./jobPostReviewClient";
+import {
+  JOB_OPPORTUNITY_MODEL_VERSION,
+  formatJobCompensation,
+  jobApplicationRouteLabel,
+  jobCompensationStatusLabel,
+  jobDurationTypeLabel,
+  jobOpportunityReviewerFlags,
+  jobOpportunityTypeLabel,
+  jobPosterTypeLabel,
+  jobTimeBasisLabel,
+  jobWorkArrangementLabel,
+  type JobOpportunityMetadataFields,
+  type JobReviewerFlag
+} from "../../pages/The-Elysia-Commune/jobOpportunityModel";
 
 export type AppRole = "administrator" | "moderator" | "reviewer" | "marketplace_reviewer" | "source_reviewer" | "commune_moderator" | "guardian_reviewer";
 export type ReviewStatus = "draft" | "pending_review" | "in_review" | "needs_information" | "approved" | "rejected" | "withdrawn" | "archived";
@@ -37,6 +51,33 @@ export type ReviewItem = {
   content_links?: string[] | null;
   moderation_reason?: string | null;
   content_updated_at?: string | null;
+  related_review_item_ids?: string[];
+  internal_comments?: ReviewComment[];
+  job_post_case?: JobPostReviewCase | null;
+};
+
+export type ReviewComment = { id: string; review_item_id: string; actor_id: string; body: string; visibility: "internal" | "submitter_visible"; created_at: string };
+export type JobPostReviewCase = {
+  jobPostId: string;
+  postId: string;
+  modelVersion: number;
+  title: string;
+  organization: string;
+  opportunityType: string;
+  posterType: string;
+  compensation: string;
+  compensationStatus: string;
+  workArrangement: string;
+  timeStructure: string;
+  location: string;
+  applicationRoute: string;
+  applicationDestination: string;
+  organizationWebsite: string;
+  roleSummary: string;
+  requirements: string;
+  safetyNotes: string;
+  legacyAmbiguity: boolean;
+  flags: JobReviewerFlag[];
 };
 
 export type ReviewEvent = {
@@ -296,6 +337,127 @@ async function enrichCommuneReviewItems(items: ReviewItem[], warnings: string[])
   });
 }
 
+type JobReviewRow = JobOpportunityMetadataFields & {
+  id: string;
+  post_id: string;
+  role_title?: string | null;
+  organization_project?: string | null;
+  role_type?: string | null;
+  paid_volunteer_status?: string | null;
+  location_mode?: string | null;
+  location_text?: string | null;
+  time_commitment?: string | null;
+  compensation_clarity?: string | null;
+  contact_path?: string | null;
+  requirements_skills?: string | null;
+  safety_notes?: string | null;
+  role_summary?: string | null;
+};
+
+const jobReviewLegacySelect = "id,post_id,role_title,organization_project,role_type,paid_volunteer_status,location_mode,location_text,time_commitment,compensation_clarity,contact_path,requirements_skills,safety_notes,role_summary";
+const jobReviewV2Select = `${jobReviewLegacySelect},model_version,opportunity_type,opportunity_details,compensation_status,compensation_models,compensation_currency,compensation_min_amount,compensation_max_amount,compensation_period,compensation_details,benefits_summary,work_arrangement,time_basis,duration_type,poster_type,organization_website,experience_level,application_route_type,application_destination,application_instructions,testing_privacy_note,future_interest_acknowledged`;
+
+async function loadJobReviewRows(column: "id" | "post_id", ids: string[], warnings: string[]) {
+  if (!supabase || ids.length === 0) return [] as JobReviewRow[];
+  const primary = await supabase.from("commune_job_posts").select(jobReviewV2Select).in(column, ids);
+  if (!primary.error) return (primary.data ?? []) as JobReviewRow[];
+  if (!/column .* does not exist|42703|PGRST204/i.test(`${primary.error.code ?? ""} ${primary.error.message}`)) {
+    warnings.push(`Opportunity review details could not be loaded: ${friendlyReviewWarning(primary.error.message)}`);
+    return [];
+  }
+  const fallback = await supabase.from("commune_job_posts").select(jobReviewLegacySelect).in(column, ids);
+  if (fallback.error) warnings.push(`Legacy Job Post review details could not be loaded: ${friendlyReviewWarning(fallback.error.message)}`);
+  return (fallback.data ?? []) as JobReviewRow[];
+}
+
+function reviewCaseFromRow(row: JobReviewRow, title?: string | null): JobPostReviewCase {
+  const modelVersion = Number(row.model_version ?? 1);
+  const v2 = modelVersion === JOB_OPPORTUNITY_MODEL_VERSION;
+  const legacyLabel = (value?: string | null, fallback = "Needs clarification") => value ? value.replace(/_/g, " ") : fallback;
+  return {
+    jobPostId: row.id,
+    postId: row.post_id,
+    modelVersion,
+    title: row.role_title || title || "Untitled opportunity",
+    organization: row.organization_project || "Not supplied",
+    opportunityType: v2 ? jobOpportunityTypeLabel(row.opportunity_type) : legacyLabel(row.role_type, "Legacy type needs clarification"),
+    posterType: v2 ? jobPosterTypeLabel(row.poster_type) : "Legacy poster type not recorded",
+    compensation: v2 ? formatJobCompensation(row) : row.compensation_clarity || legacyLabel(row.paid_volunteer_status, "Legacy compensation needs clarification"),
+    compensationStatus: v2 ? jobCompensationStatusLabel(row.compensation_status) : legacyLabel(row.paid_volunteer_status, "Needs clarification"),
+    workArrangement: v2 ? jobWorkArrangementLabel(row.work_arrangement) : legacyLabel(row.location_mode, "Needs clarification"),
+    timeStructure: v2 ? `${jobTimeBasisLabel(row.time_basis)} · ${jobDurationTypeLabel(row.duration_type)}` : row.time_commitment || "Legacy time structure not recorded",
+    location: row.location_text || "Not supplied",
+    applicationRoute: v2 ? jobApplicationRouteLabel(row.application_route_type) : "Legacy contact path",
+    applicationDestination: (v2 ? row.application_destination || row.application_instructions : row.contact_path) || "Not supplied",
+    organizationWebsite: row.organization_website || "Not supplied",
+    roleSummary: row.role_summary || "Not supplied",
+    requirements: row.requirements_skills || "Not supplied",
+    safetyNotes: row.safety_notes || "Not supplied",
+    legacyAmbiguity: !v2,
+    flags: jobOpportunityReviewerFlags(row)
+  };
+}
+
+async function enrichJobCasesAndInternalComments(items: ReviewItem[], warnings: string[]): Promise<ReviewItem[]> {
+  if (!supabase || items.length === 0) return items;
+  const jobIds = [...new Set(items.filter((item) => item.domain === "commune" && item.source_table === "commune_job_posts").map((item) => item.source_id))];
+  const postIds = [...new Set(items.filter((item) => item.domain === "commune" && item.source_table === "commune_posts").map((item) => item.source_id))];
+  const [byIdRows, byPostRows, commentResult] = await Promise.all([
+    loadJobReviewRows("id", jobIds, warnings),
+    loadJobReviewRows("post_id", postIds, warnings),
+    supabase.from("review_comments").select("id,review_item_id,actor_id,body,visibility,created_at").in("review_item_id", items.map((item) => item.id)).eq("visibility", "internal").order("created_at", { ascending: true })
+  ]);
+  if (commentResult.error) warnings.push(`Protected reviewer notes could not be loaded: ${friendlyReviewWarning(commentResult.error.message)}`);
+  const commentsByItem = new Map<string, ReviewComment[]>();
+  for (const comment of (commentResult.data ?? []) as ReviewComment[]) commentsByItem.set(comment.review_item_id, [...(commentsByItem.get(comment.review_item_id) ?? []), comment]);
+  const rows = [...byIdRows, ...byPostRows].filter((row, index, all) => all.findIndex((candidate) => candidate.id === row.id) === index);
+  const rowById = new Map(rows.map((row) => [row.id, row]));
+  const rowByPostId = new Map(rows.map((row) => [row.post_id, row]));
+  const linkedPostIds = [...new Set(rows.map((row) => row.post_id))];
+  const postResult = linkedPostIds.length ? await supabase.from("commune_posts").select("id,title,body,excerpt,links,status,visibility,visibility_state,moderation_status,hidden_at,removed_at,archived_at,moderation_reason,published_at,updated_at").in("id", linkedPostIds) : { data: [], error: null };
+  if (postResult.error) warnings.push(`Opportunity parent posts could not be loaded: ${friendlyReviewWarning(postResult.error.message)}`);
+  const postMap = new Map(((postResult.data ?? []) as CommunePostModerationRow[]).map((row) => [row.id, row]));
+  const enriched = items.map((item) => {
+    const row = item.source_table === "commune_job_posts" ? rowById.get(item.source_id) : item.source_table === "commune_posts" ? rowByPostId.get(item.source_id) : undefined;
+    const comments = commentsByItem.get(item.id) ?? [];
+    if (!row) return { ...item, internal_comments: comments };
+    const post = postMap.get(row.post_id);
+    const moderationState = post ? derivePostModerationState(post) : item.moderation_state;
+    const isPublic = post?.status === "published" && post.visibility === "public" && !post.hidden_at && !post.removed_at;
+    return {
+      ...item,
+      title: post?.title || item.title,
+      content_preview: summarizeText(post?.excerpt ?? post?.body ?? row.role_summary),
+      content_links: post?.links ?? item.content_links ?? [],
+      content_status: post?.status ?? item.content_status,
+      content_visibility: post?.visibility ?? post?.visibility_state ?? item.content_visibility,
+      moderation_state: moderationState,
+      public_visibility: post ? isPublic ? "public" as const : "not_public" as const : item.public_visibility,
+      content_updated_at: post?.updated_at ?? item.content_updated_at,
+      internal_comments: comments,
+      job_post_case: reviewCaseFromRow(row, post?.title)
+    };
+  });
+
+  const output: ReviewItem[] = [];
+  const jobCaseIndex = new Map<string, number>();
+  for (const item of enriched) {
+    if (!item.job_post_case) { output.push(item); continue; }
+    const key = item.job_post_case.postId;
+    const existingIndex = jobCaseIndex.get(key);
+    if (existingIndex === undefined) { jobCaseIndex.set(key, output.length); output.push(item); continue; }
+    const existing = output[existingIndex];
+    const preferred = existing.source_table === "commune_posts" ? existing : item.source_table === "commune_posts" ? item : existing;
+    const other = preferred.id === existing.id ? item : existing;
+    output[existingIndex] = {
+      ...preferred,
+      related_review_item_ids: Array.from(new Set([preferred.id, other.id, ...(preferred.related_review_item_ids ?? []), ...(other.related_review_item_ids ?? [])])),
+      internal_comments: [...(existing.internal_comments ?? []), ...(item.internal_comments ?? [])].sort((left, right) => left.created_at.localeCompare(right.created_at))
+    };
+  }
+  return output;
+}
+
 export async function loadReviewItems(domain?: ReviewDomain, filter: ReviewQueueFilter = "active"): Promise<{ items: ReviewItem[]; warnings: string[] }> {
   if (!hasSupabaseConfig || !supabase) return { items: [], warnings: [supabaseNotConfiguredMessage] };
   let query = supabase.from("review_items").select("*").order("submitted_at", { ascending: false });
@@ -305,8 +467,19 @@ export async function loadReviewItems(domain?: ReviewDomain, filter: ReviewQueue
   else if (["approved", "rejected", "archived"].includes(filter)) query = query.eq("status", filter);
   const { data, error } = await query;
   const warnings = error ? [friendlyReviewWarning(error.message)] : [];
-  const enrichedItems = await enrichCommuneReviewItems((data ?? []) as ReviewItem[], warnings);
+  const communeEnriched = await enrichCommuneReviewItems((data ?? []) as ReviewItem[], warnings);
+  const enrichedItems = await enrichJobCasesAndInternalComments(communeEnriched, warnings);
   return { items: filter === "moderated" ? enrichedItems.filter(isModeratedReviewItem) : enrichedItems, warnings };
+}
+
+export async function addInternalReviewComment(reviewItemId: string, body: string): Promise<{ ok: boolean; warning?: string }> {
+  if (!hasSupabaseConfig || !supabase) return { ok: false, warning: supabaseNotConfiguredMessage };
+  const text = body.trim();
+  if (!text) return { ok: true };
+  const role = await loadCurrentRoleState();
+  if (!role.userId) return { ok: false, warning: "Sign in with reviewer authority before saving a private note." };
+  const { error } = await supabase.from("review_comments").insert({ review_item_id: reviewItemId, actor_id: role.userId, body: text, visibility: "internal" });
+  return error ? { ok: false, warning: friendlyReviewWarning(error.message) } : { ok: true };
 }
 
 export async function loadReviewEvents(reviewItemId?: string): Promise<{ events: ReviewEvent[]; warnings: string[] }> {

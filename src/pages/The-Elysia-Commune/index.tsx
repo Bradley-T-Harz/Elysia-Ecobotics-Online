@@ -195,6 +195,26 @@ import {
   type PublishedSnapshot
 } from "./codeRevisionDraftState";
 import { parseCommuneLinksInput, safeCommuneLinkHref } from "../../shared/communeLinks";
+import JobOpportunityFields from "./JobOpportunityFields";
+import {
+  JOB_OPPORTUNITY_MODEL_VERSION,
+  deterministicV2FromLegacy,
+  emptyJobOpportunityDraft,
+  formatJobCompensation,
+  jobApplicationRouteLabel,
+  jobCompensationModelLabel,
+  jobCompensationStatusOptions,
+  jobCompensationStatusLabel,
+  jobDurationTypeLabel,
+  jobExperienceLevelLabel,
+  jobOpportunityTypeOptions,
+  jobOpportunityTypeLabel,
+  jobPosterTypeLabel,
+  jobTimeBasisLabel,
+  jobWorkArrangementOptions,
+  jobWorkArrangementLabel,
+  type JobOpportunityDraft
+} from "./jobOpportunityModel";
 
 type CommuneStatus =
   | "draft_local"
@@ -228,6 +248,7 @@ type CommuneFilters = {
 
 type PostDraft = {
   id: string;
+  schemaVersion?: string;
   postType: string;
   title: string;
   summary: string;
@@ -240,6 +261,7 @@ type PostDraft = {
   submitterName: string;
   submitterContact: string;
   checklist: Record<string, boolean>;
+  jobOpportunity?: JobOpportunityDraft;
   status: CommuneStatus;
   createdAt: string;
 };
@@ -319,7 +341,7 @@ const communeModerationConfig = {
   moderatorAccountEmail: null,
   administratorAccountEmail: null,
   liveSubmissionEnabled: false,
-  backendReviewQueueEnabled: false
+  backendReviewQueueEnabled: true
 } as const;
 
 const storageKeys = {
@@ -1695,7 +1717,25 @@ function jobSearchValues(item?: JobPostMetadata | null) {
     jobApplicationStatusLabel(item.application_status),
     item.anti_scam_review_status,
     jobAntiScamStatusLabel(item.anti_scam_review_status),
-    item.public_correction_note ?? ""
+    item.public_correction_note ?? "",
+    item.opportunity_type ?? "",
+    jobOpportunityTypeLabel(item.opportunity_type),
+    item.compensation_status ?? "",
+    jobCompensationStatusLabel(item.compensation_status),
+    ...(item.compensation_models ?? []).flatMap((model) => [model, jobCompensationModelLabel(model)]),
+    item.work_arrangement ?? "",
+    jobWorkArrangementLabel(item.work_arrangement),
+    item.time_basis ?? "",
+    jobTimeBasisLabel(item.time_basis),
+    item.duration_type ?? "",
+    jobDurationTypeLabel(item.duration_type),
+    item.poster_type ?? "",
+    jobPosterTypeLabel(item.poster_type),
+    item.organization_website ?? "",
+    item.application_route_type ?? "",
+    jobApplicationRouteLabel(item.application_route_type),
+    item.application_destination ?? "",
+    item.application_instructions ?? ""
   ];
 }
 
@@ -2196,9 +2236,11 @@ function PostCard({ post, saved, onSave, signedIn, officialUpdate, troubleshooti
   const voteLabels = communityVote ? ["Community Voting Room", communityVoteStatusLabel(communityVote.vote.vote_status), `${communityVoteTotal(communityVote)} votes`].filter(Boolean) : [];
   const troubleshootingLabels = troubleshooting ? ["Troubleshooting Grove", troubleshooting.issue_type, troubleshooting.troubleshooting_status, troubleshooting.affected_area ?? ""].filter(Boolean) : [];
   const researchLabels = researchNote ? ["Research Notes", researchEvidenceLabel(researchNote.evidence_strength), researchReviewStatusLabel(researchNote.review_status), researchNote.domain ?? ""].filter(Boolean) : [];
-  const jobLabels = jobPost ? ["Job Post", jobRoleLabel(jobPost.role_type), jobPaidStatusLabel(jobPost.paid_volunteer_status), jobApplicationStatusLabel(jobPost.application_status), jobAntiScamStatusLabel(jobPost.anti_scam_review_status)].filter(Boolean) : [];
+  const jobLabels = jobPost ? jobPost.model_version === JOB_OPPORTUNITY_MODEL_VERSION
+    ? ["Opportunity Commons", jobOpportunityTypeLabel(jobPost.opportunity_type), jobCompensationStatusLabel(jobPost.compensation_status), jobWorkArrangementLabel(jobPost.work_arrangement), jobApplicationStatusLabel(jobPost.application_status)].filter(Boolean)
+    : ["Legacy Job Post", jobRoleLabel(jobPost.role_type), jobPaidStatusLabel(jobPost.paid_volunteer_status), jobApplicationStatusLabel(jobPost.application_status)].filter(Boolean) : [];
   const repositoryGuidanceLabels = isRepositoryShowcaseGuidancePost(post) ? ["Repository Showcase guidance", "Admin guidance post", "Not a trust signal"] : [];
-  return <article className={post.post_type === "official_update" ? "commune-post-card commune-official-card" : post.post_type === "community_vote" ? "commune-post-card commune-vote-post-card" : "commune-post-card"}><div className="addon-card__topline"><StatusBadges labels={officialLabels.length ? officialLabels : voteLabels.length ? voteLabels : troubleshootingLabels.length ? troubleshootingLabels : researchLabels.length ? researchLabels : jobLabels.length ? jobLabels : repositoryGuidanceLabels.length ? repositoryGuidanceLabels : [post.post_type, post.status]} /></div><h3><Link to={`/commune/posts/${post.id}`}>{post.title}</Link></h3><p>{officialUpdate?.summary || communityVote?.vote.context || researchNote?.evidence_summary || jobPost?.role_summary || post.excerpt || post.body.slice(0, 180)}</p>{repositoryGuidanceLabels.length > 0 && <p className="boundary-note">Repository Showcase guidance is not a repository approval, compatibility review, Marketplace listing, install recommendation, or trust signal.</p>}{communityVote && <CommunityVoteMiniPanel communityVote={communityVote} />}{troubleshooting?.accepted_summary && <p className="boundary-note">Accepted {troubleshooting.accepted_resolution_kind?.replace(/_/g, " ") ?? "resolution"}: {troubleshooting.accepted_summary}</p>}{researchNote?.uncertainty && <p className="boundary-note">Uncertainty: {researchNote.uncertainty.slice(0, 180)}</p>}{jobPost && <p className="boundary-note">{jobPaidStatusLabel(jobPost.paid_volunteer_status)} · {jobLocationModeLabel(jobPost.location_mode)} · {jobApplicationStatusLabel(jobPost.application_status)}</p>}<p>{post.post_type === "official_update" ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>} · {post.published_at ? new Date(post.published_at).toLocaleDateString() : "public date unavailable"}</p><TagChips tags={(post.tags ?? []).slice(0, 5)} /><ReactionBar targetType="post" targetId={post.id} signedIn={signedIn} /><div className="button-row"><Link className="button-link" to={`/commune/posts/${post.id}`}>Read</Link><button type="button" onClick={() => onSave(post.id)}>{saved ? "Saved" : "Save post"}</button></div></article>;
+  return <article className={post.post_type === "official_update" ? "commune-post-card commune-official-card" : post.post_type === "community_vote" ? "commune-post-card commune-vote-post-card" : "commune-post-card"}><div className="addon-card__topline"><StatusBadges labels={officialLabels.length ? officialLabels : voteLabels.length ? voteLabels : troubleshootingLabels.length ? troubleshootingLabels : researchLabels.length ? researchLabels : jobLabels.length ? jobLabels : repositoryGuidanceLabels.length ? repositoryGuidanceLabels : [post.post_type, post.status]} /></div><h3><Link to={`/commune/posts/${post.id}`}>{post.title}</Link></h3><p>{officialUpdate?.summary || communityVote?.vote.context || researchNote?.evidence_summary || jobPost?.role_summary || post.excerpt || post.body.slice(0, 180)}</p>{repositoryGuidanceLabels.length > 0 && <p className="boundary-note">Repository Showcase guidance is not a repository approval, compatibility review, Marketplace listing, install recommendation, or trust signal.</p>}{communityVote && <CommunityVoteMiniPanel communityVote={communityVote} />}{troubleshooting?.accepted_summary && <p className="boundary-note">Accepted {troubleshooting.accepted_resolution_kind?.replace(/_/g, " ") ?? "resolution"}: {troubleshooting.accepted_summary}</p>}{researchNote?.uncertainty && <p className="boundary-note">Uncertainty: {researchNote.uncertainty.slice(0, 180)}</p>}{jobPost && <p className="boundary-note">{jobPost.model_version === JOB_OPPORTUNITY_MODEL_VERSION ? `${formatJobCompensation(jobPost)} · ${jobWorkArrangementLabel(jobPost.work_arrangement)}` : `${jobPaidStatusLabel(jobPost.paid_volunteer_status)} · ${jobLocationModeLabel(jobPost.location_mode)} · legacy listing`}</p>}<p>{post.post_type === "official_update" ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>} · {post.published_at ? new Date(post.published_at).toLocaleDateString() : "public date unavailable"}</p><TagChips tags={(post.tags ?? []).slice(0, 5)} /><ReactionBar targetType="post" targetId={post.id} signedIn={signedIn} /><div className="button-row"><Link className="button-link" to={`/commune/posts/${post.id}`}>Read</Link><button type="button" onClick={() => onSave(post.id)}>{saved ? "Saved" : "Save post"}</button></div></article>;
 }
 
 function CommunityFeed({ posts, savedPostIds, onSave, filters, signedIn, troubleshootingPosts, jobPosts, researchNotes, votePosts }: { posts: CommunePost[]; savedPostIds: string[]; onSave: (id: string) => void; filters: CommuneFilters; signedIn: boolean; troubleshootingPosts?: TroubleshootingMetadata[]; jobPosts?: JobPostMetadata[]; researchNotes?: ResearchNotesMetadata[]; votePosts?: CommunityVoteView[] }) {
@@ -2254,6 +2296,7 @@ function RoomPostsGateway({ type, count }: { type: CommunePostTypeCard; count: n
 }
 
 function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPosts, jobPosts, researchNotes, votePosts, savedPostIds, onSave, localDrafts, categories, onRefresh, signedIn, isAdmin, mode = "hub" }: { roomSlug: string; roomId?: string; posts: CommunePost[]; officialUpdates: OfficialUpdateMetadata[]; troubleshootingPosts: TroubleshootingMetadata[]; jobPosts: JobPostMetadata[]; researchNotes: ResearchNotesMetadata[]; votePosts: CommunityVoteView[]; savedPostIds: string[]; onSave: (id: string) => void; localDrafts: ReturnType<typeof useLocalDraftState>; categories: CommuneCategory[]; onRefresh: () => Promise<void>; signedIn: boolean; isAdmin: boolean; mode?: RoomPageMode }) {
+  const [jobDiscoveryFilters, setJobDiscoveryFilters] = useState({ opportunityType: "", compensationStatus: "", workArrangement: "" });
   const normalizedRoomSlug = normalizeCommuneRoomSlug(roomSlug) ?? roomSlug;
   const type = postTypeByRoomSlug.get(normalizedRoomSlug);
   const officialByPostId = new Map(officialUpdates.map((item) => [item.post_id, item]));
@@ -2269,6 +2312,17 @@ function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPos
     const rightScore = (rightMeta?.pinned ? 4 : 0) + (rightMeta?.important ? 2 : 0) + (["critical", "urgent"].includes(rightMeta?.severity ?? "") ? 1 : 0);
     return rightScore - leftScore || new Date(right.published_at ?? right.created_at ?? 0).getTime() - new Date(left.published_at ?? left.created_at ?? 0).getTime();
   }) : [];
+  const visibleRoomPosts = type?.backendValue === "job_post" ? roomPosts.filter((post) => {
+    const job = jobByPostId.get(post.id);
+    if (!job) return !jobDiscoveryFilters.opportunityType && !jobDiscoveryFilters.compensationStatus && !jobDiscoveryFilters.workArrangement;
+    const legacy = deterministicV2FromLegacy(job);
+    const opportunityType = job.model_version === JOB_OPPORTUNITY_MODEL_VERSION ? job.opportunity_type : legacy.opportunity_type;
+    const compensationStatus = job.model_version === JOB_OPPORTUNITY_MODEL_VERSION ? job.compensation_status : legacy.compensation_status;
+    const workArrangement = job.model_version === JOB_OPPORTUNITY_MODEL_VERSION ? job.work_arrangement : legacy.work_arrangement;
+    return (!jobDiscoveryFilters.opportunityType || opportunityType === jobDiscoveryFilters.opportunityType)
+      && (!jobDiscoveryFilters.compensationStatus || compensationStatus === jobDiscoveryFilters.compensationStatus)
+      && (!jobDiscoveryFilters.workArrangement || workArrangement === jobDiscoveryFilters.workArrangement);
+  }) : roomPosts;
   if (!type) {
     return <section className="section-card"><p className="eyebrow">Room</p><h2>Room not found</h2><p>This Commune room is not available yet. Choose another room from the lobby.</p><Link className="button-link" to="/commune">Back to Commune</Link></section>;
   }
@@ -2310,7 +2364,7 @@ function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPos
     </section>
     {mode === "hub" && <RoomPostsGateway type={type} count={roomPosts.length} />}
     {mode === "hub" && type.backendValue === "community_vote" && <section className="section-card commune-vote-detail"><p className="eyebrow">Stewardship guidance, not automatic governance</p><h2>Community votes guide decisions; admins control lifecycle and outcomes.</h2><p className="commune-vote-boundary-note">Community votes guide stewardship decisions. They do not automatically change site policy, safety rules, legal terms, Marketplace behavior, Developer Forge behavior, Elysia behavior, or Official Updates.</p><p>{signedIn ? "Signed-in members can cast one ballot and change it while a vote is open." : "Anonymous visitors can read public votes and allowed aggregate results, but voting requires a signed-in member account."}</p></section>}
-    {mode === "hub" && type.backendValue === "job_post" && <section className="section-card commune-job-bridge"><p className="eyebrow">Public board, private applications separate</p><h2>Job Posts are public listings; Work With is the private intake path.</h2><p>Community members may submit public opportunities, but normal-user Job Posts require admin approval before publication. Do not ask for resumes, CVs, SSNs, bank details, IDs, private addresses, private phone numbers, or private applicant packets in public comments.</p><div className="button-row"><Link className="button-link" to="/work-with-elysia-ecobotics">Open Work With private intake</Link><Link className="button-link" to={postsPath}>Browse public Job Posts</Link></div></section>}
+    {mode === "hub" && type.backendValue === "job_post" && <section className="section-card commune-job-bridge"><p className="eyebrow">Opportunity Commons · public listings</p><h2>Broad ways to collaborate, with compensation and application routes made explicit.</h2><p>Community members may submit employment, contracts, research, volunteer, contribution, testing, and future-interest opportunities. Ordinary-user submissions require governed review before publication. Publication is not endorsement or verification; independently verify the poster and application route.</p><p className="boundary-note">Keep public interaction thin. Never put resumes/CVs, SSNs, bank or tax information, identity documents, private addresses, private phone numbers, or sensitive application packets in posts or comments.</p><div className="button-row"><Link className="button-link" to="/work-with-elysia-ecobotics">Open first-party Work With private intake</Link><Link className="button-link" to={postsPath}>Browse public opportunities</Link></div></section>}
     {mode === "posts" && <section className="section-card commune-feed" id="commune-room-feed">
       <div className="section-heading section-heading--inline">
         <div>
@@ -2320,7 +2374,13 @@ function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPos
         </div>
         <div className="button-row"><Link className="button-link" to={hubPath}>Back to {type.name}</Link>{canOpenComposer && <Link className="button-link button-link--primary" to={createPath}>{createLabel}</Link>}</div>
       </div>
-      {roomPosts.length ? <div className="commune-feed-grid">{roomPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} signedIn={signedIn} officialUpdate={officialByPostId.get(post.id)} troubleshooting={troubleshootingByPostId.get(post.id)} jobPost={jobByPostId.get(post.id)} researchNote={researchByPostId.get(post.id)} communityVote={voteByPostId.get(post.id)} />)}</div> : <p className="commune-empty-state">Published posts will appear here after moderation. Start with a careful draft when you are ready.</p>}
+      {type.backendValue === "job_post" && <div className="commune-job-discovery-filters" aria-label="Opportunity filters">
+        <label><span>Opportunity type</span><select value={jobDiscoveryFilters.opportunityType} onChange={(event) => setJobDiscoveryFilters({ ...jobDiscoveryFilters, opportunityType: event.target.value })}><option value="">All types</option>{jobOpportunityTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+        <label><span>Compensation</span><select value={jobDiscoveryFilters.compensationStatus} onChange={(event) => setJobDiscoveryFilters({ ...jobDiscoveryFilters, compensationStatus: event.target.value })}><option value="">All statuses</option>{jobCompensationStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+        <label><span>Work arrangement</span><select value={jobDiscoveryFilters.workArrangement} onChange={(event) => setJobDiscoveryFilters({ ...jobDiscoveryFilters, workArrangement: event.target.value })}><option value="">All arrangements</option>{jobWorkArrangementOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+        <button type="button" onClick={() => setJobDiscoveryFilters({ opportunityType: "", compensationStatus: "", workArrangement: "" })}>Clear opportunity filters</button>
+      </div>}
+      {visibleRoomPosts.length ? <div className="commune-feed-grid">{visibleRoomPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} signedIn={signedIn} officialUpdate={officialByPostId.get(post.id)} troubleshooting={troubleshootingByPostId.get(post.id)} jobPost={jobByPostId.get(post.id)} researchNote={researchByPostId.get(post.id)} communityVote={voteByPostId.get(post.id)} />)}</div> : <p className="commune-empty-state">Published posts will appear here after moderation. Start with a careful draft when you are ready.</p>}
     </section>}
     {type.backendValue === "repository_showcase" && mode === "hub" && <section className="section-card commune-repo-card"><p className="eyebrow">Repository Showcase boundaries</p><h2>Metadata and presentation only, never execution</h2><p>A public repository is not automatically safe, compatible, licensed, or free of secrets. This room does not access private repositories or fetch, clone, install, build, run, execute, or validate repository code.</p><StatusBadges labels={["Public metadata only", "No private repository access", "Selected-artifact review separate", "Developer Forge separate", "Marketplace separate"]} /><p className="boundary-note">Selected-artifact sandbox review is a separate governed request for a bounded artifact. It does not approve, trust, or execute the whole repository.</p><p className="boundary-note">Admin guidance/template posts explain safe room use. They remain guidance, not repository listings, compatibility guarantees, Developer Forge approval, Marketplace approval, install recommendations, or trust signals.</p><div className="button-row"><Link className="button-link button-link--primary" to={createPath}>Open repository showcase form</Link><Link className="button-link" to="/commune/repository-showcase/sandbox-request">Review selected repository artifact</Link></div></section>}
     {mode === "hub" && type.backendValue === "code_sharing" && <section className="section-card commune-sandbox-card coding-cornucopia-tools"><p className="eyebrow">Coding Cornucopia Tools</p><h2>Collaborative code review, snapshots, diagnostics, and sandbox-gated runs.</h2><p>Shared code is public knowledge, not automatic trust. The browser page never executes snippets; configured sandbox runs use explicit snapshots, network-disabled containers, resource limits, and audit records.</p><StatusBadges labels={["CodeMirror editor", "Static diagnostics", "Snapshot runs", "No terminal", "No package install", "Marketplace separate"]} /><div className="button-row"><Link className="button-link" to="/commune/coding-cornucopia/review#coding-workbench-heading">Open Coding Workbench</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Prepare Sandbox Review Request</Link></div></section>}
@@ -2419,21 +2479,14 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     communityBoundary: "",
     roleTitle: "",
     organizationProject: "",
-    roleType: "paid_role",
-    payStatus: "must_clarify",
-    compensationClarity: "",
-    locationMode: "unspecified",
+    jobOpportunity: { ...emptyJobOpportunityDraft } as JobOpportunityDraft,
     locationDetails: "",
     timeCommitment: "",
     deadline: "",
-    contactPath: "",
     requirementsSkills: "",
     jobSafetyNotes: "",
     jobRoleSummary: "",
     jobApplicationStatus: "open" as JobPostApplicationStatus,
-    jobAntiScamReviewStatus: "not_reviewed" as JobPostAntiScamReviewStatus,
-    jobWorkWithLinkEnabled: true,
-    jobPrivateApplicationNote: "",
     jobPublicCorrectionNote: "",
     researchQuestion: "",
     citationNotes: "",
@@ -2494,14 +2547,16 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     officialCodeText: "",
     officialCodeCorrectionNote: "",
     stepsCodeAck: false,
-    acknowledgement: false,
+    acknowledgements: Object.fromEntries(routeAcknowledgements.map((item) => [item, false])) as Record<string, boolean>,
+    jobOpportunityAcknowledgement: false,
     sandboxRequested: false
   });
   const [file, setFile] = useState<File | null>(null);
+  const [jobValidationVisible, setJobValidationVisible] = useState(false);
   const [iterationManifestInput, setIterationManifestInput] = useState("");
   const [iterationImporting, setIterationImporting] = useState(false);
-  const submitLabel = form.postType === "official_update" ? "Publish Official Update" : isAdmin ? "Publish as admin" : "Submit for moderation";
-  const [message, setMessage] = useState(isAdmin ? "Admins can publish room posts directly. Attachments still follow Commune media safety rules." : "Signed-in users can submit posts for moderation. Local draft/export is available even when backend review is not active.");
+  const submitLabel = form.postType === "official_update" ? "Publish Official Update" : form.postType === "job_post" ? (isAdmin ? "Submit through governed review" : "Submit for moderation") : isAdmin ? "Publish as admin" : "Submit for moderation";
+  const [message, setMessage] = useState(isAdmin && form.postType === "job_post" ? "Administrator opportunities still pass through governed review and independent publication conditions. Attachments follow Commune media safety rules." : isAdmin ? "Admins can publish room posts directly. Attachments still follow Commune media safety rules." : "Signed-in users can submit posts to the active backend review queue. Local draft and export remain available separately.");
   const secretScan = scanCommuneTextForSecrets([
     form.title,
     form.summary,
@@ -2514,18 +2569,13 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     form.repositoryUrl,
     form.roleTitle,
     form.organizationProject,
-    form.roleType,
-    form.payStatus,
-    form.compensationClarity,
-    form.locationMode,
+    JSON.stringify(form.jobOpportunity),
     form.locationDetails,
     form.timeCommitment,
     form.deadline,
-    form.contactPath,
     form.requirementsSkills,
     form.jobSafetyNotes,
     form.jobRoleSummary,
-    form.jobPrivateApplicationNote,
     form.jobPublicCorrectionNote,
     form.researchQuestion,
     form.citationNotes,
@@ -2566,12 +2616,14 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
   const showMediaGardenCodeFields = isMediaGardenVisualCodePost(form.postType);
   const showSandboxCapableCodeFields = isSandboxCapableCodePost(form.postType);
   const showRepositoryField = form.postType === "code_sharing";
-  const showAttachmentField = true;
-  const showCommunityFields = form.postType === "community_network";
   const showJobFields = form.postType === "job_post";
+  const showAttachmentField = !showJobFields || Boolean(form.jobOpportunity.opportunityType);
+  const showCommunityFields = form.postType === "community_network";
   const showResearchFields = form.postType === "research_note";
   const showIterationFields = form.postType === "elysia_iteration_showcase";
   const showOfficialFields = form.postType === "official_update";
+  const allRouteAcknowledgementsAccepted = routeAcknowledgements.every((item) => form.acknowledgements[item]);
+  const submissionAcknowledged = allRouteAcknowledgementsAccepted && (!showJobFields || form.jobOpportunityAcknowledgement);
   const codeSectionTitle = showTroubleshootingFields ? "Code / reproduction snippet optional" : showMediaGardenCodeFields ? "Inert visual code snippet" : "Inert code snippet";
   const codePreviewTitle = showTroubleshootingFields ? "Reproduction snippet preview" : showMediaGardenCodeFields ? "Visual code snippet preview" : inertCodeSnippetLabel(form.codeLanguage);
   const codeSafetyCopy = showTroubleshootingFields
@@ -2610,19 +2662,30 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     if (form.postType === "job_post") return [
       sectionBlock("Role title", form.roleTitle),
       sectionBlock("Organization / project", form.organizationProject),
-      sectionBlock("Role type", jobRoleLabel(form.roleType)),
-      sectionBlock("Paid / volunteer status", jobPaidStatusLabel(form.payStatus)),
-      sectionBlock("Compensation clarity", form.compensationClarity),
-      sectionBlock("Location / remote / hybrid", jobLocationModeLabel(form.locationMode)),
+      sectionBlock("Opportunity type", jobOpportunityTypeLabel(form.jobOpportunity.opportunityType)),
+      sectionBlock("Opportunity details", form.jobOpportunity.opportunityDetails),
+      sectionBlock("Poster / organization type", jobPosterTypeLabel(form.jobOpportunity.posterType)),
+      sectionBlock("Organization website", form.jobOpportunity.organizationWebsite),
+      sectionBlock("Compensation status", jobCompensationStatusLabel(form.jobOpportunity.compensationStatus)),
+      sectionBlock("Compensation models", form.jobOpportunity.compensationModels.map(jobCompensationModelLabel).join(", ")),
+      sectionBlock("Compensation amount", [form.jobOpportunity.compensationCurrency, form.jobOpportunity.compensationMinAmount, form.jobOpportunity.compensationMaxAmount ? `to ${form.jobOpportunity.compensationMaxAmount}` : "", form.jobOpportunity.compensationPeriod ? `per ${form.jobOpportunity.compensationPeriod}` : ""].filter(Boolean).join(" ")),
+      sectionBlock("Compensation details", form.jobOpportunity.compensationDetails),
+      sectionBlock("Benefits / additional support", form.jobOpportunity.benefitsSummary),
+      sectionBlock("Work arrangement", jobWorkArrangementLabel(form.jobOpportunity.workArrangement)),
+      sectionBlock("Time basis", jobTimeBasisLabel(form.jobOpportunity.timeBasis)),
+      sectionBlock("Duration", jobDurationTypeLabel(form.jobOpportunity.durationType)),
+      sectionBlock("Experience / eligibility", jobExperienceLevelLabel(form.jobOpportunity.experienceLevel)),
       sectionBlock("Location details", form.locationDetails),
       sectionBlock("Time commitment", form.timeCommitment),
       sectionBlock("Deadline", form.deadline),
-      sectionBlock("Contact path", form.contactPath),
+      sectionBlock("Application route", jobApplicationRouteLabel(form.jobOpportunity.applicationRouteType)),
+      sectionBlock("Application destination", form.jobOpportunity.applicationDestination),
+      sectionBlock("Application instructions", form.jobOpportunity.applicationInstructions),
+      sectionBlock("Testing / feedback privacy", form.jobOpportunity.testingPrivacyNote),
+      sectionBlock("Future-role notice", form.jobOpportunity.futureInterestAcknowledged ? "Confirmed: no current opening, offer, or promise of work." : ""),
       sectionBlock("Requirements / skills", form.requirementsSkills),
       sectionBlock("Role summary", form.jobRoleSummary),
       sectionBlock("Application status", jobApplicationStatusLabel(form.jobApplicationStatus)),
-      sectionBlock("Anti-scam review", jobAntiScamStatusLabel(form.jobAntiScamReviewStatus)),
-      sectionBlock("Work With private application path", "Enabled - private applications/resumes/CVs belong on Work With Elysia Ecobotics, not public Job Post comments."),
       sectionBlock("Job safety notes", form.jobSafetyNotes),
       sectionBlock("Public correction note", form.jobPublicCorrectionNote)
     ].filter(Boolean);
@@ -2685,6 +2748,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     const body = `${bodyBase}${codeBlock}${officialCodeBlock}`;
     return {
       id: `${status}-${Date.now()}`,
+      schemaVersion: showJobFields ? `job_opportunity.v${JOB_OPPORTUNITY_MODEL_VERSION}` : "commune_post.v1",
       postType: postTypeOptions.find((type) => type.value === form.postType)?.label ?? form.postType,
       title: form.title,
       summary: form.summary || body.slice(0, 180),
@@ -2696,7 +2760,11 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       intendedAudience: "Community review",
       submitterName: "",
       submitterContact: "",
-      checklist: Object.fromEntries(routeAcknowledgements.map((item) => [item, form.acknowledgement])) as Record<string, boolean>,
+      checklist: {
+        ...form.acknowledgements,
+        ...(showJobFields ? { "I confirm the opportunity, compensation, application route, and public-data boundaries are complete and truthful.": form.jobOpportunityAcknowledgement } : {})
+      },
+      jobOpportunity: showJobFields ? { ...form.jobOpportunity, compensationModels: [...form.jobOpportunity.compensationModels] } : undefined,
       status,
       createdAt: new Date().toISOString()
     };
@@ -2889,7 +2957,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     }
     if (status === "pending_moderator_review_local") {
       localDrafts.updatePostRequests([draft, ...localDrafts.postRequests]);
-      setMessage("Saved locally in this browser as a pending moderator-review draft. Backend review queue is not active yet.");
+      setMessage("Saved locally in this browser as a review-request draft. This local copy has not been submitted to the active backend queue.");
     } else {
       localDrafts.updatePostDrafts([draft, ...localDrafts.postDrafts]);
       setMessage("Commune post draft saved locally in this browser.");
@@ -2897,6 +2965,11 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
   }
 
   async function submit() {
+    if (showJobFields) setJobValidationVisible(true);
+    if (!submissionAcknowledged) {
+      setMessage(showJobFields ? "Confirm each public-sharing acknowledgement and the Job Opportunity truthfulness acknowledgement before submitting." : "Confirm each public-sharing acknowledgement before submitting.");
+      return;
+    }
     if (secretScan.blocked) {
       setMessage(`Submission blocked because it appears to include private or secret material: ${secretScan.warnings.join(", ")}. Remove it before submitting.`);
       return;
@@ -2919,7 +2992,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
         links: form.links,
         roomId: form.roomId || defaultRoomId,
         upload: file,
-        acknowledgement: form.acknowledgement,
+        acknowledgement: submissionAcknowledged,
         updateType: form.officialNoticeType,
         officialStatus: form.officialStatus,
         severity: form.officialSeverity,
@@ -3007,24 +3080,17 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
         links: form.links,
         roomId: form.roomId || defaultRoomId,
         upload: file,
-        acknowledgement: form.acknowledgement,
+        acknowledgement: submissionAcknowledged,
+        opportunity: form.jobOpportunity,
         roleTitle: form.roleTitle,
         organizationProject: form.organizationProject,
-        roleType: form.roleType,
-        paidVolunteerStatus: form.payStatus,
-        locationMode: form.locationMode,
         locationText: form.locationDetails,
         timeCommitment: form.timeCommitment,
         deadline: form.deadline,
-        compensationClarity: form.compensationClarity,
-        contactPath: form.contactPath,
         requirementsSkills: form.requirementsSkills,
         safetyNotes: form.jobSafetyNotes,
         roleSummary: form.jobRoleSummary || form.body,
         applicationStatus: form.jobApplicationStatus,
-        antiScamReviewStatus: form.jobAntiScamReviewStatus,
-        workWithLinkEnabled: form.jobWorkWithLinkEnabled,
-        privateApplicationNote: form.jobPrivateApplicationNote,
         publicCorrectionNote: form.jobPublicCorrectionNote
       });
       if (result.ok) {
@@ -3049,7 +3115,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
         links: form.links,
         roomId: form.roomId || defaultRoomId,
         upload: file,
-        acknowledgement: form.acknowledgement,
+        acknowledgement: submissionAcknowledged,
         researchQuestion: form.researchQuestion,
         domain: form.researchDomain,
         evidenceStrength: form.evidenceStrength,
@@ -3089,7 +3155,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
         links: form.links,
         roomId: form.roomId || defaultRoomId,
         upload: file,
-        acknowledgement: form.acknowledgement,
+        acknowledgement: submissionAcknowledged,
         issueType: form.issueType,
         affectedArea: form.affectedArea,
         environmentOs: form.os,
@@ -3122,7 +3188,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       return;
     }
     const body = form.codeText ? `${bodyBase}\n\nCode snippet attached separately for inert display.` : bodyBase;
-    const result = await submitCommunePost({ ...form, body, roomId: form.roomId || defaultRoomId, upload: file, sandboxRequested: form.sandboxRequested });
+    const result = await submitCommunePost({ ...form, acknowledgement: submissionAcknowledged, body, roomId: form.roomId || defaultRoomId, upload: file, sandboxRequested: form.sandboxRequested });
     if (result.ok) {
       if (form.codeText && result.postId) {
         const snippet = await createCodeSnippet({ postId: result.postId, language: form.codeLanguage, fileName: form.codeFileName, codeText: form.codeText, sandboxAcknowledged: form.stepsCodeAck });
@@ -3146,7 +3212,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     <h2>{showOfficialFields ? "Publish an Official Update" : `Create a ${selectedPostTypeLabel} post`}</h2>
     <p className="boundary-note">Uploads are part of Elysia Ecobotics Online, not private local Elysia. Do not upload private local Elysia memory, logs, vault data, credentials, .env files, API keys, identity documents, or unredacted sensitive information.</p>
     <p className="boundary-note">Posting in: {selectedPostTypeLabel}</p>
-    {isAdmin && <p className="boundary-note">Admin mode: this room post will publish directly. Attachment uploads still use the Commune media safety policy.</p>}
+    {isAdmin && <p className="boundary-note">{showJobFields ? "Administrator mode: this opportunity still uses the governed review path and retains its independent economic publication condition." : "Administrator mode: this room post follows the room's existing direct-publication rules."} Attachment uploads use the Commune media safety policy.</p>}
     {showOfficialFields && <><p className="boundary-note">Official Updates are administrator-authored public notices. Community users cannot self-assign official release, security, roadmap, or governance authority.</p><p className="boundary-note">Official Update composer: Community members can read and report Official Updates, but cannot submit, self-assign, or impersonate official authority.</p></>}
     <div className="commune-form-grid">
       <label><span>Title</span><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
@@ -3161,20 +3227,19 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       {showJobFields && <>
         <label><span>Role title</span><input value={form.roleTitle} onChange={(event) => setForm({ ...form, roleTitle: event.target.value })} /></label>
         <label><span>Organization / project</span><input value={form.organizationProject} onChange={(event) => setForm({ ...form, organizationProject: event.target.value })} /></label>
-        <label><span>Role type</span><select value={form.roleType} onChange={(event) => setForm({ ...form, roleType: event.target.value })}>{jobRoleTypeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-        <label><span>Paid / volunteer status</span><select value={form.payStatus} onChange={(event) => setForm({ ...form, payStatus: event.target.value })}>{jobPaidStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-        <label><span>Location / remote / hybrid</span><select value={form.locationMode} onChange={(event) => setForm({ ...form, locationMode: event.target.value })}>{jobLocationModeOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+        <JobOpportunityFields value={form.jobOpportunity} organizationProject={form.organizationProject} isAdmin={isAdmin} showErrors={jobValidationVisible} onChange={(jobOpportunity) => setForm({ ...form, jobOpportunity })} />
+        {form.jobOpportunity.opportunityType && <>
         <label><span>Time commitment</span><input value={form.timeCommitment} onChange={(event) => setForm({ ...form, timeCommitment: event.target.value })} /></label>
         <label><span>Deadline</span><input type="date" value={form.deadline} onChange={(event) => setForm({ ...form, deadline: event.target.value })} /></label>
         <label className="wide-field"><span>Location details</span><input value={form.locationDetails} onChange={(event) => setForm({ ...form, locationDetails: event.target.value })} placeholder="Public-safe city/region, remote time zone, field area, or clarify if unknown" /></label>
         <label className="wide-field"><span>Role summary</span><textarea rows={4} value={form.jobRoleSummary} onChange={(event) => setForm({ ...form, jobRoleSummary: event.target.value })} placeholder="Summarize the role or public opportunity without requesting private applicant data." /></label>
-        <label className="wide-field"><span>Compensation clarity</span><textarea rows={3} value={form.compensationClarity} onChange={(event) => setForm({ ...form, compensationClarity: event.target.value })} placeholder="Pay/range/stipend/volunteer clarity is required before public approval." /></label>
-        <label className="wide-field"><span>Contact / application path</span><input value={form.contactPath} onChange={(event) => setForm({ ...form, contactPath: event.target.value })} placeholder="Public application/contact path; no SSNs, bank details, IDs, resumes/CVs, or private details in comments" /></label>
         <label className="wide-field"><span>Requirements / skills</span><textarea rows={4} value={form.requirementsSkills} onChange={(event) => setForm({ ...form, requirementsSkills: event.target.value })} /></label>
-        <label className="wide-field"><span>Safety notes</span><textarea rows={3} value={form.jobSafetyNotes} onChange={(event) => setForm({ ...form, jobSafetyNotes: event.target.value })} placeholder="No SSNs, bank details, identity documents, private addresses, private phone numbers, resumes/CVs, contracts, or private-contact pressure." /></label>
+        <label className="wide-field"><span>Safety notes</span><textarea rows={3} value={form.jobSafetyNotes} onChange={(event) => setForm({ ...form, jobSafetyNotes: event.target.value })} placeholder="Public-safe travel, equipment, safeguarding, accessibility, or participation context. Never request sensitive application data here." /></label>
         <p className="wide-field boundary-note">{jobPrivateApplicationSystemNotice}</p>
-        {isAdmin && <><label className="wide-field"><span>Admin public-safe application clarification optional</span><input value={form.jobPrivateApplicationNote} onChange={(event) => setForm({ ...form, jobPrivateApplicationNote: event.target.value })} placeholder="Optional public-safe clarification; it does not replace the permanent system warning." /></label><label><span>Application status</span><select value={form.jobApplicationStatus} onChange={(event) => setForm({ ...form, jobApplicationStatus: event.target.value as JobPostApplicationStatus })}>{jobApplicationStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label><span>Anti-scam review</span><select value={form.jobAntiScamReviewStatus} onChange={(event) => setForm({ ...form, jobAntiScamReviewStatus: event.target.value as JobPostAntiScamReviewStatus })}>{jobAntiScamStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label className="wide-field"><span>Public correction / clarification note</span><input value={form.jobPublicCorrectionNote} onChange={(event) => setForm({ ...form, jobPublicCorrectionNote: event.target.value })} placeholder="Public-safe admin clarification if needed" /></label></>}
-        <p className="wide-field boundary-note">Job Post is a public opportunity board. Normal users submit for mandatory admin approval before publication. Do not post resumes/CVs, identity documents, SSNs, bank details, tax forms, private addresses, private phone numbers, private application packets, or Work With uploads here.</p>
+        {isAdmin && <><label><span>Application status</span><select value={form.jobApplicationStatus} onChange={(event) => setForm({ ...form, jobApplicationStatus: event.target.value as JobPostApplicationStatus })}>{jobApplicationStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label><label className="wide-field"><span>Public correction / clarification note</span><input value={form.jobPublicCorrectionNote} onChange={(event) => setForm({ ...form, jobPublicCorrectionNote: event.target.value })} placeholder="Public-safe administrator clarification if needed" /></label></>}
+        <p className="wide-field boundary-note">Opportunity Commons is a moderated public listing board. Publication is not endorsement or verification, and does not guarantee a poster's identity, legitimacy, compensation, safety, or accuracy. Verify the organization and application route independently.</p>
+        <p className="wide-field boundary-note">Do not post resumes/CVs, identity documents, SSNs, bank details, tax forms, private addresses, private phone numbers, private application packets, or Work With uploads here or in public comments.</p>
+        </>}
       </>}
       {showResearchFields && <>
         <label><span>Research question / topic</span><input value={form.researchQuestion} onChange={(event) => setForm({ ...form, researchQuestion: event.target.value })} /></label>
@@ -3233,7 +3298,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
         <label className="checkbox-line"><input type="checkbox" checked={form.officialCommentsEnabled} onChange={(event) => setForm({ ...form, officialCommentsEnabled: event.target.checked })} /><span>Comments enabled for this official update</span></label>
         <label className="wide-field"><span>Audit-safe note / correction note</span><textarea rows={3} value={form.officialAuditNote} onChange={(event) => setForm({ ...form, officialAuditNote: event.target.value })} placeholder="Public correction/update context if relevant." /></label>
       </>}
-      <label className="wide-field"><span>{form.postType === "code_sharing" ? "Discussion / explanation" : showResearchFields ? "Context / discussion" : showJobFields ? "Public details / questions" : "Body"}</span><textarea rows={8} value={form.body} onChange={(event) => setForm({ ...form, body: event.target.value })} /></label>
+      {(!showJobFields || form.jobOpportunity.opportunityType) && <label className="wide-field"><span>{form.postType === "code_sharing" ? "Discussion / explanation" : showResearchFields ? "Context / discussion" : showJobFields ? "Public details / questions" : "Body"}</span><textarea rows={8} value={form.body} onChange={(event) => setForm({ ...form, body: event.target.value })} /></label>}
       {showCodeFields && <>
         <label><span>Code language</span><select value={normalizeCodingLanguage(form.codeLanguage)} onChange={(event) => setForm({ ...form, codeLanguage: event.target.value })}>{codingLanguageOptions().map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
         <label><span>Code filename</span><input value={form.codeFileName} onChange={(event) => setForm({ ...form, codeFileName: event.target.value })} placeholder={showTroubleshootingFields ? "reproduction.js, failing-test.py" : showMediaGardenCodeFields ? "visual-snippet.css, shader.glsl" : "snippet.ts"} /></label>
@@ -3270,7 +3335,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     {fileValidation && <p className={fileValidation.ok ? "boundary-note" : "message"}>{fileValidation.message}</p>}
     {form.codeText && <section className="commune-code-preview"><div className="addon-card__topline"><strong>{codePreviewTitle}</strong><span>{form.codeFileName || "snippet"}</span></div><CodeWorkspaceEditor value={form.codeText} language={form.codeLanguage} readOnly minHeight="220px" /><p className="boundary-note">{codeSafetyCopy}</p>{showSandboxCapableCodeFields ? <><p className="boundary-note">Code is inert unless it is sent to the governed sandbox runner. Sandbox success is evidence only, not approval, trust, Marketplace readiness, or permission to run code elsewhere.</p><DiagnosticsList diagnostics={runStaticCodingDiagnostics({ language: form.codeLanguage, fileName: form.codeFileName, code: form.codeText })} /></> : <p className="boundary-note">This Media Garden preview is read-only visual material. No run button, sandbox diagnostics, execution status, proposal flow, or trust label is enabled.</p>}</section>}
     {showOfficialFields && form.officialCodeText && <section className="commune-code-preview commune-official-code-preview"><div className="addon-card__topline"><strong>Official code preview</strong><span>{form.officialCodeFileName || "official-snippet"}</span></div><CodeWorkspaceEditor value={form.officialCodeText} language={form.officialCodeLanguage} readOnly minHeight="220px" /><p className="boundary-note">Official code examples are public read-only/copy-only records. No workbench, sandbox run, proposal, install, deploy, or Local Elysia execution controls are exposed.</p></section>}
-    <div className="commune-checklist">{routeAcknowledgements.map((item) => <label className="checkbox-line" key={item}><input type="checkbox" checked={form.acknowledgement} onChange={(event) => setForm({ ...form, acknowledgement: event.target.checked })} /><span>{item}</span></label>)}{showCodeFields && <><label className="checkbox-line"><input type="checkbox" checked={form.stepsCodeAck} onChange={(event) => setForm({ ...form, stepsCodeAck: event.target.checked })} /><span>{showTroubleshootingFields ? "Any troubleshooting code/reproduction snippet is inert redacted text until an explicit sandbox run. It is not execution permission." : showMediaGardenCodeFields ? "Any Media Garden code snippet is visual/read-only material. It is not executed by the website, a trust signal, or execution permission." : "Any code snippet is inert text for discussion only. It is not execution permission."}</span></label>{showSandboxCapableCodeFields && <label className="checkbox-line"><input type="checkbox" checked={form.sandboxRequested} onChange={(event) => setForm({ ...form, sandboxRequested: event.target.checked })} /><span>{showTroubleshootingFields ? "Request sandbox review metadata for this reproduction case. This is not execution permission and does not prove the fix is safe." : "Request sandbox review for repository/code metadata. This is not execution permission."}</span></label>}</>}</div>
+    <div className="commune-checklist">{routeAcknowledgements.map((item) => <label className="checkbox-line" key={item}><input type="checkbox" checked={Boolean(form.acknowledgements[item])} onChange={(event) => setForm({ ...form, acknowledgements: { ...form.acknowledgements, [item]: event.target.checked } })} /><span>{item}</span></label>)}{showJobFields && <label className="checkbox-line"><input type="checkbox" checked={form.jobOpportunityAcknowledgement} onChange={(event) => setForm({ ...form, jobOpportunityAcknowledgement: event.target.checked })} /><span>I confirm the opportunity type, compensation status, application route, and public-data boundaries are complete and truthful.</span></label>}{showCodeFields && <><label className="checkbox-line"><input type="checkbox" checked={form.stepsCodeAck} onChange={(event) => setForm({ ...form, stepsCodeAck: event.target.checked })} /><span>{showTroubleshootingFields ? "Any troubleshooting code/reproduction snippet is inert redacted text until an explicit sandbox run. It is not execution permission." : showMediaGardenCodeFields ? "Any Media Garden code snippet is visual/read-only material. It is not executed by the website, a trust signal, or execution permission." : "Any code snippet is inert text for discussion only. It is not execution permission."}</span></label>{showSandboxCapableCodeFields && <label className="checkbox-line"><input type="checkbox" checked={form.sandboxRequested} onChange={(event) => setForm({ ...form, sandboxRequested: event.target.checked })} /><span>{showTroubleshootingFields ? "Request sandbox review metadata for this reproduction case. This is not execution permission and does not prove the fix is safe." : "Request sandbox review for repository/code metadata. This is not execution permission."}</span></label>}</>}</div>
     <div className="button-row"><button type="button" className="button-primary" onClick={() => void submit()}>{submitLabel}</button><button type="button" onClick={() => saveLocal("draft_local")}>Save local draft</button>{!showOfficialFields && <button type="button" onClick={() => saveLocal("pending_moderator_review_local")}>Save local request</button>}<button type="button" onClick={() => downloadText(`${slug(form.title)}.md`, postMarkdown(build("draft_local")), "text/markdown")}>Export Markdown</button>{showIterationFields && <button type="button" onClick={() => downloadText(`${slug(form.title)}-iteration-showcase.json`, iterationManifestJson(buildIterationDraft()), "application/json")}>Export JSON</button>}<button type="button" onClick={() => copyText(postMarkdown(build("draft_local")), setMessage)}>Copy Markdown</button><Link className="button-link" to="/commune">Back to Commune</Link></div>
     <p className="message">{message}</p>
   </section>;
@@ -3947,7 +4012,7 @@ function JobPostReviewControls({ jobPost, postId, isModerator, onMessage, onChan
       <label><span>Application status</span><select value={applicationStatus} onChange={(event) => setApplicationStatus(event.target.value as JobPostApplicationStatus)}>{jobApplicationStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
       {isModerator && <label><span>Anti-scam review</span><select value={reviewStatus} onChange={(event) => setReviewStatus(event.target.value as JobPostAntiScamReviewStatus)}>{jobAntiScamStatusOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>}
       <label className="wide-field"><span>Public correction / clarification note</span><textarea rows={3} value={publicCorrectionNote} onChange={(event) => setPublicCorrectionNote(event.target.value)} placeholder="Public-safe correction or clarification, if needed." /></label>
-      {isModerator && <p className="wide-field boundary-note">Hidden reviewer notes belong in Admin Review history, not the public Job Post metadata table. Use public correction notes only when the note is safe for readers.</p>}
+      {isModerator && <p className="wide-field boundary-note">Protected reviewer notes belong in the RLS-governed Admin Review history, not the public Job Post metadata table. Use public correction notes only when the note is safe for readers.</p>}
     </div>
     <div className="button-row"><button type="button" onClick={() => void saveApplicationStatus()}>Save listing status</button>{isModerator && <button type="button" onClick={() => void saveReviewStatus()}>Save anti-scam review</button>}</div>
   </div>;
@@ -4071,8 +4136,11 @@ function JobPostEconomicOwnerPanel({ jobPostId, accessToken }: { jobPostId: stri
 function JobPostDetail({ post, jobPost, parsedBody, userId, accessToken, isModerator, onMessage, onChanged }: { post: CommunePost; jobPost?: JobPostMetadata | null; parsedBody: ReturnType<typeof splitPostSections>; userId?: string | null; accessToken?: string | null; isModerator: boolean; onMessage: (message: string) => void; onChanged: () => Promise<void> }) {
   const section = (...headings: string[]) => explicitFormSectionValue(parsedBody, ...headings);
   const value = (metadataValue?: string | null, ...fallbackHeadings: string[]) => metadataText(metadataValue) || (fallbackHeadings.length ? section(...fallbackHeadings) : "");
-  const adminApplicationClarification = String(jobPost?.private_application_note ?? "").trim();
-  const fields: RoomNativeField[] = [
+  const v2 = jobPost?.model_version === JOB_OPPORTUNITY_MODEL_VERSION;
+  const legacy = deterministicV2FromLegacy(jobPost ?? {});
+  const applicationDestination = value(jobPost?.application_destination, "Application destination") || value(jobPost?.contact_path, "Contact path");
+  const applicationHref = safePublicHref(applicationDestination) || (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(applicationDestination) ? `mailto:${applicationDestination}` : "");
+  const legacyFields: RoomNativeField[] = [
     ["Role summary", value(jobPost?.role_summary, "Role summary")],
     ["Compensation clarity", value(jobPost?.compensation_clarity, "Compensation clarity")],
     ["Location details", value(jobPost?.location_text, "Location details")],
@@ -4083,26 +4151,48 @@ function JobPostDetail({ post, jobPost, parsedBody, userId, accessToken, isModer
     ["Safety notes", value(jobPost?.safety_notes, "Job safety notes")],
     ["Public correction / clarification", value(jobPost?.public_correction_note, "Public correction note")]
   ].map(([heading, body]) => ({ heading, body })).filter((field) => field.body);
+  const v2Fields: RoomNativeField[] = [
+    ["Opportunity type", jobOpportunityTypeLabel(jobPost?.opportunity_type)],
+    ["Opportunity details", value(jobPost?.opportunity_details, "Opportunity details")],
+    ["Poster / organization type", jobPosterTypeLabel(jobPost?.poster_type)],
+    ["Organization website", value(jobPost?.organization_website, "Organization website")],
+    ["Compensation", jobPost ? formatJobCompensation(jobPost) : ""],
+    ["Benefits / additional support", value(jobPost?.benefits_summary, "Benefits / additional support")],
+    ["Work arrangement", jobWorkArrangementLabel(jobPost?.work_arrangement)],
+    ["Time basis", jobTimeBasisLabel(jobPost?.time_basis)],
+    ["Duration", jobDurationTypeLabel(jobPost?.duration_type)],
+    ["Experience / eligibility", jobPost?.experience_level ? jobExperienceLevelLabel(jobPost.experience_level) : ""],
+    ["Location details", value(jobPost?.location_text, "Location details")],
+    ["Time commitment", value(jobPost?.time_commitment, "Time commitment")],
+    ["Deadline", value(jobPost?.deadline, "Deadline")],
+    ["Application route", jobApplicationRouteLabel(jobPost?.application_route_type)],
+    ["Application instructions", value(jobPost?.application_instructions, "Application instructions")],
+    ["Testing / feedback privacy", value(jobPost?.testing_privacy_note, "Testing / feedback privacy")],
+    ["Requirements / skills", value(jobPost?.requirements_skills, "Requirements / skills")],
+    ["Safety notes", value(jobPost?.safety_notes, "Job safety notes")],
+    ["Public correction / clarification", value(jobPost?.public_correction_note, "Public correction note")]
+  ].map(([heading, body]) => ({ heading, body })).filter((field) => field.body && !/^(Not specified|Legacy opportunity|Arrangement needs clarification)$/.test(field.body));
   return <div className="commune-job-detail">
-    <p className="eyebrow">Job Post detail</p>
+    <p className="eyebrow">Opportunity Commons detail</p>
     <div className="commune-info-grid">
       <article className="commune-repo-identity-card">
         <h3>{value(jobPost?.role_title, "Role title") || post.title}</h3>
         <dl className="mini-facts">
           <div><dt>Organization / project</dt><dd>{value(jobPost?.organization_project, "Organization / project") || "Not supplied"}</dd></div>
-          <div><dt>Role type</dt><dd>{jobRoleLabel(jobPost?.role_type || section("Role type"))}</dd></div>
-          <div><dt>Pay / volunteer</dt><dd>{jobPaidStatusLabel(jobPost?.paid_volunteer_status || section("Paid / volunteer status"))}</dd></div>
-          <div><dt>Location</dt><dd>{jobLocationModeLabel(jobPost?.location_mode || section("Location / remote / hybrid"))}</dd></div>
+          <div><dt>Opportunity</dt><dd>{v2 ? jobOpportunityTypeLabel(jobPost?.opportunity_type) : legacy.opportunity_type ? jobOpportunityTypeLabel(legacy.opportunity_type) : jobRoleLabel(jobPost?.role_type || section("Role type"))}</dd></div>
+          <div><dt>Compensation</dt><dd>{v2 ? jobCompensationStatusLabel(jobPost?.compensation_status) : legacy.compensation_status ? jobCompensationStatusLabel(legacy.compensation_status) : jobPaidStatusLabel(jobPost?.paid_volunteer_status || section("Paid / volunteer status"))}</dd></div>
+          <div><dt>Arrangement</dt><dd>{v2 ? jobWorkArrangementLabel(jobPost?.work_arrangement) : legacy.work_arrangement ? jobWorkArrangementLabel(legacy.work_arrangement) : jobLocationModeLabel(jobPost?.location_mode || section("Location / remote / hybrid"))}</dd></div>
           <div><dt>Status</dt><dd>{jobApplicationStatusLabel(jobPost?.application_status || section("Application status"))}</dd></div>
-          <div><dt>Anti-scam review</dt><dd>{jobAntiScamStatusLabel(jobPost?.anti_scam_review_status || section("Anti-scam review"))}</dd></div>
         </dl>
       </article>
-      <WarningCallout title="Public opportunity boundary"><p>Job Posts are public, admin-approved opportunity listings and public questions. They are not private applications, resume/CV intake, payroll, contracts, identity verification, or Work With private request storage.</p></WarningCallout>
+      <WarningCallout title="Publication is not verification"><p>Publication is not endorsement or verification. Elysia Ecobotics does not guarantee the identity, legitimacy, compensation, safety, or accuracy of an employer, poster, or opportunity. Verify the organization and application route independently before sharing information or accepting work.</p></WarningCallout>
     </div>
-    <RoomNativeDetails label="Structured job listing" fields={fields} className="commune-job-native-details" />
-    <WarningCallout title="Anti-scam and privacy safety"><p>Do not share SSNs, bank details, identity documents, resumes/CVs, private addresses, private phone numbers, tax forms, contracts, private application packets, Work With uploads, or sensitive personal data in public Job Post comments. Use a safe public contact path or the private Work With intake when appropriate.</p></WarningCallout>
+    {!v2 && <p className="boundary-note">Legacy listing: this opportunity predates the v2 structure. Deterministic labels are shown where possible; compensation or relationship details may still need clarification.</p>}
+    <RoomNativeDetails label={v2 ? "Structured opportunity" : "Legacy Job Post details"} fields={v2 ? v2Fields : legacyFields} className="commune-job-native-details" />
+    {applicationDestination && <section className="commune-room-native-field commune-job-application-route"><h3>Application route</h3><p>{jobApplicationRouteLabel(jobPost?.application_route_type) || "Legacy contact path"}</p>{applicationHref ? <a className="button-link" href={applicationHref} target={applicationHref.startsWith("http") ? "_blank" : undefined} rel={applicationHref.startsWith("http") ? "noreferrer" : undefined}>{applicationDestination}</a> : <p>{applicationDestination}</p>}<p className="boundary-note">Verify this destination independently. Never pay to apply or send sensitive identity, banking, tax, or account credentials through an unverified route.</p></section>}
+    <WarningCallout title="Public application privacy"><p>Do not share SSNs, bank details, identity documents, resumes/CVs, private addresses, private phone numbers, tax forms, contracts, private application packets, Work With uploads, or sensitive personal data in public Job Post comments. Serious applications belong at the stated legitimate route, not in the public thread.</p></WarningCallout>
     {jobPost && accessToken && userId && post.viewer_is_owner && <JobPostEconomicOwnerPanel jobPostId={jobPost.id} accessToken={accessToken} />}
-    <section className="commune-room-native-field commune-job-work-with"><h3>Private application path</h3><p>{jobPrivateApplicationSystemNotice}</p>{adminApplicationClarification && <p className="boundary-note">Admin clarification: {adminApplicationClarification}</p>}<div className="button-row"><Link className="button-link" to="/work-with-elysia-ecobotics">Open Work With Elysia Ecobotics</Link></div></section>
+    {jobPost?.application_route_type === "private_work_with" && <section className="commune-room-native-field commune-job-work-with"><h3>First-party private application path</h3><p>{jobPrivateApplicationSystemNotice}</p><div className="button-row"><Link className="button-link" to="/work-with-elysia-ecobotics">Open Work With Elysia Ecobotics</Link></div></section>}
     <JobPostReviewControls jobPost={jobPost} postId={post.id} isModerator={isModerator} onMessage={onMessage} onChanged={onChanged} />
   </div>;
 }

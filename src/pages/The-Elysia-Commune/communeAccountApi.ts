@@ -5,6 +5,17 @@ import { attributionMap, loadPublicCommuneAttributions } from "./communeAttribut
 import { communeFallbackCategories, communeReportReasons, parseCommuneTags, scanCommuneTextForSecrets, validateCommuneMediaFile } from "./communeSafety";
 import type { ParentPublicationState } from "./codeRevisionDraftState";
 import { parseCommuneLinksInput } from "../../shared/communeLinks";
+import {
+  jobOpportunityPayload,
+  legacyFieldsForOpportunity,
+  normalizeJobOpportunityDraft,
+  validateJobOpportunity,
+  type JobLegacyLocationMode,
+  type JobLegacyPaidStatus,
+  type JobLegacyRoleType,
+  type JobOpportunityDraft,
+  type JobOpportunityMetadataFields
+} from "./jobOpportunityModel";
 
 export type CommunePostType = "media_garden" | "troubleshooting" | "code_sharing" | "repository_showcase" | "community_network" | "job_post" | "research_note" | "elysia_iteration_showcase" | "community_vote" | "official_update";
 export type CommunePostStatus = "draft" | "pending_review" | "in_review" | "needs_information" | "approved" | "published" | "rejected" | "hidden" | "archived" | "deleted_by_user" | "removed_by_moderator";
@@ -23,9 +34,9 @@ export type TroubleshootingResolutionKind = "comment" | "proposal" | "workaround
 export type ResearchEvidenceStrength = "preliminary" | "anecdotal" | "moderate" | "strong" | "mixed" | "needs_verification" | "unknown";
 export type ResearchReviewStatus = "submitted" | "published" | "needs_citation" | "needs_clarification" | "source_issue" | "overclaiming_evidence" | "corrected" | "archived";
 export type ResearchEcologicalSubsystem = "verdante" | "sylphora" | "ecotiva" | "aurania" | "terraflux" | "aquaria" | "aetheria" | "general" | "not_applicable";
-export type JobPostRoleType = "paid_role" | "volunteer_call" | "stipend_role" | "contract" | "internship" | "research_role" | "collaboration_role" | "contributor_call" | "reviewer_moderator_need" | "other";
-export type JobPostPaidVolunteerStatus = "paid" | "volunteer" | "stipend" | "unpaid" | "mixed" | "must_clarify";
-export type JobPostLocationMode = "remote" | "hybrid" | "local" | "field_based" | "unspecified";
+export type JobPostRoleType = JobLegacyRoleType;
+export type JobPostPaidVolunteerStatus = JobLegacyPaidStatus;
+export type JobPostLocationMode = JobLegacyLocationMode;
 export type JobPostApplicationStatus = "open" | "reviewing" | "filled" | "closed" | "archived" | "needs_clarification";
 export type JobPostAntiScamReviewStatus = "not_reviewed" | "reviewed_clear" | "needs_pay_clarification" | "needs_contact_clarification" | "needs_location_clarification" | "suspicious" | "removed";
 export type TroubleshootingMetadata = {
@@ -58,7 +69,7 @@ export type TroubleshootingMetadata = {
   created_at?: string | null;
   updated_at?: string | null;
 };
-export type JobPostMetadata = {
+export type JobPostMetadata = JobOpportunityMetadataFields & {
   id: string;
   post_id: string;
   thread_id?: string | null;
@@ -79,7 +90,6 @@ export type JobPostMetadata = {
   application_status: JobPostApplicationStatus;
   anti_scam_review_status: JobPostAntiScamReviewStatus;
   work_with_link_enabled?: boolean | null;
-  private_application_note?: string | null;
   public_correction_note?: string | null;
   reviewed_by?: string | null;
   reviewed_at?: string | null;
@@ -559,7 +569,8 @@ async function finalizeGovernedJobPostPublication(result: JobPostReviewResult, t
 const repositoryShowcaseSelect = "id,post_id,repository_url,repository_host,project_name,project_summary,provider,default_branch,commit_sha,license,manifest_status,elysia_compatibility,short_description,readme_preview,file_tree_preview,screenshot_notes_or_urls,risk_flags,sandbox_review_requested,sandbox_review_status,sandbox_review_request_id,status,import_source,imported_metadata,imported_at,redaction_notes,created_at,updated_at";
 const repositoryShowcaseFallbackSelect = "id,post_id,repository_url,repository_host,project_name,project_summary,license,sandbox_review_requested,status,created_at,updated_at";
 const troubleshootingSelect = "id,post_id,thread_id,issue_type,affected_area,environment_os,environment_browser,app_version,environment_notes,steps_to_reproduce,expected_result,actual_result,error_message,redacted_logs,workaround,troubleshooting_status,accepted_comment_id,accepted_proposal_id,accepted_resolution_kind,accepted_summary,accepted_at,resolved_at,closed_at,archived_at,created_at,updated_at";
-const jobPostSelect = "id,post_id,thread_id,role_title,organization_project,role_type,paid_volunteer_status,location_mode,location_text,time_commitment,deadline,compensation_clarity,contact_path,requirements_skills,safety_notes,role_summary,application_status,anti_scam_review_status,work_with_link_enabled,public_correction_note,reviewed_at,filled_at,closed_at,archived_at,created_at,updated_at";
+const legacyJobPostSelect = "id,post_id,thread_id,role_title,organization_project,role_type,paid_volunteer_status,location_mode,location_text,time_commitment,deadline,compensation_clarity,contact_path,requirements_skills,safety_notes,role_summary,application_status,anti_scam_review_status,work_with_link_enabled,public_correction_note,reviewed_at,filled_at,closed_at,archived_at,created_at,updated_at";
+const jobPostSelect = `${legacyJobPostSelect},model_version,opportunity_type,opportunity_details,compensation_status,compensation_models,compensation_currency,compensation_min_amount,compensation_max_amount,compensation_period,compensation_details,benefits_summary,work_arrangement,time_basis,duration_type,poster_type,organization_website,experience_level,application_route_type,application_destination,application_instructions,testing_privacy_note,future_interest_acknowledged`;
 const researchNotesSelect = "id,post_id,thread_id,research_question,domain,evidence_strength,living_library_source_link,related_living_library_source_id,citation_notes,evidence_summary,observation,interpretation,uncertainty,context_discussion,source_links,geographic_scope,ecological_subsystem,method_type,data_type,ethics_note,review_status,correction_note,reviewed_at,corrected_at,archived_at,created_at,updated_at";
 const iterationShowcaseSelect = "id,post_id,iteration_type,version_build_label,what_changed,why_it_matters,known_limitations,next_step,related_repo_url,provider,branch,commit_sha,release_tag,pull_request_url,developer_forge_link,marketplace_link,testing_status,compatibility_note,sandbox_review_requested,sandbox_review_status,sandbox_review_request_id,risk_flags,import_source,imported_metadata,imported_at,redaction_notes,status,created_at,updated_at";
 const iterationShowcaseFallbackSelect = "id,post_id,iteration_type,version_build_label,what_changed,why_it_matters,known_limitations,next_step,sandbox_review_requested,status,created_at,updated_at";
@@ -623,6 +634,7 @@ function normalizeJobPaidStatus(value?: string | null): JobPostPaidVolunteerStat
 
 function normalizeJobPost(row: Partial<JobPostMetadata>): JobPostMetadata {
   return {
+    ...row,
     id: String(row.id ?? ""),
     post_id: String(row.post_id ?? ""),
     thread_id: row.thread_id ?? null,
@@ -643,7 +655,6 @@ function normalizeJobPost(row: Partial<JobPostMetadata>): JobPostMetadata {
     application_status: normalizeEnumValue(row.application_status, jobPostApplicationStatuses, "open"),
     anti_scam_review_status: normalizeEnumValue(row.anti_scam_review_status, jobPostAntiScamStatuses, "not_reviewed"),
     work_with_link_enabled: row.work_with_link_enabled !== false,
-    private_application_note: row.private_application_note ?? null,
     public_correction_note: row.public_correction_note ?? null,
     reviewed_by: row.reviewed_by ?? null,
     reviewed_at: row.reviewed_at ?? null,
@@ -657,7 +668,14 @@ function normalizeJobPost(row: Partial<JobPostMetadata>): JobPostMetadata {
 
 async function loadJobPostsForPosts(postIds: string[]): Promise<JobPostMetadata[]> {
   if (!supabase || !postIds.length) return [];
-  const { data, error } = await supabase.from(canonicalCommuneTables.jobPosts).select(jobPostSelect).in("post_id", postIds);
+  const primaryResult = await supabase.from(canonicalCommuneTables.jobPosts).select(jobPostSelect).in("post_id", postIds);
+  let data = primaryResult.data as Partial<JobPostMetadata>[] | null;
+  let error = primaryResult.error;
+  if (error && /column .* does not exist|42703|PGRST204/i.test(`${error.code ?? ""} ${error.message}`)) {
+    const fallbackResult = await supabase.from(canonicalCommuneTables.jobPosts).select(legacyJobPostSelect).in("post_id", postIds);
+    data = fallbackResult.data as Partial<JobPostMetadata>[] | null;
+    error = fallbackResult.error;
+  }
   if (error) {
     if (import.meta.env.DEV) console.warn("[Job Post structured load]", error.message);
     return [];
@@ -1916,35 +1934,28 @@ export async function submitJobPost(input: {
   roomId?: string;
   upload?: File | null;
   acknowledgement: boolean;
+  opportunity: JobOpportunityDraft;
   roleTitle?: string;
   organizationProject?: string;
-  roleType?: string;
-  paidVolunteerStatus?: string;
-  locationMode?: string;
   locationText?: string;
   timeCommitment?: string;
   deadline?: string;
-  compensationClarity?: string;
-  contactPath?: string;
   requirementsSkills?: string;
   safetyNotes?: string;
   roleSummary?: string;
   applicationStatus?: string;
-  antiScamReviewStatus?: string;
-  workWithLinkEnabled?: boolean;
-  privateApplicationNote?: string;
   publicCorrectionNote?: string;
 }): Promise<{ ok: boolean; message: string; id?: string; postId?: string }> {
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
   if (!account.userId) return { ok: false, message: "Sign in to submit a Job Post." };
   if (!input.acknowledgement) return { ok: false, message: "Confirm the Job Post safety acknowledgements before submitting." };
+  const opportunityDraft = normalizeJobOpportunityDraft(input.opportunity);
+  const opportunityValidation = validateJobOpportunity(opportunityDraft, { isAdmin: account.isAdmin, organizationProject: input.organizationProject });
+  if (!opportunityValidation.ok) return { ok: false, message: `Complete the opportunity details before submitting: ${opportunityValidation.errors.join(" ")}` };
   const required = [
     ["role title", input.roleTitle],
     ["organization / project", input.organizationProject],
-    ["paid / volunteer status", input.paidVolunteerStatus],
-    ["location / remote / hybrid", input.locationMode],
-    ["contact/application path", input.contactPath],
     ["role summary", input.roleSummary || input.body]
   ].filter(([, value]) => !String(value ?? "").trim()).map(([label]) => label);
   if (required.length) return { ok: false, message: "Job Posts need public clarity before submission: add " + required.join(", ") + "." };
@@ -1960,18 +1971,13 @@ export async function submitJobPost(input: {
     input.links,
     input.roleTitle ?? "",
     input.organizationProject ?? "",
-    input.roleType ?? "",
-    input.paidVolunteerStatus ?? "",
-    input.locationMode ?? "",
     input.locationText ?? "",
     input.timeCommitment ?? "",
     input.deadline ?? "",
-    input.compensationClarity ?? "",
-    input.contactPath ?? "",
     input.requirementsSkills ?? "",
     input.safetyNotes ?? "",
     input.roleSummary ?? "",
-    input.privateApplicationNote ?? "",
+    JSON.stringify(opportunityDraft),
     input.publicCorrectionNote ?? ""
   ].join("\n"));
   if (secretScan.blocked) return { ok: false, message: "Job Post blocked because it appears to contain private or secret material: " + secretScan.warnings.join(", ") + ". Remove it before submitting." };
@@ -2009,28 +2015,30 @@ export async function submitJobPost(input: {
     status: "open"
   }).select("id").single();
   const threadId = (thread as { id?: string } | null)?.id ?? null;
+  const opportunityPayload = jobOpportunityPayload(opportunityDraft);
+  const legacyPayload = legacyFieldsForOpportunity(opportunityPayload);
   const structuredPayload = {
     post_id: postId,
     thread_id: threadId,
     author_user_id: account.userId,
     role_title: input.roleTitle || null,
     organization_project: input.organizationProject || null,
-    role_type: normalizeJobPostRoleType(input.roleType),
-    paid_volunteer_status: normalizeJobPaidStatus(input.paidVolunteerStatus),
-    location_mode: normalizeEnumValue(input.locationMode, jobPostLocationModes, "unspecified"),
+    role_type: legacyPayload.role_type,
+    paid_volunteer_status: legacyPayload.paid_volunteer_status,
+    location_mode: legacyPayload.location_mode,
     location_text: input.locationText || null,
     time_commitment: input.timeCommitment || null,
     deadline: input.deadline || null,
-    compensation_clarity: input.compensationClarity || null,
-    contact_path: input.contactPath || null,
+    compensation_clarity: legacyPayload.compensation_clarity,
+    contact_path: legacyPayload.contact_path,
     requirements_skills: input.requirementsSkills || null,
     safety_notes: input.safetyNotes || null,
     role_summary: input.roleSummary || input.summary || null,
     application_status: normalizeEnumValue(input.applicationStatus, jobPostApplicationStatuses, "open"),
     anti_scam_review_status: "not_reviewed",
-    work_with_link_enabled: true,
-    private_application_note: account.isModerator ? input.privateApplicationNote || null : null,
+    work_with_link_enabled: opportunityPayload.application_route_type === "private_work_with",
     public_correction_note: input.publicCorrectionNote || null,
+    ...opportunityPayload,
     reviewed_by: null,
     reviewed_at: null,
     updated_at: now

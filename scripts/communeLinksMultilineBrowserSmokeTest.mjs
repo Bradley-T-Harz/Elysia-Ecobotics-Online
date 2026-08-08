@@ -171,12 +171,29 @@ async function createSignedInContext(browser, { admin, viewport }) {
 }
 
 async function fillSafeRequiredFields(page, slug) {
+  if (slug === "job-post") {
+    await page.getByLabel("Opportunity type *").selectOption("paid_employment");
+    await page.getByLabel("Poster / organization type *").selectOption("business_company");
+    await page.getByLabel("Compensation status *").selectOption("paid");
+    await page.getByLabel("Salary").check();
+    await page.getByLabel("Currency *").fill("USD");
+    await page.getByLabel("Amount / minimum *").fill("100");
+    await page.getByLabel("Amount basis *").selectOption("year");
+    await page.getByLabel("Work arrangement *").selectOption("remote");
+    await page.getByLabel("Time basis *").selectOption("full_time");
+    await page.getByLabel("Duration *").selectOption("ongoing");
+    await page.getByLabel("Application route type *").selectOption("official_application_webpage");
+  }
   const textInputs = page.locator('input:visible:not([type="file"]):not([type="checkbox"]):not([type="date"]):not([type="datetime-local"]):not(#commune-post-links):not(#commune-vote-links)');
   for (let index = 0; index < await textInputs.count(); index += 1) {
     const input = textInputs.nth(index);
     const labelText = (await input.locator("xpath=ancestor::label[1]").innerText().catch(() => "")).toLowerCase();
     if (labelText.includes("official update post id")) continue;
-    const value = /url|link|contact|application path/.test(labelText)
+    if ((await input.inputValue()).trim()) continue;
+    const inputType = await input.getAttribute("type");
+    const value = inputType === "number"
+      ? "100"
+      : /website|url|link|contact|application (?:path|destination)/.test(labelText)
       ? `https://example.com/${slug}/reference`
       : labelText.includes("filename")
         ? "fixture.txt"
@@ -192,8 +209,15 @@ async function fillSafeRequiredFields(page, slug) {
     const value = /url|link/.test(labelText) ? `https://example.com/${slug}/related` : `Fixture public content for ${slug}.`;
     await textarea.fill(value);
   }
-  const acknowledgement = page.locator('.commune-checklist input[type="checkbox"]:visible').first();
-  if (await acknowledgement.count()) await acknowledgement.check();
+  const composerAcknowledgements = page.locator('#commune-post-composer > .commune-checklist input[type="checkbox"]:visible');
+  const acknowledgements = await composerAcknowledgements.count()
+    ? composerAcknowledgements
+    : page.locator('.commune-checklist input[type="checkbox"]:visible').first();
+  for (let index = 0; index < await acknowledgements.count(); index += 1) {
+    const checkbox = acknowledgements.nth(index);
+    const text = await checkbox.locator("xpath=ancestor::label[1]").innerText().catch(() => "");
+    if (!/request sandbox review/i.test(text)) await checkbox.check();
+  }
 }
 
 const roomCases = [

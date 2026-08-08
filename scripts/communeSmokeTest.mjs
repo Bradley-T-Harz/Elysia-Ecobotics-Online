@@ -13,6 +13,8 @@ function assert(condition, message) {
 
 const app = await read("src/App.tsx");
 const page = await read("src/pages/The-Elysia-Commune/index.tsx");
+const jobOpportunityFields = await read("src/pages/The-Elysia-Commune/JobOpportunityFields.tsx");
+const jobOpportunityModel = await read("src/pages/The-Elysia-Commune/jobOpportunityModel.ts");
 const safety = await read("src/pages/The-Elysia-Commune/communeSafety.ts");
 const accountApi = await read("src/pages/The-Elysia-Commune/communeAccountApi.ts");
 const attributionApi = await read("src/pages/The-Elysia-Commune/communeAttribution.ts");
@@ -78,6 +80,7 @@ const researchNotesBoundaryDoc = await read("docs/security/research-notes-bounda
 const researchNotesContractDoc = await read("docs/api/research-notes-contract.md");
 const jobPostWorkflowMigration = await read("supabase/legacy-migrations/2026_06_26_job_post_structured_workflow.sql");
 const jobPostEconomicMigration = await read("supabase/migrations/20260716040000_job_post_economic_sidecar_and_publication_gate.sql");
+const jobOpportunityV2Migration = await read("supabase/migrations/20260808010000_job_post_opportunity_model_v2.sql");
 const jobPostPolicyDoc = await read("docs/commune/job-post-policy.md");
 const jobPostBoundaryDoc = await read("docs/security/job-post-boundary.md");
 const jobPostContractDoc = await read("docs/api/job-post-contract.md");
@@ -219,26 +222,28 @@ assert(page.includes("Video uploads are not enabled for this room yet."), "Room 
 for (const roomNativeField of ["Issue type", "Affected area", "Expected behavior", "Actual behavior", "Known workaround", "Introduction type", "Collaboration interest", "Role interest", "Project circle/topic", "Paid / volunteer status", "Compensation clarity", "Location / remote / hybrid", "Contact path", "Research question / topic", "Evidence strength / confidence", "Living Library source link", "Citation notes", "Evidence summary", "Observation", "Interpretation", "Uncertainty", "Geographic scope", "Ecological subsystem", "Ethics / sensitivity note", "Iteration type", "Version / build label", "What changed", "Why it matters", "Known limitations", "Next step", "Official notice type", "Audit-safe note"]) {
   assert(page.includes(roomNativeField), `Missing room-native composer field/copy: ${roomNativeField}`);
 }
-for (const jobPostField of ["Role title", "Organization / project", "Role type", "Paid / volunteer status", "Location details", "Time commitment", "Deadline", "Role summary", "Requirements / skills", "Safety notes", "Application status", "Anti-scam review", "Admin public-safe application clarification optional"]) {
-  assert(page.includes(jobPostField), `Missing Job Post structured field/copy: ${jobPostField}`);
+const jobComposerSource = `${page}\n${jobOpportunityFields}`;
+for (const jobPostField of ["Role title", "Organization / project", "Opportunity type", "Poster / organization type", "Compensation status", "Compensation model", "Work arrangement", "Time basis", "Duration", "Application route type", "Location details", "Time commitment", "Deadline", "Role summary", "Requirements / skills", "Safety notes", "Application status", "Public correction / clarification note"]) {
+  assert(jobComposerSource.includes(jobPostField), `Missing Opportunity Commons structured field/copy: ${jobPostField}`);
 }
 const permanentJobPrivateApplicationNotice = "Use Work With Elysia Ecobotics for private application materials such as resumes/CVs. Do not post resumes, CVs, identity documents, private contact details, SSNs, bank details, or private application materials in public comments.";
 assert(page.includes(permanentJobPrivateApplicationNotice), "Job Post composer/detail should include the permanent system-owned Work With/private application notice.");
 assert(!page.includes("<span>Private application note</span>"), "Normal Job Post authors should not see an editable Private application note field.");
-assert(!page.includes("checked={form.jobWorkWithLinkEnabled}") && page.includes("Admin public-safe application clarification optional"), "Work With bridge should be always-on, and only the optional public-safe clarification should be admin-only.");
-assert(accountApi.includes("work_with_link_enabled: true") && accountApi.includes("private_application_note: account.isModerator ? input.privateApplicationNote || null : null"), "Job Post API should prevent normal users from disabling or overriding the permanent Work With/private application warning.");
+assert(!page.includes("checked={form.jobWorkWithLinkEnabled}") && !accountApi.includes("private_application_note"), "Creator controls and API projections must not treat a public-row legacy field as a private application or reviewer-note channel.");
+assert(accountApi.includes('work_with_link_enabled: opportunityPayload.application_route_type === "private_work_with"') && jobOpportunityModel.includes('value: "private_work_with"'), "Work With must be an explicit first-party application route rather than a misleading creator-side anti-scam control.");
 assert(page.includes("Create Job Post") && !page.includes("Create Job Post Post"), "Job Post room action should avoid duplicate Post wording.");
-assert(page.includes("Normal users submit for mandatory admin approval before publication"), "Job Post composer should explain mandatory admin approval.");
-assert(page.includes("Job Posts are public listings; Work With is the private intake path"), "Job Post room should link public listings to private Work With intake.");
+assert(page.includes("Ordinary-user submissions require governed review before publication"), "Opportunity Commons should explain mandatory governed review.");
+assert(page.includes("Open first-party Work With private intake"), "Opportunity Commons should preserve the explicit first-party private Work With route.");
 assert(workWithPage.includes("Job Posts are the public board; Work With is the private intake path") && workWithPage.includes("/commune/rooms/job-post/posts") && workWithPage.includes("/commune/rooms/job-post/new"), "Work With page should link back to public Job Posts without merging private intake.");
 assert(accountApi.includes("export async function submitJobPost") && accountApi.includes("commune_job_posts") && accountApi.includes('post_type: "job_post"'), "Job Post API should create normal Commune posts plus structured sidecar metadata.");
-assert(accountApi.includes('status: adminDirectPublish ? "published" : "pending_review"') && accountApi.includes("mandatory admin approval"), "Job Post API should keep normal-user submissions pending until admin approval.");
+assert(accountApi.includes('status: "pending_review"') && accountApi.includes("mandatory admin approval") && accountApi.includes('reviewCommuneJobPost(jobPostId, "approve"'), "Job Post API should keep every new subject non-public until the governed review boundary resolves publication.");
 assert(accountApi.includes("updateJobPostApplicationStatus") && accountApi.includes("updateJobPostReviewStatus"), "Job Post API should support listing status and anti-scam review updates.");
 assert(accountApi.includes("update_own_commune_job_post_application_status") && jobPostWorkflowMigration.includes("update_own_commune_job_post_application_status"), "Job Post author listing status updates should use a narrow RPC instead of direct anti-scam table writes.");
 assert(accountApi.includes("job_public_board") && accountApi.includes("work_with_private_path_separate") && accountApi.includes("no_private_applicant_data"), "Job Post safety acknowledgements should preserve public board/private intake boundaries.");
-assert(page.includes("JobPostDetail") && page.includes("Structured job listing") && page.includes("Anti-scam and privacy safety"), "Job Post public detail should render structured fields and anti-scam safety copy.");
-assert(page.includes("JobPostReviewControls") && page.includes("Save anti-scam review") && page.includes("Hidden reviewer notes belong in Admin Review history"), "Job Post detail should expose reviewer-controlled anti-scam states without public hidden notes.");
+assert(page.includes("JobPostDetail") && page.includes("Structured opportunity") && page.includes("Public application privacy"), "Opportunity Commons public detail should render v2 structured fields and application-privacy safety copy.");
+assert(page.includes("JobPostReviewControls") && page.includes("Save anti-scam review") && page.includes("Protected reviewer notes belong in the RLS-governed Admin Review history"), "Job Post detail should expose reviewer-controlled status without public hidden notes.");
 assert(page.includes("jobSearchValues") && page.includes("jobByPostId") && page.includes("anti_scam_review_status"), "Job Post feed/search should include structured metadata values.");
+assert(jobOpportunityV2Migration.includes("add column model_version") && jobOpportunityV2Migration.includes("model_version in (1, 2)") && jobOpportunityV2Migration.includes("commune_job_posts_v2_complete_check") && jobOpportunityV2Migration.includes("commune_job_posts_v2_conditional_truth_check"), "Opportunity Commons v2 migration must be additive, versioned, and fail closed on truthful structured data.");
 assert(jobPostWorkflowMigration.includes("commune_job_posts") && jobPostWorkflowMigration.includes("paid_volunteer_status") && jobPostWorkflowMigration.includes("anti_scam_review_status"), "Job Post structured workflow migration missing sidecar table or anti-scam fields.");
 assert(jobPostWorkflowMigration.includes("public reads published job post metadata") && jobPostWorkflowMigration.includes("signed users create own job post metadata") && jobPostWorkflowMigration.includes("reviewers manage job post metadata"), "Job Post migration should enforce public/author/reviewer RLS boundaries.");
 assert(!jobPostWorkflowMigration.includes("authors maintain own non-trust job post status"), "Job Post authors should not have a broad direct update policy on the public sidecar table.");
@@ -264,10 +269,10 @@ assert(jobPostEconomicMigration.includes("v_economic_satisfied := not v_fee_enab
 assert(jobPostEconomicMigration.includes("condition_status in ('not_required', 'satisfied', 'waived', 'subsidized')") && jobPostEconomicMigration.includes("Payment may satisfy a Job Post economic condition"), "Fee-on Job Post publication must require an independent satisfied/waived/subsidized condition without making payment content approval.");
 assert(jobPostEconomicMigration.includes("create trigger enforce_job_post_economic_publication_gate\nbefore update of status on public.commune_posts"), "Job Post publication gating must fail closed on status updates when fee enforcement is enabled.");
 assert(jobPostEconomicMigration.includes("create trigger enforce_job_post_economic_publication_gate_on_insert\nbefore insert on public.commune_posts"), "Job Post publication gating must also fail closed on direct published inserts when fee enforcement is enabled.");
-assert(jobPostPolicyDoc.includes("Normal community users may submit Job Posts") && jobPostPolicyDoc.includes("Every normal-user Job Post requires admin approval"), "Job Post policy doc missing public submission/admin approval doctrine.");
-assert(jobPostPolicyDoc.includes("Work With Elysia Ecobotics is the private application/intake path") && jobPostPolicyDoc.includes("not Work With Elysia Ecobotics"), "Job Post policy doc missing public board/private Work With separation.");
-assert(jobPostBoundaryDoc.includes("must not store or expose") && jobPostBoundaryDoc.includes("resumes/CVs") && jobPostBoundaryDoc.includes("SSNs") && jobPostBoundaryDoc.includes("Work With private uploads"), "Job Post security boundary doc missing private applicant data prohibitions.");
-assert(jobPostContractDoc.includes("submitJobPost") && jobPostContractDoc.includes("commune_job_posts") && jobPostContractDoc.includes("Signal Console") && jobPostContractDoc.includes("Work With Bridge"), "Job Post API contract doc missing helper/table/signal/Work With contract.");
+assert(jobPostPolicyDoc.includes("Ordinary-user submissions require governed review before publication") && jobPostPolicyDoc.includes("Administrator submissions still pass through the governed Job Post review RPC"), "Opportunity Commons policy doc missing governed public submission doctrine.");
+assert(jobPostPolicyDoc.includes("The Work With route is not generic") && jobPostPolicyDoc.includes("authorized administrator posting for Elysia Ecobotics or EcoSyneva"), "Opportunity Commons policy doc missing the restrictive first-party Work With boundary.");
+assert(jobPostBoundaryDoc.includes("Public data prohibited") && jobPostBoundaryDoc.includes("Resumes/CVs") && jobPostBoundaryDoc.includes("SSNs") && jobPostBoundaryDoc.includes("Work With uploads"), "Opportunity Commons security boundary doc missing private applicant data prohibitions.");
+assert(jobPostContractDoc.includes("submitJobPost") && jobPostContractDoc.includes("commune_job_posts") && jobPostContractDoc.includes("model_version = 2") && jobPostContractDoc.includes("private_work_with"), "Opportunity Commons API contract doc missing helper/table/version/Work With contract.");
 for (const officialField of ["Official status", "Severity", "Audience", "Effective date", "Affected systems", "Related room", "Related public repository/reference URL", "Related migration", "User action required", "Pin this notice", "Comments enabled", "Official read-only code", "Official code filename", "Official code context"]) {
   assert(page.includes(officialField), `Missing Official Update structured field/copy: ${officialField}`);
 }
@@ -717,7 +722,6 @@ for (const selectName of [
   "repositoryShowcaseSelect",
   "repositoryShowcaseFallbackSelect",
   "troubleshootingSelect",
-  "jobPostSelect",
   "researchNotesSelect",
   "iterationShowcaseSelect",
   "iterationShowcaseFallbackSelect",
@@ -741,6 +745,12 @@ for (const selectName of [
   ]) {
     assert(!publicSelect.split(",").includes(forbiddenField), `${selectName} exposes private attribution field ${forbiddenField}.`);
   }
+}
+const legacyJobPublicSelect = accountApi.match(/const legacyJobPostSelect = "([^"]+)"/)?.[1] ?? "";
+const v2JobPublicSelect = accountApi.match(/const jobPostSelect = `\$\{legacyJobPostSelect\},([^`]+)`/)?.[1] ?? "";
+assert(legacyJobPublicSelect && v2JobPublicSelect, "Missing dual-read public Opportunity Commons projections.");
+for (const forbiddenField of ["user_id", "author_user_id", "reviewed_by", "private_application_note"]) {
+  assert(!`${legacyJobPublicSelect},${v2JobPublicSelect}`.split(",").includes(forbiddenField), `Opportunity Commons public projections expose private attribution field ${forbiddenField}.`);
 }
 assert(accountApi.includes('.select("id,post_id,language,file_name,code_text,secret_scan_status,sandbox_warning_acknowledged,accepted_revision_id,accepted_version_number,accepted_revision_summary,accepted_at,created_at,updated_at")'), "Public code snippets must use an explicit projection without author/proposer account UUIDs.");
 assert(realtimeApi.includes("loadPublicCommuneAttributions") && realtimeApi.includes('.select("id,room_id,room_slug,body,body_plain,visibility_state,report_count,created_at,edited_at,flagged_at,hidden_at,removed_at")'), "Realtime public history must hydrate current canonical attribution without selecting account UUID or snapshot handle.");

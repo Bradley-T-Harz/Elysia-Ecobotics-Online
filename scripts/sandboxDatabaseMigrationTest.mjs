@@ -76,6 +76,10 @@ const accountCommunicationPaths = [
   "supabase/migrations/20260804010000_account_messaging_functional_launch.sql",
 ];
 
+const opportunityPaths = [
+  "supabase/migrations/20260808010000_job_post_opportunity_model_v2.sql",
+];
+
 const activePaths = [
   ...baselinePaths,
   ...economicPaths,
@@ -83,6 +87,7 @@ const activePaths = [
   ...onlineCompatibilityPaths,
   ...accountLifecyclePaths,
   ...accountCommunicationPaths,
+  ...opportunityPaths,
 ];
 
 const legacyHashes = new Map(Object.entries({
@@ -173,6 +178,10 @@ const accountLifecycleMigrations = await Promise.all(
 const accountCommunicationMigrations = await Promise.all(
   accountCommunicationPaths.map((file) => fs.readFile(file, "utf8"))
 );
+const opportunityMigrations = await Promise.all(
+  opportunityPaths.map((file) => fs.readFile(file, "utf8"))
+);
+const jobOpportunityBehaviorFixture = await fs.readFile("scripts/fixtures/jobOpportunityDatabaseBehavior.sql", "utf8");
 const routeKillSwitchMigration = economicMigrations.at(-1);
 assert(routeKillSwitchMigration, "Economic route kill-switch migration is missing.");
 const economicBehaviorFixture = await fs.readFile("scripts/fixtures/economicDatabaseBehavior.sql", "utf8");
@@ -211,6 +220,30 @@ for (const [index, migration] of accountCommunicationMigrations.entries()) {
   assert(!/postgres(?:ql)?:\/\//i.test(migration), `${accountCommunicationPaths[index]} contains a connection string.`);
   assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${accountCommunicationPaths[index]} contains a token-like value.`);
 }
+for (const [index, migration] of opportunityMigrations.entries()) {
+  assert(migration.startsWith("--"), `${opportunityPaths[index]} needs an explanatory header.`);
+  assert(/^begin;/im.test(migration), `${opportunityPaths[index]} must start a transaction.`);
+  assert(/commit;\s*$/i.test(migration), `${opportunityPaths[index]} must commit atomically.`);
+  assert(!/postgres(?:ql)?:\/\//i.test(migration), `${opportunityPaths[index]} contains a connection string.`);
+  assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${opportunityPaths[index]} contains a token-like value.`);
+}
+const opportunityMigrationSource = opportunityMigrations.join("\n");
+for (const marker of [
+  "model_version smallint not null default 1",
+  "commune_job_posts_v2_complete_check",
+  "commune_job_posts_v2_conditional_truth_check",
+  "v2 private work with insert is first party only",
+  "as restrictive",
+  "review_comments is the protected reviewer-note path",
+]) assert(opportunityMigrationSource.includes(marker), `Opportunity Commons v2 migration omits ${marker}.`);
+assert(!/\bupdate\s+public\.commune_job_posts\b/i.test(opportunityMigrationSource), "Opportunity Commons v2 migration must not rewrite existing Job Post rows.");
+for (const marker of [
+  "additive migration changed or guessed the legacy row",
+  "future-TBD escaped the future-interest restriction",
+  "ordinary user inserted first-party private Work With route",
+  "public read policy no longer exposes both published legacy and v2 rows",
+  "job_opportunity_database_behavior_ok",
+]) assert(jobOpportunityBehaviorFixture.includes(marker), `Opportunity Commons disposable fixture omits ${marker}.`);
 const accountCommunicationSource = accountCommunicationMigrations.join("\n");
 for (const marker of [
   "client_request_id",
@@ -622,6 +655,7 @@ try {
     "scripts/fixtures/accountRequestsReviewsBehavior.sql",
     "scripts/fixtures/accountMessagingBehavior.sql",
     "scripts/fixtures/accountNotificationProducerBehavior.sql",
+    "scripts/fixtures/jobOpportunityDatabaseBehavior.sql",
     "scripts/sql/supabase_read_only_inventory.sql",
   ]) {
     await run(containerRuntime, ["cp", file, `${container}:/tmp/${path.basename(file)}`]);
@@ -752,6 +786,9 @@ try {
     "Account release reconciliation prestate marker missing."
   );
   for (const file of accountCommunicationPaths) {
+    await psql(["-f", `/tmp/${path.basename(file)}`]);
+  }
+  for (const file of opportunityPaths) {
     await psql(["-f", `/tmp/${path.basename(file)}`]);
   }
   const artisanBehavior = await psql(["-f", "/tmp/artisanDatabaseBehavior.sql"]);
@@ -920,6 +957,11 @@ try {
   assert(
     accountNotificationProducerBehavior.stdout.includes("account_notification_producer_behavior_ok"),
     "Account notification producer behavior marker missing."
+  );
+  const jobOpportunityBehavior = await psql(["-f", "/tmp/jobOpportunityDatabaseBehavior.sql"]);
+  assert(
+    jobOpportunityBehavior.stdout.includes("job_opportunity_database_behavior_ok"),
+    "Opportunity Commons v2 database behavior marker missing."
   );
   // Hosted Supabase owns this ledger. The database-only image omits it, so
   // provide the catalog shape required by the read-only inventory rehearsal.
