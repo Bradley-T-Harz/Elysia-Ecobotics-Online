@@ -6,13 +6,15 @@ import { communeLinkPresentation, parseCommuneLinksInput, safeCommuneLinkHref } 
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (relativePath) => fs.readFile(path.join(root, relativePath), "utf8");
-const [page, api, reviewClient, adminPage, styles, schema] = await Promise.all([
+const [page, api, reviewClient, adminPage, styles, schema, redirects, correctionMigration] = await Promise.all([
   read("src/pages/The-Elysia-Commune/index.tsx"),
   read("src/pages/The-Elysia-Commune/communeAccountApi.ts"),
   read("src/shared/review/reviewClient.ts"),
   read("src/pages/Admin/index.tsx"),
   read("src/styles.css"),
   read("supabase/schema.sql"),
+  read("public/_redirects"),
+  read("supabase/migrations/20260809020000_correct_post_a_canonical_links.sql"),
 ]);
 
 const first = "https://example.com/first?keep=One%20Two";
@@ -31,6 +33,8 @@ assert.equal(safeCommuneLinkHref(second), second, "valid HTTP links should rende
 assert.equal(safeCommuneLinkHref("mailto:person@example.com"), null, "non-HTTP stored values must render as text, not unsafe anchors");
 assert.equal(safeCommuneLinkHref("not a url"), null, "legacy arbitrary text must render safely as text");
 assert.deepEqual(communeLinkPresentation("The Elysia Commune | https://elysiaecobotics.com/commune"), { label: "The Elysia Commune", href: "https://elysiaecobotics.com/commune" }, "labeled HTTP(S) links should hide the raw URL while preserving the safe destination");
+assert.deepEqual(communeLinkPresentation("Community Guidelines | https://elysiaecobotics.com/legal/community-guidelines"), { label: "Community Guidelines", href: "https://elysiaecobotics.com/legal/community-guidelines" }, "canonical same-origin labeled links must retain their exact destination");
+assert.deepEqual(communeLinkPresentation("Work With Elysia Ecobotics | https://elysiaecobotics.com/work-with-elysia-ecobotics"), { label: "Work With Elysia Ecobotics", href: "https://elysiaecobotics.com/work-with-elysia-ecobotics" }, "canonical Work With links must retain their exact destination");
 assert.deepEqual(communeLinkPresentation(first), { label: first, href: first }, "unlabeled legacy URLs must remain clickable and unchanged");
 assert.deepEqual(communeLinkPresentation("Unsafe label | javascript:alert(1)"), { label: "Unsafe label | javascript:alert(1)", href: null }, "unsafe labeled destinations must remain inert text");
 assert.deepEqual(communeLinkPresentation("Malformed label | not a url"), { label: "Malformed label | not a url", href: null }, "malformed labeled values must remain visible inert text");
@@ -85,5 +89,14 @@ assert(api.includes("function splitList(value: string) { return parseCommuneLink
 assert(/links\s+text\[\]/i.test(schema), "commune_posts Links storage must remain a text array");
 assert(!api.includes("alter table") && !page.includes("alter table"), "application repair must not perform a schema mutation");
 assert(styles.includes('.commune-form-grid textarea[id$="-links"]') && styles.includes("resize: vertical"), "Links textarea must have responsive, user-resizable styling");
+assert(redirects.indexOf("/community-guidelines /legal/community-guidelines 301") < redirects.indexOf("/* /index.html 200"), "legacy Community Guidelines requests must redirect before the SPA fallback");
+assert(redirects.indexOf("/work-with /work-with-elysia-ecobotics 301") < redirects.indexOf("/* /index.html 200"), "legacy Work With requests must redirect before the SPA fallback");
+assert(correctionMigration.includes("9af957a1-4164-498d-8dc0-6356c71d21a7"), "Post A correction migration must remain scoped to the intended record");
+for (const canonical of [
+  "Community Guidelines | https://elysiaecobotics.com/legal/community-guidelines",
+  "Work With Elysia Ecobotics | https://elysiaecobotics.com/work-with-elysia-ecobotics",
+]) assert(correctionMigration.includes(canonical), `Post A correction migration is missing ${canonical}`);
+assert.match(correctionMigration, /update public\.commune_posts\s+set links =/i, "Post A correction must update only the existing links array");
+assert(!/\b(delete|truncate|drop|alter table)\b/i.test(correctionMigration), "Post A correction must not perform destructive or schema-changing SQL");
 
 console.log("Commune multiline Links contract passed for all creation, payload, review, and rendering paths.");

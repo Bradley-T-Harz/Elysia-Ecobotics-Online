@@ -46,8 +46,8 @@ const ids = {
 const links = ["https://example.org/opportunity", "https://github.com/example/restoration", "https://docs.example.org/team"];
 const labeledLinks = [
   "The Elysia Commune | https://elysiaecobotics.com/commune",
-  "Community Guidelines | https://elysiaecobotics.com/community-guidelines",
-  "Work With Elysia Ecobotics | https://elysiaecobotics.com/work-with",
+  "Community Guidelines | https://elysiaecobotics.com/legal/community-guidelines",
+  "Work With Elysia Ecobotics | https://elysiaecobotics.com/work-with-elysia-ecobotics",
   "Unsafe example | javascript:alert(1)",
 ];
 const tagStressCases = [
@@ -951,6 +951,8 @@ try {
     const linkItems = page.locator('[aria-label="Links"] li');
     assert.deepEqual(await linkItems.allTextContents().then((values) => values.map((value) => value.trim())), ["The Elysia Commune", "Community Guidelines", "Work With Elysia Ecobotics", "Unsafe example | javascript:alert(1)"]);
     assert.equal(await linkItems.nth(0).locator("a").getAttribute("href"), "https://elysiaecobotics.com/commune", "labeled link destination changed");
+    assert.equal(await linkItems.nth(1).locator("a").getAttribute("href"), "https://elysiaecobotics.com/legal/community-guidelines", "Community Guidelines must use its canonical same-origin route");
+    assert.equal(await linkItems.nth(2).locator("a").getAttribute("href"), "https://elysiaecobotics.com/work-with-elysia-ecobotics", "Work With must use its canonical same-origin route");
     assert.equal(await linkItems.nth(3).locator("a").count(), 0, "unsafe labeled link must remain inert text");
     assert.equal(await page.getByRole("link", { name: "https://ecosyneva-commons-llc.pages.dev/" }).getAttribute("href"), "https://ecosyneva-commons-llc.pages.dev/", "current authoritative EcoSyneva website should render as a safe link");
     assert.deepEqual(await page.locator(".commune-post-detail .tag-row span").allTextContents(), futureRolePost.tags.map((tag) => `#${tag}`), "published Job Post tags must remain in the post-detail location");

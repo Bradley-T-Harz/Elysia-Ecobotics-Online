@@ -104,6 +104,16 @@ if (!redirects.includes("/* /index.html 200")) {
   console.error("Missing Cloudflare Pages SPA redirect.");
   process.exit(1);
 }
+for (const [legacy, canonical] of [
+  ["/community-guidelines", "/legal/community-guidelines"],
+  ["/work-with", "/work-with-elysia-ecobotics"],
+]) {
+  const redirect = `${legacy} ${canonical} 301`;
+  if (!redirects.includes(redirect) || redirects.indexOf(redirect) > redirects.indexOf("/* /index.html 200")) {
+    console.error(`Missing canonical redirect before the SPA fallback: ${redirect}`);
+    process.exit(1);
+  }
+}
 if (!app.includes("function LegacyCommunicationAlias") || !app.includes("replace") || !app.includes("search: location.search") || !app.includes("hash: location.hash")) {
   console.error("Legacy communication routes must replace-navigate while preserving query and hash state.");
   process.exit(1);

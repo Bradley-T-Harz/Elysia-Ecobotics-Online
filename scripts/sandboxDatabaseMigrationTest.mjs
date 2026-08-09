@@ -79,6 +79,7 @@ const accountCommunicationPaths = [
 const opportunityPaths = [
   "supabase/migrations/20260808010000_job_post_opportunity_model_v2.sql",
   "supabase/migrations/20260809010000_job_post_private_work_with_admin_authority.sql",
+  "supabase/migrations/20260809020000_correct_post_a_canonical_links.sql",
 ];
 
 const activePaths = [
@@ -229,7 +230,8 @@ for (const [index, migration] of opportunityMigrations.entries()) {
   assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${opportunityPaths[index]} contains a token-like value.`);
 }
 const opportunityMigrationSource = opportunityMigrations.join("\n");
-const privateWorkWithAuthorityMigration = opportunityMigrations.at(-1) ?? "";
+const privateWorkWithAuthorityMigration = opportunityMigrations[1] ?? "";
+const postALinkCorrectionMigration = opportunityMigrations[2] ?? "";
 for (const marker of [
   "model_version smallint not null default 1",
   "commune_job_posts_v2_complete_check",
@@ -241,6 +243,9 @@ for (const marker of [
 assert(!/\bupdate\s+public\.commune_job_posts\b/i.test(opportunityMigrationSource), "Opportunity Commons v2 migration must not rewrite existing Job Post rows.");
 assert(privateWorkWithAuthorityMigration.includes("public.current_user_is_admin()") && privateWorkWithAuthorityMigration.includes("application_destination = '/work-with-elysia-ecobotics'"), "Private Work With policy repair must keep canonical administrator authority and destination.");
 assert(!privateWorkWithAuthorityMigration.includes("organization_project"), "Private Work With policy repair must not use free-text organization display content as authority.");
+assert(postALinkCorrectionMigration.includes("9af957a1-4164-498d-8dc0-6356c71d21a7") && postALinkCorrectionMigration.includes("current_links is distinct from old_links"), "Post A link correction must remain record-scoped and fail closed on unexpected content.");
+assert(postALinkCorrectionMigration.includes("https://elysiaecobotics.com/legal/community-guidelines") && postALinkCorrectionMigration.includes("https://elysiaecobotics.com/work-with-elysia-ecobotics"), "Post A link correction must use both canonical same-origin routes.");
+assert(!/\b(?:delete|truncate|drop|alter table)\b/i.test(postALinkCorrectionMigration), "Post A link correction must not be destructive or schema-changing.");
 for (const marker of [
   "additive migration changed or guessed the legacy row",
   "future-TBD escaped the future-interest restriction",
