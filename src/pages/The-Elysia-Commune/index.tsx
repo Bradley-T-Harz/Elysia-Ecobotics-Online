@@ -194,7 +194,7 @@ import {
   type ParentPublicationState,
   type PublishedSnapshot
 } from "./codeRevisionDraftState";
-import { parseCommuneLinksInput, safeCommuneLinkHref } from "../../shared/communeLinks";
+import { communeLinkPresentation, parseCommuneLinksInput, safeCommuneLinkHref } from "../../shared/communeLinks";
 import JobOpportunityFields from "./JobOpportunityFields";
 import {
   JOB_OPPORTUNITY_MODEL_VERSION,
@@ -202,6 +202,7 @@ import {
   emptyJobOpportunityDraft,
   formatJobCompensation,
   jobApplicationRouteLabel,
+  jobApplicationRoutePublicLabel,
   jobCompensationModelLabel,
   jobCompensationStatusOptions,
   jobCompensationStatusLabel,
@@ -932,6 +933,24 @@ const roomNativeFormHeadingsByPostType: Partial<Record<CommunePostType, string[]
   job_post: [
     "Role title",
     "Organization / project",
+    "Opportunity type",
+    "Opportunity details",
+    "Poster / organization type",
+    "Organization website",
+    "Compensation status",
+    "Compensation models",
+    "Compensation amount",
+    "Compensation details",
+    "Benefits / additional support",
+    "Work arrangement",
+    "Time basis",
+    "Duration",
+    "Experience / eligibility",
+    "Application route",
+    "Application destination",
+    "Application instructions",
+    "Testing / feedback privacy",
+    "Future-role notice",
     "Role type",
     "Paid / volunteer status",
     "Compensation clarity",
@@ -1626,8 +1645,8 @@ function CommuneLinksList({ links, label = "Links", className = "" }: { links?: 
   return <article className={`commune-room-native-field commune-links-list ${className}`.trim()} aria-label={label}>
     <h3>{label}</h3>
     <ul>{items.map((item, index) => {
-      const href = safeCommuneLinkHref(item);
-      return <li key={`${item}-${index}`}>{href ? <a href={href} target="_blank" rel="noreferrer">{item}</a> : <span>{item}</span>}</li>;
+      const presentation = communeLinkPresentation(item);
+      return <li key={`${item}-${index}`}>{presentation.href ? <a href={presentation.href} target="_blank" rel="noreferrer">{presentation.label}</a> : <span>{presentation.label}</span>}</li>;
     })}</ul>
   </article>;
 }
@@ -3989,7 +4008,7 @@ function TroubleshootingDetail({ post, troubleshooting, parsedBody, comments, us
 }
 
 
-function JobPostReviewControls({ jobPost, postId, isModerator, onMessage, onChanged }: { jobPost?: JobPostMetadata | null; postId: string; isModerator: boolean; onMessage: (message: string) => void; onChanged: () => Promise<void> }) {
+function JobPostReviewControls({ jobPost, postId, isModerator, canManageListingStatus, onMessage, onChanged }: { jobPost?: JobPostMetadata | null; postId: string; isModerator: boolean; canManageListingStatus: boolean; onMessage: (message: string) => void; onChanged: () => Promise<void> }) {
   const [applicationStatus, setApplicationStatus] = useState<JobPostApplicationStatus>(jobPost?.application_status ?? "open");
   const [reviewStatus, setReviewStatus] = useState<JobPostAntiScamReviewStatus>(jobPost?.anti_scam_review_status ?? "not_reviewed");
   const [publicCorrectionNote, setPublicCorrectionNote] = useState(jobPost?.public_correction_note ?? "");
@@ -3998,7 +4017,7 @@ function JobPostReviewControls({ jobPost, postId, isModerator, onMessage, onChan
     setReviewStatus(jobPost?.anti_scam_review_status ?? "not_reviewed");
     setPublicCorrectionNote(jobPost?.public_correction_note ?? "");
   }, [jobPost?.anti_scam_review_status, jobPost?.application_status, jobPost?.public_correction_note]);
-  if (!jobPost) return <p className="boundary-note">This legacy Job Post has no structured sidecar record yet. It still remains public and moderator-governed through the Commune post/thread model.</p>;
+  if (!jobPost || !canManageListingStatus) return null;
   async function saveApplicationStatus() {
     const result = await updateJobPostApplicationStatus({ jobPostId: jobPost?.id, postId, applicationStatus, publicCorrectionNote });
     onMessage(cleanCommuneMessage(result.message, "Job Post listing status could not be updated until the structured workflow migration is active."));
@@ -4019,6 +4038,37 @@ function JobPostReviewControls({ jobPost, postId, isModerator, onMessage, onChan
       {isModerator && <p className="wide-field boundary-note">Protected reviewer notes belong in the RLS-governed Admin Review history, not the public Job Post metadata table. Use public correction notes only when the note is safe for readers.</p>}
     </div>
     <div className="button-row"><button type="button" onClick={() => void saveApplicationStatus()}>Save listing status</button>{isModerator && <button type="button" onClick={() => void saveReviewStatus()}>Save anti-scam review</button>}</div>
+  </div>;
+}
+
+type JobPostDetailField = RoomNativeField & { href?: string | null };
+
+function JobPostDetailFieldCard({ field }: { field: JobPostDetailField }) {
+  return <article className="commune-room-native-field">
+    <h3>{field.heading}</h3>
+    {field.href
+      ? <a href={field.href} target="_blank" rel="noreferrer">{field.body}</a>
+      : field.tone === "pre"
+        ? <pre className="commune-repo-text-block">{field.body}</pre>
+        : <p>{field.body}</p>}
+  </article>;
+}
+
+function JobPostStructuredDetails({ label, compactFields, narrativeFields }: { label: string; compactFields: JobPostDetailField[]; narrativeFields: JobPostDetailField[] }) {
+  const compact = compactFields.filter((field) => metadataText(field.body));
+  const narrative = narrativeFields.filter((field) => metadataText(field.body));
+  if (!compact.length && !narrative.length) return null;
+  return <div className="commune-room-native-details commune-job-native-details">
+    <p className="eyebrow">{label}</p>
+    {compact.length > 0 && <div className="commune-room-native-grid commune-job-facts-grid">
+      {compact.map((field) => <JobPostDetailFieldCard field={field} key={field.heading} />)}
+    </div>}
+    {narrative.length > 0 && <div className="commune-job-narrative-details">
+      <p className="eyebrow">Details and context</p>
+      <div className="commune-job-narrative-grid">
+        {narrative.map((field) => <JobPostDetailFieldCard field={field} key={field.heading} />)}
+      </div>
+    </div>}
   </div>;
 }
 
@@ -4143,7 +4193,13 @@ function JobPostDetail({ post, jobPost, parsedBody, userId, accessToken, isModer
   const v2 = jobPost?.model_version === JOB_OPPORTUNITY_MODEL_VERSION;
   const legacy = deterministicV2FromLegacy(jobPost ?? {});
   const applicationDestination = value(jobPost?.application_destination, "Application destination") || value(jobPost?.contact_path, "Contact path");
-  const applicationHref = safePublicHref(applicationDestination) || (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(applicationDestination) ? `mailto:${applicationDestination}` : "");
+  const applicationHref = jobPost?.application_route_type === "private_work_with" && applicationDestination === "/work-with-elysia-ecobotics"
+    ? applicationDestination
+    : safePublicHref(applicationDestination) || (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(applicationDestination) ? `mailto:${applicationDestination}` : "");
+  const organizationWebsite = value(jobPost?.organization_website, "Organization website");
+  const organizationWebsiteHref = safePublicHref(organizationWebsite);
+  const isFutureRoleInterest = jobPost?.opportunity_type === "future_role_interest_talent_pool";
+  const canManageListingStatus = Boolean(isModerator || (userId && post.viewer_is_owner));
   const legacyFields: RoomNativeField[] = [
     ["Role summary", value(jobPost?.role_summary, "Role summary")],
     ["Compensation clarity", value(jobPost?.compensation_clarity, "Compensation clarity")],
@@ -4155,21 +4211,24 @@ function JobPostDetail({ post, jobPost, parsedBody, userId, accessToken, isModer
     ["Safety notes", value(jobPost?.safety_notes, "Job safety notes")],
     ["Public correction / clarification", value(jobPost?.public_correction_note, "Public correction note")]
   ].map(([heading, body]) => ({ heading, body })).filter((field) => field.body);
-  const v2Fields: RoomNativeField[] = [
+  const v2CompactFields: JobPostDetailField[] = [
     ["Opportunity type", jobOpportunityTypeLabel(jobPost?.opportunity_type)],
-    ["Opportunity details", value(jobPost?.opportunity_details, "Opportunity details")],
     ["Poster / organization type", jobPosterTypeLabel(jobPost?.poster_type)],
-    ["Organization website", value(jobPost?.organization_website, "Organization website")],
+    ["Organization website", organizationWebsite],
     ["Compensation", jobPost ? formatJobCompensation(jobPost) : ""],
-    ["Benefits / additional support", value(jobPost?.benefits_summary, "Benefits / additional support")],
     ["Work arrangement", jobWorkArrangementLabel(jobPost?.work_arrangement)],
-    ["Time basis", jobTimeBasisLabel(jobPost?.time_basis)],
-    ["Duration", jobDurationTypeLabel(jobPost?.duration_type)],
+    ["Time basis", isFutureRoleInterest && jobPost?.time_basis === "other" ? "" : jobTimeBasisLabel(jobPost?.time_basis)],
+    ["Duration", isFutureRoleInterest && jobPost?.duration_type === "other" ? "" : jobDurationTypeLabel(jobPost?.duration_type)],
     ["Experience / eligibility", jobPost?.experience_level ? jobExperienceLevelLabel(jobPost.experience_level) : ""],
+    ["Deadline", value(jobPost?.deadline, "Deadline")]
+  ].map(([heading, body]) => ({ heading, body })).filter((field) => field.body && !/^(Not specified|Legacy opportunity|Arrangement needs clarification)$/.test(field.body));
+  const organizationWebsiteField = v2CompactFields.find((field) => field.heading === "Organization website");
+  if (organizationWebsiteField) organizationWebsiteField.href = organizationWebsiteHref;
+  const v2NarrativeFields: JobPostDetailField[] = [
+    ["Opportunity details", value(jobPost?.opportunity_details, "Opportunity details")],
+    ["Benefits / additional support", value(jobPost?.benefits_summary, "Benefits / additional support")],
     ["Location details", value(jobPost?.location_text, "Location details")],
     ["Time commitment", value(jobPost?.time_commitment, "Time commitment")],
-    ["Deadline", value(jobPost?.deadline, "Deadline")],
-    ["Application route", jobApplicationRouteLabel(jobPost?.application_route_type)],
     ["Application instructions", value(jobPost?.application_instructions, "Application instructions")],
     ["Testing / feedback privacy", value(jobPost?.testing_privacy_note, "Testing / feedback privacy")],
     ["Requirements / skills", value(jobPost?.requirements_skills, "Requirements / skills")],
@@ -4192,12 +4251,14 @@ function JobPostDetail({ post, jobPost, parsedBody, userId, accessToken, isModer
       <WarningCallout title="Publication is not verification"><p>Publication is not endorsement or verification. Elysia Ecobotics does not guarantee the identity, legitimacy, compensation, safety, or accuracy of an employer, poster, or opportunity. Verify the organization and application route independently before sharing information or accepting work.</p></WarningCallout>
     </div>
     {!v2 && <p className="boundary-note">Legacy listing: this opportunity predates the v2 structure. Deterministic labels are shown where possible; compensation or relationship details may still need clarification.</p>}
-    <RoomNativeDetails label={v2 ? "Structured opportunity" : "Legacy Job Post details"} fields={v2 ? v2Fields : legacyFields} className="commune-job-native-details" />
-    {applicationDestination && <section className="commune-room-native-field commune-job-application-route"><h3>Application route</h3><p>{jobApplicationRouteLabel(jobPost?.application_route_type) || "Legacy contact path"}</p>{applicationHref ? <a className="button-link" href={applicationHref} target={applicationHref.startsWith("http") ? "_blank" : undefined} rel={applicationHref.startsWith("http") ? "noreferrer" : undefined}>{applicationDestination}</a> : <p>{applicationDestination}</p>}<p className="boundary-note">Verify this destination independently. Never pay to apply or send sensitive identity, banking, tax, or account credentials through an unverified route.</p></section>}
+    {v2
+      ? <JobPostStructuredDetails label="Structured opportunity" compactFields={v2CompactFields} narrativeFields={v2NarrativeFields} />
+      : <RoomNativeDetails label="Legacy Job Post details" fields={legacyFields} className="commune-job-native-details" />}
+    {isFutureRoleInterest && jobPost?.future_interest_acknowledged && <section className="commune-room-native-field commune-job-future-notice"><h3>Future-role notice</h3><p>Confirmed: no current opening, offer, or promise of work.</p></section>}
+    {applicationDestination && <section className="commune-room-native-field commune-job-application-route"><h3>Application route</h3><p>{v2 ? jobApplicationRoutePublicLabel(jobPost?.application_route_type) : "Legacy contact path"}</p>{applicationHref ? <a className="button-link" href={applicationHref} target={applicationHref.startsWith("http") ? "_blank" : undefined} rel={applicationHref.startsWith("http") ? "noreferrer" : undefined}>{jobPost?.application_route_type === "private_work_with" ? "Open Work With Elysia Ecobotics" : applicationDestination}</a> : <p>{applicationDestination}</p>}{jobPost?.application_route_type === "private_work_with" && <p>{jobPrivateApplicationSystemNotice}</p>}<p className="boundary-note">Verify this destination independently. Never pay to apply or send sensitive identity, banking, tax, or account credentials through an unverified route.</p></section>}
     <WarningCallout title="Public application privacy"><p>Do not share SSNs, bank details, identity documents, resumes/CVs, private addresses, private phone numbers, tax forms, contracts, private application packets, Work With uploads, or sensitive personal data in public Job Post comments. Serious applications belong at the stated legitimate route, not in the public thread.</p></WarningCallout>
     {jobPost && accessToken && userId && post.viewer_is_owner && <JobPostEconomicOwnerPanel jobPostId={jobPost.id} accessToken={accessToken} />}
-    {jobPost?.application_route_type === "private_work_with" && <section className="commune-room-native-field commune-job-work-with"><h3>First-party private application path</h3><p>{jobPrivateApplicationSystemNotice}</p><div className="button-row"><Link className="button-link" to="/work-with-elysia-ecobotics">Open Work With Elysia Ecobotics</Link></div></section>}
-    <JobPostReviewControls jobPost={jobPost} postId={post.id} isModerator={isModerator} onMessage={onMessage} onChanged={onChanged} />
+    <JobPostReviewControls jobPost={jobPost} postId={post.id} isModerator={isModerator} canManageListingStatus={canManageListingStatus} onMessage={onMessage} onChanged={onChanged} />
   </div>;
 }
 
@@ -4627,6 +4688,8 @@ function PostDetail({ postId }: { postId: string }) {
   const isPrivateOwnerJobPreview = isJobPost && Boolean(state.userId && post.viewer_is_owner) && (post.status !== "published" || post.visibility !== "public");
   const commentsLocked = (isOfficialUpdate && officialUpdate?.comments_enabled === false) || (isCommunityVote && communityVote?.vote.allow_comments === false);
   const bodyMarkdown = bodyMarkdownForPost(post);
+  const detailRoom = postTypes.find((type) => type.backendValue === post.post_type);
+  const detailRoomPath = `/commune/rooms/${roomSlugByPostType[post.post_type]}`;
   const genericRoomNativeDetails = post.post_type === "community_network" ? legacyCommunityNetworkDetails(parsedBody) : [];
   const roomDetailLinks = new Set<string>();
   if (isResearchNotes) {
@@ -4643,6 +4706,10 @@ function PostDetail({ postId }: { postId: string }) {
   }
   const additionalLinks = post.links?.filter((link) => !roomDetailLinks.has(link)) ?? [];
   return <>
+    <section className="section-card commune-post-context-header" aria-label="Commune post context">
+      <div><p className="eyebrow">Public Commune record</p><h1>The Elysia Commune</h1><p>{detailRoom?.name ?? post.post_type.replace(/_/g, " ")} · Published community content remains moderated, reportable, and separate from endorsement or verification.</p></div>
+      <div className="button-row"><Link className="button-link" to={detailRoomPath}>Back to {detailRoom?.name ?? "room"}</Link><Link className="button-link" to="/commune">Commune home</Link></div>
+    </section>
     <section className={isOfficialUpdate ? "section-card commune-post-detail commune-official-post-detail" : isCommunityVote ? "section-card commune-post-detail commune-vote-post-detail" : "section-card commune-post-detail"}>
       <p className="eyebrow">{post.post_type === "research_note" ? "Research Notes" : post.post_type === "community_vote" ? "Community Voting Room" : post.post_type.replace(/_/g, " ")}</p>
       <h2>{post.title}</h2>
@@ -5295,14 +5362,16 @@ export default function CommunePage() {
   const roomPageMode: RoomPageMode = isRoomPosts ? "posts" : isRoomNew ? "composer" : "hub";
 
   return <div className="page-stack commune-page">
-    <PageHero eyebrow="Public community" title="The Elysia Commune" brandMark="standard">
-      <p>The Commune is the public gathering place for official updates, media blogs, troubleshooting, code sharing, repository showcases, community networking, project updates, research notes, Elysia iteration showcases, and advisory Community Voting Room guidance.</p>
-      <p><strong>Share publicly. Redact first. Execute nowhere by default.</strong></p>
-    </PageHero>
-    <Doctrine />
+    {!postId && <>
+      <PageHero eyebrow="Public community" title="The Elysia Commune" brandMark="standard">
+        <p>The Commune is the public gathering place for official updates, media blogs, troubleshooting, code sharing, repository showcases, community networking, project updates, research notes, Elysia iteration showcases, and advisory Community Voting Room guidance.</p>
+        <p><strong>Share publicly. Redact first. Execute nowhere by default.</strong></p>
+      </PageHero>
+      <Doctrine />
+    </>}
     {isLobby && <CommuneLobby />}
     {isLobby && <CommuneSearchPanel filters={filters} setFilters={setFilters} />}
-    {!isLobby && routeMode !== "rooms-index" && <AccountModePanel signedIn={state.signedIn} isModerator={state.isModerator} accountReady={state.accountReady} activeKind={activeActionKind} />}
+    {!postId && !isLobby && routeMode !== "rooms-index" && <AccountModePanel signedIn={state.signedIn} isModerator={state.isModerator} accountReady={state.accountReady} activeKind={activeActionKind} />}
     {["new", "troubleshooting", "repository-sandbox-review", "iteration-sandbox-review", "sandbox-review", "code-review", "realtime", "moderation"].includes(routeMode) && <CommuneFocusedToolbar />}
 
     {routeMode === "rooms-index" && <CommuneRoomsIndexPage />}

@@ -1793,6 +1793,12 @@ code { color: var(--teal); overflow-wrap: anywhere; }
   align-items: start;
 }
 
+@media (min-width: 1180px) {
+  .commune-job-post-form-grid .commune-job-tags-field {
+    grid-column: 3 / -1;
+  }
+}
+
 .commune-form-grid .commune-job-tags-field > label {
   padding: 0;
   border: 0;
@@ -6018,6 +6024,64 @@ button.commune-vote-option-card:disabled {
   margin-top: var(--space-4, 1rem);
 }
 
+.commune-post-context-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: center;
+}
+
+.commune-post-context-header h1,
+.commune-post-context-header p {
+  margin: 0;
+}
+
+.commune-post-context-header h1 {
+  margin-top: 0.2rem;
+  font-family: var(--font-display);
+  font-size: clamp(1.65rem, 3vw, 2.5rem);
+}
+
+.commune-post-context-header > div:first-child {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.commune-job-facts-grid,
+.commune-job-narrative-grid {
+  align-items: start;
+}
+
+.commune-job-narrative-details {
+  display: grid;
+  gap: 0.65rem;
+}
+
+.commune-job-narrative-details > .eyebrow {
+  margin: 0.25rem 0 0;
+}
+
+.commune-job-narrative-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.commune-job-native-details .commune-room-native-field {
+  align-self: start;
+  min-width: 0;
+}
+
+.commune-job-native-details .commune-room-native-field a {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.commune-job-future-notice {
+  margin-top: var(--space-4, 1rem);
+  border-left: 3px solid var(--gold);
+}
+
 .commune-job-work-with {
   margin-top: var(--space-4, 1rem);
   border-left: 3px solid var(--color-accent, #4c8f72);
@@ -6110,6 +6174,10 @@ button.commune-vote-option-card:disabled {
 }
 
 @media (max-width: 760px) {
+  .commune-post-context-header {
+    grid-template-columns: 1fr;
+  }
+
   .commune-progressive-fieldset {
     padding: 0.72rem;
   }
@@ -6120,6 +6188,12 @@ button.commune-vote-option-card:disabled {
   }
 
   .commune-job-discovery-filters {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 960px) {
+  .commune-job-narrative-grid {
     grid-template-columns: 1fr;
   }
 }

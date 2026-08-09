@@ -15,3 +15,19 @@ export function safeCommuneLinkHref(value: string) {
     return null;
   }
 }
+
+export function communeLinkPresentation(value: string) {
+  const text = value.trim();
+  const directHref = safeCommuneLinkHref(text);
+  if (directHref) return { label: text, href: directHref };
+
+  const separator = text.indexOf("|");
+  if (separator > 0) {
+    const label = text.slice(0, separator).trim();
+    const candidateHref = text.slice(separator + 1).trim();
+    const href = safeCommuneLinkHref(candidateHref);
+    if (label && href) return { label, href };
+  }
+
+  return { label: text, href: null };
+}

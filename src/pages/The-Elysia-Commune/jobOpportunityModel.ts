@@ -377,6 +377,9 @@ export const jobDurationTypeLabel = (value?: string | null) => label(jobDuration
 export const jobPosterTypeLabel = (value?: string | null) => label(jobPosterTypeOptions, value);
 export const jobExperienceLevelLabel = (value?: string | null) => label(jobExperienceLevelOptions, value);
 export const jobApplicationRouteLabel = (value?: string | null) => label(jobApplicationRouteOptions, value);
+export const jobApplicationRoutePublicLabel = (value?: string | null) => value === "private_work_with"
+  ? "Private Work With Elysia Ecobotics"
+  : jobApplicationRouteLabel(value);
 
 export function formatJobCompensation(job: JobOpportunityMetadataFields & { compensation_clarity?: string | null }) {
   if (job.model_version !== JOB_OPPORTUNITY_MODEL_VERSION || !job.compensation_status) return job.compensation_clarity?.trim() || "Legacy compensation — clarification may be needed";

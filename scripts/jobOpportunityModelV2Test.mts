@@ -6,6 +6,7 @@ import {
   deterministicV2FromLegacy,
   emptyJobOpportunityDraft,
   formatJobCompensation,
+  jobApplicationRoutePublicLabel,
   jobApplicationRouteTypes,
   jobCompensationModels,
   jobCompensationStatuses,
@@ -40,6 +41,8 @@ assert.deepEqual(jobTimeBases, expected.time, "time-basis taxonomy drifted");
 assert.deepEqual(jobDurationTypes, expected.duration, "duration taxonomy drifted");
 assert.deepEqual(jobPosterTypes, expected.poster, "poster taxonomy drifted");
 assert.deepEqual(jobApplicationRouteTypes, expected.route, "application-route taxonomy drifted");
+assert.equal(jobApplicationRoutePublicLabel("private_work_with"), "Private Work With Elysia Ecobotics", "public readers need a human-facing first-party route label");
+assert.equal(jobApplicationRoutePublicLabel("official_application_webpage"), "Official application webpage", "other public route labels must remain unchanged");
 
 function validDraft(overrides: Partial<JobOpportunityDraft> = {}): JobOpportunityDraft {
   return normalizeJobOpportunityDraft({

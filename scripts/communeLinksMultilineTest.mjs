@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parseCommuneLinksInput, safeCommuneLinkHref } from "../src/shared/communeLinks.ts";
+import { communeLinkPresentation, parseCommuneLinksInput, safeCommuneLinkHref } from "../src/shared/communeLinks.ts";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const read = (relativePath) => fs.readFile(path.join(root, relativePath), "utf8");
@@ -30,6 +30,10 @@ assert.equal(safeCommuneLinkHref(first), first, "valid HTTPS links should render
 assert.equal(safeCommuneLinkHref(second), second, "valid HTTP links should render as links without rewriting");
 assert.equal(safeCommuneLinkHref("mailto:person@example.com"), null, "non-HTTP stored values must render as text, not unsafe anchors");
 assert.equal(safeCommuneLinkHref("not a url"), null, "legacy arbitrary text must render safely as text");
+assert.deepEqual(communeLinkPresentation("The Elysia Commune | https://elysiaecobotics.com/commune"), { label: "The Elysia Commune", href: "https://elysiaecobotics.com/commune" }, "labeled HTTP(S) links should hide the raw URL while preserving the safe destination");
+assert.deepEqual(communeLinkPresentation(first), { label: first, href: first }, "unlabeled legacy URLs must remain clickable and unchanged");
+assert.deepEqual(communeLinkPresentation("Unsafe label | javascript:alert(1)"), { label: "Unsafe label | javascript:alert(1)", href: null }, "unsafe labeled destinations must remain inert text");
+assert.deepEqual(communeLinkPresentation("Malformed label | not a url"), { label: "Malformed label | not a url", href: null }, "malformed labeled values must remain visible inert text");
 
 assert(page.includes("function CommuneLinksField"), "shared Links field component missing");
 assert.equal((page.match(/<CommuneLinksField\b/g) ?? []).length, 2, "PostComposer and CommunityVoteComposer must share exactly one Links field implementation");

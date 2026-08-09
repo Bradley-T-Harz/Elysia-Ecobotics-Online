@@ -44,6 +44,12 @@ const ids = {
   reviewJob: "c4000000-0000-4000-8000-000000000002",
 };
 const links = ["https://example.org/opportunity", "https://github.com/example/restoration", "https://docs.example.org/team"];
+const labeledLinks = [
+  "The Elysia Commune | https://elysiaecobotics.com/commune",
+  "Community Guidelines | https://elysiaecobotics.com/community-guidelines",
+  "Work With Elysia Ecobotics | https://elysiaecobotics.com/work-with",
+  "Unsafe example | javascript:alert(1)",
+];
 const tagStressCases = [
   { id: "3-ordinary", value: "restoration, moderation, privacy", count: 3 },
   { id: "4-ordinary", value: "restoration, moderation, privacy, accessibility", count: 4 },
@@ -90,6 +96,90 @@ const v2Job = {
   application_route_type: "official_application_webpage", application_destination: "https://jobs.example.org/apply", application_instructions: null, testing_privacy_note: null, future_interest_acknowledged: false,
   created_at: "2026-08-08T12:00:00.000Z", updated_at: "2026-08-08T12:00:00.000Z",
 };
+const futureRolePost = {
+  ...publishedPost,
+  title: "Community Stewardship Participation & Future Moderator Interest",
+  body: `The Elysia Commune should be able to have personality without becoming a mess.
+
+This is the unique public narrative and must remain visible exactly once.
+
+## Opportunity type
+
+Future-role interest / talent pool
+
+## Poster / organization type
+
+Company / business
+
+## Organization website
+
+https://ecosyneva-commons-llc.pages.dev/
+
+## Compensation status
+
+Future compensation not established
+
+## Work arrangement
+
+Remote
+
+## Time basis
+
+Other
+
+## Duration
+
+Other
+
+## Experience / eligibility
+
+Not specified
+
+## Application route
+
+Private Work With flow
+
+## Application destination
+
+/work-with-elysia-ecobotics
+
+## Future-role notice
+
+Confirmed: no current opening, offer, or promise of work.`,
+  excerpt: "A public-safe future-role interest notice.",
+  tags: ["community-stewardship", "moderation", "community-safety", "privacy", "anti-spam", "anti-scam", "public-commons", "community-participation", "future-moderator"],
+  links: labeledLinks,
+};
+const futureRoleJob = {
+  ...v2Job,
+  role_title: "Community Stewardship Participant / Future Moderator Interest",
+  organization_project: "Elysia Ecobotics Online — The Elysia Commune",
+  opportunity_type: "future_role_interest_talent_pool",
+  poster_type: "business_company",
+  organization_website: "https://ecosyneva-commons-llc.pages.dev/",
+  compensation_status: "future_compensation_not_established",
+  compensation_models: [],
+  compensation_currency: null,
+  compensation_min_amount: null,
+  compensation_max_amount: null,
+  compensation_period: null,
+  compensation_details: null,
+  compensation_clarity: "Future compensation not established",
+  benefits_summary: null,
+  work_arrangement: "remote",
+  time_basis: "other",
+  duration_type: "other",
+  experience_level: null,
+  deadline: null,
+  location_text: "Remote and asynchronous; any future formal opportunity will state its own location requirements.",
+  time_commitment: "No current role or required commitment; ordinary stewardship is optional and self-directed.",
+  requirements_skills: "Patience, sound judgment, privacy awareness, calm communication, and respect for user dignity.",
+  safety_notes: "Ordinary participation grants no moderator authority, private records, credentials, or private-system access.",
+  application_route_type: "private_work_with",
+  application_destination: "/work-with-elysia-ecobotics",
+  contact_path: "/work-with-elysia-ecobotics",
+  future_interest_acknowledged: true,
+};
 const legacyJob = {
   id: ids.legacyJob, post_id: ids.legacyPost, thread_id: null, author_user_id: ids.user,
   role_title: "Watershed contract", organization_project: "Legacy Field Group", role_summary: "A pre-v2 contract listing.",
@@ -128,7 +218,7 @@ const origin = `http://127.0.0.1:${address.port}`;
 const jsonHeaders = { "Access-Control-Allow-Headers": "*", "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS", "Access-Control-Allow-Origin": "*", "Content-Type": "application/json; charset=utf-8" };
 
 async function installFixtures(context, options = {}) {
-  const { admin = false, posts = [], jobs = [], review = false, captures = { posts: [], jobs: [], reviews: [], comments: [] } } = options;
+  const { admin = false, viewerIsOwner = false, posts = [], jobs = [], review = false, captures = { posts: [], jobs: [], reviews: [], comments: [] } } = options;
   let reviewInsert = 0;
   await context.route(/^https:\/\/[^/]+\.supabase\.co\//, async (route) => {
     const request = route.request();
@@ -166,7 +256,7 @@ async function installFixtures(context, options = {}) {
       if (request.method() === "POST") { captures.comments.push(request.postDataJSON()); return fulfill([], 201); }
       return fulfill(review ? [{ id: "c5000000-0000-4000-8000-000000000001", review_item_id: ids.reviewPost, actor_id: ids.admin, body: "Internal domain mismatch follow-up; do not expose to submitter.", visibility: "internal", created_at: "2026-08-08T12:30:00.000Z" }] : []);
     }
-    if (pathname.endsWith("/rest/v1/rpc/resolve_public_commune_attributions")) return fulfill(posts.map((post) => ({ target_type: "post", target_id: post.id, author_handle: "opportunity-member", canonical_profile_url: "https://elysiaecobotics.com/commons-circle/@opportunity-member", viewer_is_owner: false })));
+    if (pathname.endsWith("/rest/v1/rpc/resolve_public_commune_attributions")) return fulfill(posts.map((post) => ({ target_type: "post", target_id: post.id, author_handle: "opportunity-member", canonical_profile_url: "https://elysiaecobotics.com/commons-circle/@opportunity-member", viewer_is_owner: viewerIsOwner })));
     if (pathname.endsWith("/rest/v1/rpc/review_commune_job_post")) return fulfill({
       jobPostId: ids.job,
       postId: ids.post,
@@ -184,14 +274,14 @@ async function installFixtures(context, options = {}) {
   });
 }
 
-async function contextFor(browser, { admin = false, viewport = { width: 1440, height: 1000 }, ...fixtures } = {}) {
+async function contextFor(browser, { admin = false, signedIn = true, viewport = { width: 1440, height: 1000 }, ...fixtures } = {}) {
   const context = await browser.newContext({
     viewport,
     isMobile: viewport.width < 600,
     acceptDownloads: true,
     deviceScaleFactor: readableEvidenceDir ? 2 : 1,
   });
-  await context.addInitScript(({ key, session }) => localStorage.setItem(key, JSON.stringify(session)), { key: `sb-${projectRef}-auth-token`, session: fixtureSession(admin) });
+  if (signedIn) await context.addInitScript(({ key, session }) => localStorage.setItem(key, JSON.stringify(session)), { key: `sb-${projectRef}-auth-token`, session: fixtureSession(admin) });
   await installFixtures(context, { admin, ...fixtures });
   return context;
 }
@@ -376,6 +466,16 @@ try {
     await readableScreenshot(page, "desktop", "02-job-post-hub-published-items-desktop", page.getByRole("heading", { name: /published items/ }), -300);
     await context.close();
   }
+  if (readableEvidenceDir) {
+    const context = await contextFor(browser, { posts: [publishedPost, legacyPost], jobs: [v2Job, legacyJob] });
+    const page = await context.newPage();
+    await open(page, "/commune");
+    assert.equal(await page.locator(".page-hero-block").count(), 1, "the Commune landing page must retain its full hero");
+    assert.equal(await page.locator(".commune-doctrine-grid").count(), 1, "the Commune landing page must retain its doctrine cards");
+    await assertNoOverflow(page, "desktop Commune landing page");
+    await readableScreenshot(page, "desktop", "00-commune-landing-full-hero-preserved-desktop");
+    await context.close();
+  }
   {
     const context = await contextFor(browser);
     const page = await context.newPage();
@@ -465,6 +565,12 @@ try {
       }
     }
     assert(caseMeasurements["12-mixed"].field.height > caseMeasurements["3-ordinary"].field.height, `${viewportCase.folder}: many tags should grow the card downward`);
+    if (viewportCase.folder === "desktop") {
+      assert(caseMeasurements["3-ordinary"].field.width >= 700, `wide desktop Tags region should use the available row; got ${caseMeasurements["3-ordinary"].field.width}px`);
+      assert(caseMeasurements["3-ordinary"].rows <= 2, "three ordinary tags should flow horizontally on wide desktop");
+      assert(caseMeasurements["12-mixed"].rows <= 4, "twelve mixed tags should remain a compact wrapped cluster on wide desktop");
+    }
+    if (viewportCase.folder === "tablet") assert(caseMeasurements["3-ordinary"].field.width < 400, "half-screen Tags should preserve the compact grid track");
     measurements.tagStress[viewportCase.folder] = caseMeasurements;
     await context.close();
   }
@@ -807,31 +913,106 @@ try {
     await context.close();
   }
   {
-    const context = await contextFor(browser, { posts: [publishedPost], jobs: [v2Job] });
+    const context = await contextFor(browser, { posts: [futureRolePost], jobs: [futureRoleJob] });
     const page = await context.newPage();
     await open(page, `/commune/posts/${ids.post}`);
-    await page.getByRole("heading", { level: 2, name: publishedPost.title }).waitFor();
-    assert(await page.getByText("Official application webpage", { exact: true }).count(), "public detail application route missing");
-    assert.deepEqual(await page.locator('[aria-label="Links"] li').allTextContents().then((values) => values.map((value) => value.trim())), links);
-    assert.deepEqual(await page.locator(".commune-post-detail .tag-row span").allTextContents(), ["#restoration", "#typescript"], "published Job Post tags must remain in the post-detail location");
+    await page.getByRole("heading", { level: 2, name: futureRolePost.title }).waitFor();
+    assert.equal(await page.locator(".page-hero-block").count(), 0, "individual post detail must not repeat the full Commune landing hero");
+    assert.equal(await page.locator(".commune-doctrine-grid").count(), 0, "individual post detail must not repeat the landing doctrine grid");
+    assert.equal(await page.locator(".commune-status-card").count(), 0, "individual post detail must not prepend the generic account-mode panel");
+    assert.equal(await page.locator(".commune-post-context-header").count(), 1, "individual post detail needs one compact Commune context header");
+    const detailTop = await page.getByRole("heading", { level: 2, name: futureRolePost.title }).evaluate((element) => element.getBoundingClientRect().top);
+    assert(detailTop < 750, `published post should begin in the first desktop viewport; got ${detailTop}px`);
+    assert.equal(await page.getByRole("heading", { level: 3, name: "Time basis" }).count(), 0, "future-interest detail should omit meaningless Other time basis");
+    assert.equal(await page.getByRole("heading", { level: 3, name: "Duration" }).count(), 0, "future-interest detail should omit meaningless Other duration");
+    assert.equal(await page.getByRole("heading", { level: 3, name: "Application route" }).count(), 1, "application route must have one authoritative public presentation");
+    assert.equal(await page.getByText("Private Work With Elysia Ecobotics", { exact: true }).count(), 1, "public Private Work With label must be reader-facing");
+    assert.equal(await page.getByRole("link", { name: "Open Work With Elysia Ecobotics" }).getAttribute("href"), "/work-with-elysia-ecobotics", "first-party route must remain canonical");
+    assert.equal(await page.getByText("Confirmed: no current opening, offer, or promise of work.", { exact: true }).count(), 1, "future-role notice must remain concise and unique");
+    assert.equal(await page.getByText("This is the unique public narrative and must remain visible exactly once.", { exact: true }).count(), 1, "unique authored body content must survive v2 metadata suppression");
+    const postBodyText = await page.locator(".commune-post-body").innerText();
+    for (const duplicate of ["Opportunity type", "Compensation status", "Application destination", "Future-role notice"]) assert(!postBodyText.includes(duplicate), `${duplicate} leaked into the generic body dump`);
+    assert.equal(await page.locator(".commune-job-facts-grid").count(), 1, "compact opportunity facts grid missing");
+    assert.equal(await page.locator(".commune-job-narrative-grid").count(), 1, "wide opportunity narrative grid missing");
+    const detailLayout = await page.locator(".commune-job-native-details").evaluate((root) => {
+      const facts = [...root.querySelectorAll(".commune-job-facts-grid > article")].map((element) => element.getBoundingClientRect());
+      const narrative = [...root.querySelectorAll(".commune-job-narrative-grid > article")].map((element) => element.getBoundingClientRect());
+      return {
+        facts: facts.map(({ width, height }) => ({ width, height })),
+        narrative: narrative.map(({ width, height }) => ({ width, height })),
+        overflow: root.scrollWidth - root.clientWidth,
+      };
+    });
+    assert(detailLayout.overflow <= 1, "structured opportunity detail acquired horizontal overflow");
+    assert(detailLayout.facts.every((item) => item.height < 180), "compact fact cards inherited a long prose-card height");
+    assert(detailLayout.narrative.every((item) => item.width >= 500), "long narrative cards should receive wide desktop columns");
+    assert.equal(await page.locator(".commune-job-review-controls").count(), 0, "ordinary member must not receive Job Post operator controls");
+    assert.equal(await page.locator(".commune-job-economic-owner").count(), 0, "non-owner member must not receive owner economic UI");
+    const linkItems = page.locator('[aria-label="Links"] li');
+    assert.deepEqual(await linkItems.allTextContents().then((values) => values.map((value) => value.trim())), ["The Elysia Commune", "Community Guidelines", "Work With Elysia Ecobotics", "Unsafe example | javascript:alert(1)"]);
+    assert.equal(await linkItems.nth(0).locator("a").getAttribute("href"), "https://elysiaecobotics.com/commune", "labeled link destination changed");
+    assert.equal(await linkItems.nth(3).locator("a").count(), 0, "unsafe labeled link must remain inert text");
+    assert.equal(await page.getByRole("link", { name: "https://ecosyneva-commons-llc.pages.dev/" }).getAttribute("href"), "https://ecosyneva-commons-llc.pages.dev/", "current authoritative EcoSyneva website should render as a safe link");
+    assert.deepEqual(await page.locator(".commune-post-detail .tag-row span").allTextContents(), futureRolePost.tags.map((tag) => `#${tag}`), "published Job Post tags must remain in the post-detail location");
     await screenshot(page, "23-public-job-detail");
-    await readableScreenshot(page, "desktop", "25-public-job-detail-desktop-top", page.getByRole("heading", { level: 2, name: publishedPost.title }), 300);
-    await readableScreenshot(page, "desktop", "26-public-job-detail-desktop-metadata", page.getByText("Official application webpage", { exact: true }).first(), -480);
+    await readableScreenshot(page, "desktop", "25-public-job-detail-desktop-top", page.locator(".commune-post-context-header"), -120);
+    await readableScreenshot(page, "desktop", "26-public-job-detail-desktop-metadata", page.locator(".commune-job-facts-grid"), -220);
+    await readableScreenshot(page, "desktop", "26b-public-job-detail-desktop-long-form", page.locator(".commune-job-narrative-grid"), -220);
+    await readableScreenshot(page, "desktop", "26c-public-job-detail-desktop-application", page.locator(".commune-job-application-route"), -260);
+    await readableScreenshot(page, "desktop", "26d-public-job-detail-desktop-labeled-links", page.locator('[aria-label="Links"]'), -260);
+    await readableScreenshot(page, "desktop", "26e-public-job-detail-authored-body-no-duplicates", page.locator(".commune-post-body"), -260);
     await page.getByText(/Publication is not endorsement or verification/).scrollIntoViewIfNeeded();
     await screenshot(page, "24-publication-not-verification");
     await readableScreenshot(page, "desktop", "27-publication-not-verification-desktop", page.getByText(/Publication is not endorsement or verification/), 0);
     await readableScreenshot(page, "desktop", "41-published-job-post-tags-desktop", page.locator(".commune-post-detail .tag-row"), -300);
+    await readableScreenshot(page, "desktop", "46-member-public-detail-no-operator-controls", page.locator(".commune-job-application-route"), -250);
     assert.equal(await page.getByText(/Opportunity Commons/i).count(), 0, "public Job Post detail must not expose internal redesign terminology");
     await context.close();
   }
-  if (readableEvidenceDir) {
-    const context = await contextFor(browser, { posts: [publishedPost], jobs: [v2Job], viewport: { width: 390, height: 844 } });
+  {
+    const context = await contextFor(browser, { admin: true, posts: [futureRolePost], jobs: [futureRoleJob] });
     const page = await context.newPage();
     await open(page, `/commune/posts/${ids.post}`);
-    await page.getByRole("heading", { level: 2, name: publishedPost.title }).waitFor();
+    await page.locator(".commune-job-review-controls").waitFor();
+    assert.equal(await page.getByLabel(/^Anti-scam review/).count(), 1, "reviewer/admin must retain anti-scam controls");
+    assert.equal(await page.getByLabel(/^Application status/).count(), 1, "reviewer/admin must retain listing-status controls");
+    assert.equal(await page.locator(".commune-job-economic-owner").count(), 0, "non-owner admin must not receive another author's economic UI");
+    await readableScreenshot(page, "desktop", "47-admin-public-detail-operator-controls", page.locator(".commune-job-review-controls"), -220);
+    await context.close();
+  }
+  {
+    const context = await contextFor(browser, { viewerIsOwner: true, posts: [futureRolePost], jobs: [futureRoleJob] });
+    const page = await context.newPage();
+    await open(page, `/commune/posts/${ids.post}`);
+    await page.locator(".commune-job-review-controls").waitFor();
+    assert.equal(await page.getByLabel(/^Application status/).count(), 1, "the post owner must retain listing-status controls");
+    assert.equal(await page.getByLabel(/^Anti-scam review/).count(), 0, "an ordinary post owner must not receive reviewer-only anti-scam controls");
+    await readableScreenshot(page, "desktop", "48-owner-public-detail-listing-controls", page.locator(".commune-job-review-controls"), -220);
+    await context.close();
+  }
+  {
+    const context = await contextFor(browser, { signedIn: false, posts: [futureRolePost], jobs: [futureRoleJob], viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+    await open(page, `/commune/posts/${ids.post}`);
+    await page.getByRole("heading", { level: 2, name: futureRolePost.title }).waitFor();
+    assert.equal(await page.locator(".commune-job-review-controls").count(), 0, "logged-out reader must not receive Job Post operator controls");
+    assert.equal(await page.locator(".commune-job-economic-owner").count(), 0, "logged-out reader must not receive economic UI");
+    assert.equal(await page.getByLabel(/^Anti-scam review/).count(), 0, "logged-out reader must not receive anti-scam controls");
+    await assertNoOverflow(page, "logged-out mobile public Job detail");
+    await readableScreenshot(page, "mobile", "24-logged-out-public-detail-no-private-controls", page.locator(".commune-post-context-header"), -80);
+    await readableScreenshot(page, "mobile", "25-logged-out-public-detail-structured", page.locator(".commune-job-native-details"), -80);
+    await context.close();
+  }
+  if (readableEvidenceDir) {
+    const context = await contextFor(browser, { posts: [futureRolePost], jobs: [futureRoleJob], viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+    await open(page, `/commune/posts/${ids.post}`);
+    await page.getByRole("heading", { level: 2, name: futureRolePost.title }).waitFor();
     await assertNoOverflow(page, "mobile public Job detail");
-    await readableScreenshot(page, "mobile", "13-public-job-detail-mobile-top", page.getByRole("heading", { level: 2, name: publishedPost.title }), -120);
-    await readableScreenshot(page, "mobile", "14-public-job-detail-mobile-metadata", page.getByText("Official application webpage", { exact: true }).first(), -260);
+    await readableScreenshot(page, "mobile", "13-public-job-detail-mobile-top", page.locator(".commune-post-context-header"), -80);
+    await readableScreenshot(page, "mobile", "14-public-job-detail-mobile-metadata", page.locator(".commune-job-facts-grid"), -100);
+    await readableScreenshot(page, "mobile", "14b-public-job-detail-mobile-long-form", page.locator(".commune-job-narrative-grid"), -100);
+    await readableScreenshot(page, "mobile", "14c-public-job-detail-mobile-links", page.locator('[aria-label="Links"]'), -120);
     await readableScreenshot(page, "mobile", "15-publication-not-verification-mobile", page.getByText(/Publication is not endorsement or verification/), -260);
     await context.close();
   }
