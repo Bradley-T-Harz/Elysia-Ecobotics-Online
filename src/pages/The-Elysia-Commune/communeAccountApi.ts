@@ -1951,7 +1951,7 @@ export async function submitJobPost(input: {
   if (!account.userId) return { ok: false, message: "Sign in to submit a Job Post." };
   if (!input.acknowledgement) return { ok: false, message: "Confirm the Job Post safety acknowledgements before submitting." };
   const opportunityDraft = normalizeJobOpportunityDraft(input.opportunity);
-  const opportunityValidation = validateJobOpportunity(opportunityDraft, { isAdmin: account.isAdmin, organizationProject: input.organizationProject });
+  const opportunityValidation = validateJobOpportunity(opportunityDraft, { isAdmin: account.isAdmin });
   if (!opportunityValidation.ok) return { ok: false, message: `Complete the opportunity details before submitting: ${opportunityValidation.errors.join(" ")}` };
   const required = [
     ["role title", input.roleTitle],

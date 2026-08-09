@@ -1,6 +1,6 @@
-# Opportunity Commons / Job Post Policy
+# Job Post Policy
 
-Job Post keeps its stable `job-post` route and `job_post` internal type while Opportunity Commons v2 broadens the public form beyond ordinary employment. It supports paid employment, contracts/freelance work, internships, apprenticeships/traineeships, fellowships/funded placements, research, volunteer/community service, community/open-source contribution, testing/feedback calls, future-role interest/talent pools, and clearly explained other opportunities.
+Job Post keeps its stable `job-post` route and `job_post` internal type while the v2 model broadens the public form beyond ordinary employment. It supports paid employment, contracts/freelance work, internships, apprenticeships/traineeships, fellowships/funded placements, research, volunteer/community service, community/open-source contribution, testing/feedback calls, future-role interest/talent pools, and clearly explained other opportunities.
 
 The governing principle is: broad enough for legitimate collaboration, structured enough that relationship and compensation cannot be hidden, private enough that applications do not become public dossiers, and moderated enough that publication does not become a scammer's free billboard.
 
@@ -39,7 +39,7 @@ Publication is not endorsement or verification. Elysia Ecobotics does not guaran
 
 Public posts and comments must not contain resumes/CVs, Social Security numbers, tax or bank information, identity documents, private addresses, private phone numbers, account credentials, contracts, or sensitive application packets. Serious applications must use an independently verified official application page, organization contact, repository/contribution route, or authorized first-party Work With flow.
 
-The Work With route is not generic. Only an authorized administrator posting for Elysia Ecobotics or EcoSyneva may select the canonical private Work With route; frontend validation and restrictive RLS both enforce that boundary.
+The Work With route is not generic. Only an authorized administrator may select the canonical private Work With route. Selecting it is an explicit declaration that the listing is genuinely Elysia Ecobotics / EcoSyneva-originated; ordinary users remain denied and third-party opportunities must use their own legitimate destination. Frontend validation and restrictive RLS both enforce administrator authority and the exact route without relying on free-text organization-name matching.
 
 ## Review and anti-scam signals
 

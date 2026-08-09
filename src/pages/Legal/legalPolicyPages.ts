@@ -557,26 +557,26 @@ for (const page of legalPolicyPages) {
 
 const opportunityPolicyDate = "2026-08-08";
 const jobOpportunityLegalNotices: Record<string, string> = {
-  "acceptable-use-policy": `## Opportunity Commons safety and privacy
+  "acceptable-use-policy": `## Job Post safety and privacy
 
 Opportunity listings, application routes, and public comments must not be used for fake opportunities, impersonation, credential harvesting, pay-to-apply demands, gift-card or cryptocurrency demands, fake-check or equipment-purchase schemes, undisclosed affiliate traps, or pressure to move into an unverified private channel. Do not request or publish resumes/CVs, Social Security numbers, banking or tax information, identity documents, account credentials, private home addresses, private phone numbers, or sensitive application packets in public Commune content.
 
 An opportunity label, compensation label, moderation decision, publication state, or fee state is not proof of identity, legitimacy, legal compliance, worker status, compensation, or safety. Posters remain responsible for truthful terms and compliance with applicable employment, contractor, internship, volunteer, wage, pay-transparency, nondiscrimination, privacy, and consumer-protection laws.`,
-  "community-guidelines": `## Opportunity Commons participation
+  "community-guidelines": `## Job Post participation
 
-Opportunity Commons supports many legitimate ways to collaborate, including paid employment, contracts, internships, apprenticeships, funded placements, research, volunteering, community and open-source contribution, testing/feedback, and future-role interest. Posters must separately and truthfully disclose the relationship, compensation status, work arrangement, time structure, poster type, and legitimate application route. Nobody may hide compensation behind a relationship label or imply that a future-interest notice is a current opening or promise of work.
+The Job Post room supports many legitimate ways to collaborate, including paid employment, contracts, internships, apprenticeships, funded placements, research, volunteering, community and open-source contribution, testing/feedback, and future-role interest. Posters must separately and truthfully disclose the relationship, compensation status, work arrangement, time structure, poster type, and legitimate application route. Nobody may hide compensation behind a relationship label or imply that a future-interest notice is a current opening or promise of work.
 
 Keep public interactions intentionally thin. Do not submit resumes/CVs, Social Security numbers, banking or tax information, identity documents, private addresses, private phone numbers, account credentials, or sensitive application packets in posts or comments. Use the poster's independently verified official application route, organization contact, repository/contribution instructions, or an authorized first-party Work With flow.
 
 Publication is not endorsement or verification. Elysia Ecobotics does not guarantee the identity, legitimacy, compensation, safety, or accuracy of a poster or opportunity. Independently verify the organization and destination before sharing information, paying money, or accepting work. Never pay to apply or to get paid; see the [Federal Trade Commission's current Job Scams guidance](https://consumer.ftc.gov/articles/job-scams).`,
   "terms-of-use": `## Opportunity listings, classification, and non-endorsement
 
-Opportunity Commons is a moderated public listing surface, not an employer, staffing agency, payroll system, applicant-tracking system, identity-verification service, or legal classification service. Publication, moderation, labels, and payment state do not constitute endorsement or verification and do not guarantee a poster's identity, legitimacy, compensation, safety, accuracy, or legal compliance.
+The Job Post room is a moderated public listing surface, not an employer, staffing agency, payroll system, applicant-tracking system, identity-verification service, or legal classification service. Publication, moderation, labels, and payment state do not constitute endorsement or verification and do not guarantee a poster's identity, legitimacy, compensation, safety, accuracy, or legal compliance.
 
 Opportunity labels do not determine legal employment or worker status. Posters are responsible for complying with applicable wage, contractor, internship, volunteer, employment, pay-transparency, nondiscrimination, privacy, and other laws. The substance and circumstances of a relationship—not the site's selected label—may control its legal treatment. Users should seek qualified advice for their circumstances.
 
 Serious applications must use a legitimate, independently verified route. Public posts and comments must not contain sensitive application or identity material. A Job Post publication fee, if separately enabled and disclosed, is an economic service condition only; it cannot purchase approval, verification, ranking, trust, or publication.`,
-  "volunteer-contributor-disclaimer": `## Opportunity Commons volunteer and unpaid listings
+  "volunteer-contributor-disclaimer": `## Job Post volunteer and unpaid listings
 
 Volunteer, community-service, open-source, internship, academic-credit, reimbursement-only, and other unpaid opportunities must say so affirmatively and must not be presented as paid employment. Unpaid opportunities posted by for-profit businesses receive enhanced human scrutiny, but a review signal is not an automated legal conclusion. Posters remain responsible for determining and complying with the legal requirements that apply to the actual relationship.
 

@@ -1,6 +1,6 @@
-# Opportunity Commons Security Boundary
+# Job Post Security Boundary
 
-Opportunity Commons is a public, moderated listing room. It is not an applicant-tracking system, staffing agency, identity-verification service, payroll system, contract-signing system, or private hiring database.
+Job Post is a public, moderated listing room. It is not an applicant-tracking system, staffing agency, identity-verification service, payroll system, contract-signing system, or private hiring database.
 
 ## Public data allowed
 
@@ -18,7 +18,7 @@ Opportunity Commons is a public, moderated listing room. It is not an applicant-
 
 ## Database and RLS
 
-`commune_job_posts` is publicly readable only with its linked published/public `commune_posts` row, or to its owner/reviewers under existing policy. V2 check constraints require complete structured truth and compatible conditional combinations. Restrictive insert/update policies reserve `private_work_with` for a current administrator, an exact first-party organization, and `/work-with-elysia-ecobotics`.
+`commune_job_posts` is publicly readable only with its linked published/public `commune_posts` row, or to its owner/reviewers under existing policy. V2 check constraints require complete structured truth and compatible conditional combinations. Restrictive insert/update policies reserve `private_work_with` for a current administrator and `/work-with-elysia-ecobotics`. Selecting that admin-only route declares first-party Elysia Ecobotics / EcoSyneva origin; free-text organization names are display content, not authority.
 
 Ordinary-user publication remains backend governed through RLS, review RPCs, publication functions, service restrictions, and fail-closed triggers. V2 does not weaken those controls. The separately deferred transactional Job creation RPC is not part of this implementation.
 

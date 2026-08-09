@@ -16,6 +16,7 @@ const readableEvidenceDir = process.env.ELYSIA_JOB_OPPORTUNITY_READABLE_EVIDENCE
   : null;
 if (readableEvidenceDir) {
   await fs.mkdir(path.join(readableEvidenceDir, "desktop"), { recursive: true });
+  await fs.mkdir(path.join(readableEvidenceDir, "tablet"), { recursive: true });
   await fs.mkdir(path.join(readableEvidenceDir, "mobile"), { recursive: true });
 }
 const indexHtml = await fs.readFile(path.join(dist, "index.html"));
@@ -43,6 +44,17 @@ const ids = {
   reviewJob: "c4000000-0000-4000-8000-000000000002",
 };
 const links = ["https://example.org/opportunity", "https://github.com/example/restoration", "https://docs.example.org/team"];
+const tagStressCases = [
+  { id: "3-ordinary", value: "restoration, moderation, privacy", count: 3 },
+  { id: "4-ordinary", value: "restoration, moderation, privacy, accessibility", count: 4 },
+  { id: "8-ordinary", value: "restoration, moderation, privacy, accessibility, governance, documentation, local-first, public-commons", count: 8 },
+  { id: "12-ordinary", value: "restoration, moderation, privacy, accessibility, governance, documentation, local-first, commons, safety, research, ecology, participation", count: 12 },
+  { id: "12-mixed", value: "community-stewardship, moderation, privacy, anti-spam, anti-scam, public-commons, community-participation, future-moderator, documentation, local-first, accessibility, governance", count: 12 },
+  { id: "long-valid", value: "crosscommunitystewardshippathxxx, moderation, privacy, anti-scam, accessibility, governance", count: 6 },
+  { id: "empty", value: "", count: 0 },
+  { id: "simple-words", value: "wetlands qgis local-ai governance", count: 4 },
+  { id: "mixed-delimiters", value: "wetlands, qgis; local first; governance", count: 4 },
+];
 const fixtureUser = (admin = false) => ({
   id: admin ? ids.admin : ids.user,
   aud: "authenticated", role: "authenticated", email: `${admin ? "admin" : "member"}@example.invalid`,
@@ -155,6 +167,17 @@ async function installFixtures(context, options = {}) {
       return fulfill(review ? [{ id: "c5000000-0000-4000-8000-000000000001", review_item_id: ids.reviewPost, actor_id: ids.admin, body: "Internal domain mismatch follow-up; do not expose to submitter.", visibility: "internal", created_at: "2026-08-08T12:30:00.000Z" }] : []);
     }
     if (pathname.endsWith("/rest/v1/rpc/resolve_public_commune_attributions")) return fulfill(posts.map((post) => ({ target_type: "post", target_id: post.id, author_handle: "opportunity-member", canonical_profile_url: "https://elysiaecobotics.com/commons-circle/@opportunity-member", viewer_is_owner: false })));
+    if (pathname.endsWith("/rest/v1/rpc/review_commune_job_post")) return fulfill({
+      jobPostId: ids.job,
+      postId: ids.post,
+      action: "approve",
+      contentApproved: true,
+      contentStatus: "approved",
+      economicStatus: "not_assessed",
+      publicationStatus: "approved",
+      published: false,
+      feeEnforcement: false,
+    });
     if (pathname.includes("/rest/v1/rpc/")) return fulfill(objectResponse ? { id: ids.post } : []);
     if (["POST", "PATCH", "DELETE"].includes(request.method())) return fulfill(objectResponse ? { id: ids.post } : [], 201);
     return fulfill([]);
@@ -232,6 +255,52 @@ async function assertNoOverflow(page, label) {
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   assert(overflow <= 1, `${label} horizontal overflow: ${overflow}px`);
 }
+async function measureTagStress(page, caseName) {
+  const field = page.locator(".commune-job-tags-field");
+  const result = await field.evaluate((element) => {
+    const grid = element.parentElement;
+    const input = element.querySelector("input");
+    const preview = element.querySelector(".commune-job-live-tag-preview");
+    const row = preview?.querySelector(".tag-row");
+    const chips = [...(row?.querySelectorAll("span") ?? [])];
+    const rect = element.getBoundingClientRect();
+    const inputRect = input?.getBoundingClientRect();
+    const previewRect = preview?.getBoundingClientRect();
+    const chipRects = chips.map((chip) => {
+      const chipRect = chip.getBoundingClientRect();
+      return { left: chipRect.left, right: chipRect.right, top: chipRect.top, bottom: chipRect.bottom, width: chipRect.width };
+    });
+    const peerCards = [...(grid?.children ?? [])].slice(0, 2).map((peer) => {
+      const peerRect = peer.getBoundingClientRect();
+      const peerInputRect = peer.querySelector("input")?.getBoundingClientRect();
+      return { height: peerRect.height, inputHeight: peerInputRect?.height ?? 0 };
+    });
+    return {
+      field: { left: rect.left, right: rect.right, width: rect.width, height: rect.height, clientWidth: element.clientWidth, scrollWidth: element.scrollWidth },
+      grid: grid ? { clientWidth: grid.clientWidth, scrollWidth: grid.scrollWidth } : null,
+      input: inputRect ? { left: inputRect.left, right: inputRect.right, width: inputRect.width } : null,
+      preview: preview && previewRect ? { left: previewRect.left, right: previewRect.right, width: previewRect.width, clientWidth: preview.clientWidth, scrollWidth: preview.scrollWidth } : null,
+      row: row ? { clientWidth: row.clientWidth, scrollWidth: row.scrollWidth, flexWrap: getComputedStyle(row).flexWrap } : null,
+      chips: chipRects,
+      peerCards,
+      rows: new Set(chipRects.map((chip) => Math.round(chip.top))).size,
+      documentOverflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    };
+  });
+  assert(result.input, `${caseName}: Tags input missing`);
+  assert(result.input.left >= result.field.left - 1 && result.input.right <= result.field.right + 1, `${caseName}: Tags input escaped its card`);
+  assert(result.field.scrollWidth <= result.field.clientWidth + 1, `${caseName}: Tags card acquired horizontal overflow`);
+  assert(!result.grid || result.grid.scrollWidth <= result.grid.clientWidth + 1, `${caseName}: composer grid acquired horizontal overflow`);
+  assert(result.peerCards.every((peer) => peer.height < 160 && peer.inputHeight >= 40 && peer.inputHeight <= 60), `${caseName}: Title/Summary stretched with the tag preview`);
+  assert(result.documentOverflow <= 1, `${caseName}: page acquired horizontal overflow`);
+  if (result.preview) {
+    assert.equal(result.row?.flexWrap, "wrap", `${caseName}: preview row must wrap`);
+    assert(result.preview.scrollWidth <= result.preview.clientWidth + 1, `${caseName}: preview acquired horizontal overflow`);
+    assert((result.row?.scrollWidth ?? 0) <= (result.row?.clientWidth ?? 0) + 1, `${caseName}: tag row acquired horizontal overflow`);
+    assert(result.chips.every((chip) => chip.left >= result.field.left - 1 && chip.right <= result.field.right + 1), `${caseName}: a chip escaped the Tags card`);
+  }
+  return result;
+}
 const label = (page, name) => page.getByLabel(new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
 
 async function baseComposer(page, opportunityType, compensationStatus) {
@@ -300,6 +369,7 @@ try {
     const page = await context.newPage();
     await open(page, "/commune/rooms/job-post");
     await page.getByRole("heading", { name: /Broad ways to collaborate/ }).waitFor();
+    assert.equal(await page.getByText(/Opportunity Commons/i).count(), 0, "Job Post hub must not expose internal redesign terminology");
     await assertNoOverflow(page, "desktop Job Post hub");
     await screenshot(page, "01-job-post-hub");
     await readableScreenshot(page, "desktop", "01-job-post-hub-desktop");
@@ -329,22 +399,73 @@ try {
     assert(Math.abs(desktopBasicsLayout.cards[0].width - desktopBasicsLayout.cards[1].width) <= 1, "Opportunity basics cards must have balanced desktop widths");
     assert(Math.abs(desktopBasicsLayout.selects[0].y - desktopBasicsLayout.selects[1].y) <= 1, "Opportunity basics controls must align vertically");
     assert(desktopBasicsLayout.selects.every((item) => item.height >= 40 && item.height <= 56), "closed Opportunity basics selects must retain normal control height");
+    const tagsField = page.locator(".commune-job-tags-field");
+    assert.equal(await tagsField.locator(".commune-job-live-tag-preview").count(), 0, "empty Job Post tags must not render a junk preview");
+    await label(page, "Tags").fill("community stewardship, #moderation, privacy, moderation");
+    assert.deepEqual(await tagsField.locator(".tag-row span").allTextContents(), ["#community-stewardship", "#moderation", "#privacy"], "Job Post live tags must use canonical ordered, deduplicated normalization");
+    assert.equal(await page.locator("#commune-post-composer .tag-row").count(), 1, "Job Post composer must render exactly one live tag preview");
+    assert(await tagsField.evaluate((field) => Boolean(field.querySelector("input") && field.querySelector(".commune-job-live-tag-preview"))), "live tag preview must be attached to the Tags field");
+    await label(page, "Tags").evaluate((input) => {
+      input.blur();
+      input.scrollLeft = 0;
+    });
     await assertNoOverflow(page, "desktop initial composer");
     await screenshot(page, "02-clean-initial-composer");
     await readableScreenshot(page, "desktop", "03-clean-initial-composer-desktop-top", page.getByRole("heading", { name: /Create a Job Post post/ }), -170);
     await readableScreenshot(page, "desktop", "04-clean-initial-composer-desktop-middle", label(page, "Opportunity type"), -310);
     await readableScreenshot(page, "desktop", "31-opportunity-basics-closed-desktop", page.locator(".job-opportunity-basics"), -180);
     await readableScreenshot(page, "desktop", "05-clean-initial-composer-desktop-bottom", page.getByRole("button", { name: "Submit for moderation" }), -120);
+    await readableScreenshot(page, "desktop", "36-job-tags-live-preview-desktop", tagsField, -260);
     await label(page, "Opportunity type").focus();
     await screenshot(page, "03-opportunity-type-dropdown", { fullPage: false });
     await readableSelectOptions(page, "desktop", "06-opportunity-type-options-desktop", label(page, "Opportunity type"));
     await readableSelectOptions(page, "desktop", "32-opportunity-type-open-desktop", label(page, "Opportunity type"));
     await readableSelectOptions(page, "desktop", "33-poster-organization-type-open-desktop", label(page, "Poster / organization type"));
     await label(page, "Opportunity type").selectOption("paid_employment");
+    await readableScreenshot(page, "desktop", "37-job-post-publication-warning-desktop", page.getByText(/^Job Post is a moderated public listing board/), -260);
     await label(page, "Compensation status").focus();
     await screenshot(page, "04-compensation-status-dropdown", { fullPage: false });
     await readableSelectOptions(page, "desktop", "07-compensation-status-options-desktop", label(page, "Compensation status"));
+    await label(page, "Tags").fill("");
+    assert.equal(await tagsField.locator(".commune-job-live-tag-preview").count(), 0, "clearing Job Post tags must remove the live preview");
     assert.deepEqual(errors, []);
+    await context.close();
+  }
+
+  measurements.tagStress = {};
+  for (const viewportCase of [
+    { folder: "desktop", width: 1440, height: 1000, screenshots: new Map([["3-ordinary", "42-tag-stress-3-desktop"], ["8-ordinary", "43-tag-stress-8-desktop"], ["12-mixed", "44-tag-stress-12-mixed-desktop"], ["long-valid", "45-tag-stress-long-desktop"]]) },
+    { folder: "tablet", width: 900, height: 1000, screenshots: new Map([["12-mixed", "01-tag-stress-12-mixed-tablet"], ["long-valid", "02-tag-stress-long-tablet"]]) },
+    { folder: "mobile", width: 390, height: 844, screenshots: new Map([["3-ordinary", "21-tag-stress-3-mobile"], ["8-ordinary", "22-tag-stress-8-mobile"], ["long-valid", "23-tag-stress-long-mobile"]]) },
+  ]) {
+    const context = await contextFor(browser, { viewport: { width: viewportCase.width, height: viewportCase.height } });
+    const page = await context.newPage();
+    await open(page, "/commune/rooms/job-post/new");
+    const tagsInput = label(page, "Tags");
+    const tagField = page.locator(".commune-job-tags-field");
+    const baselineWidth = (await tagField.boundingBox())?.width ?? 0;
+    const caseMeasurements = {};
+    for (const item of tagStressCases) {
+      await tagsInput.fill(item.value);
+      const chips = tagField.locator(".tag-row span");
+      assert.equal(await chips.count(), item.count, `${viewportCase.folder}/${item.id}: canonical parser count changed`);
+      assert.equal(await page.locator("#commune-post-composer .tag-row").count(), item.count ? 1 : 0, `${viewportCase.folder}/${item.id}: exactly one non-empty composer preview expected`);
+      await tagsInput.evaluate((input) => {
+        input.blur();
+        input.scrollLeft = 0;
+      });
+      const layout = await measureTagStress(page, `${viewportCase.folder}/${item.id}`);
+      assert(Math.abs(layout.field.width - baselineWidth) <= 1, `${viewportCase.folder}/${item.id}: Tags card width changed with tag count`);
+      if (item.count >= 8) assert(layout.rows >= 2, `${viewportCase.folder}/${item.id}: many tags should wrap onto additional rows`);
+      caseMeasurements[item.id] = layout;
+      const screenshotName = viewportCase.screenshots.get(item.id);
+      if (screenshotName) {
+        const offset = item.id === "12-mixed" && viewportCase.folder !== "mobile" ? 100 : viewportCase.folder === "mobile" ? -120 : -240;
+        await readableScreenshot(page, viewportCase.folder, screenshotName, tagField, offset);
+      }
+    }
+    assert(caseMeasurements["12-mixed"].field.height > caseMeasurements["3-ordinary"].field.height, `${viewportCase.folder}: many tags should grow the card downward`);
+    measurements.tagStress[viewportCase.folder] = caseMeasurements;
     await context.close();
   }
 
@@ -451,6 +572,62 @@ try {
     await context.close();
   }
   {
+    const captures = { posts: [], jobs: [], reviews: [], comments: [] };
+    const context = await contextFor(browser, { admin: true, captures });
+    const page = await context.newPage();
+    await open(page, "/commune/rooms/job-post/new");
+    await baseComposer(page, "future_role_interest_talent_pool", "future_compensation_not_established");
+    await label(page, "Poster / organization type").selectOption("business_company");
+    await label(page, "Organization / project").fill("EcoSyneva Commons LLC — Elysia Ecobotics Online");
+    await label(page, "Time basis").selectOption("other");
+    await label(page, "Duration").selectOption("other");
+    await label(page, "Experience / eligibility").selectOption("");
+    await label(page, "Application route type").selectOption("private_work_with");
+    await page.getByLabel(/I confirm this is an interest or talent-pool notice/).check();
+    assert.equal(await label(page, "Private Work With route").inputValue(), "/work-with-elysia-ecobotics", "admin private route must be canonical and read-only");
+    assert(await page.getByText(/Selecting Private Work With declares/).count(), "admin must see the explicit first-party provenance boundary");
+    await checkAcknowledgements(page);
+    await page.getByRole("button", { name: "Submit through governed review" }).click();
+    for (let attempt = 0; attempt < 100 && captures.jobs.length === 0; attempt += 1) await page.waitForTimeout(50);
+    assert.equal(captures.jobs.length, 1, "authorized administrator private Work With listing must reach the structured request flow");
+    assert.equal(captures.jobs[0].application_route_type, "private_work_with");
+    assert.equal(captures.jobs[0].application_destination, "/work-with-elysia-ecobotics");
+    assert.equal(captures.posts[0].status, "pending_review", "administrator must not bypass governed Job Post subject state");
+    assert(!/Private Work With is reserved/.test(await page.locator(".message").innerText()), "authorized administrator must not receive the false Work With denial");
+    await readableScreenshot(
+      page,
+      "desktop",
+      "38-admin-private-work-with-accepted-desktop",
+      page.getByText(/Selecting Private Work With declares/),
+      -420,
+    );
+    await context.close();
+  }
+  {
+    const captures = { posts: [], jobs: [], reviews: [], comments: [] };
+    const context = await contextFor(browser, { captures });
+    const page = await context.newPage();
+    await open(page, "/commune/rooms/job-post/new");
+    await baseComposer(page, "paid_employment", "paid");
+    await chooseModel(page, "Salary", "64000");
+    const routeSelect = label(page, "Application route type");
+    await routeSelect.evaluate((element) => {
+      const option = document.createElement("option");
+      option.value = "private_work_with";
+      option.textContent = "Private Work With flow";
+      element.append(option);
+      element.value = option.value;
+      element.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await checkAcknowledgements(page);
+    await page.getByRole("button", { name: "Submit for moderation" }).click();
+    await page.getByText(/Private Work With is reserved for authorized/).waitFor();
+    assert.equal(captures.posts.length, 0, "manipulated ordinary-user Work With state must fail before any write");
+    assert.equal(captures.jobs.length, 0, "manipulated ordinary-user Work With state must not create a sidecar");
+    await readableScreenshot(page, "desktop", "39-unauthorized-private-work-with-rejected-desktop", routeSelect, -310);
+    await context.close();
+  }
+  {
     const context = await contextFor(browser);
     const page = await context.newPage();
     await open(page, "/commune/rooms/job-post/new");
@@ -481,6 +658,15 @@ try {
     await readableScreenshot(page, "mobile", "02-clean-initial-composer-mobile-middle", label(page, "Opportunity type"), -100);
     await readableScreenshot(page, "mobile", "18-opportunity-basics-closed-mobile", page.locator(".job-opportunity-basics"), -70);
     await readableScreenshot(page, "mobile", "03-clean-initial-composer-mobile-bottom", page.getByRole("button", { name: "Submit for moderation" }), -80);
+    await label(page, "Tags").fill("community stewardship, moderation, privacy");
+    assert.deepEqual(await page.locator(".commune-job-tags-field .tag-row span").allTextContents(), ["#community-stewardship", "#moderation", "#privacy"]);
+    assert.equal(await page.locator("#commune-post-composer .tag-row").count(), 1, "mobile Job Post composer must render one adjacent tag preview");
+    await label(page, "Tags").evaluate((input) => {
+      input.blur();
+      input.scrollLeft = 0;
+    });
+    await readableScreenshot(page, "mobile", "20-job-tags-live-preview-mobile", page.locator(".commune-job-tags-field"), -120);
+    await assertNoOverflow(page, "mobile Job Post live tags");
     await context.close();
   }
   if (readableEvidenceDir) {
@@ -529,6 +715,7 @@ try {
     await baseComposer(page, "paid_employment", "paid");
     await chooseModel(page, "Salary", "64000");
     await label(page, "Maximum optional").fill("82000");
+    await label(page, "Tags").fill("community stewardship, moderation, privacy");
     const linksBox = page.getByRole("textbox", { name: "Links", exact: true });
     await linksBox.fill(links[0]); await linksBox.press("Enter"); await linksBox.type(links[1]); await linksBox.press("Shift+Enter"); await linksBox.type(links[2]);
     const title = label(page, "Title");
@@ -540,6 +727,7 @@ try {
     assert.equal(draft.schemaVersion, "job_opportunity.v2");
     assert.equal(draft.jobOpportunity.opportunityType, "paid_employment");
     assert.deepEqual(draft.jobOpportunity.compensationModels, ["salary"]);
+    assert.equal(draft.tags, "#community-stewardship, #moderation, #privacy", "local draft tags must retain canonical semantics after preview placement changes");
     assert.equal(draft.sourceLinks, links.join("\n"));
     const downloadPromise = page.waitForEvent("download");
     await page.getByRole("button", { name: "Export Markdown" }).click();
@@ -548,7 +736,9 @@ try {
     assert(downloadPath);
     const markdown = await fs.readFile(downloadPath, "utf8");
     assert(markdown.includes("## Opportunity type\nPaid employment") && markdown.includes("## Compensation status\nPaid"), "Markdown export must carry v2 structured representation");
+    assert(markdown.includes("#community-stewardship, #moderation, #privacy"), "Markdown export tags must remain unchanged");
     await screenshot(page, "19-draft-export-representation");
+    await readableScreenshot(page, "desktop", "40-lower-composer-without-duplicate-tags-desktop", page.locator("#commune-post-composer > .commune-checklist"), -360);
     await page.getByRole("button", { name: "Submit for moderation" }).click();
     for (let attempt = 0; attempt < 100 && captures.jobs.length === 0; attempt += 1) await page.waitForTimeout(50);
     for (let attempt = 0; attempt < 100 && captures.reviews.length < 2; attempt += 1) await page.waitForTimeout(50);
@@ -567,13 +757,13 @@ try {
     const context = await contextFor(browser, { admin: true, posts: [reviewPost], jobs: [riskyReviewJob], review: true });
     const page = await context.newPage();
     await open(page, "/admin/review/commune");
-    await page.getByText("Joined Opportunity Commons case", { exact: true }).waitFor({ timeout: 30_000 });
+    await page.getByText("Joined Job Post case", { exact: true }).waitFor({ timeout: 30_000 });
     assert.equal(await page.locator(".review-list-item").filter({ hasText: /joined opportunity case/ }).count(), 1, "generic and sidecar review records must collapse into one visible case");
     assert(await page.getByText(/applicant payment request/i).count(), "advisory high-risk payment signal missing");
     assert(await page.getByText(/sensitive information request/i).count(), "advisory sensitive-information signal missing");
     assert(await page.getByText(/Internal domain mismatch follow-up/).count(), "protected internal reviewer note missing");
     await screenshot(page, "20-reviewer-joined-case");
-    await readableScreenshot(page, "desktop", "22-reviewer-joined-case-desktop", page.getByText("Joined Opportunity Commons case", { exact: true }), -320);
+    await readableScreenshot(page, "desktop", "22-reviewer-joined-case-desktop", page.getByText("Joined Job Post case", { exact: true }), -320);
     await readableScreenshot(page, "desktop", "22b-reviewer-structured-metadata-desktop", page.locator(".admin-job-opportunity-case .mini-facts"), -250);
     await page.locator(".admin-job-risk-flags").scrollIntoViewIfNeeded();
     await screenshot(page, "21-reviewer-advisory-flags");
@@ -584,9 +774,9 @@ try {
     const context = await contextFor(browser, { admin: true, posts: [reviewPost], jobs: [riskyReviewJob], review: true, viewport: { width: 390, height: 844 } });
     const page = await context.newPage();
     await open(page, "/admin/review/commune");
-    await page.getByText("Joined Opportunity Commons case", { exact: true }).waitFor({ timeout: 30_000 });
+    await page.getByText("Joined Job Post case", { exact: true }).waitFor({ timeout: 30_000 });
     await assertNoOverflow(page, "mobile joined reviewer case");
-    await readableScreenshot(page, "mobile", "11-reviewer-joined-case-mobile", page.getByText("Joined Opportunity Commons case", { exact: true }), -220);
+    await readableScreenshot(page, "mobile", "11-reviewer-joined-case-mobile", page.getByText("Joined Job Post case", { exact: true }), -220);
     await readableScreenshot(page, "mobile", "11b-reviewer-structured-metadata-mobile", page.locator(".admin-job-opportunity-case .mini-facts"), -100);
     await readableScreenshot(page, "mobile", "12-reviewer-advisory-flags-mobile", page.locator(".admin-job-risk-flags"), -400);
     await context.close();
@@ -623,12 +813,15 @@ try {
     await page.getByRole("heading", { level: 2, name: publishedPost.title }).waitFor();
     assert(await page.getByText("Official application webpage", { exact: true }).count(), "public detail application route missing");
     assert.deepEqual(await page.locator('[aria-label="Links"] li').allTextContents().then((values) => values.map((value) => value.trim())), links);
+    assert.deepEqual(await page.locator(".commune-post-detail .tag-row span").allTextContents(), ["#restoration", "#typescript"], "published Job Post tags must remain in the post-detail location");
     await screenshot(page, "23-public-job-detail");
     await readableScreenshot(page, "desktop", "25-public-job-detail-desktop-top", page.getByRole("heading", { level: 2, name: publishedPost.title }), 300);
     await readableScreenshot(page, "desktop", "26-public-job-detail-desktop-metadata", page.getByText("Official application webpage", { exact: true }).first(), -480);
     await page.getByText(/Publication is not endorsement or verification/).scrollIntoViewIfNeeded();
     await screenshot(page, "24-publication-not-verification");
     await readableScreenshot(page, "desktop", "27-publication-not-verification-desktop", page.getByText(/Publication is not endorsement or verification/), 0);
+    await readableScreenshot(page, "desktop", "41-published-job-post-tags-desktop", page.locator(".commune-post-detail .tag-row"), -300);
+    assert.equal(await page.getByText(/Opportunity Commons/i).count(), 0, "public Job Post detail must not expose internal redesign terminology");
     await context.close();
   }
   if (readableEvidenceDir) {

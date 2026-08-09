@@ -78,6 +78,7 @@ const accountCommunicationPaths = [
 
 const opportunityPaths = [
   "supabase/migrations/20260808010000_job_post_opportunity_model_v2.sql",
+  "supabase/migrations/20260809010000_job_post_private_work_with_admin_authority.sql",
 ];
 
 const activePaths = [
@@ -228,6 +229,7 @@ for (const [index, migration] of opportunityMigrations.entries()) {
   assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${opportunityPaths[index]} contains a token-like value.`);
 }
 const opportunityMigrationSource = opportunityMigrations.join("\n");
+const privateWorkWithAuthorityMigration = opportunityMigrations.at(-1) ?? "";
 for (const marker of [
   "model_version smallint not null default 1",
   "commune_job_posts_v2_complete_check",
@@ -237,6 +239,8 @@ for (const marker of [
   "review_comments is the protected reviewer-note path",
 ]) assert(opportunityMigrationSource.includes(marker), `Opportunity Commons v2 migration omits ${marker}.`);
 assert(!/\bupdate\s+public\.commune_job_posts\b/i.test(opportunityMigrationSource), "Opportunity Commons v2 migration must not rewrite existing Job Post rows.");
+assert(privateWorkWithAuthorityMigration.includes("public.current_user_is_admin()") && privateWorkWithAuthorityMigration.includes("application_destination = '/work-with-elysia-ecobotics'"), "Private Work With policy repair must keep canonical administrator authority and destination.");
+assert(!privateWorkWithAuthorityMigration.includes("organization_project"), "Private Work With policy repair must not use free-text organization display content as authority.");
 for (const marker of [
   "additive migration changed or guessed the legacy row",
   "future-TBD escaped the future-interest restriction",

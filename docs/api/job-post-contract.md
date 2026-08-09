@@ -1,4 +1,4 @@
-# Opportunity Commons / Job Post API Contract
+# Job Post API Contract
 
 Stable identifiers remain `job-post`, `job_post`, and `public.commune_job_posts`. V2 is an additive sidecar extension, not a new room or replacement table.
 
@@ -24,7 +24,7 @@ Legacy title, organization, location text, time commitment, deadline, requiremen
 
 The centralized `jobOpportunityModel.ts` owns TypeScript types, option lists, normalization, labels, display formatting, conditional validation, dual-write mapping, deterministic legacy projection, public URL/email rules, and advisory reviewer signals. The composer and API both validate. PostgreSQL CHECK constraints independently enforce allowed values, v2 completeness, compensation compatibility, amounts, conditional text, and route shape.
 
-The `private_work_with` route additionally requires a restrictive database policy: administrator authority, exact first-party organization name, and canonical destination.
+The `private_work_with` route additionally requires a restrictive database policy: canonical administrator authority and the exact private destination. The admin-only selection is the explicit first-party provenance declaration; free-text organization names are not an authorization boundary.
 
 ## Review projection
 

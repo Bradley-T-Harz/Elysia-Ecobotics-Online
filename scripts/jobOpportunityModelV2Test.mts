@@ -105,9 +105,9 @@ for (const badDestination of ["", "javascript:alert(1)", "http://localhost/apply
   assert.equal(validateJobOpportunity(validDraft({ applicationDestination: badDestination })).ok, false, `public application destination must reject ${badDestination || "blank"}`);
 }
 assert.equal(validateJobOpportunity(validDraft({ applicationRouteType: "organization_contact", applicationDestination: "jobs@organization.example" })).ok, true, "official organization email remains supported");
-assert.equal(validateJobOpportunity(validDraft({ applicationRouteType: "private_work_with", applicationDestination: "/work-with-elysia-ecobotics" }), { isAdmin: false, organizationProject: "Elysia Ecobotics" }).ok, false, "ordinary users cannot select private Work With");
-assert.equal(validateJobOpportunity(validDraft({ applicationRouteType: "private_work_with", applicationDestination: "" }), { isAdmin: true, organizationProject: "Elysia Ecobotics" }).ok, false, "private Work With must use the exact first-party route");
-assert.equal(validateJobOpportunity(validDraft({ applicationRouteType: "private_work_with", applicationDestination: "/work-with-elysia-ecobotics" }), { isAdmin: true, organizationProject: "Elysia Ecobotics" }).ok, true, "authorized first-party private Work With route should validate");
+assert.equal(validateJobOpportunity(validDraft({ applicationRouteType: "private_work_with", applicationDestination: "/work-with-elysia-ecobotics" }), { isAdmin: false }).ok, false, "ordinary users cannot select private Work With");
+assert.equal(validateJobOpportunity(validDraft({ applicationRouteType: "private_work_with", applicationDestination: "" }), { isAdmin: true }).ok, false, "private Work With must use the exact first-party route");
+assert.equal(validateJobOpportunity(validDraft({ applicationRouteType: "private_work_with", applicationDestination: "/work-with-elysia-ecobotics" }), { isAdmin: true }).ok, true, "canonical administrator authority plus the explicit first-party route should validate");
 
 const legacy = legacyFieldsForOpportunity(payload);
 assert.equal(legacy.role_type, "paid_role");
@@ -133,13 +133,15 @@ for (const code of ["unpaid_for_profit", "unpaid_business_internship", "applican
   assert(flags.some((item) => item.code === code), `review advisory flag missing: ${code}`);
 }
 
-const [composer, service, reviewClient, admin, legal, migration] = await Promise.all([
+const [composer, fields, service, reviewClient, admin, legal, migration, workWithAuthorityMigration] = await Promise.all([
   fs.readFile("src/pages/The-Elysia-Commune/index.tsx", "utf8"),
+  fs.readFile("src/pages/The-Elysia-Commune/JobOpportunityFields.tsx", "utf8"),
   fs.readFile("src/pages/The-Elysia-Commune/communeAccountApi.ts", "utf8"),
   fs.readFile("src/shared/review/reviewClient.ts", "utf8"),
   fs.readFile("src/pages/Admin/index.tsx", "utf8"),
   fs.readFile("src/pages/Legal/legalPolicyPages.ts", "utf8"),
   fs.readFile("supabase/migrations/20260808010000_job_post_opportunity_model_v2.sql", "utf8"),
+  fs.readFile("supabase/migrations/20260809010000_job_post_private_work_with_admin_authority.sql", "utf8"),
 ]);
 assert(composer.includes("<JobOpportunityFields") && composer.includes("jobOpportunityAcknowledgement"), "composer must use the centralized progressive v2 control and independent truth acknowledgement");
 assert(!composer.includes("Creator anti-scam") && !service.includes("private_application_note:"), "creator trust controls and writes to the public-row pseudo-private note must stay removed");
@@ -148,7 +150,18 @@ assert(service.includes("legacyJobPostSelect"), "reader must retain pre-migratio
 assert(reviewClient.includes("review_comments") && reviewClient.includes("jobOpportunityReviewerFlags"), "reviewer detail must use protected notes and advisory flags");
 assert(admin.includes("JobOpportunityReviewPanel") && admin.includes("addInternalReviewComment"), "admin must present a joined Job case with protected internal notes");
 assert(legal.includes("Publication is not endorsement or verification") && legal.includes("Opportunity labels do not determine legal employment or worker status"), "coordinated non-endorsement and classification language missing");
+for (const [name, source] of [["Commune", composer], ["Admin Review", admin], ["Legal", legal]]) assert(!/Opportunity Commons/i.test(source), `${name} must retain the public Job Post name`);
+assert(fields.includes('option.value !== "private_work_with" || isAdmin') && service.includes("isAdmin: account.isAdmin"), "Private Work With must use the canonical administrator state in the UI and submit service");
+assert(
+  reviewClient.includes("supabase.auth.getUser()")
+    && reviewClient.includes('from("user_roles").select("role")')
+    && reviewClient.includes('.is("revoked_at", null)')
+    && reviewClient.includes('from("profiles").select("is_admin")')
+    && reviewClient.includes('roles.includes("administrator") || Boolean'),
+  "administrator authority must come from the authenticated user plus the canonical active-role/profile sources",
+);
 assert(migration.includes("model_version smallint not null default 1") && !/\bupdate\s+public\.commune_job_posts\b/i.test(migration), "migration must be additive and must not rewrite legacy rows");
 assert(migration.includes('as restrictive') && migration.includes("private work with"), "first-party Work With must be RLS-enforced");
+assert(workWithAuthorityMigration.includes("public.current_user_is_admin()") && workWithAuthorityMigration.includes("/work-with-elysia-ecobotics") && !workWithAuthorityMigration.includes("organization_project"), "forward policy repair must use canonical admin authority, not free-text organization matching");
 
 console.log("Opportunity Commons v2 model, compatibility, validation, safety, review, and legal contracts passed.");

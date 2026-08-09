@@ -26,14 +26,13 @@ import {
 
 type Props = {
   value: JobOpportunityDraft;
-  organizationProject: string;
   isAdmin: boolean;
   showErrors?: boolean;
   onChange: (value: JobOpportunityDraft) => void;
 };
 
-export default function JobOpportunityFields({ value, organizationProject, isAdmin, showErrors = false, onChange }: Props) {
-  const validation = validateJobOpportunity(value, { isAdmin, organizationProject });
+export default function JobOpportunityFields({ value, isAdmin, showErrors = false, onChange }: Props) {
+  const validation = validateJobOpportunity(value, { isAdmin });
   const set = <K extends keyof JobOpportunityDraft>(key: K, next: JobOpportunityDraft[K]) => onChange({ ...value, [key]: next });
   const status = value.compensationStatus;
   const quantifiable = value.compensationModels.some((model) => ["salary", "hourly", "fixed_project_fee", "milestone_project_payment", "stipend", "fellowship_funding", "honorarium"].includes(model));
@@ -120,6 +119,7 @@ export default function JobOpportunityFields({ value, organizationProject, isAdm
           onChange({ ...value, applicationRouteType, applicationDestination: applicationRouteType === "private_work_with" ? "/work-with-elysia-ecobotics" : value.applicationDestination });
         }}><option value="">Choose route</option>{jobApplicationRouteOptions.filter((option) => option.value !== "private_work_with" || isAdmin).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>{error("applicationRouteType")}</label>
         {value.applicationRouteType && value.applicationRouteType !== "other_legitimate" && <label className="wide-field"><span>{destinationLabel} <span aria-hidden="true">*</span></span><input required readOnly={value.applicationRouteType === "private_work_with"} inputMode={value.applicationRouteType === "organization_contact" ? "email" : "url"} value={value.applicationDestination} onChange={(event) => set("applicationDestination", event.target.value)} placeholder={value.applicationRouteType === "organization_contact" ? "https://organization.example/apply or jobs@organization.example" : "https://organization.example/apply"} />{error("applicationDestination")}</label>}
+        {value.applicationRouteType === "private_work_with" && <p className="wide-field boundary-note">Selecting Private Work With declares that this is a genuine Elysia Ecobotics / EcoSyneva-originated opportunity. Administrator authority and the canonical private route are enforced; third-party opportunities must use their own legitimate application destination.</p>}
         {(value.applicationRouteType === "other_legitimate" || value.applicationRouteType === "repository_contribution_instructions") && <label className="wide-field"><span>Application / contribution instructions{value.applicationRouteType === "other_legitimate" ? " *" : ""}</span><textarea rows={3} required={value.applicationRouteType === "other_legitimate"} value={value.applicationInstructions} onChange={(event) => set("applicationInstructions", event.target.value)} placeholder="Explain what a person should do without asking them to publish sensitive information." />{error("applicationInstructions")}</label>}
       </div>
     </fieldset>

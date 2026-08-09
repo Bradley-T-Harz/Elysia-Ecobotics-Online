@@ -290,7 +290,7 @@ export function isPublicHttpUrl(value: string) {
 }
 export function isEmailAddress(value: string) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim()); }
 
-export type JobOpportunityValidationContext = { isAdmin?: boolean; organizationProject?: string };
+export type JobOpportunityValidationContext = { isAdmin?: boolean };
 export type JobOpportunityValidation = { ok: boolean; errors: string[]; fields: Record<string, string> };
 
 export function validateJobOpportunity(input: JobOpportunityDraft, context: JobOpportunityValidationContext = {}): JobOpportunityValidation {
@@ -340,7 +340,7 @@ export function validateJobOpportunity(input: JobOpportunityDraft, context: JobO
   if (["official_application_webpage", "repository_contribution_instructions"].includes(draft.applicationRouteType) && !isPublicHttpUrl(destination)) add("applicationDestination", "Use a public HTTP(S) destination.");
   if (draft.applicationRouteType === "organization_contact" && !isPublicHttpUrl(destination) && !isEmailAddress(destination)) add("applicationDestination", "Use an official public webpage or organization email address.");
   if (draft.applicationRouteType === "private_work_with") {
-    if (!context.isAdmin || !/^(elysia ecobotics|ecosy?neva(?: commons)?(?: llc)?)$/i.test(String(context.organizationProject ?? "").trim())) add("applicationRouteType", "Private Work With is reserved for authorized Elysia Ecobotics / EcoSyneva opportunities.");
+    if (!context.isAdmin) add("applicationRouteType", "Private Work With is reserved for authorized Elysia Ecobotics / EcoSyneva opportunities.");
     if (destination !== "/work-with-elysia-ecobotics") add("applicationDestination", "Use the canonical private Work With route.");
   }
   if (draft.applicationRouteType === "other_legitimate" && draft.applicationInstructions.trim().length < 12) add("applicationInstructions", "Explain the legitimate application route clearly.");

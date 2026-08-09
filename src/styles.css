@@ -1779,6 +1779,38 @@ code { color: var(--teal); overflow-wrap: anywhere; }
   background: transparent;
 }
 
+.commune-form-grid .commune-job-tags-field {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.72rem;
+  border: 1px solid rgba(142, 232, 220, 0.16);
+  border-radius: 15px;
+  background: rgba(5, 12, 20, 0.38);
+}
+
+.commune-job-post-form-grid {
+  align-items: start;
+}
+
+.commune-form-grid .commune-job-tags-field > label {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.commune-job-live-tag-preview .tag-row span {
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid rgba(142, 232, 220, 0.24);
+  border-radius: 999px;
+  padding: 0.25rem 0.55rem;
+  background: rgba(142, 232, 220, 0.08);
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
 .commune-form-grid textarea[id$="-links"] {
   min-height: 7.5rem;
   resize: vertical;

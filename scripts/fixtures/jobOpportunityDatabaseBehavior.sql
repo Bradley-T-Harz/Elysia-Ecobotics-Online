@@ -200,7 +200,7 @@ insert into public.commune_job_posts (
   'd3000000-0000-4000-8000-000000000005',
   'd2000000-0000-4000-8000-000000000005',
   'd1000000-0000-4000-8000-000000000002',
-  'First-party opportunity', 'Elysia Ecobotics', 'Authorized first-party private intake.',
+  'First-party opportunity', 'EcoSyneva Commons LLC — Elysia Ecobotics Online', 'Authorized first-party private intake.',
   2, 'paid_employment', 'paid', array['hourly'],
   'USD', 32, 'hour',
   'remote', 'part_time', 'fixed_term', 'business_company',
@@ -212,6 +212,31 @@ reset role;
 set role anon;
 select set_config('request.jwt.claim.sub', '', false);
 select set_config('request.jwt.claims', '{}', false);
+
+do $$
+begin
+  begin
+    insert into public.commune_job_posts (
+      id, post_id, author_user_id, role_title, organization_project, role_summary,
+      model_version, opportunity_type, compensation_status, compensation_models,
+      work_arrangement, time_basis, duration_type, poster_type,
+      application_route_type, application_destination,
+      role_type, paid_volunteer_status, location_mode, compensation_clarity, contact_path, work_with_link_enabled
+    ) values (
+      'd3000000-0000-4000-8000-000000000006',
+      'd2000000-0000-4000-8000-000000000004',
+      'd1000000-0000-4000-8000-000000000001',
+      'Anonymous route attempt', 'Elysia Ecobotics', 'Anonymous users must never claim the private intake.',
+      2, 'future_role_interest_talent_pool', 'future_compensation_not_established', array[]::text[],
+      'remote', 'other', 'other', 'business_company',
+      'private_work_with', '/work-with-elysia-ecobotics',
+      'other', 'must_clarify', 'remote', 'Future compensation not yet established', '/work-with-elysia-ecobotics', true
+    );
+    raise exception 'anonymous user inserted first-party private Work With route';
+  exception when insufficient_privilege then null;
+  end;
+end;
+$$;
 
 do $$
 declare public_count integer;

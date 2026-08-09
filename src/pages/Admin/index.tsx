@@ -268,7 +268,7 @@ function JobOpportunityReviewPanel({ item }: { item: ReviewItem }) {
   const opportunity = item.job_post_case;
   if (!opportunity) return null;
   return <section className="admin-job-opportunity-case" aria-labelledby="admin-job-opportunity-case-title">
-    <p className="eyebrow">Joined Opportunity Commons case</p>
+    <p className="eyebrow">Joined Job Post case</p>
     <h3 id="admin-job-opportunity-case-title">{opportunity.title}</h3>
     <p className="boundary-note">The generic post and structured sidecar are presented as one case. Underlying review records and their audit history remain intact.</p>
     {opportunity.legacyAmbiguity && <WarningCallout title="Legacy listing"><p>This record predates the v2 opportunity model. Do not infer missing poster, compensation, time, or application-route details; request clarification where the legacy record is ambiguous.</p></WarningCallout>}

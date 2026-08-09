@@ -19,6 +19,7 @@ const safety = await read("src/pages/The-Elysia-Commune/communeSafety.ts");
 const accountApi = await read("src/pages/The-Elysia-Commune/communeAccountApi.ts");
 const attributionApi = await read("src/pages/The-Elysia-Commune/communeAttribution.ts");
 const adminPage = await read("src/pages/Admin/index.tsx");
+const legalPolicyPage = await read("src/pages/Legal/legalPolicyPages.ts");
 const reviewClient = await read("src/shared/review/reviewClient.ts");
 const jobPostReviewClient = await read("src/shared/review/jobPostReviewClient.ts");
 const migration = await read("supabase/legacy-migrations/2026_06_12_commune_full_system.sql");
@@ -232,8 +233,9 @@ assert(!page.includes("<span>Private application note</span>"), "Normal Job Post
 assert(!page.includes("checked={form.jobWorkWithLinkEnabled}") && !accountApi.includes("private_application_note"), "Creator controls and API projections must not treat a public-row legacy field as a private application or reviewer-note channel.");
 assert(accountApi.includes('work_with_link_enabled: opportunityPayload.application_route_type === "private_work_with"') && jobOpportunityModel.includes('value: "private_work_with"'), "Work With must be an explicit first-party application route rather than a misleading creator-side anti-scam control.");
 assert(page.includes("Create Job Post") && !page.includes("Create Job Post Post"), "Job Post room action should avoid duplicate Post wording.");
-assert(page.includes("Ordinary-user submissions require governed review before publication"), "Opportunity Commons should explain mandatory governed review.");
-assert(page.includes("Open first-party Work With private intake"), "Opportunity Commons should preserve the explicit first-party private Work With route.");
+assert(page.includes("Ordinary-user submissions require governed review before publication"), "Job Post should explain mandatory governed review.");
+assert(page.includes("Open first-party Work With private intake"), "Job Post should preserve the explicit first-party private Work With route.");
+assert(!/Opportunity Commons/i.test(page) && !/Opportunity Commons/i.test(jobOpportunityFields) && !/Opportunity Commons/i.test(adminPage) && !/Opportunity Commons/i.test(legalPolicyPage), "Public Commune, Job Post, Admin Review, and Legal source must not expose the internal Opportunity Commons program name.");
 assert(workWithPage.includes("Job Posts are the public board; Work With is the private intake path") && workWithPage.includes("/commune/rooms/job-post/posts") && workWithPage.includes("/commune/rooms/job-post/new"), "Work With page should link back to public Job Posts without merging private intake.");
 assert(accountApi.includes("export async function submitJobPost") && accountApi.includes("commune_job_posts") && accountApi.includes('post_type: "job_post"'), "Job Post API should create normal Commune posts plus structured sidecar metadata.");
 assert(accountApi.includes('status: "pending_review"') && accountApi.includes("mandatory admin approval") && accountApi.includes('reviewCommuneJobPost(jobPostId, "approve"'), "Job Post API should keep every new subject non-public until the governed review boundary resolves publication.");
@@ -270,7 +272,7 @@ assert(jobPostEconomicMigration.includes("condition_status in ('not_required', '
 assert(jobPostEconomicMigration.includes("create trigger enforce_job_post_economic_publication_gate\nbefore update of status on public.commune_posts"), "Job Post publication gating must fail closed on status updates when fee enforcement is enabled.");
 assert(jobPostEconomicMigration.includes("create trigger enforce_job_post_economic_publication_gate_on_insert\nbefore insert on public.commune_posts"), "Job Post publication gating must also fail closed on direct published inserts when fee enforcement is enabled.");
 assert(jobPostPolicyDoc.includes("Ordinary-user submissions require governed review before publication") && jobPostPolicyDoc.includes("Administrator submissions still pass through the governed Job Post review RPC"), "Opportunity Commons policy doc missing governed public submission doctrine.");
-assert(jobPostPolicyDoc.includes("The Work With route is not generic") && jobPostPolicyDoc.includes("authorized administrator posting for Elysia Ecobotics or EcoSyneva"), "Opportunity Commons policy doc missing the restrictive first-party Work With boundary.");
+assert(jobPostPolicyDoc.includes("The Work With route is not generic") && jobPostPolicyDoc.includes("Only an authorized administrator may select") && jobPostPolicyDoc.includes("free-text organization-name matching"), "Job Post policy doc missing the restrictive first-party Work With boundary.");
 assert(jobPostBoundaryDoc.includes("Public data prohibited") && jobPostBoundaryDoc.includes("Resumes/CVs") && jobPostBoundaryDoc.includes("SSNs") && jobPostBoundaryDoc.includes("Work With uploads"), "Opportunity Commons security boundary doc missing private applicant data prohibitions.");
 assert(jobPostContractDoc.includes("submitJobPost") && jobPostContractDoc.includes("commune_job_posts") && jobPostContractDoc.includes("model_version = 2") && jobPostContractDoc.includes("private_work_with"), "Opportunity Commons API contract doc missing helper/table/version/Work With contract.");
 for (const officialField of ["Official status", "Severity", "Audience", "Effective date", "Affected systems", "Related room", "Related public repository/reference URL", "Related migration", "User action required", "Pin this notice", "Comments enabled", "Official read-only code", "Official code filename", "Official code context"]) {
@@ -332,6 +334,14 @@ assert(safety.includes("Array.from(new Set(tags)).slice(0, MAX_COMMUNE_TAGS)"), 
 assert(page.includes("TagChips"), "Commune tag chip display component missing.");
 assert(page.includes("Add tags like #wetlands, #qgis, local-ai"), "Commune tag input helper placeholder missing.");
 assert(page.includes("Use hashtags, commas, or simple words. Tags help people find posts later."), "Commune tag helper copy missing.");
+const jobTagFieldIndex = page.indexOf('className="commune-job-tags-field"');
+const jobOpportunityFieldsIndex = page.indexOf("<JobOpportunityFields", jobTagFieldIndex);
+const nonJobLowerTagPreviewIndex = page.indexOf("{!showJobFields && <><p className=\"boundary-note\">Use hashtags", jobOpportunityFieldsIndex);
+assert(jobTagFieldIndex > 0 && jobOpportunityFieldsIndex > jobTagFieldIndex, "Job Post live tag preview must be attached to the Tags field before structured opportunity fields.");
+assert(nonJobLowerTagPreviewIndex > jobOpportunityFieldsIndex, "Other Commune rooms must retain their existing lower shared tag preview.");
+assert((page.match(/className="commune-job-live-tag-preview"/g) ?? []).length === 1 && page.includes('aria-label="Live tag preview"'), "Job Post composer should have exactly one accessible live tag preview.");
+assert(page.includes('commune-job-post-form-grid') && styles.includes(".commune-job-post-form-grid") && styles.includes("align-items: start"), "Job Post tag growth must not vertically stretch adjacent Title/Summary controls.");
+assert(styles.includes(".commune-job-live-tag-preview .tag-row span") && styles.includes("max-width: 100%") && styles.includes("overflow-wrap: anywhere"), "Job Post live tag chips need scoped wrapping and long-tag containment styles.");
 assert(page.includes("replace(/#/g, \"\")"), "Commune search should normalize hashtag searches.");
 assert(accountApi.includes("parseCommuneTags(input.tags)"), "Commune Supabase submission should normalize tags before insert.");
 assert(migration.includes("tags text[]"), "Commune Supabase schema should support post tags.");
