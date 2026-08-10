@@ -183,7 +183,7 @@ assert(communityVoteContractDoc.includes("loadVotePostsForPosts") && communityVo
 assert(commonsApi.includes("CommunityVoteSignalPreview") && commonsApi.includes("commune_vote_posts") && commonsApi.includes("communityVoteActivity"), "Signal Console should load direct Community Voting Room activity records.");
 assert(signalConsolePage.includes("/commons-circle/signals/voting-room") && signalDetailPage.includes("Voting stewardship snapshot") && signalDetailPage.includes("separate from Official Updates"), "Focused Signals routes should retain Community Voting Room lifecycle sections and boundary copy.");
 
-for (const anchor of ["commune-lobby", "commune-search", "commune-feed", "commune-rooms", "commune-post-composer", "commune-repository-showcase", "commune-repository-showcase-sandbox-request", "commune-elysia-iteration-showcase-sandbox-request", "commune-sandbox-review", "commune-code-review", "commune-local-drafts"]) {
+for (const anchor of ["commune-lobby", "commune-quick-access-tools", "commune-search", "commune-redaction-checklist", "commune-feed", "commune-rooms", "commune-post-composer", "commune-repository-showcase", "commune-repository-showcase-sandbox-request", "commune-elysia-iteration-showcase-sandbox-request", "commune-sandbox-review", "commune-code-review", "commune-local-drafts"]) {
   assert(page.includes(anchor), `Missing Commune anchor: ${anchor}`);
 }
 
@@ -198,6 +198,12 @@ assert(!lobbyBranch.includes("<AccountModePanel"), "Commune lobby still renders 
 for (const lobbyPanel of ["<CommuneLobby", "<CommuneSearchPanel", "<CommuneRoomsGateway", "<CommunityFeed", "<CommuneSideChannelPanel", "<LocalDraftStudio"]) {
   assert(page.includes(lobbyPanel), `Commune lobby panel missing: ${lobbyPanel}`);
 }
+assert((page.match(/<CommuneSideChannelPanel/g) ?? []).length === 1 && (page.match(/<LocalDraftStudio/g) ?? []).length === 1, "Quick-access utilities must be moved, not duplicated.");
+assert(page.includes("function CommuneQuickAccess") && page.includes('<section className="commune-quick-access" aria-label="Community quick access">'), "Commune quick-access composition missing.");
+assert(page.includes("Local drafts and saved request drafts") && page.includes('labels: ["local request draft", draft.postType, draft.tags]') && page.includes("A saved request draft has not been submitted to an account-backed review queue.") && !page.includes("Local drafts and pending review requests"), "The browser-local drafts panel must not claim to show account-backed pending review requests.");
+const communePageRender = page.slice(page.lastIndexOf('return <div className="page-stack commune-page">'));
+const orderedLobbyPanels = ["<CommuneLobby", "<CommuneQuickAccess", "<CommuneSearchPanel", "<RedactionPanel", "<CommuneRoomsGateway", "<CommunityFeed"].map((needle) => communePageRender.indexOf(needle));
+assert(orderedLobbyPanels.every((index) => index >= 0) && orderedLobbyPanels.every((index, position) => position === 0 || orderedLobbyPanels[position - 1] < index), "Lobby order must be welcome, quick access, search, redaction, rooms, then grouped feed.");
 assert(!lobbyBranch.includes("<RoomCards"), "Commune lobby should link to the Rooms directory instead of rendering the full room-card grid.");
 assert(page.includes('routeMode === "rooms-index" && <CommuneRoomsIndexPage />'), "Commune /rooms should render the room directory index page.");
 assert(page.includes("function CommuneRoomsGateway()") && page.includes("Browse Commune Rooms"), "Commune lobby should render a compact Rooms gateway.");

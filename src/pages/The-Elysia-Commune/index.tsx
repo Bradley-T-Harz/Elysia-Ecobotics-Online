@@ -1835,7 +1835,7 @@ function Doctrine() {
 }
 
 function RedactionPanel() {
-  return <section className="section-card"><p className="eyebrow">Redaction Checklist</p><h2>Before sharing logs, screenshots, repo notes, or code, redact these.</h2><div className="commune-redaction-grid">{["API keys", "tokens", "passwords", "emails", "phone numbers", "addresses", "private local file paths", "machine usernames", "database URLs", "Supabase keys", "Cloudflare tokens", "GitHub tokens", ".env contents", "customer/user records"].map((item) => <span key={item}>{item}</span>)}</div></section>;
+  return <section className="section-card" id="commune-redaction-checklist"><p className="eyebrow">Redaction Checklist</p><h2>Before sharing logs, screenshots, repo notes, or code, redact these.</h2><div className="commune-redaction-grid">{["API keys", "tokens", "passwords", "emails", "phone numbers", "addresses", "private local file paths", "machine usernames", "database URLs", "Supabase keys", "Cloudflare tokens", "GitHub tokens", ".env contents", "customer/user records"].map((item) => <span key={item}>{item}</span>)}</div></section>;
 }
 
 function CommuneLobby() {
@@ -3865,16 +3865,17 @@ function ElysiaIterationSandboxRequestPanel({ signedIn }: { signedIn: boolean })
 function LocalDraftStudio({ localDrafts, filters }: { localDrafts: ReturnType<typeof useLocalDraftState>; filters: CommuneFilters }) {
   const draftCards = [
     ...localDrafts.postDrafts.map((draft) => ({ id: draft.id, title: draft.title || "Untitled post draft", labels: [draft.status, draft.postType, draft.tags], summary: draft.summary, tags: draft.tags })),
-    ...localDrafts.postRequests.map((draft) => ({ id: draft.id, title: draft.title || "Untitled post request", labels: [draft.status, draft.postType, draft.tags], summary: draft.summary, tags: draft.tags })),
+    ...localDrafts.postRequests.map((draft) => ({ id: draft.id, title: draft.title || "Untitled post request", labels: ["local request draft", draft.postType, draft.tags], summary: draft.summary, tags: draft.tags })),
     ...localDrafts.repoDrafts.map((draft) => ({ id: draft.id, title: draft.title || "Untitled repo showcase", labels: ["repo showcase draft", draft.provider, draft.manifestStatus, "Repository Showcase"], summary: draft.description })),
     ...localDrafts.iterationDrafts.map((draft) => ({ id: draft.id, title: draft.title || "Untitled iteration showcase", labels: ["iteration showcase draft", draft.iterationType, draft.versionBuildLabel, "Elysia Iteration Showcase"], summary: draft.whatChanged || draft.summary })),
     ...localDrafts.sandboxDrafts.map((draft) => ({ id: draft.id, title: draft.title || "Untitled sandbox request", labels: ["sandbox request draft", `network: ${draft.networkNeeded}`, `files: ${draft.fileAccessNeeded}`], summary: draft.codePurpose }))
   ].filter((draft) => matchesSearch([draft.title, draft.summary, ...draft.labels], filters.search) && matchesStatus(draft.labels, filters.status) && matchesSafety(draft.labels, filters.safety) && (filters.category === "All" || draft.labels.includes(filters.category)));
   const total = localDrafts.postDrafts.length + localDrafts.postRequests.length + localDrafts.repoDrafts.length + localDrafts.iterationDrafts.length + localDrafts.sandboxDrafts.length;
-  return <section className="section-card" id="commune-local-drafts">
-    <p className="eyebrow">Local drafts and pending review requests</p>
+  return <section className="section-card commune-local-drafts" id="commune-local-drafts">
+    <p className="eyebrow">Local drafts and saved request drafts</p>
     <h2>Saved in this browser only</h2>
-    {total === 0 ? <p>Drafts and post requests saved in this browser will appear here.</p> : null}
+    <p className="boundary-note">This panel contains browser-local copies only. A saved request draft has not been submitted to an account-backed review queue.</p>
+    {total === 0 ? <p>No browser-local drafts or request drafts yet.</p> : null}
     <div className="commune-draft-grid">
       {draftCards.map((draft) => <article key={draft.id}><h3>{draft.title}</h3><StatusBadges labels={draft.labels} /><p>{draft.summary}</p>{"tags" in draft && typeof draft.tags === "string" && <TagChips tags={draft.tags} />}</article>)}
     </div>
@@ -3883,7 +3884,7 @@ function LocalDraftStudio({ localDrafts, filters }: { localDrafts: ReturnType<ty
 }
 
 function CommuneSideChannelPanel() {
-  return <section className="section-card commune-info-grid">
+  return <section className="section-card commune-info-grid" id="commune-quick-access-tools">
     <article>
       <p className="eyebrow">Live chat side channel</p>
       <h2>Most community discussion belongs in room posts and replies.</h2>
@@ -3896,6 +3897,13 @@ function CommuneSideChannelPanel() {
       <p>Use Coding Cornucopia for inert review documents, manual snapshots, static diagnostics, and governed sandbox requests. The browser page does not install dependencies, clone repositories, open a terminal, or call Local Elysia.</p>
       <div className="button-row"><Link className="button-link" to="/commune/coding-cornucopia/review#coding-workbench-heading">Coding workbench</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Sandbox request</Link></div>
     </article>
+  </section>;
+}
+
+function CommuneQuickAccess({ localDrafts, filters }: { localDrafts: ReturnType<typeof useLocalDraftState>; filters: CommuneFilters }) {
+  return <section className="commune-quick-access" aria-label="Community quick access">
+    <CommuneSideChannelPanel />
+    <LocalDraftStudio localDrafts={localDrafts} filters={filters} />
   </section>;
 }
 
@@ -5399,6 +5407,7 @@ export default function CommunePage() {
       <Doctrine />
     </>}
     {isLobby && <CommuneLobby />}
+    {isLobby && <CommuneQuickAccess localDrafts={localDrafts} filters={filters} />}
     {isLobby && <CommuneSearchPanel filters={filters} setFilters={setFilters} />}
     {!postId && !isLobby && routeMode !== "rooms-index" && <AccountModePanel signedIn={state.signedIn} isModerator={state.isModerator} accountReady={state.accountReady} activeKind={activeActionKind} />}
     {["new", "troubleshooting", "repository-sandbox-review", "iteration-sandbox-review", "sandbox-review", "code-review", "realtime", "moderation"].includes(routeMode) && <CommuneFocusedToolbar />}
@@ -5419,8 +5428,6 @@ export default function CommunePage() {
       <RedactionPanel />
       <CommuneRoomsGateway />
       <CommunityFeed posts={state.posts} savedPostIds={state.savedPostIds} onSave={(id) => void save(id)} filters={filters} signedIn={state.signedIn} troubleshootingPosts={state.troubleshootingPosts} jobPosts={state.jobPosts} researchNotes={state.researchNotes} votePosts={state.votePosts} />
-      <CommuneSideChannelPanel />
-      <LocalDraftStudio localDrafts={localDrafts} filters={filters} />
     </>}
   </div>;
 }

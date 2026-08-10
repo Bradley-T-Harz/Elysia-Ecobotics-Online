@@ -1636,6 +1636,16 @@ code { color: var(--teal); overflow-wrap: anywhere; }
   gap: 0.85rem;
 }
 
+.commune-quick-access {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.commune-quick-access > * {
+  min-width: 0;
+}
+
 .commune-status-card,
 .commune-composer-card,
 .commune-repo-card,
