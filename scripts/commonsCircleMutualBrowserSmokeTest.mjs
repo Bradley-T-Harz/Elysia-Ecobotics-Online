@@ -172,13 +172,36 @@ async function verify(viewport, exerciseMutations, stateKind = "mixed") {
   await context.close();
 }
 
+async function verifySignedOutBoundary() {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  let circleRpcCalls = 0;
+  await context.route(/^https:\/\/[^/]+\.supabase\.co\//, async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const headers = jsonHeaders();
+    if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers, body: "" });
+    if (url.pathname.endsWith("/rest/v1/rpc/current_user_circle")) circleRpcCalls += 1;
+    return route.fulfill({ status: 401, headers, body: JSON.stringify({ message: "authentication required" }) });
+  });
+  const page = await context.newPage();
+  const consoleErrors = [];
+  page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
+  await page.goto(`${origin}/commons-circle/signals/circle`, { waitUntil: "networkidle", timeout: 45_000 });
+  await page.getByText("Sign in to use Your Circle.", { exact: true }).waitFor();
+  assert.equal(circleRpcCalls, 0, "Signed-out Circle page must not call the authenticated Circle RPC.");
+  assert.deepEqual(consoleErrors, [], "Signed-out Circle page must not emit a 401 console error.");
+  await page.screenshot({ path: path.join(evidenceDir, "desktop-circle-signed-out-boundary.png"), fullPage: true });
+  await context.close();
+}
+
 const browser = await chromium.launch({ headless: true });
 try {
   await verify({ width: 1440, height: 1000 }, true);
   await verify({ width: 820, height: 900 }, false);
   await verify({ width: 390, height: 844 }, false);
   await verify({ width: 1440, height: 1000 }, false, "empty");
-  console.log(`Mutual Commons Circle browser flow passed for accept, decline, remove, desktop, half-screen, mobile, and empty states. Evidence: ${evidenceDir}`);
+  await verifySignedOutBoundary();
+  console.log(`Mutual Commons Circle browser flow passed for accept, decline, remove, desktop, half-screen, mobile, empty, and signed-out no-RPC states. Evidence: ${evidenceDir}`);
 } finally {
   await browser.close();
   await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

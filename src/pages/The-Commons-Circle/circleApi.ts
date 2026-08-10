@@ -82,6 +82,8 @@ function messageFor(error: string, fallback: string) {
 
 export async function loadCurrentUserCircle(): Promise<{ data: CircleOverview; warnings: string[] }> {
   if (!hasSupabaseConfig || !supabase) return { data: emptyOverview, warnings: [supabaseNotConfiguredMessage] };
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError || !sessionData.session?.user) return { data: emptyOverview, warnings: ["Sign in to use Your Circle."] };
   const { data, error } = await supabase.rpc("current_user_circle");
   if (error) return { data: emptyOverview, warnings: [messageFor(error.message, "Your Circle is not available until the latest account migration is active.")] };
   const source = record(data);

@@ -36,6 +36,7 @@ for (const label of ["Invite to Circle", "Circle invitation sent", "Accept invit
   assert.ok(action.includes(label) || page.includes(label), `Circle UI is missing ${label}`);
 }
 assert.ok(page.includes("mutual Circle") && page.includes("not a follower count"), "Your Circle page must explain mutual consent and non-authority.");
+assert.match(api, /supabase\.auth\.getSession\(\)[\s\S]*!sessionData\.session\?\.user[\s\S]*Sign in to use Your Circle\.[\s\S]*supabase\.rpc\("current_user_circle"\)/, "Signed-out Circle loading must stop before the authenticated RPC instead of generating a production 401.");
 assert.ok(app.includes('path="commons-circle/signals/circle"'), "Your Circle route is missing.");
 assert.ok(signals.includes('to="/commons-circle/signals/circle"'), "Signals must expose Your Circle near communication tools.");
 assert.ok(migration.includes("Existing explicit private-post access is unchanged"), "Circle removal must explicitly preserve existing post ACLs.");
