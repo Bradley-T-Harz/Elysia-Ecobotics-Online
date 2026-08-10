@@ -7,6 +7,10 @@ import { chromium } from "playwright";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dist = path.join(root, "dist");
+const evidenceDir = process.env.ELYSIA_PUBLIC_COMMONS_PROFILE_EVIDENCE_DIR
+  ? path.resolve(process.env.ELYSIA_PUBLIC_COMMONS_PROFILE_EVIDENCE_DIR)
+  : "";
+if (evidenceDir) await fs.mkdir(evidenceDir, { recursive: true });
 const indexHtml = await fs.readFile(path.join(dist, "index.html"));
 const headersSource = await fs.readFile(path.join(root, "public/_headers"), "utf8");
 const csp = headersSource.match(/^\s*Content-Security-Policy:\s*(.+)$/m)?.[1]?.trim();
@@ -154,7 +158,7 @@ assert(address && typeof address === "object", "Local browser server did not sta
 const origin = `http://127.0.0.1:${address.port}`;
 const browser = await chromium.launch({ headless: true });
 
-async function loadCase({ handle, viewport, expected, canonicalAfterLoad, signedIn = false, owner = false }) {
+async function loadCase({ handle, viewport, expected, canonicalAfterLoad, signedIn = false, owner = false, circleState, screenshotName }) {
   const context = await browser.newContext({
     viewport,
     isMobile: viewport.width < 600,
@@ -238,6 +242,18 @@ async function loadCase({ handle, viewport, expected, canonicalAfterLoad, signed
       });
       return;
     }
+    if (url.pathname.endsWith("/rest/v1/rpc/commons_circle_state_for_handle")) {
+      const body = request.postDataJSON();
+      rpcCalls.push(`circle:${body.p_handle}`);
+      await route.fulfill({
+        status: 200,
+        headers: corsHeaders,
+        body: JSON.stringify(owner
+          ? { state: "self", relationshipId: null }
+          : circleState ?? { state: "can_invite", relationshipId: null }),
+      });
+      return;
+    }
     if (url.pathname.endsWith("/rest/v1/badge_definitions")) {
       await route.fulfill({ status: 200, headers: corsHeaders, body: "[]" });
       return;
@@ -279,10 +295,25 @@ async function loadCase({ handle, viewport, expected, canonicalAfterLoad, signed
       const messageLink = page.getByRole("link", { name: "Message", exact: true });
       await messageLink.waitFor();
       assert.equal(await messageLink.getAttribute("href"), `/commons-circle/signals/inbox/new?recipient=%40${canonicalHandle}`);
+      const expectedCircleState = circleState?.state ?? "can_invite";
+      if (expectedCircleState === "can_invite") await page.getByRole("button", { name: "Invite to Circle", exact: true }).waitFor();
+      if (expectedCircleState === "sent") await page.getByRole("button", { name: "Circle invitation sent", exact: true }).waitFor();
+      if (expectedCircleState === "incoming") {
+        await page.getByRole("button", { name: "Accept invitation", exact: true }).waitFor();
+        await page.getByRole("button", { name: "Decline", exact: true }).waitFor();
+      }
+      if (expectedCircleState === "accepted") {
+        await page.getByText("In Your Circle", { exact: true }).waitFor();
+        await page.getByRole("button", { name: "Remove from Circle", exact: true }).waitFor();
+      }
       assert.equal(await page.getByText("Private messaging unavailable", { exact: true }).count(), 0, "Public profiles must not pre-query or expose private availability.");
     }
     const messagingControlMarkup = await page.locator(".commons-profile-masthead__edit").innerHTML();
     assert(!messagingControlMarkup.includes(fixtureUser.email) && !messagingControlMarkup.includes(fixtureUserId), "Public-profile messaging controls must not render email or private account identity.");
+  }
+  if (evidenceDir && screenshotName) {
+    await page.locator(".commons-profile-masthead__edit").scrollIntoViewIfNeeded();
+    await page.screenshot({ path: path.join(evidenceDir, screenshotName), fullPage: false });
   }
   assert(
     loadedScripts.some((asset) => /\/assets\/commons-circle-[^/]+\.js$/.test(asset)),
@@ -318,16 +349,36 @@ try {
     viewport: { width: 1280, height: 900 },
     expected: "Fixture Online Public",
     signedIn: true,
+    screenshotName: "desktop-profile-invite-to-circle.png",
   });
-  assert.deepEqual(signedInCalls, [`presentation:${canonicalHandle}`]);
+  assert.deepEqual(signedInCalls, [`presentation:${canonicalHandle}`, `circle:${canonicalHandle}`]);
   const ownerCalls = await loadCase({
     handle: canonicalHandle,
     viewport: { width: 1280, height: 900 },
     expected: "Fixture Online Public",
     signedIn: true,
     owner: true,
+    screenshotName: "desktop-profile-own-state.png",
   });
   assert.deepEqual(ownerCalls, [`presentation:${canonicalHandle}`]);
+  if (evidenceDir) {
+    for (const visualCase of [
+      { state: { state: "sent", relationshipId: "cc300000-0000-4000-8000-000000000010" }, name: "desktop-profile-invitation-sent.png", viewport: { width: 1280, height: 900 } },
+      { state: { state: "incoming", relationshipId: "cc300000-0000-4000-8000-000000000011" }, name: "desktop-profile-incoming-accept-decline.png", viewport: { width: 1280, height: 900 } },
+      { state: { state: "accepted", relationshipId: "cc300000-0000-4000-8000-000000000012" }, name: "desktop-profile-in-your-circle-remove.png", viewport: { width: 1280, height: 900 } },
+      { state: { state: "can_invite", relationshipId: null }, name: "mobile-profile-invite-to-circle.png", viewport: { width: 390, height: 844 } },
+    ]) {
+      const calls = await loadCase({
+        handle: canonicalHandle,
+        viewport: visualCase.viewport,
+        expected: "Fixture Online Public",
+        signedIn: true,
+        circleState: visualCase.state,
+        screenshotName: visualCase.name,
+      });
+      assert.deepEqual(calls, [`presentation:${canonicalHandle}`, `circle:${canonicalHandle}`]);
+    }
+  }
   const aliasCalls = await loadCase({
     handle: "fixture-online-old",
     viewport: { width: 1280, height: 900 },

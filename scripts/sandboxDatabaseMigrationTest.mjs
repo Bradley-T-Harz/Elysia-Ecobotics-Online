@@ -83,6 +83,11 @@ const opportunityPaths = [
   "supabase/migrations/20260810010000_job_post_private_reviewer_note_boundary.sql",
 ];
 
+const circlePrivatePaths = [
+  "supabase/migrations/20260810020000_mutual_commons_circle.sql",
+  "supabase/migrations/20260810030000_circle_private_commune_posts.sql",
+];
+
 const activePaths = [
   ...baselinePaths,
   ...economicPaths,
@@ -91,6 +96,7 @@ const activePaths = [
   ...accountLifecyclePaths,
   ...accountCommunicationPaths,
   ...opportunityPaths,
+  ...circlePrivatePaths,
 ];
 
 const legacyHashes = new Map(Object.entries({
@@ -184,7 +190,11 @@ const accountCommunicationMigrations = await Promise.all(
 const opportunityMigrations = await Promise.all(
   opportunityPaths.map((file) => fs.readFile(file, "utf8"))
 );
+const circlePrivateMigrations = await Promise.all(
+  circlePrivatePaths.map((file) => fs.readFile(file, "utf8"))
+);
 const jobOpportunityBehaviorFixture = await fs.readFile("scripts/fixtures/jobOpportunityDatabaseBehavior.sql", "utf8");
+const circlePrivateBehaviorFixture = await fs.readFile("scripts/fixtures/communeCirclePrivateBehavior.sql", "utf8");
 const routeKillSwitchMigration = economicMigrations.at(-1);
 assert(routeKillSwitchMigration, "Economic route kill-switch migration is missing.");
 const economicBehaviorFixture = await fs.readFile("scripts/fixtures/economicDatabaseBehavior.sql", "utf8");
@@ -230,6 +240,28 @@ for (const [index, migration] of opportunityMigrations.entries()) {
   assert(!/postgres(?:ql)?:\/\//i.test(migration), `${opportunityPaths[index]} contains a connection string.`);
   assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${opportunityPaths[index]} contains a token-like value.`);
 }
+for (const [index, migration] of circlePrivateMigrations.entries()) {
+  assert(migration.startsWith("--"), `${circlePrivatePaths[index]} needs an explanatory header.`);
+  assert(/^begin;/im.test(migration), `${circlePrivatePaths[index]} must start a transaction.`);
+  assert(/commit;\s*$/i.test(migration), `${circlePrivatePaths[index]} must commit atomically.`);
+  assert(!/postgres(?:ql)?:\/\//i.test(migration), `${circlePrivatePaths[index]} contains a connection string.`);
+  assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${circlePrivatePaths[index]} contains a token-like value.`);
+}
+const circlePrivateSource = circlePrivateMigrations.join("\n");
+for (const marker of [
+  "commons_circle_relationships", "commons_circle_pair_unique",
+  "circle participants read their relationships", "public.current_user_circle",
+  "public.invite_to_commons_circle", "public.respond_to_commons_circle_invitation",
+  "public.remove_from_commons_circle", "pg_advisory_xact_lock",
+]) assert(circlePrivateSource.includes(marker), `Circle/private migration chain omits ${marker}.`);
+assert(!/current_user_is_admin|has_role\s*\(/i.test(circlePrivateMigrations[0]), "Circle relationships must not grant administrators ambient access.");
+for (const marker of [
+  "commune_post_circle_participants", "Circle-private Commune post boundary",
+  "private.commune_post_boundary_allows", "add_commune_post_circle_participants",
+  "circle_private_visibility_is_immutable", "Circle-private Commune storage boundary",
+  "Circle-private vote ballot boundary", "Circle-private sandbox run boundary",
+]) assert(circlePrivateSource.includes(marker), `Circle/private post migration chain omits ${marker}.`);
+assert(!/organization_project|author_username|poster_type[\s\S]{0,120}(?:authorize|access)/i.test(circlePrivateMigrations[1]), "Private post authorization must not trust display strings or client-declared poster identity.");
 const opportunityMigrationSource = opportunityMigrations.join("\n");
 const privateWorkWithAuthorityMigration = opportunityMigrations[1] ?? "";
 const postALinkCorrectionMigration = opportunityMigrations[2] ?? "";
@@ -254,6 +286,20 @@ for (const marker of [
   "public read policy no longer exposes both published legacy and v2 rows",
   "job_opportunity_database_behavior_ok",
 ]) assert(jobOpportunityBehaviorFixture.includes(marker), `Opportunity Commons disposable fixture omits ${marker}.`);
+for (const marker of [
+  "commune_circle_private_behavior_ok",
+  "Circle post without privacy acknowledgement unexpectedly succeeded",
+  "ordinary user created a Circle-private Official Update",
+  "expected ten room-native private posts",
+  "selected participant could not read every specialized sidecar",
+  "relationship removal silently rewrote established post ACLs",
+  "unrelated member discovered private posts",
+  "nonparticipant administrator read private posts",
+  "nonparticipant reviewer read private posts",
+  "anonymous reader discovered private posts",
+  "explicit participant removal did not revoke exactly one post",
+  "public post compatibility regressed",
+]) assert(circlePrivateBehaviorFixture.includes(marker), `Circle/private disposable fixture omits ${marker}.`);
 const accountCommunicationSource = accountCommunicationMigrations.join("\n");
 for (const marker of [
   "client_request_id",
@@ -666,6 +712,8 @@ try {
     "scripts/fixtures/accountMessagingBehavior.sql",
     "scripts/fixtures/accountNotificationProducerBehavior.sql",
     "scripts/fixtures/jobOpportunityDatabaseBehavior.sql",
+    "scripts/fixtures/commonsCircleMutualBehavior.sql",
+    "scripts/fixtures/communeCirclePrivateBehavior.sql",
     "scripts/sql/supabase_read_only_inventory.sql",
   ]) {
     await run(containerRuntime, ["cp", file, `${container}:/tmp/${path.basename(file)}`]);
@@ -799,6 +847,9 @@ try {
     await psql(["-f", `/tmp/${path.basename(file)}`]);
   }
   for (const file of opportunityPaths) {
+    await psql(["-f", `/tmp/${path.basename(file)}`]);
+  }
+  for (const file of circlePrivatePaths) {
     await psql(["-f", `/tmp/${path.basename(file)}`]);
   }
   const artisanBehavior = await psql(["-f", "/tmp/artisanDatabaseBehavior.sql"]);
@@ -972,6 +1023,16 @@ try {
   assert(
     jobOpportunityBehavior.stdout.includes("job_opportunity_database_behavior_ok"),
     "Opportunity Commons v2 database behavior marker missing."
+  );
+  const circleBehavior = await psql(["-f", "/tmp/commonsCircleMutualBehavior.sql"]);
+  assert(
+    circleBehavior.stdout.includes("commons_circle_mutual_behavior_ok"),
+    "Mutual Commons Circle database behavior marker missing."
+  );
+  const circlePrivateBehavior = await psql(["-f", "/tmp/communeCirclePrivateBehavior.sql"]);
+  assert(
+    circlePrivateBehavior.stdout.includes("commune_circle_private_behavior_ok"),
+    "Circle/private Commune database behavior marker missing."
   );
   // Hosted Supabase owns this ledger. The database-only image omits it, so
   // provide the catalog shape required by the read-only inventory rehearsal.

@@ -108,6 +108,10 @@ const reviewedAccountCommunicationRoleMigrations = new Set([
   "supabase/migrations/20260803030000_messaging_capabilities_and_public_profile_search.sql",
   "supabase/migrations/20260804010000_account_messaging_functional_launch.sql",
 ]);
+const reviewedCirclePrivacyMigrations = new Set([
+  "supabase/migrations/20260810020000_mutual_commons_circle.sql",
+  "supabase/migrations/20260810030000_circle_private_commune_posts.sql",
+]);
 
 function allowHit(file, line, checkName) {
   const normalized = file.replaceAll(path.sep, "/");
@@ -193,6 +197,15 @@ function allowHit(file, line, checkName) {
       reviewedAccountCommunicationRoleMigrations.has(normalized)
       && /\bservice_role\b|community_caller_is_service_role|account_delivery_service_required/i.test(line)
       && !/SUPABASE_SERVICE_ROLE_KEY\s*=|SUPABASE_SERVICE\w*\s*=|SERVICE_ROLE_KEY\s*=/.test(line)
+    ) return true;
+    if (
+      reviewedCirclePrivacyMigrations.has(normalized)
+      && /\bservice_role\b|\bgrant\b|\brevoke\b/i.test(line)
+      && !/SUPABASE_SERVICE_ROLE_KEY\s*=|SUPABASE_SERVICE\w*\s*=|SERVICE_ROLE_KEY\s*=/.test(line)
+    ) return true;
+    if (
+      normalized === "scripts/communeCirclePrivateTest.mjs"
+      && /assert|service_role|membership|administrator|reviewer/i.test(line)
     ) return true;
     if (
       normalized === "scripts/accountCommunicationsSmokeTest.mjs"

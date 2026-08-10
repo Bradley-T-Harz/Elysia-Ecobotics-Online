@@ -138,6 +138,14 @@ export default function SignalConsolePage() {
           </article>
 
           <article className="section-card commons-account-room-card signals-primary-card">
+            <p className="eyebrow">Mutual connections</p>
+            <h3>Your Circle</h3>
+            <p>Accept invitations and manage the private list of Commons members who may be selected for Circle-only room posts.</p>
+            <p>Circle membership is mutual consent, not following, endorsement, or authority.</p>
+            <Link className="button-link button-link--primary" to="/commons-circle/signals/circle">Open Your Circle</Link>
+          </article>
+
+          <article className="section-card commons-account-room-card signals-primary-card">
             <p className="eyebrow">Information &amp; outcomes</p>
             <h3>Notifications</h3>
             <dl className="mini-facts"><MiniFact label="Unread" value={counts.events.notificationsUnread} /></dl>

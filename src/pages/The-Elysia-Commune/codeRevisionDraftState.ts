@@ -1,4 +1,4 @@
-export type ParentPublicationState = "published" | "attached";
+export type ParentPublicationState = "published" | "circle" | "attached";
 
 export type PublishedSnapshot = {
   snippetId: string;
@@ -134,7 +134,7 @@ export function proposalDraftSandboxInput(snapshot: PublishedSnapshot, draft: Pr
 }
 
 export function snapshotVisibilityWord(snapshot: Pick<PublishedSnapshot, "parentPublicationState">) {
-  return snapshot.parentPublicationState === "published" ? "published" : "attached";
+  return snapshot.parentPublicationState === "published" ? "published" : snapshot.parentPublicationState === "circle" ? "private Circle" : "attached";
 }
 
 export function currentSnapshotHeading(snapshot: Pick<PublishedSnapshot, "parentPublicationState" | "publishedVersion">) {

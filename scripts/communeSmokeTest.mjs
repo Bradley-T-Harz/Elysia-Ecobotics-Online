@@ -298,7 +298,7 @@ assert(jobPostContractDoc.includes("submitJobPost") && jobPostContractDoc.includ
 for (const officialField of ["Official status", "Severity", "Audience", "Effective date", "Affected systems", "Related room", "Related public repository/reference URL", "Related migration", "User action required", "Pin this notice", "Comments enabled", "Official read-only code", "Official code filename", "Official code context"]) {
   assert(page.includes(officialField), `Missing Official Update structured field/copy: ${officialField}`);
 }
-assert(page.includes("Publish Official Update") && page.includes("Official Update composer") && page.includes("Community members can read and report Official Updates, but cannot submit, self-assign, or impersonate official authority"), "Official Update composer should be admin-only and brand-authoritative.");
+assert(page.includes("Publish Official Update") && page.includes("Official Update composer") && page.includes("Community members can read and report public Official Updates, but cannot submit, self-assign, or impersonate official authority"), "Official Update composer should be admin-only and brand-authoritative.");
 assert(page.includes("Official code preview") && page.includes("No workbench, sandbox run, proposal, install, deploy, or Local Elysia execution controls are exposed"), "Official Update composer should preview official code as read-only/copy-only.");
 assert(page.includes("supportsCommuneCodeSnippetFields(form.postType)") && page.includes('postType === "code_sharing" || postType === "troubleshooting"'), "Troubleshooting Grove should reuse optional code/reproduction snippet composer support.");
 assert(page.includes("Code / reproduction snippet optional") && page.includes("minimal redacted reproduction"), "Troubleshooting Grove composer should include redacted optional reproduction snippet copy.");
@@ -327,7 +327,7 @@ assert(page.includes("legacyCommunityNetworkDetails") && page.includes("Project 
 assert(page.includes("Structured issue report") && page.includes("Operating system") && page.includes("Expected result") && page.includes("Known workaround"), "Troubleshooting Grove detail should keep explicit support metadata near the top.");
 assert(page.includes("Structured official metadata") && page.includes("Notice type") && page.includes("Audience") && page.includes("User action required"), "Official Update detail should keep explicit official metadata near the top.");
 const postDetailStart = page.indexOf("function PostDetail");
-const detailStatusIndex = page.indexOf("<StatusBadges labels={[post.status, post.visibility]}", postDetailStart);
+const detailStatusIndex = page.indexOf("<StatusBadges labels={isCirclePrivate ? [\"Private\", \"Circle only\"] : [post.status, post.visibility]}", postDetailStart);
 const detailNativeIndex = page.indexOf("<RoomNativeDetails label=\"Room-native details\"", postDetailStart);
 const detailBodyIndex = page.indexOf("<CommunePostBody body={bodyMarkdown}", postDetailStart);
 const detailMediaIndex = page.indexOf("commune-media-section", detailBodyIndex);
@@ -462,12 +462,12 @@ assert(page.includes('runLabel="Run in sandbox"'), "Published attached snippets 
 assert(page.includes('snapshotId={snippet.accepted_revision_id ?? snippet.id}'), "Attached snippets should run the explicit published or attached revision snapshot.");
 assert(page.includes("currentSnapshotRunLabel(publishedSnapshot)"), "Workbench published/attached snapshot should expose a governed sandbox run action.");
 assert(page.includes('"Base snapshot at proposal submission"') && !page.includes('selectedProposal.base_snapshot_label ??'), "Historical proposal comparisons must use truthful submission-time base wording without rendering legacy stored labels.");
-assert(accountApi.includes("loadCommunePostPublicationState") && accountApi.includes('select("id,status,visibility,visibility_state,hidden_at,removed_at,archived_at")') && accountApi.includes("isActivePublicCommunePost(data"), "Workbench publication wording must come from a narrow read-only projection evaluated by the existing active-public-post rule.");
-assert(page.includes("loadedParentPublication?.postId === activeSnippet.post_id") && page.includes("parentPublicationState !== \"published\""), "Proposal workbench should fail closed to attached wording and disallow submission when the parent is not verified published and public.");
+assert(accountApi.includes("loadCommunePostPublicationState") && accountApi.includes('select("id,audience,status,visibility,visibility_state,hidden_at,removed_at,archived_at")') && accountApi.includes("isActivePublicCommunePost(parent"), "Workbench publication wording must come from a narrow read-only projection evaluated by the existing active-public-post rule.");
+assert(page.includes("loadedParentPublication?.postId === activeSnippet.post_id") && page.includes('parentPublicationState === "attached"'), "Proposal workbench should allow active public or explicitly shared Circle parents while failing closed for unavailable attached content.");
 assert(page.includes('runLabel="Run proposed revision in sandbox"'), "Proposal snapshots should expose a governed sandbox run action.");
 assert(page.includes('runLabel={isTroubleshootingWorkbench ? "Run proposed fix in sandbox" : "Run proposed revision in sandbox"}'), "Troubleshooting Grove proposed fixes should reuse sandbox runs with troubleshooting-specific copy.");
 assert(page.includes("publishedSnapshotSandboxInput(publishedSnapshot)") && page.includes("proposalDraftSandboxInput(publishedSnapshot, activeDraft)"), "Workbench sandbox actions must be built from explicit independent published and proposal-draft inputs.");
-assert(page.includes('update the {publishedSnapshot.parentPublicationState === "published" ? "published" : "attached"} code'), "Proposal draft sandbox run copy must keep run separate from submit/approval without falsely calling nonpublic attached code public.");
+assert(page.includes('publishedSnapshot.parentPublicationState === "circle" ? "code attached inside the private Circle post"'), "Proposal draft sandbox run copy must distinguish public, private Circle, and unavailable attached code without falsely calling private code public.");
 assert(sandboxClient.includes('fetcher("/api/sandbox/run"') && sandboxClient.includes('"authorization": `Bearer ${accessToken}`'), "Coding Cornucopia must use only the authenticated same-origin sandbox proxy.");
 assert(sandboxClient.includes("new AbortController()") && sandboxClient.includes("signal: controller.signal"), "Browser sandbox requests must have an explicit abort timeout.");
 assert(!sandboxClient.includes("VITE_CODING_SANDBOX_ENDPOINT"), "The removed direct sandbox endpoint must not return to browser code.");
@@ -537,7 +537,7 @@ assert(page.includes("commentStatus") && page.includes("Submitting comment..."),
 assert(page.includes("commentSubmitting") && page.includes("disabled={commentSubmitting}"), "Commune comment submit should disable while submitting.");
 assert(page.includes("setComment(\"\")") && page.includes("if (result.ok)"), "Commune comment text should only clear after successful submit.");
 assert(page.includes("ensureCommuneThreadForPost(post)"), "Commune post detail should repair or clearly fail missing discussion threads.");
-assert(page.includes("This published post is missing its discussion thread."), "Missing thread warning should be visible near the comment form.");
+assert(page.includes("This post is missing its discussion thread."), "Missing thread warning should be visible near the comment form.");
 assert(page.includes("replyStatuses") && page.includes("Submitting reply..."), "Commune replies should have local feedback/loading state.");
 assert(page.includes("function AdminContentControls"), "Commune admin content controls missing.");
 assert(page.includes("Flag for removal"), "Commune admin flag-for-removal action missing.");
@@ -547,7 +547,7 @@ assert(page.includes("No, keep it"), "Commune destructive delete cancel action m
 assert(accountApi.includes("hasThreadParticipationApproval"), "Commune first-comment participation approval check missing.");
 assert(accountApi.includes("SubmitCommentStatus"), "Commune comment submit should return typed status values.");
 assert(accountApi.includes("ensureCommuneThreadForPost"), "Commune thread ensure/repair helper missing.");
-assert(accountApi.includes("directPublish = approvedParticipant"), "Approved participants/admins should use the direct-publish comment path.");
+assert(accountApi.includes("directPublish = privateCircle || approvedParticipant"), "Private Circle members and approved public-thread participants/admins should use the direct-publish comment path.");
 assert(accountApi.includes('status: directPublish ? "published" : "pending_review"'), "Direct-published comments should insert as published instead of pending-then-update.");
 assert(accountApi.includes("createReviewHistoryItem"), "Direct-published comments should create History/All review records.");
 assert(accountApi.includes("approved_participant_comment_direct_published"), "Approved participant comments should be recorded in history.");
@@ -658,7 +658,7 @@ assert(!accountApi.includes('friendlyError(postError.message, "Community posting
 assert(accountApi.includes("CommuneMediaAttachment"), "Commune post media attachment type missing.");
 assert(accountApi.includes("loadPublishedMediaForPosts"), "Commune post detail loader should fetch published post attachments.");
 assert(accountApi.includes('.eq("visibility_state", "published")'), "Commune media loader should only fetch published attachments for public display.");
-assert(accountApi.includes("createSignedUrl"), "Commune media loader should resolve signed storage URLs instead of exposing raw storage paths.");
+assert(accountApi.includes(".download(row.storage_path)") && accountApi.includes("URL.createObjectURL(blob)"), "Commune media loader should fetch through authenticated Storage access and expose only an ephemeral browser object URL, not a reusable signed URL or raw storage path.");
 assert(accountApi.includes("publishPostAttachments(postId)"), "Admin direct-published room posts should publish linked attachments.");
 assert(reviewClient.includes("publishCommunePostMedia") && reviewClient.includes('visibility_state: "published"'), "Admin review approval should publish linked Commune post media.");
 assert(page.includes("commune-media-section") && page.includes("Attached media"), "Commune post detail should render attached media inside the post flow.");
@@ -681,8 +681,8 @@ assert(!page.includes("&mode=propose"), "Post snippets must not retain a duplica
 assert(page.includes("View proposed fixes") && page.includes("/commune/troubleshooting-grove/review"), "Troubleshooting Grove snippets should retain the governed proposed-fix workflow.");
 assert(page.includes('id="coding-workbench-heading"') && page.includes('tabIndex={-1}') && page.includes('#coding-workbench-heading'), "Coding Workbench routes should declare their meaningful heading as an explicit shareable task target.");
 assert(page.includes("function CodeRevisionProposalWorkspace"), "Coding Cornucopia Workbench should include the proposal workspace.");
-assert(page.includes("Propose changes without overwriting") && page.includes('? "published" : "attached"'), "Proposal workspace should make the truthful no-overwrite boundary clear.");
-assert(page.includes("Propose fixes without overwriting the") && page.includes('? "public" : "attached"'), "Troubleshooting Grove workbench should make the truthful no-overwrite proposed-fix boundary clear.");
+assert(page.includes("Propose changes without overwriting") && page.includes("snapshotVisibilityWord(publishedSnapshot)"), "Proposal workspace should make the truthful public/private/attached no-overwrite boundary clear.");
+assert(page.includes("Propose fixes without overwriting the") && page.includes("snapshotVisibilityWord(publishedSnapshot)"), "Troubleshooting Grove workbench should make the truthful public/private/attached no-overwrite proposed-fix boundary clear.");
 assert(page.includes("Submit proposed revision"), "Proposal workspace should let signed-in users submit proposed revisions.");
 assert(page.includes("Submit proposed fix"), "Troubleshooting Grove workbench should let signed-in users submit proposed fixes.");
 assert(page.indexOf("Run proposed revision in sandbox") < page.indexOf("Submit proposed revision"), "Draft sandbox run should appear before submit in the proposed revision panel.");

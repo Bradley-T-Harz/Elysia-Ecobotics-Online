@@ -13,6 +13,7 @@ import PageHero from "../../shared/components/PageHero";
 import { artisanProfileReportUrl } from "../../config/siteUrls";
 import { loadPublicCommonsProfile, resolvePublicCommonsProfileHandle } from "../The-Commons-Circle/commonsCircleApi";
 import type { PublicCommonsProfile, UserBadge } from "../The-Commons-Circle/commonsCircleApi";
+import CircleProfileAction from "../The-Commons-Circle/CircleProfileAction";
 
 function PublicBadgeIcon({ badge }: { badge: UserBadge }) {
   const [failed, setFailed] = useState(false);
@@ -166,6 +167,7 @@ export default function PublicCommonsProfilePage() {
                 {isOwner && userId && <Link className="button-link" to="/commons-circle/signals/inbox/settings">Messaging settings</Link>}
                 {!isOwner && !authLoading && !userId && <Link className="button-link button-link--primary" to={messagePath}>Sign in to message</Link>}
                 {!isOwner && userId && <Link className="button-link button-link--primary" to={messagePath}>Message</Link>}
+                {!isOwner && userId && <CircleProfileAction handle={profile.username} />}
               </div>
             </article>
           </section>

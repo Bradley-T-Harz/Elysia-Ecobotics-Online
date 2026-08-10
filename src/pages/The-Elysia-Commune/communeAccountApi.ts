@@ -5,6 +5,7 @@ import { attributionMap, loadPublicCommuneAttributions } from "./communeAttribut
 import { communeFallbackCategories, communeReportReasons, parseCommuneTags, scanCommuneTextForSecrets, validateCommuneMediaFile } from "./communeSafety";
 import type { ParentPublicationState } from "./codeRevisionDraftState";
 import { parseCommuneLinksInput } from "../../shared/communeLinks";
+import type { CircleProfileCard } from "../The-Commons-Circle/circleApi";
 import {
   jobOpportunityPayload,
   legacyFieldsForOpportunity,
@@ -19,8 +20,11 @@ import {
 
 export type CommunePostType = "media_garden" | "troubleshooting" | "code_sharing" | "repository_showcase" | "community_network" | "job_post" | "research_note" | "elysia_iteration_showcase" | "community_vote" | "official_update";
 export type CommunePostStatus = "draft" | "pending_review" | "in_review" | "needs_information" | "approved" | "published" | "rejected" | "hidden" | "archived" | "deleted_by_user" | "removed_by_moderator";
+export type CommunePostAudience = "public" | "circle";
+export type CommuneAudienceInput = { postAudience?: CommunePostAudience; circleRelationshipIds?: string[]; circlePrivacyAcknowledged?: boolean };
 export type CommuneRoom = { id: string; slug: string; name: string; description?: string | null; room_type: string; requires_moderation: boolean };
-export type CommunePost = { id: string; user_id?: string; author_username?: string | null; author_profile_url?: string | null; viewer_is_owner?: boolean; post_type: CommunePostType; title: string; body: string; excerpt?: string | null; tags?: string[] | null; links?: string[] | null; repository_url?: string | null; status: CommunePostStatus; visibility: string; visibility_state?: string | null; hidden_at?: string | null; removed_at?: string | null; archived_at?: string | null; published_at?: string | null; last_activity_at?: string | null; created_at?: string | null };
+export type CommunePost = { id: string; user_id?: string; author_username?: string | null; author_profile_url?: string | null; viewer_is_owner?: boolean; post_type: CommunePostType; title: string; body: string; excerpt?: string | null; tags?: string[] | null; links?: string[] | null; repository_url?: string | null; status: CommunePostStatus; visibility: string; audience?: CommunePostAudience; visibility_state?: string | null; hidden_at?: string | null; removed_at?: string | null; archived_at?: string | null; published_at?: string | null; last_activity_at?: string | null; created_at?: string | null };
+export type CommuneCircleParticipant = { accessId: string; relationshipId: string; profile: CircleProfileCard; addedAt?: string | null };
 export type CommuneThread = { id: string; post_id?: string | null; room_id?: string | null; title: string; status: string; visibility: string; last_reply_at?: string | null };
 export type CommuneComment = { id: string; thread_id: string; post_id?: string | null; parent_comment_id?: string | null; user_id?: string; author_username?: string | null; author_profile_url?: string | null; viewer_is_owner?: boolean; body: string; status: string; created_at?: string | null; published_at?: string | null };
 export type CommuneMediaAttachment = { id: string; post_id: string; file_name: string; mime_type?: string | null; file_size?: number | null; media_kind: "image" | "document" | "code_text" | "archive" | "other"; visibility_state: string; storage_bucket?: string | null; storage_path?: string | null; signed_url?: string | null; created_at?: string | null };
@@ -553,6 +557,90 @@ async function publishPostAttachments(postId: string) {
     .in("status", ["pending_review", "approved"]);
 }
 
+function isCircleSubmission(input: CommuneAudienceInput) {
+  return input.postAudience === "circle";
+}
+
+function circlePostFields(input: CommuneAudienceInput, now: string) {
+  if (!isCircleSubmission(input)) return {};
+  return {
+    audience: "circle",
+    visibility: "private_draft",
+    status: "published",
+    moderation_status: "circle_private",
+    visibility_state: "published",
+    published_at: now,
+    circle_privacy_acknowledged: true,
+  };
+}
+
+function circleThreadFields(input: CommuneAudienceInput) {
+  return isCircleSubmission(input) ? { visibility: "circle" } : { visibility: "public" };
+}
+
+function validateCircleRecipients(input: CommuneAudienceInput) {
+  if (!isCircleSubmission(input)) return null;
+  if (input.circlePrivacyAcknowledged !== true) return null;
+  const ids = Array.from(new Set(input.circleRelationshipIds ?? [])).filter((id) => /^[0-9a-f-]{36}$/i.test(id));
+  return ids.length ? ids : null;
+}
+
+async function finalizeCirclePostAccess(postId: string, input: CommuneAudienceInput): Promise<{ ok: boolean; message: string }> {
+  if (!isCircleSubmission(input)) return { ok: true, message: "" };
+  const relationshipIds = validateCircleRecipients(input);
+  if (!relationshipIds || !supabase) return { ok: false, message: "Choose at least one accepted Circle member for this private post." };
+  const { error } = await supabase.rpc("add_commune_post_circle_participants", {
+    p_post_id: postId,
+    p_circle_relationship_ids: relationshipIds,
+  });
+  if (error) return { ok: false, message: friendlyError(error.message, "The private post was created for its author only, but selected Circle members could not be added. Reopen it and manage participants after the Circle/private-post migration is active.") };
+  return { ok: true, message: "Private post shared with the selected Circle members." };
+}
+
+export async function loadCommunePostCircleParticipants(postId: string): Promise<{ participants: CommuneCircleParticipant[]; viewerIsOwner: boolean; warning?: string }> {
+  if (!supabase) return { participants: [], viewerIsOwner: false, warning: supabaseNotConfiguredMessage };
+  const { data, error } = await supabase.rpc("commune_post_circle_participant_cards", { p_post_id: postId });
+  if (error) return { participants: [], viewerIsOwner: false, warning: friendlyError(error.message, "Private post participants are unavailable until the Circle/private-post migration is active.") };
+  const source = data && typeof data === "object" && !Array.isArray(data) ? data as Record<string, unknown> : {};
+  const participants = Array.isArray(source.participants) ? source.participants.flatMap((value) => {
+    const item = value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+    const profile = item.profile && typeof item.profile === "object" && !Array.isArray(item.profile) ? item.profile as Record<string, unknown> : {};
+    const handle = typeof profile.handle === "string" ? profile.handle : "";
+    const accessId = typeof item.accessId === "string" ? item.accessId : "";
+    const relationshipId = typeof item.relationshipId === "string" ? item.relationshipId : "";
+    if (!handle || !accessId || !relationshipId) return [];
+    return [{
+      accessId,
+      relationshipId,
+      addedAt: typeof item.addedAt === "string" ? item.addedAt : null,
+      profile: {
+        handle,
+        displayName: typeof profile.displayName === "string" ? profile.displayName : null,
+        avatarUrl: typeof profile.avatarUrl === "string" ? profile.avatarUrl : null,
+        shortPublicBio: typeof profile.shortPublicBio === "string" ? profile.shortPublicBio : null,
+        profileUrl: typeof profile.profileUrl === "string" ? profile.profileUrl : `/commons-circle/@${handle}`,
+      },
+    }];
+  }) : [];
+  return { participants, viewerIsOwner: source.viewerIsOwner === true };
+}
+
+export async function addCommunePostCircleParticipants(postId: string, circleRelationshipIds: string[]) {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const { error } = await supabase.rpc("add_commune_post_circle_participants", { p_post_id: postId, p_circle_relationship_ids: circleRelationshipIds });
+  return error
+    ? { ok: false, message: friendlyError(error.message, "Only the private-post owner can add currently accepted Circle members.") }
+    : { ok: true, message: "Selected Circle members now have access to the existing private thread history." };
+}
+
+export async function removeCommunePostCircleParticipant(accessId: string) {
+  if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
+  const { error } = await supabase.rpc("remove_commune_post_circle_participant", { p_access_id: accessId });
+  return error
+    ? { ok: false, message: friendlyError(error.message, "Only the private-post owner can remove participants.") }
+    : { ok: true, message: "Participant access removed. Their existing authored thread history remains part of the post." };
+}
+
 async function finalizeGovernedJobPostPublication(result: JobPostReviewResult, targetUserId: string, approvedBy: string) {
   if (!supabase || !result.published) return;
   const { data: threadRow } = await supabase.from(canonicalCommuneTables.threads).select("id").eq("post_id", result.postId).maybeSingle();
@@ -1083,7 +1171,7 @@ export async function loadCommunePostPublicationState(postId: string): Promise<{
   if (!supabase) return { parentPublicationState: "attached", warnings: [supabaseNotConfiguredMessage] };
   const { data, error } = await supabase
     .from(canonicalCommuneTables.posts)
-    .select("id,status,visibility,visibility_state,hidden_at,removed_at,archived_at")
+    .select("id,audience,status,visibility,visibility_state,hidden_at,removed_at,archived_at")
     .eq("id", postId)
     .maybeSingle();
   if (error) {
@@ -1092,8 +1180,18 @@ export async function loadCommunePostPublicationState(postId: string): Promise<{
       warnings: [friendlyError(error.message, "The parent post publication state could not be verified.")],
     };
   }
+  const parent = data as (Pick<CommunePost, "audience" | "status" | "visibility" | "visibility_state" | "hidden_at" | "removed_at" | "archived_at"> | null);
+  const activeCircle = parent?.audience === "circle"
+    && parent.status === "published"
+    && parent.visibility === "private_draft"
+    && !["flagged", "hidden", "removed", "archived", "revoked"].includes(String(parent.visibility_state ?? "").toLowerCase())
+    && !parent.hidden_at
+    && !parent.removed_at
+    && !parent.archived_at;
   return {
-    parentPublicationState: isActivePublicCommunePost(data as Pick<CommunePost, "status" | "visibility" | "visibility_state" | "hidden_at" | "removed_at" | "archived_at"> | null)
+    parentPublicationState: activeCircle
+      ? "circle"
+      : isActivePublicCommunePost(parent)
       ? "published"
       : "attached",
     warnings: [],
@@ -1162,9 +1260,9 @@ async function loadPublishedMediaForPosts(postIds: string[]): Promise<CommuneMed
   const rows = (data ?? []) as CommuneMediaAttachment[];
   const resolved = await Promise.all(rows.map(async (row) => {
     if (!row.storage_bucket || !row.storage_path) return { ...row, signed_url: null };
-    const { data: signed, error: signedError } = await client.storage.from(row.storage_bucket).createSignedUrl(row.storage_path, 60 * 30);
-    if (signedError && import.meta.env.DEV) console.warn("[Commune media signed URL]", signedError.message);
-    return { ...row, signed_url: signed?.signedUrl ?? null };
+    const { data: blob, error: downloadError } = await client.storage.from(row.storage_bucket).download(row.storage_path);
+    if (downloadError && import.meta.env.DEV) console.warn("[Commune media authorized download]", downloadError.message);
+    return { ...row, signed_url: blob && typeof URL !== "undefined" ? URL.createObjectURL(blob) : null };
   }));
   return resolved;
 }
@@ -1185,8 +1283,8 @@ export async function loadCommuneData(roomSlug?: string, postId?: string, postTy
   if (roomError) warnings.push(roomError.message);
   const candidateRoomSlugs = roomSlugCandidates(roomSlug);
   const selectedRoom = candidateRoomSlugs.length ? (rooms ?? []).find((room) => candidateRoomSlugs.includes(room.slug)) as CommuneRoom | undefined : undefined;
-  const publicPostSelect = "id,post_type,title,body,excerpt,tags,links,repository_url,status,visibility,visibility_state,hidden_at,removed_at,archived_at,published_at,last_activity_at,created_at";
-  const ownerJobPostSelect = "id,user_id,post_type,title,body,excerpt,tags,links,repository_url,status,visibility,visibility_state,hidden_at,removed_at,archived_at,published_at,last_activity_at,created_at";
+  const publicPostSelect = "id,post_type,title,body,excerpt,tags,links,repository_url,status,visibility,audience,visibility_state,hidden_at,removed_at,archived_at,published_at,last_activity_at,created_at";
+  const privatePostSelect = "id,user_id,author_username,post_type,title,body,excerpt,tags,links,repository_url,status,visibility,audience,visibility_state,hidden_at,removed_at,archived_at,published_at,last_activity_at,created_at";
   const lobbyFeed = !roomSlug && !postId && !postType;
   let posts: unknown[] = [];
   let postError: { message: string } | null = null;
@@ -1196,6 +1294,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string, postTy
       const page = await supabase
         .from(canonicalCommuneTables.posts)
         .select(publicPostSelect)
+        .eq("audience", "public")
         .eq("status", "published")
         .eq("visibility", "public")
         .order("published_at", { ascending: false, nullsFirst: false })
@@ -1210,7 +1309,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string, postTy
       if (pageRows.length < pageSize) break;
     }
   } else {
-    let postQuery = supabase.from(canonicalCommuneTables.posts).select(publicPostSelect).eq("status", "published").eq("visibility", "public").order("published_at", { ascending: false, nullsFirst: false }).order("id", { ascending: true });
+    let postQuery = supabase.from(canonicalCommuneTables.posts).select(publicPostSelect).eq("audience", "public").eq("status", "published").eq("visibility", "public").order("published_at", { ascending: false, nullsFirst: false }).order("id", { ascending: true });
     if (postId) postQuery = postQuery.eq("id", postId);
     if (postType) postQuery = postQuery.eq("post_type", postType);
     if (selectedRoom && !postType) {
@@ -1222,29 +1321,74 @@ export async function loadCommuneData(roomSlug?: string, postId?: string, postTy
     posts = result.data ?? [];
     postError = result.error;
   }
+  if (account.userId && !lobbyFeed) {
+    let privateRoomPostIds: string[] | null = null;
+    if (selectedRoom && !postType) {
+      const { data: privateRoomThreads, error: privateRoomError } = await supabase
+        .from(canonicalCommuneTables.threads)
+        .select("post_id")
+        .eq("room_id", selectedRoom.id)
+        .eq("visibility", "circle");
+      if (privateRoomError) warnings.push(privateRoomError.message);
+      privateRoomPostIds = (privateRoomThreads ?? []).map((row) => row.post_id).filter(Boolean) as string[];
+    }
+    let privateQuery = supabase
+      .from(canonicalCommuneTables.posts)
+      .select(privatePostSelect)
+      .eq("audience", "circle")
+      .eq("status", "published")
+      .order("published_at", { ascending: false, nullsFirst: false })
+      .order("id", { ascending: true });
+    if (postId) privateQuery = privateQuery.eq("id", postId);
+    if (postType) privateQuery = privateQuery.eq("post_type", postType);
+    if (privateRoomPostIds) privateQuery = privateRoomPostIds.length ? privateQuery.in("id", privateRoomPostIds) : privateQuery.eq("id", "00000000-0000-0000-0000-000000000000");
+    const privateResult = await privateQuery;
+    if (privateResult.error) warnings.push(privateResult.error.message);
+    else {
+      const knownIds = new Set(posts.map((row) => String((row as { id?: unknown }).id ?? "")));
+      posts.push(...(privateResult.data ?? []).filter((row) => !knownIds.has(String(row.id))));
+    }
+  }
   if (postError) warnings.push(postError.message);
   let candidatePosts = (posts ?? []) as CommunePost[];
   if (postId && candidatePosts.length === 0 && account.userId) {
-    const ownerResult = await supabase.from(canonicalCommuneTables.posts).select(ownerJobPostSelect).eq("id", postId).eq("user_id", account.userId).eq("post_type", "job_post").maybeSingle();
+    const ownerResult = await supabase.from(canonicalCommuneTables.posts).select(privatePostSelect).eq("id", postId).eq("user_id", account.userId).eq("post_type", "job_post").maybeSingle();
     if (ownerResult.error) warnings.push(ownerResult.error.message);
     else if (ownerResult.data) candidatePosts = [ownerResult.data as CommunePost];
   }
-  const activePosts = candidatePosts.filter((post) => isActivePublicCommunePost(post) || Boolean(
+  const activePosts = candidatePosts.filter((post) => Boolean(
+    post.audience === "circle"
+    && post.status === "published"
+    && post.visibility === "private_draft"
+    && !post.hidden_at && !post.removed_at && !post.archived_at
+  ) || isActivePublicCommunePost(post) || Boolean(
     postId && account.userId && post.user_id === account.userId && post.post_type === "job_post"
     && !post.hidden_at && !post.removed_at && !post.archived_at
     && !["deleted_by_user", "removed_by_moderator", "hidden", "archived"].includes(post.status)
   ));
   const postIds = activePosts.map((post) => post.id);
-  let threadQuery = supabase.from(canonicalCommuneTables.threads).select("id,post_id,room_id,title,status,visibility,last_reply_at").eq("visibility", "public").order("last_reply_at", { ascending: false });
-  if (postIds.length) threadQuery = threadQuery.in("post_id", postIds);
+  let threadQuery = supabase.from(canonicalCommuneTables.threads).select("id,post_id,room_id,title,status,visibility,last_reply_at").in("visibility", ["public", "circle"]).order("last_reply_at", { ascending: false });
+  threadQuery = postIds.length ? threadQuery.in("post_id", postIds) : threadQuery.eq("post_id", "00000000-0000-0000-0000-000000000000");
   const { data: threads, error: threadError } = await threadQuery;
   if (threadError) warnings.push(threadError.message);
-  const threadIds = (threads ?? []).map((thread) => thread.id);
-  let commentQuery = supabase.from(canonicalCommuneTables.comments).select("id,thread_id,post_id,parent_comment_id,body,status,created_at,published_at").eq("status", "published").order("created_at");
-  if (threadIds.length) commentQuery = commentQuery.in("thread_id", threadIds); else commentQuery = commentQuery.eq("thread_id", "00000000-0000-0000-0000-000000000000");
-  const { data: comments, error: commentError } = await commentQuery;
-  if (commentError) warnings.push(commentError.message);
-  const rawComments = (comments ?? []) as CommuneComment[];
+  const circlePostIds = new Set(activePosts.filter((post) => post.audience === "circle").map((post) => post.id));
+  const publicThreadIds = (threads ?? []).filter((thread) => !thread.post_id || !circlePostIds.has(thread.post_id)).map((thread) => thread.id);
+  const circleThreadIds = (threads ?? []).filter((thread) => Boolean(thread.post_id && circlePostIds.has(thread.post_id))).map((thread) => thread.id);
+  const rawComments: CommuneComment[] = [];
+  if (publicThreadIds.length) {
+    const { data, error } = await supabase.from(canonicalCommuneTables.comments)
+      .select("id,thread_id,post_id,parent_comment_id,body,status,created_at,published_at")
+      .eq("status", "published").in("thread_id", publicThreadIds).order("created_at");
+    if (error) warnings.push(error.message);
+    else rawComments.push(...((data ?? []) as CommuneComment[]));
+  }
+  if (circleThreadIds.length) {
+    const { data, error } = await supabase.from(canonicalCommuneTables.comments)
+      .select("id,thread_id,post_id,parent_comment_id,author_username,body,status,created_at,published_at")
+      .eq("status", "published").in("thread_id", circleThreadIds).order("created_at");
+    if (error) warnings.push(error.message);
+    else rawComments.push(...((data ?? []) as CommuneComment[]));
+  }
   const attributionResult = await loadPublicCommuneAttributions({
     postIds,
     commentIds: rawComments.map((comment) => comment.id)
@@ -1254,6 +1398,7 @@ export async function loadCommuneData(roomSlug?: string, postId?: string, postTy
   const commentAttributions = attributionMap(attributionResult.attributions, "comment");
   const hydratedPosts = activePosts.map((post) => {
     const attribution = postAttributions.get(post.id);
+    const circlePrivate = post.audience === "circle";
     const privateOwnerPreview = Boolean(
       account.userId && post.user_id === account.userId
       && post.post_type === "job_post"
@@ -1261,22 +1406,23 @@ export async function loadCommuneData(roomSlug?: string, postId?: string, postTy
     );
     return {
       ...post,
-      user_id: privateOwnerPreview ? post.user_id : undefined,
+      user_id: circlePrivate || privateOwnerPreview ? post.user_id : undefined,
       author_username: attribution?.author_handle
-        ?? (privateOwnerPreview ? account.username : null),
+        ?? (circlePrivate ? post.author_username : privateOwnerPreview ? account.username : null),
       author_profile_url: attribution?.canonical_profile_url
-        ?? (privateOwnerPreview && account.username
-          ? `https://elysiaecobotics.com/commons-circle/@${account.username.toLowerCase()}`
+        ?? ((circlePrivate ? post.author_username : privateOwnerPreview ? account.username : null)
+          ? `https://elysiaecobotics.com/commons-circle/@${String(circlePrivate ? post.author_username : account.username).toLowerCase()}`
           : null),
-      viewer_is_owner: attribution?.viewer_is_owner ?? privateOwnerPreview
+      viewer_is_owner: attribution?.viewer_is_owner ?? (circlePrivate ? post.user_id === account.userId : privateOwnerPreview)
     };
   });
   const hydratedComments = rawComments.map((comment) => {
     const attribution = commentAttributions.get(comment.id);
+    const circlePrivate = circleThreadIds.includes(comment.thread_id);
     return {
       ...comment,
       user_id: undefined,
-      author_username: attribution?.author_handle ?? null,
+      author_username: attribution?.author_handle ?? (circlePrivate ? comment.author_username : null) ?? null,
       author_profile_url: attribution?.canonical_profile_url ?? null,
       viewer_is_owner: attribution?.viewer_is_owner ?? false
     };
@@ -1308,26 +1454,30 @@ export async function ensureCommuneThreadForPost(post: CommunePost): Promise<{ o
   const account = await accountState();
   if (!account.userId) return { ok: false, message: "Sign in to join this post discussion." };
   if (!post.id) return { ok: false, message: "Comment could not be submitted because this post id is missing." };
-  if (post.status !== "published" || post.visibility !== "public") return { ok: false, message: "Comment could not be submitted because this post is not public yet." };
+  const circlePrivate = post.audience === "circle" && post.visibility === "private_draft";
+  if (post.status !== "published" || (!circlePrivate && post.visibility !== "public")) return { ok: false, message: "Comment could not be submitted because this post is not available to this account." };
+  const threadVisibility = circlePrivate ? "circle" : "public";
 
   const { data: existing, error: existingError } = await supabase
     .from(canonicalCommuneTables.threads)
     .select("id,post_id,room_id,title,status,visibility,last_reply_at")
     .eq("post_id", post.id)
-    .eq("visibility", "public")
+    .eq("visibility", threadVisibility)
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
   if (existingError) return { ok: false, message: friendlyError(existingError.message, "Comment could not check this post discussion thread yet.") };
-  if (existing) return { ok: true, thread: existing as CommuneThread, message: "Discussion thread ready." };
+  if (existing) return { ok: true, thread: existing as CommuneThread, message: circlePrivate ? "Private discussion thread ready." : "Discussion thread ready." };
+
+  if (circlePrivate && !post.viewer_is_owner) return { ok: false, message: "This private post is missing its discussion thread. Only the post owner can repair it without changing the participant boundary." };
 
   const { data: created, error: createError } = await supabase
     .from(canonicalCommuneTables.threads)
-    .insert({ post_id: post.id, title: post.title, created_by: account.userId, visibility: "public", status: "open" })
+    .insert({ post_id: post.id, title: post.title, created_by: account.userId, visibility: threadVisibility, status: "open" })
     .select("id,post_id,room_id,title,status,visibility,last_reply_at")
     .single();
   if (createError) return { ok: false, message: friendlyError(createError.message, "Comment could not be submitted because this post has no discussion thread yet. Ask an administrator to repair the Commune thread row.") };
-  return { ok: true, thread: created as CommuneThread, message: "Discussion thread repaired for this published post." };
+  return { ok: true, thread: created as CommuneThread, message: circlePrivate ? "Private discussion thread repaired for this post." : "Discussion thread repaired for this published post." };
 }
 
 function parseOfficialRelatedLinks(value?: string | null) {
@@ -1387,11 +1537,12 @@ export async function submitOfficialUpdate(input: {
   commentsEnabled?: boolean;
   correctionNote?: string;
   codeSnippets?: Array<{ language: string; fileName?: string; codeText: string; contextNote?: string; correctionNote?: string }>;
-}): Promise<{ ok: boolean; message: string; id?: string; postId?: string }> {
+} & CommuneAudienceInput): Promise<{ ok: boolean; message: string; id?: string; postId?: string }> {
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
   if (!account.userId || !account.isAdmin) return { ok: false, message: "Official Updates are restricted to authorized administrators. Community users cannot self-assign official publishing authority." };
   if (!input.acknowledgement) return { ok: false, message: "Confirm the Official Update safety acknowledgements before publishing." };
+  if (isCircleSubmission(input) && !validateCircleRecipients(input)) return { ok: false, message: "Choose at least one accepted Circle member for this private Official Update." };
   const relatedRepoUrl = publicHttpUrlOrNull(input.relatedRepoUrl);
   if (input.relatedRepoUrl?.trim() && !relatedRepoUrl) return { ok: false, message: "Use a public HTTP(S) related repository/reference URL or leave it blank. Private, localhost, and local paths are not allowed in Official Updates." };
   if (input.upload) {
@@ -1429,7 +1580,8 @@ export async function submitOfficialUpdate(input: {
     status: "published",
     moderation_status: "approved",
     published_at: now,
-    safety_acknowledgements: { public_boundary: true, no_secrets: true, official_authority: true, admin_only: true, no_public_code_execution: true }
+    safety_acknowledgements: { public_boundary: true, no_secrets: true, official_authority: true, admin_only: true, no_public_code_execution: true },
+    ...circlePostFields(input, now)
   });
   if (postError) return { ok: false, message: friendlyError(postError.message, "Official Update publishing is blocked by the current admin-only database policy.") };
   const { data: thread } = await supabase.from(canonicalCommuneTables.threads).insert({
@@ -1437,14 +1589,14 @@ export async function submitOfficialUpdate(input: {
     room_id: input.roomId || null,
     title: input.title.trim(),
     created_by: account.userId,
-    visibility: "public",
+    ...circleThreadFields(input),
     status: input.commentsEnabled === false ? "locked" : "open",
     locked_at: input.commentsEnabled === false ? now : null,
     locked_by: input.commentsEnabled === false ? account.userId : null,
     lock_reason: input.commentsEnabled === false ? "Official Update comments disabled by administrator." : null
   }).select("id").single();
   const threadId = (thread as { id?: string } | null)?.id ?? null;
-  await grantThreadParticipationApproval({ threadId, postId, userId: account.userId, approvedBy: account.userId, source: "admin_direct_official_update" });
+  if (!isCircleSubmission(input)) await grantThreadParticipationApproval({ threadId, postId, userId: account.userId, approvedBy: account.userId, source: "admin_direct_official_update" });
   const { data, error: officialError } = await supabase.from(canonicalCommuneTables.officialUpdates).insert({
     post_id: postId,
     admin_user_id: account.userId,
@@ -1493,6 +1645,12 @@ export async function submitOfficialUpdate(input: {
     const upload = await uploadCommuneAttachment(input.upload, { postId, role: "official_update_attachment", publishImmediately: true });
     if (!upload.ok) return { ok: false, id: officialUpdateId, postId, message: `Official Update published, but upload failed: ${upload.message}` };
     await publishPostAttachments(postId);
+  }
+  const circleAccess = await finalizeCirclePostAccess(postId, input);
+  if (!circleAccess.ok) return { ok: false, id: officialUpdateId, postId, message: circleAccess.message };
+  if (isCircleSubmission(input)) {
+    await createOfficialUpdateEvent({ officialUpdateId, postId, actorId: account.userId, action: "official_update_published", publicNote: input.summary, metadata: { audience: "circle", comments_enabled: input.commentsEnabled !== false } });
+    return { ok: true, message: "Private Official Update created for the selected Circle members. Official authority and room restrictions remain unchanged.", id: officialUpdateId, postId };
   }
   await recordCommuneGovernanceEvent({ actorId: account.userId, targetType: "post", targetId: postId, action: "admin_official_update_published", fromStatus: "draft", toStatus: "published", metadata: { official_update_id: officialUpdateId, update_type: input.updateType, severity: input.severity, comments_enabled: input.commentsEnabled !== false } });
   await createOfficialUpdateEvent({ officialUpdateId, postId, actorId: account.userId, action: "official_update_published", publicNote: input.summary, metadata: { update_type: input.updateType, severity: input.severity, pinned: Boolean(input.pinned), important: Boolean(input.important) } });
@@ -1566,11 +1724,12 @@ export async function submitCommunityVotePost(input: {
   allowComments?: boolean;
   officialUpdatePostId?: string | null;
   acknowledgement?: boolean;
-}): Promise<{ ok: boolean; message: string; postId?: string }> {
+} & CommuneAudienceInput): Promise<{ ok: boolean; message: string; postId?: string }> {
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
   if (!account.userId || !account.isAdmin) return { ok: false, message: "Community Voting Room vote creation is restricted to administrators. Members can vote, but they cannot create or control governance votes." };
   if (input.acknowledgement === false) return { ok: false, message: "Confirm that Community votes guide stewardship decisions and do not automatically change site policy, legal/safety rules, Marketplace, Developer Forge, Elysia behavior, or Official Updates." };
+  if (isCircleSubmission(input) && !validateCircleRecipients(input)) return { ok: false, message: "Choose at least one accepted Circle member for this private Community Voting Room post." };
   const question = input.question.trim();
   const context = input.context?.trim() || "";
   if (!question) return { ok: false, message: "Add a clear voting question before publishing a Community Voting Room vote." };
@@ -1612,7 +1771,8 @@ export async function submitCommunityVotePost(input: {
     status: "published",
     moderation_status: "approved",
     published_at: now,
-    safety_acknowledgements: { public_boundary: true, no_secrets: true, community_vote_guidance: true, not_automatic_governance: true, official_update_separate: true }
+    safety_acknowledgements: { public_boundary: true, no_secrets: true, community_vote_guidance: true, not_automatic_governance: true, official_update_separate: true },
+    ...circlePostFields(input, now)
   });
   if (postError) return { ok: false, message: friendlyError(postError.message, "Community Voting Room publishing is blocked by the current admin-only database policy.") };
 
@@ -1621,14 +1781,14 @@ export async function submitCommunityVotePost(input: {
     room_id: input.roomId || null,
     title: question,
     created_by: account.userId,
-    visibility: "public",
+    ...circleThreadFields(input),
     status: input.allowComments === false ? "locked" : "open",
     locked_at: input.allowComments === false ? now : null,
     locked_by: input.allowComments === false ? account.userId : null,
     lock_reason: input.allowComments === false ? "Community Voting Room comments disabled by administrator." : null
   }).select("id").single();
   const threadId = (thread as { id?: string } | null)?.id ?? null;
-  await grantThreadParticipationApproval({ threadId, postId, userId: account.userId, approvedBy: account.userId, source: "admin_direct_community_vote" });
+  if (!isCircleSubmission(input)) await grantThreadParticipationApproval({ threadId, postId, userId: account.userId, approvedBy: account.userId, source: "admin_direct_community_vote" });
 
   const { error: voteError } = await supabase.from(canonicalCommuneTables.communityVotePosts).insert({
     post_id: postId,
@@ -1637,7 +1797,7 @@ export async function submitCommunityVotePost(input: {
     context: context || null,
     decision_type: "single_choice_guidance",
     vote_status: voteStatus,
-    visibility: "public",
+    visibility: isCircleSubmission(input) ? "circle" : "public",
     opens_at: input.opensAt || null,
     closes_at: input.closesAt || null,
     results_visibility: input.resultsVisibility || "after_vote",
@@ -1661,9 +1821,13 @@ export async function submitCommunityVotePost(input: {
     return { ok: false, postId, message: friendlyError(optionError.message, "Community Voting Room post was created, but options could not be saved. The post was archived by best-effort cleanup.") };
   }
 
+  const circleAccess = await finalizeCirclePostAccess(postId, input);
+  if (!circleAccess.ok) return { ok: false, postId, message: circleAccess.message };
+
   await createCommunityVoteEvent({ postId, actorId: account.userId, eventType: "created", eventNote: "Community vote created. Votes guide stewardship decisions and do not automatically change Official Updates or site policy." });
   if (voteStatus === "open") await createCommunityVoteEvent({ postId, actorId: account.userId, eventType: "opened", eventNote: "Community vote opened for member guidance." });
   if (voteStatus === "scheduled") await createCommunityVoteEvent({ postId, actorId: account.userId, eventType: "scheduled", eventNote: "Community vote scheduled to open later." });
+  if (isCircleSubmission(input)) return { ok: true, postId, message: "Private Community Voting Room post created for the selected Circle members. Ballots and aggregate results remain inside the post ACL." };
   await recordCommuneGovernanceEvent({ actorId: account.userId, targetType: "post", targetId: postId, action: "admin_community_vote_created", fromStatus: "draft", toStatus: voteStatus, metadata: { post_type: "community_vote", option_count: options.length, results_visibility: input.resultsVisibility || "after_vote", official_update_post_id: input.officialUpdatePostId || null } });
   await createReviewHistoryItem({ domain: "commune", sourceTable: canonicalCommuneTables.communityVotePosts, sourceId: postId, submittedBy: account.userId, title: question, summary: "Admin-created Community Voting Room guidance vote. Results are advisory and Official Update remains separate.", status: "approved", eventType: "admin_community_vote_created", metadata: { post_id: postId, thread_id: threadId, vote_status: voteStatus, option_count: options.length } });
   return { ok: true, postId, message: "Community Voting Room vote created. Member ballots are advisory guidance; administrators still control outcomes and Official Updates remain separate." };
@@ -1805,11 +1969,12 @@ export async function submitTroubleshootingPost(input: {
   codeLanguage?: string;
   codeFileName?: string;
   codeAcknowledged?: boolean;
-}): Promise<{ ok: boolean; message: string; id?: string; postId?: string }> {
+} & CommuneAudienceInput): Promise<{ ok: boolean; message: string; id?: string; postId?: string }> {
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
   if (!account.userId) return { ok: false, message: "Sign in to submit a Troubleshooting Grove post." };
   if (!input.acknowledgement) return { ok: false, message: "Confirm the Troubleshooting Grove safety acknowledgements before submitting." };
+  if (isCircleSubmission(input) && !validateCircleRecipients(input)) return { ok: false, message: "Choose at least one accepted Circle member for this private Troubleshooting Grove post." };
   if (input.codeText?.trim() && !input.codeAcknowledged) return { ok: false, message: "Acknowledge that troubleshooting code is inert redacted text and not execution permission before submitting." };
   if (input.upload) {
     const media = validateCommuneMediaFile(input.upload);
@@ -1841,7 +2006,7 @@ export async function submitTroubleshootingPost(input: {
   const now = new Date().toISOString();
   const tags = parseCommuneTags(input.tags);
   const links = splitList(input.links);
-  const adminDirectPublish = account.isAdmin;
+  const adminDirectPublish = account.isAdmin && !isCircleSubmission(input);
   const { error: postError } = await supabase.from(canonicalCommuneTables.posts).insert({
     id: postId,
     user_id: account.userId,
@@ -1855,7 +2020,8 @@ export async function submitTroubleshootingPost(input: {
     status: adminDirectPublish ? "published" : "pending_review",
     moderation_status: adminDirectPublish ? "approved" : "pending_review",
     published_at: adminDirectPublish ? now : null,
-    safety_acknowledgements: { public_boundary: true, no_secrets: true, no_execution: true, redacted_logs: true, troubleshooting: true }
+    safety_acknowledgements: { public_boundary: true, no_secrets: true, no_execution: true, redacted_logs: true, troubleshooting: true },
+    ...circlePostFields(input, now)
   });
   if (postError) return { ok: false, message: friendlyError(postError.message, "Troubleshooting Grove post creation is blocked by the current Commune post policy.") };
   const { data: thread } = await supabase.from(canonicalCommuneTables.threads).insert({
@@ -1863,7 +2029,7 @@ export async function submitTroubleshootingPost(input: {
     room_id: input.roomId || null,
     title: input.title.trim(),
     created_by: account.userId,
-    visibility: "public",
+    ...circleThreadFields(input),
     status: "open"
   }).select("id").single();
   const threadId = (thread as { id?: string } | null)?.id ?? null;
@@ -1894,7 +2060,7 @@ export async function submitTroubleshootingPost(input: {
     if (!snippet.ok) return { ok: false, id: troubleshootingId, postId, message: `Troubleshooting metadata saved, but reproduction snippet failed: ${snippet.message}` };
   }
   if (input.upload) {
-    const upload = await uploadCommuneAttachment(input.upload, { postId, role: "troubleshooting_attachment", publishImmediately: adminDirectPublish });
+    const upload = await uploadCommuneAttachment(input.upload, { postId, role: "troubleshooting_attachment", publishImmediately: adminDirectPublish || isCircleSubmission(input) });
     if (!upload.ok) return { ok: false, id: troubleshootingId, postId, message: `Troubleshooting post saved, but upload failed: ${upload.message}` };
   }
   if (adminDirectPublish) {
@@ -1904,6 +2070,9 @@ export async function submitTroubleshootingPost(input: {
     await createReviewHistoryItem({ domain: "commune", sourceTable: canonicalCommuneTables.troubleshootingPosts, sourceId: troubleshootingId, submittedBy: account.userId, title: input.title, summary: "Admin-published Troubleshooting Grove issue. Redacted diagnostic/support context only.", status: "approved", eventType: "admin_troubleshooting_direct_published", metadata: { post_id: postId, thread_id: threadId, issue_type: structuredPayload.issue_type } });
     return { ok: true, id: troubleshootingId, postId, message: "Troubleshooting Grove post published with structured issue metadata, public thread, and support-safe diagnostic boundaries." };
   }
+  const circleAccess = await finalizeCirclePostAccess(postId, input);
+  if (!circleAccess.ok) return { ok: false, id: troubleshootingId, postId, message: circleAccess.message };
+  if (isCircleSubmission(input)) return { ok: true, id: troubleshootingId, postId, message: "Private Troubleshooting Grove post created for the selected Circle members with its structured issue thread intact." };
   await createReviewItem({ domain: "commune", sourceTable: canonicalCommuneTables.posts, sourceId: postId, submittedBy: account.userId, title: input.title.trim(), summary: excerpt(input.summary || input.body) });
   return { ok: true, id: troubleshootingId, postId, message: "Troubleshooting Grove post submitted for moderation with structured issue metadata. It is not public until approved." };
 }
@@ -1970,11 +2139,12 @@ export async function submitJobPost(input: {
   roleSummary?: string;
   applicationStatus?: string;
   publicCorrectionNote?: string;
-}): Promise<{ ok: boolean; message: string; id?: string; postId?: string }> {
+} & CommuneAudienceInput): Promise<{ ok: boolean; message: string; id?: string; postId?: string }> {
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
   if (!account.userId) return { ok: false, message: "Sign in to submit a Job Post." };
   if (!input.acknowledgement) return { ok: false, message: "Confirm the Job Post safety acknowledgements before submitting." };
+  if (isCircleSubmission(input) && !validateCircleRecipients(input)) return { ok: false, message: "Choose at least one accepted Circle member for this private Job Post." };
   const opportunityDraft = normalizeJobOpportunityDraft(input.opportunity);
   const opportunityValidation = validateJobOpportunity(opportunityDraft, { isAdmin: account.isAdmin });
   if (!opportunityValidation.ok) return { ok: false, message: `Complete the opportunity details before submitting: ${opportunityValidation.errors.join(" ")}` };
@@ -2008,7 +2178,7 @@ export async function submitJobPost(input: {
   if (secretScan.blocked) return { ok: false, message: "Job Post blocked because it appears to contain private or secret material: " + secretScan.warnings.join(", ") + ". Remove it before submitting." };
   const now = new Date().toISOString();
   const postId = crypto.randomUUID();
-  const adminDirectReview = account.isAdmin;
+  const adminDirectReview = account.isAdmin && !isCircleSubmission(input);
   const tags = parseCommuneTags(input.tags);
   const links = splitList(input.links);
   const body = input.body.trim();
@@ -2028,7 +2198,8 @@ export async function submitJobPost(input: {
     status: "pending_review",
     moderation_status: "pending_review",
     published_at: null,
-    safety_acknowledgements: { public_boundary: true, no_secrets: true, admin_approval_required: true, job_public_board: true, no_private_applicant_data: true, work_with_private_path_separate: true }
+    safety_acknowledgements: { public_boundary: true, no_secrets: true, admin_approval_required: !isCircleSubmission(input), job_public_board: !isCircleSubmission(input), no_private_applicant_data: true, work_with_private_path_separate: true },
+    ...circlePostFields(input, now)
   });
   if (postError) return { ok: false, message: friendlyError(postError.message, "This Job Post is blocked by the current Commune room-post policy. Normal users must submit for admin approval before publication.") };
   const { data: thread } = await supabase.from(canonicalCommuneTables.threads).insert({
@@ -2036,7 +2207,7 @@ export async function submitJobPost(input: {
     room_id: input.roomId || null,
     title: input.title.trim(),
     created_by: account.userId,
-    visibility: "public",
+    ...circleThreadFields(input),
     status: "open"
   }).select("id").single();
   const threadId = (thread as { id?: string } | null)?.id ?? null;
@@ -2072,7 +2243,7 @@ export async function submitJobPost(input: {
   if (jobError || !data) return { ok: false, postId, message: friendlyError(jobError?.message ?? "Job Post metadata insert did not return a row.", "Job Post saved, but structured metadata could not be saved. Apply the Job Post structured workflow migration, then repair this post.") };
   const jobPostId = (data as { id: string }).id;
   if (input.upload) {
-    const upload = await uploadCommuneAttachment(input.upload, { postId, role: "job_post_attachment", publishImmediately: false });
+    const upload = await uploadCommuneAttachment(input.upload, { postId, role: "job_post_attachment", publishImmediately: isCircleSubmission(input) });
     if (!upload.ok) return { ok: false, id: jobPostId, postId, message: `Job Post saved, but upload failed: ${upload.message}` };
   }
   if (adminDirectReview) {
@@ -2103,6 +2274,9 @@ export async function submitJobPost(input: {
     });
     return { ok: true, id: jobPostId, postId, message: jobPostReviewResultMessage(reviewed.result) };
   }
+  const circleAccess = await finalizeCirclePostAccess(postId, input);
+  if (!circleAccess.ok) return { ok: false, id: jobPostId, postId, message: circleAccess.message };
+  if (isCircleSubmission(input)) return { ok: true, id: jobPostId, postId, message: "Private Job Post created for the selected Circle members. Compensation truth, application privacy, and room-native structured fields remain enforced; it is not placed in the public review queue." };
   await createReviewItem({ domain: "commune", sourceTable: canonicalCommuneTables.posts, sourceId: postId, submittedBy: account.userId, title: input.title.trim(), summary: excerpt(input.summary || input.roleSummary || body) });
   await createReviewItem({ domain: "commune", sourceTable: canonicalCommuneTables.jobPosts, sourceId: jobPostId, submittedBy: account.userId, title: input.title.trim(), summary: "Job Post metadata awaiting admin approval. Check pay/volunteer clarity, location/remote clarity, contact path, scam risk, and no private applicant data." });
   return { ok: true, id: jobPostId, postId, message: "Job Post submitted for mandatory admin approval with structured role metadata. It is not public until approved." };
@@ -2186,11 +2360,12 @@ export async function submitResearchNotesPost(input: {
   methodType?: string;
   dataType?: string;
   ethicsNote?: string;
-}): Promise<{ ok: boolean; message: string; id?: string; postId?: string }> {
+} & CommuneAudienceInput): Promise<{ ok: boolean; message: string; id?: string; postId?: string }> {
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
   if (!account.userId) return { ok: false, message: "Sign in to submit a Research Notes post." };
   if (!input.acknowledgement) return { ok: false, message: "Confirm the Research Notes safety acknowledgements before submitting." };
+  if (isCircleSubmission(input) && !validateCircleRecipients(input)) return { ok: false, message: "Choose at least one accepted Circle member for this private Research Notes post." };
   if (input.upload) {
     const media = validateCommuneMediaFile(input.upload);
     if (!media.ok) return { ok: false, message: media.message };
@@ -2222,7 +2397,7 @@ export async function submitResearchNotesPost(input: {
   if (secretScan.blocked) return { ok: false, message: "Research Notes post blocked because it appears to contain private, secret, sensitive-location, or unsafe material: " + secretScan.warnings.join(", ") + ". Redact it before submitting." };
   const postId = crypto.randomUUID();
   const now = new Date().toISOString();
-  const adminDirectPublish = account.isAdmin;
+  const adminDirectPublish = account.isAdmin && !isCircleSubmission(input);
   const tags = parseCommuneTags(input.tags);
   const { error: postError } = await supabase.from(canonicalCommuneTables.posts).insert({
     id: postId,
@@ -2237,7 +2412,8 @@ export async function submitResearchNotesPost(input: {
     status: adminDirectPublish ? "published" : "pending_review",
     moderation_status: adminDirectPublish ? "approved" : "pending_review",
     published_at: adminDirectPublish ? now : null,
-    safety_acknowledgements: { public_boundary: true, no_secrets: true, evidence_interpretation_boundary: true, no_sensitive_locations: true, no_private_research_data: true, living_library_link_metadata_only: true }
+    safety_acknowledgements: { public_boundary: true, no_secrets: true, evidence_interpretation_boundary: true, no_sensitive_locations: true, no_private_research_data: true, living_library_link_metadata_only: true },
+    ...circlePostFields(input, now)
   });
   if (postError) return { ok: false, message: friendlyError(postError.message, "Research Notes post creation is blocked by the current Commune post policy.") };
   const { data: thread } = await supabase.from(canonicalCommuneTables.threads).insert({
@@ -2245,7 +2421,7 @@ export async function submitResearchNotesPost(input: {
     room_id: input.roomId || null,
     title: input.title.trim(),
     created_by: account.userId,
-    visibility: "public",
+    ...circleThreadFields(input),
     status: "open"
   }).select("id").single();
   const threadId = (thread as { id?: string } | null)?.id ?? null;
@@ -2269,14 +2445,14 @@ export async function submitResearchNotesPost(input: {
     method_type: input.methodType || null,
     data_type: input.dataType || null,
     ethics_note: input.ethicsNote || null,
-    review_status: adminDirectPublish ? "published" : "submitted",
+    review_status: adminDirectPublish || isCircleSubmission(input) ? "published" : "submitted",
     updated_at: now
   };
   const { data, error: researchError } = await supabase.from(canonicalCommuneTables.researchNotes).insert(structuredPayload).select("id").single();
   if (researchError || !data) return { ok: false, postId, message: friendlyError(researchError?.message ?? "Research Notes metadata insert did not return a row.", "Research Notes post saved, but structured metadata could not be saved. Apply the Research Notes migration, then repair this post.") };
   const researchNoteId = (data as { id: string }).id;
   if (input.upload) {
-    const upload = await uploadCommuneAttachment(input.upload, { postId, role: "research_note_attachment", publishImmediately: adminDirectPublish });
+    const upload = await uploadCommuneAttachment(input.upload, { postId, role: "research_note_attachment", publishImmediately: adminDirectPublish || isCircleSubmission(input) });
     if (!upload.ok) return { ok: false, id: researchNoteId, postId, message: `Research Notes post saved, but upload failed: ${upload.message}` };
   }
   if (adminDirectPublish) {
@@ -2286,6 +2462,9 @@ export async function submitResearchNotesPost(input: {
     await createReviewHistoryItem({ domain: "commune", sourceTable: canonicalCommuneTables.researchNotes, sourceId: researchNoteId, submittedBy: account.userId, title: input.title, summary: "Admin-published Research Notes entry. Evidence, observation, interpretation, and uncertainty remain separate.", status: "approved", eventType: "admin_research_notes_direct_published", metadata: { post_id: postId, thread_id: threadId, evidence_strength: structuredPayload.evidence_strength } });
     return { ok: true, id: researchNoteId, postId, message: "Research Notes post published with structured evidence metadata, public thread, and source-safety boundaries." };
   }
+  const circleAccess = await finalizeCirclePostAccess(postId, input);
+  if (!circleAccess.ok) return { ok: false, id: researchNoteId, postId, message: circleAccess.message };
+  if (isCircleSubmission(input)) return { ok: true, id: researchNoteId, postId, message: "Private Research Notes post created for the selected Circle members with its evidence and uncertainty structure intact." };
   await createReviewItem({ domain: "commune", sourceTable: canonicalCommuneTables.posts, sourceId: postId, submittedBy: account.userId, title: input.title.trim(), summary: excerpt(input.summary || input.body) });
   await createReviewItem({ domain: "commune", sourceTable: canonicalCommuneTables.researchNotes, sourceId: researchNoteId, submittedBy: account.userId, title: input.title.trim(), summary: "Research Notes metadata awaiting review. Check citations, evidence/interpretation boundary, uncertainty, and sensitive-location/private-data safety." });
   return { ok: true, id: researchNoteId, postId, message: "Research Notes post submitted for moderation with structured evidence metadata. It is not public until approved." };
@@ -2312,11 +2491,12 @@ export async function updateResearchNotesReviewStatus(input: { researchNoteId?: 
   return { ok: true, message: "Research Notes review state updated. Reviewer notes remain in private review/history systems; public correction notes are visible when supplied." };
 }
 
-export async function submitCommunePost(input: { postType: CommunePostType; roomId?: string; title: string; body: string; tags: string; links: string; repositoryUrl?: string; acknowledgement: boolean; upload?: File | null; sandboxRequested?: boolean }): Promise<{ ok: boolean; message: string; postId?: string }> {
+export async function submitCommunePost(input: { postType: CommunePostType; roomId?: string; title: string; body: string; tags: string; links: string; repositoryUrl?: string; acknowledgement: boolean; upload?: File | null; sandboxRequested?: boolean } & CommuneAudienceInput): Promise<{ ok: boolean; message: string; postId?: string }> {
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
   if (!account.userId) return { ok: false, message: "Sign in to submit a Commune post for moderation." };
   if (!input.acknowledgement) return { ok: false, message: "Confirm the safety acknowledgements before submitting." };
+  if (isCircleSubmission(input) && !validateCircleRecipients(input)) return { ok: false, message: "Choose at least one accepted Circle member for this private room post." };
   const secretScan = scanCommuneTextForSecrets([input.title, input.body, input.tags, input.links, input.repositoryUrl ?? ""].join("\n"));
   if (secretScan.blocked) return { ok: false, message: `Submission blocked because it appears to contain private or secret material: ${secretScan.warnings.join(", ")}. Remove it before submitting.` };
   if (input.upload) {
@@ -2333,24 +2513,24 @@ export async function submitCommunePost(input: { postType: CommunePostType; room
     ? Array.from(new Set((rawLinks.length ? rawLinks : genericRepositoryUrl ? [genericRepositoryUrl] : []).map(publicRepositoryUrlOrNull).filter(Boolean) as string[]))
     : rawLinks;
   const postId = crypto.randomUUID();
-  const adminDirectPublish = account.isAdmin;
+  const adminDirectPublish = account.isAdmin && !isCircleSubmission(input);
   const now = new Date().toISOString();
-  const { error: postError } = await supabase.from(canonicalCommuneTables.posts).insert({ id: postId, user_id: account.userId, author_username: account.username, post_type: input.postType, title: input.title.trim(), body: input.body.trim(), excerpt: excerpt(input.body), tags, links, repository_url: genericRepositoryUrl ?? input.repositoryUrl?.trim() ?? null, status: adminDirectPublish ? "published" : "pending_review", moderation_status: adminDirectPublish ? "approved" : "pending_review", published_at: adminDirectPublish ? now : null, safety_acknowledgements: { public_boundary: true, no_secrets: true, no_execution: true } });
+  const { error: postError } = await supabase.from(canonicalCommuneTables.posts).insert({ id: postId, user_id: account.userId, author_username: account.username, post_type: input.postType, title: input.title.trim(), body: input.body.trim(), excerpt: excerpt(input.body), tags, links, repository_url: genericRepositoryUrl ?? input.repositoryUrl?.trim() ?? null, status: adminDirectPublish ? "published" : "pending_review", moderation_status: adminDirectPublish ? "approved" : "pending_review", published_at: adminDirectPublish ? now : null, safety_acknowledgements: { public_boundary: true, no_secrets: true, no_execution: true }, ...circlePostFields(input, now) });
   if (postError) return { ok: false, message: friendlyError(postError.message, "This room post is blocked by the current database policy. If you are signed in, the Commune room post/admin publishing policy may need to be applied.") };
   let threadId: string | null = null;
-  const { data: thread, error: threadError } = await supabase.from(canonicalCommuneTables.threads).insert({ post_id: postId, room_id: input.roomId || null, title: input.title.trim(), created_by: account.userId, visibility: "public" }).select("id").single();
+  const { data: thread, error: threadError } = await supabase.from(canonicalCommuneTables.threads).insert({ post_id: postId, room_id: input.roomId || null, title: input.title.trim(), created_by: account.userId, ...circleThreadFields(input) }).select("id").single();
   if (!threadError) threadId = (thread as { id: string }).id;
   if (adminDirectPublish) {
     await grantThreadParticipationApproval({ threadId, postId, userId: account.userId, approvedBy: account.userId, source: "admin_direct_post" });
     await recordCommuneGovernanceEvent({ actorId: account.userId, targetType: "post", targetId: postId, action: "admin_post_published", fromStatus: "draft", toStatus: "published", metadata: { post_type: input.postType, review_item_created: false } });
   }
   if (input.upload) {
-    const upload = await uploadCommuneAttachment(input.upload, { postId, role: "post_attachment", publishImmediately: adminDirectPublish });
+    const upload = await uploadCommuneAttachment(input.upload, { postId, role: "post_attachment", publishImmediately: adminDirectPublish || isCircleSubmission(input) });
     if (!upload.ok) return { ok: false, message: `${adminDirectPublish ? "Post published directly" : "Post saved for review"}, but upload failed: ${upload.message}` };
   }
   if (adminDirectPublish) await publishPostAttachments(postId);
   if (input.postType === "repository_showcase" && genericRepositoryUrl) {
-    const repo = await submitRepositoryShowcase({ repositoryUrl: genericRepositoryUrl, projectName: input.title, projectSummary: excerpt(input.body), postId, sandboxRequested: Boolean(input.sandboxRequested) });
+    const repo = await submitRepositoryShowcase({ repositoryUrl: genericRepositoryUrl, projectName: input.title, projectSummary: excerpt(input.body), postId, sandboxRequested: Boolean(input.sandboxRequested), privateCircle: isCircleSubmission(input) });
     if (!repo.ok) return { ok: false, message: `Post saved, but repository showcase failed: ${repo.message}` };
   }
   if (adminDirectPublish) {
@@ -2358,6 +2538,9 @@ export async function submitCommunePost(input: { postType: CommunePostType; room
     const historyWarning = history.ok ? "" : ` History record needs attention: ${history.warning ?? "review history unavailable"}.`;
     return { ok: true, postId, message: `Admin post published directly${threadId ? " with a public thread" : ""}. It remains auditable in Commune governance history.${historyWarning}` };
   }
+  const circleAccess = await finalizeCirclePostAccess(postId, input);
+  if (!circleAccess.ok) return { ok: false, postId, message: circleAccess.message };
+  if (isCircleSubmission(input)) return { ok: true, postId, message: "Private room-native post created for the selected Circle members. It is excluded from public feeds, public counts, and ordinary moderation queues." };
   const review = await createReviewItem({ domain: "commune", sourceTable: "commune_posts", sourceId: postId, submittedBy: account.userId, title: input.title.trim(), summary: excerpt(input.body) });
   return { ok: true, postId, message: review.ok ? `Commune post submitted for moderation${threadId ? " with a pending thread" : ""}. It is not public until approved.` : `Post saved, but review routing needs attention: ${review.warning}` };
 }
@@ -2371,15 +2554,17 @@ export async function submitComment(input: { postId: string; threadId: string; b
   if (!input.body.trim()) return { ok: false, status: "failed", message: input.parentCommentId ? "Write a reply before submitting." : "Write a comment before submitting." };
   const secretScan = scanCommuneTextForSecrets(input.body);
   if (secretScan.blocked) return { ok: false, status: "failed", message: `Comment blocked because it appears to contain private or secret material: ${secretScan.warnings.join(", ")}.` };
-  if (!account.isModerator) {
+  const { data: parentPost } = await supabase.from(canonicalCommuneTables.posts).select("audience").eq("id", input.postId).maybeSingle();
+  const privateCircle = (parentPost as { audience?: string } | null)?.audience === "circle";
+  if (!account.isModerator || privateCircle) {
     const { officialUpdate } = await loadOfficialUpdateForPost(input.postId);
-    if (officialUpdate && officialUpdate.comments_enabled === false) return { ok: false, status: "failed", message: "Comments are locked for this Official Update. Public discussion is disabled by an administrator for this notice." };
+    if (officialUpdate && officialUpdate.comments_enabled === false) return { ok: false, status: "failed", message: `Comments are locked for this Official Update. ${privateCircle ? "Private Circle discussion" : "Public discussion"} is disabled for this notice.` };
     const { communityVote } = await loadCommunityVoteForPost(input.postId);
-    if (communityVote && communityVote.vote.allow_comments === false) return { ok: false, status: "failed", message: "Comments are locked for this Community Voting Room vote. Public discussion is disabled by an administrator for this guidance vote." };
+    if (communityVote && communityVote.vote.allow_comments === false) return { ok: false, status: "failed", message: `Comments are locked for this Community Voting Room vote. ${privateCircle ? "Private Circle discussion" : "Public discussion"} is disabled for this guidance vote.` };
   }
   const id = crypto.randomUUID();
   const approvedParticipant = await hasThreadParticipationApproval({ threadId: input.threadId, postId: input.postId, userId: account.userId, isModerator: account.isModerator });
-  const directPublish = approvedParticipant;
+  const directPublish = privateCircle || approvedParticipant;
   const publishedAt = directPublish ? new Date().toISOString() : null;
   const { error } = await supabase.from(canonicalCommuneTables.comments).insert({ id, thread_id: input.threadId, post_id: input.postId, parent_comment_id: input.parentCommentId || null, user_id: account.userId, author_username: account.username, body: input.body.trim(), status: directPublish ? "published" : "pending_review", published_at: publishedAt });
   if (error) return { ok: false, status: "failed", message: friendlyError(error.message, "Comment moderation backend is not active yet.") };
@@ -2391,6 +2576,7 @@ export async function submitComment(input: { postId: string; threadId: string; b
     }
     return { ok: true, status: "pending_review", commentId: id, message: "First contribution to this post/thread submitted for moderation. Once approved here, you can continue in this thread." };
   }
+  if (privateCircle) return { ok: true, status: "published", commentId: id, message: input.parentCommentId ? "Reply published inside this private Circle thread." : "Comment published inside this private Circle thread." };
   const history = await createReviewHistoryItem({
     domain: "commune",
     sourceTable: "commune_comments",
@@ -2555,11 +2741,13 @@ export async function moderateCommuneContentTarget(input: { targetType: CommuneR
 
 const repositoryShowcaseGuidanceBoundary = "This is admin-authored Repository Showcase guidance. It is not a repository approval, compatibility review, Marketplace listing, install recommendation, or trust signal.";
 
-export async function submitRepositoryShowcase(input: { repositoryUrl: string; projectName: string; projectSummary: string; postId?: string; roomId?: string; body?: string; tags?: string; links?: string; provider?: string; branch?: string; commit?: string; license?: string; readmePreview?: string; fileTreePreview?: string; screenshotNotes?: string; manifestStatus?: string; compatibility?: string; warnings?: string[]; sandboxRequested?: boolean; importSource?: string; importedMetadata?: Record<string, unknown>; importedAt?: string | null; redactionNotes?: string; adminGuidancePost?: boolean }): Promise<{ ok: boolean; message: string; id?: string; postId?: string; sandboxReviewRequestId?: string }> {
+export async function submitRepositoryShowcase(input: { repositoryUrl: string; projectName: string; projectSummary: string; postId?: string; roomId?: string; body?: string; tags?: string; links?: string; provider?: string; branch?: string; commit?: string; license?: string; readmePreview?: string; fileTreePreview?: string; screenshotNotes?: string; manifestStatus?: string; compatibility?: string; warnings?: string[]; sandboxRequested?: boolean; importSource?: string; importedMetadata?: Record<string, unknown>; importedAt?: string | null; redactionNotes?: string; adminGuidancePost?: boolean; privateCircle?: boolean } & CommuneAudienceInput): Promise<{ ok: boolean; message: string; id?: string; postId?: string; sandboxReviewRequestId?: string }> {
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
   if (!account.userId) return { ok: false, message: "Sign in to submit repository showcases." };
   if (!input.projectName.trim()) return { ok: false, message: "Add a repository showcase title before submitting." };
+  const privateCircle = Boolean(input.privateCircle) || isCircleSubmission(input);
+  if (isCircleSubmission(input) && !validateCircleRecipients(input)) return { ok: false, message: "Choose at least one accepted Circle member and confirm the private-post boundary for this private Repository Showcase." };
   const adminGuidancePost = Boolean(input.adminGuidancePost);
   if (adminGuidancePost && !account.isAdmin) return { ok: false, message: "Repository Showcase guidance/template posts are admin-only. Normal users must submit a public repository URL." };
   if (adminGuidancePost && input.sandboxRequested) return { ok: false, message: "Admin guidance posts cannot request selected-artifact sandbox review. Sandbox review remains tied to explicit repository artifacts." };
@@ -2572,8 +2760,9 @@ export async function submitRepositoryShowcase(input: { repositoryUrl: string; p
   const secretScan = scanCommuneTextForSecrets([repositoryUrl ?? input.repositoryUrl, input.projectName, input.projectSummary, input.body ?? "", input.provider ?? "", input.branch ?? "", input.commit ?? "", input.license ?? "", input.readmePreview ?? "", input.fileTreePreview ?? "", input.screenshotNotes ?? "", input.manifestStatus ?? "", input.compatibility ?? "", riskFlags.join("\n"), input.redactionNotes ?? "", JSON.stringify(input.importedMetadata ?? {})].join("\n"));
   if (secretScan.blocked) return { ok: false, message: "Repository showcase blocked because it appears to contain private or secret material: " + secretScan.warnings.join(", ") + ". Remove it before submitting." };
   let postId = input.postId || null;
+  const createsBasePost = !postId;
   const now = new Date().toISOString();
-  const adminDirectPublish = account.isAdmin;
+  const adminDirectPublish = account.isAdmin && !privateCircle;
   const baseBody = input.body?.trim() || input.projectSummary.trim();
   if (adminGuidancePost && !baseBody) return { ok: false, message: "Write Repository Showcase guidance before publishing an admin guidance/template post." };
   const body = adminGuidancePost && !baseBody.includes(repositoryShowcaseGuidanceBoundary)
@@ -2598,10 +2787,11 @@ export async function submitRepositoryShowcase(input: { repositoryUrl: string; p
       status: adminDirectPublish ? "published" : "pending_review",
       moderation_status: adminDirectPublish ? "approved" : "pending_review",
       published_at: adminDirectPublish ? now : null,
-      safety_acknowledgements: { public_boundary: true, no_secrets: true, no_execution: true, repository_metadata_only: true, admin_guidance_post: adminGuidancePost, not_trust_signal: true, marketplace_approval_separate: true }
+      safety_acknowledgements: { public_boundary: true, no_secrets: true, no_execution: true, repository_metadata_only: true, admin_guidance_post: adminGuidancePost, not_trust_signal: true, marketplace_approval_separate: true },
+      ...circlePostFields(input, now)
     });
     if (postError) return { ok: false, message: friendlyError(postError.message, "This repository showcase post is blocked by the current database policy. If you are signed in, the Commune room post/admin publishing policy may need to be applied.") };
-    const { data: thread } = await supabase.from(canonicalCommuneTables.threads).insert({ post_id: postId, room_id: input.roomId || null, title: input.projectName.trim(), created_by: account.userId, visibility: "public" }).select("id").single();
+    const { data: thread } = await supabase.from(canonicalCommuneTables.threads).insert({ post_id: postId, room_id: input.roomId || null, title: input.projectName.trim(), created_by: account.userId, ...circleThreadFields(input) }).select("id").single();
     threadId = (thread as { id?: string } | null)?.id ?? null;
     if (adminDirectPublish) {
       await grantThreadParticipationApproval({ threadId, postId, userId: account.userId, approvedBy: account.userId, source: "admin_direct_repository_showcase" });
@@ -2609,6 +2799,11 @@ export async function submitRepositoryShowcase(input: { repositoryUrl: string; p
     }
   }
   if (adminGuidancePost) {
+    if (createsBasePost && privateCircle) {
+      const circleAccess = await finalizeCirclePostAccess(postId, input);
+      if (!circleAccess.ok) return { ok: false, postId, message: circleAccess.message };
+      return { ok: true, message: `Private Repository Showcase guidance shared with selected Circle members. ${repositoryShowcaseGuidanceBoundary}`, postId };
+    }
     const history = await createReviewHistoryItem({ domain: "commune", sourceTable: "commune_posts", sourceId: postId, submittedBy: account.userId, title: input.projectName, summary: "Admin-published Repository Showcase guidance/template post. No repository sidecar was created and no trust, compatibility, Marketplace, install, or sandbox approval is implied.", status: "approved", eventType: "admin_repository_showcase_guidance_published", metadata: { admin_guidance_post: true, repository_sidecar_created: false, thread_id: threadId } });
     const historyWarning = history.ok ? "" : ` History record needs attention: ${history.warning ?? "review history unavailable"}.`;
     return { ok: true, message: `Repository Showcase guidance post published as admin-authored guidance. It is not a repository approval, compatibility review, Marketplace listing, install recommendation, trust signal, or sandbox approval.${historyWarning}`, postId };
@@ -2643,7 +2838,7 @@ export async function submitRepositoryShowcase(input: { repositoryUrl: string; p
     risk_flags: riskFlags,
     sandbox_review_requested: Boolean(input.sandboxRequested),
     sandbox_review_status: input.sandboxRequested ? "requested" : "not_requested",
-    status: adminDirectPublish ? "approved" : "pending_review",
+    status: adminDirectPublish || privateCircle ? "approved" : "pending_review",
     import_source: input.importSource || "manual",
     imported_metadata: input.importedMetadata ?? {},
     imported_at: input.importedAt || null,
@@ -2653,7 +2848,7 @@ export async function submitRepositoryShowcase(input: { repositoryUrl: string; p
   let data = insertAttempt.data as { id: string } | null;
   if (insertAttempt.error) {
     if (!/schema cache|Could not find|does not exist|column/i.test(insertAttempt.error.message)) return { ok: false, message: friendlyError(insertAttempt.error.message, "Repository showcase review queue is not active yet.") };
-    const fallback = await supabase.from(canonicalCommuneTables.repositoryShowcases).insert({ user_id: account.userId, post_id: postId, repository_url: repositoryUrl, repository_host: host, project_name: input.projectName, project_summary: summary || input.projectSummary, license: input.license || null, safety_notes: riskFlags.join(", ") || null, sandbox_review_requested: Boolean(input.sandboxRequested), status: adminDirectPublish ? "approved" : "pending_review" }).select("id").single();
+    const fallback = await supabase.from(canonicalCommuneTables.repositoryShowcases).insert({ user_id: account.userId, post_id: postId, repository_url: repositoryUrl, repository_host: host, project_name: input.projectName, project_summary: summary || input.projectSummary, license: input.license || null, safety_notes: riskFlags.join(", ") || null, sandbox_review_requested: Boolean(input.sandboxRequested), status: adminDirectPublish || privateCircle ? "approved" : "pending_review" }).select("id").single();
     if (fallback.error) return { ok: false, message: friendlyError(fallback.error.message, "Repository showcase review queue is not active yet.") };
     data = fallback.data as { id: string };
   }
@@ -2662,7 +2857,7 @@ export async function submitRepositoryShowcase(input: { repositoryUrl: string; p
   let sandboxReviewRequestId: string | undefined;
   if (adminDirectPublish) {
     await createReviewHistoryItem({ domain: "commune", sourceTable: "commune_posts", sourceId: postId, submittedBy: account.userId, title: input.projectName, summary: "Admin-published repository showcase metadata only. The website did not clone, build, run, or execute code.", status: "approved", eventType: "admin_repository_showcase_direct_published", metadata: { repository_showcase_id: id, repository_url: input.repositoryUrl } });
-  } else {
+  } else if (!privateCircle) {
     await createReviewItem({ domain: "commune", sourceTable: "commune_posts", sourceId: postId, submittedBy: account.userId, title: input.projectName, summary: "Repository showcase post. Metadata only; no repository was cloned, built, run, or executed." });
     await createReviewItem({ domain: "commune", sourceTable: "commune_repository_showcases", sourceId: id, submittedBy: account.userId, title: input.projectName, summary: "Repository showcase metadata only. The website did not clone, build, run, or execute code." });
   }
@@ -2673,7 +2868,11 @@ export async function submitRepositoryShowcase(input: { repositoryUrl: string; p
       await supabase.from(canonicalCommuneTables.repositoryShowcases).update({ sandbox_review_status: "requested", sandbox_review_request_id: sandbox.id ?? null, updated_at: new Date().toISOString() }).eq("id", id);
     }
   }
-  return { ok: true, message: adminDirectPublish ? "Repository showcase published as an admin-authored public post. No repository was fetched, cloned, built, or executed." : "Repository showcase submitted as a normal Commune post for moderation. No repository was fetched, cloned, built, or executed.", id, postId, sandboxReviewRequestId };
+  if (createsBasePost && privateCircle) {
+    const circleAccess = await finalizeCirclePostAccess(postId, input);
+    if (!circleAccess.ok) return { ok: false, id, postId, sandboxReviewRequestId, message: circleAccess.message };
+  }
+  return { ok: true, message: privateCircle ? "Private Repository Showcase metadata saved inside the post ACL. No repository was fetched, cloned, built, or executed." : adminDirectPublish ? "Repository showcase published as an admin-authored public post. No repository was fetched, cloned, built, or executed." : "Repository showcase submitted as a normal Commune post for moderation. No repository was fetched, cloned, built, or executed.", id, postId, sandboxReviewRequestId };
 }
 
 export async function submitIterationShowcase(input: {
@@ -2706,11 +2905,12 @@ export async function submitIterationShowcase(input: {
   importedMetadata?: Record<string, unknown>;
   importedAt?: string | null;
   redactionNotes?: string;
-}): Promise<{ ok: boolean; message: string; id?: string; postId?: string; sandboxReviewRequestId?: string }> {
+} & CommuneAudienceInput): Promise<{ ok: boolean; message: string; id?: string; postId?: string; sandboxReviewRequestId?: string }> {
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
   if (!account.userId) return { ok: false, message: "Sign in to submit Elysia Iteration Showcases." };
   if (!input.title.trim()) return { ok: false, message: "Add an iteration title before submitting." };
+  if (isCircleSubmission(input) && !validateCircleRecipients(input)) return { ok: false, message: "Choose at least one accepted Circle member for this private Elysia Iteration Showcase." };
   const relatedRepoUrl = publicHttpUrlOrNull(input.relatedRepoUrl);
   if (input.relatedRepoUrl?.trim() && !relatedRepoUrl) return { ok: false, message: "Use a public HTTP(S) related source URL. Localhost, private network, and local repository URLs are not accepted for public iteration metadata." };
   const pullRequestUrl = publicHttpUrlOrNull(input.pullRequestUrl);
@@ -2754,7 +2954,7 @@ export async function submitIterationShowcase(input: {
 
   const now = new Date().toISOString();
   const postId = crypto.randomUUID();
-  const adminDirectPublish = account.isAdmin;
+  const adminDirectPublish = account.isAdmin && !isCircleSubmission(input);
   const links = splitList(input.links);
   if (relatedRepoUrl && !links.includes(relatedRepoUrl)) links.push(relatedRepoUrl);
   const { error: postError } = await supabase.from(canonicalCommuneTables.posts).insert({
@@ -2771,10 +2971,11 @@ export async function submitIterationShowcase(input: {
     status: adminDirectPublish ? "published" : "pending_review",
     moderation_status: adminDirectPublish ? "approved" : "pending_review",
     published_at: adminDirectPublish ? now : null,
-    safety_acknowledgements: { public_boundary: true, no_secrets: true, no_execution: true, iteration_progress_only: true, not_official_update: true, marketplace_separate: true }
+    safety_acknowledgements: { public_boundary: true, no_secrets: true, no_execution: true, iteration_progress_only: true, not_official_update: true, marketplace_separate: true },
+    ...circlePostFields(input, now)
   });
   if (postError) return { ok: false, message: friendlyError(postError.message, "This Elysia Iteration Showcase post is blocked by the current database policy. If you are signed in, the Commune room post/admin publishing policy may need to be applied.") };
-  const { data: thread } = await supabase.from(canonicalCommuneTables.threads).insert({ post_id: postId, room_id: input.roomId || null, title: input.title.trim(), created_by: account.userId, visibility: "public" }).select("id").single();
+  const { data: thread } = await supabase.from(canonicalCommuneTables.threads).insert({ post_id: postId, room_id: input.roomId || null, title: input.title.trim(), created_by: account.userId, ...circleThreadFields(input) }).select("id").single();
   const threadId = (thread as { id?: string } | null)?.id ?? null;
   if (adminDirectPublish) {
     await grantThreadParticipationApproval({ threadId, postId, userId: account.userId, approvedBy: account.userId, source: "admin_direct_iteration_showcase" });
@@ -2806,20 +3007,20 @@ export async function submitIterationShowcase(input: {
     imported_metadata: input.importedMetadata ?? {},
     imported_at: input.importedAt || null,
     redaction_notes: input.redactionNotes || null,
-    status: adminDirectPublish ? "approved" : "pending_review"
+    status: adminDirectPublish || isCircleSubmission(input) ? "approved" : "pending_review"
   };
   const { data, error: iterationError } = await supabase.from(canonicalCommuneTables.iterationShowcases).insert(structuredPayload).select("id").single();
   if (iterationError) return { ok: false, message: friendlyError(iterationError.message, "Post saved, but Elysia Iteration Showcase structured metadata is not active yet. Apply the structured metadata migration, then resubmit.") };
   const id = (data as { id: string }).id;
   if (input.upload) {
-    const upload = await uploadCommuneAttachment(input.upload, { postId, role: "iteration_showcase_attachment", publishImmediately: adminDirectPublish });
+    const upload = await uploadCommuneAttachment(input.upload, { postId, role: "iteration_showcase_attachment", publishImmediately: adminDirectPublish || isCircleSubmission(input) });
     if (!upload.ok) return { ok: false, message: `${adminDirectPublish ? "Iteration showcase published directly" : "Iteration showcase saved for review"}, but upload failed: ${upload.message}` };
   }
   if (adminDirectPublish) await publishPostAttachments(postId);
   let sandboxReviewRequestId: string | undefined;
   if (adminDirectPublish) {
     await createReviewHistoryItem({ domain: "commune", sourceTable: "commune_posts", sourceId: postId, submittedBy: account.userId, title: input.title, summary: "Admin-published Elysia Iteration Showcase. Public progress/demo context only; not official release, Marketplace, Developer Forge, security, or compatibility approval.", status: "approved", eventType: "admin_iteration_showcase_direct_published", metadata: { iteration_showcase_id: id, related_repo_url: relatedRepoUrl } });
-  } else {
+  } else if (!isCircleSubmission(input)) {
     await createReviewItem({ domain: "commune", sourceTable: "commune_posts", sourceId: postId, submittedBy: account.userId, title: input.title, summary: "Elysia Iteration Showcase post. Public progress/demo context only; not official release or approval." });
     await createReviewItem({ domain: "commune", sourceTable: canonicalCommuneTables.iterationShowcases, sourceId: id, submittedBy: account.userId, title: input.title, summary: "Structured Elysia Iteration Showcase metadata awaiting review." });
   }
@@ -2837,6 +3038,9 @@ export async function submitIterationShowcase(input: {
       await supabase.from(canonicalCommuneTables.iterationShowcases).update({ sandbox_review_status: "requested", sandbox_review_request_id: sandbox.id ?? null, updated_at: new Date().toISOString() }).eq("id", id);
     }
   }
+  const circleAccess = await finalizeCirclePostAccess(postId, input);
+  if (!circleAccess.ok) return { ok: false, id, postId, sandboxReviewRequestId, message: circleAccess.message };
+  if (isCircleSubmission(input)) return { ok: true, message: "Private Elysia Iteration Showcase created for the selected Circle members. It remains room-native, excludes ordinary moderation queues, and does not claim official release or approval.", id, postId, sandboxReviewRequestId };
   return { ok: true, message: adminDirectPublish ? "Elysia Iteration Showcase published as an admin-authored public progress post. It is not an official release, approval, compatibility proof, or Marketplace readiness signal." : "Elysia Iteration Showcase submitted as a normal Commune post for moderation. It is not public until approved.", id, postId, sandboxReviewRequestId };
 }
 
@@ -2844,6 +3048,10 @@ export async function submitSandboxReview(input: { requestTitle: string; reposit
   if (!supabase) return { ok: false, message: supabaseNotConfiguredMessage };
   const account = await accountState();
   if (!account.userId) return { ok: false, message: "Sign in to request sandbox review." };
+  const { data: parentPost } = input.postId
+    ? await supabase.from(canonicalCommuneTables.posts).select("audience").eq("id", input.postId).maybeSingle()
+    : { data: null };
+  const privateCircle = (parentPost as { audience?: string } | null)?.audience === "circle";
   const scan = scanCommuneTextForSecrets([input.requestTitle, input.repositoryUrl ?? "", input.packageUrl ?? "", input.scope, input.riskNotes, ...input.permissions].join("\n"));
   if (scan.blocked) return { ok: false, message: `Sandbox request blocked because it appears to contain private or secret material: ${scan.warnings.join(", ")}.` };
   const { data, error } = await supabase.from(canonicalCommuneTables.sandboxReviews).insert({
@@ -2870,8 +3078,16 @@ export async function submitSandboxReview(input: { requestTitle: string; reposit
   }).select("id").single();
   if (error) return { ok: false, message: friendlyError(error.message, "Sandbox review queue is not active yet.") };
   const id = (data as { id: string }).id;
-  await createReviewItem({ domain: "commune", sourceTable: "commune_sandbox_review_requests", sourceId: id, submittedBy: account.userId, title: input.requestTitle, summary: "Sandbox review request only. The website does not execute submitted code." });
-  return { ok: true, message: "Sandbox review request saved for moderators. This is not execution permission.", id };
+  if (!privateCircle) {
+    await createReviewItem({ domain: "commune", sourceTable: "commune_sandbox_review_requests", sourceId: id, submittedBy: account.userId, title: input.requestTitle, summary: "Sandbox review request only. The website does not execute submitted code." });
+  }
+  return {
+    ok: true,
+    message: privateCircle
+      ? "Private sandbox collaboration request saved inside this post's explicit Circle access boundary. It is not sent to the ordinary reviewer queue and is not execution permission."
+      : "Sandbox review request saved for moderators. This is not execution permission.",
+    id,
+  };
 }
 
 export async function requestIterationShowcaseSandboxReview(input: {

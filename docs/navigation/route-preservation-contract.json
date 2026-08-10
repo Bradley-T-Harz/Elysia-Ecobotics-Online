@@ -6,7 +6,7 @@
     "repository": "Elysia-Ecobotics-Online",
     "branchPoint": "97bfc8b95f295c9c6dae98c9feb914e88c91b036",
     "routerSource": "src/App.tsx",
-    "routerDeclarationCount": 131,
+    "routerDeclarationCount": 132,
     "deployedBehaviorClaimed": false
   },
   "invariants": [
@@ -333,7 +333,8 @@
     { "id": "RT-0128", "declaredPath": "manifest-api", "resolvedPattern": "/manifest-api", "kind": "redirect", "parentId": "RT-0001", "owner": "Navigate", "redirectTarget": "/marketplace/manifest-api", "stateProfile": "redirect-path-only", "dynamicSource": null, "accessProfile": "alias-inherits-target", "statusProfile": "registered-compatibility", "zone": "orange-boundary", "reachability": ["legacy-direct-load"], "smokePaths": ["/manifest-api"] },
     { "id": "RT-0129", "declaredPath": "*", "resolvedPattern": "*", "kind": "wildcard", "parentId": "RT-0001", "owner": "Navigate", "redirectTarget": "/", "stateProfile": "redirect-path-only", "dynamicSource": null, "accessProfile": "unknown-fallback", "statusProfile": "registered-compatibility", "zone": "infrastructure", "reachability": ["unknown-path-fallback"], "smokePaths": [] },
     { "id": "RT-0130", "declaredPath": "living-library/browse/:categorySlug", "resolvedPattern": "/living-library/browse/:categorySlug", "kind": "dynamic", "parentId": "RT-0001", "owner": "LivingLibraryPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": "living-library-category-slug", "accessProfile": "public-record", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["page-local", "shareable-search-state", "direct-load"], "smokePaths": ["/living-library/browse/earth-environment"] },
-    { "id": "RT-0131", "declaredPath": "living-library/source/:sourceId", "resolvedPattern": "/living-library/source/:sourceId", "kind": "dynamic", "parentId": "RT-0001", "owner": "LivingLibraryPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": "living-library-source-id", "accessProfile": "public-record", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["page-local", "saved-shelf", "shareable-source-detail", "direct-load"], "smokePaths": ["/living-library/source/nasa-earthdata"] }
+    { "id": "RT-0131", "declaredPath": "living-library/source/:sourceId", "resolvedPattern": "/living-library/source/:sourceId", "kind": "dynamic", "parentId": "RT-0001", "owner": "LivingLibraryPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": "living-library-source-id", "accessProfile": "public-record", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["page-local", "saved-shelf", "shareable-source-detail", "direct-load"], "smokePaths": ["/living-library/source/nasa-earthdata"] },
+    { "id": "RT-0132", "declaredPath": "commons-circle/signals/circle", "resolvedPattern": "/commons-circle/signals/circle", "kind": "static", "parentId": "RT-0001", "owner": "CirclePage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "signed-in-or-component-gated", "statusProfile": "registered-route", "zone": "red-entry-only", "reachability": ["page-local", "restricted", "direct-load"], "smokePaths": ["/commons-circle/signals/circle"] }
   ],
   "externalDestinations": [
     { "id": "EXT-0001", "url": "https://elysiaartisancollective.pages.dev", "kind": "external", "owner": "ElysiaArtisanCollectivePage", "accessProfile": "external-approved-boundary", "statusProfile": "approved-external-boundary", "zone": "orange-boundary", "reachability": ["artisan-bridge-page-only"] },

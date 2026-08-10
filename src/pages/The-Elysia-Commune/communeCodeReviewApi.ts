@@ -51,7 +51,7 @@ function isModeratorRole(roles: AppRole[], isAdmin: boolean) {
 export function formatSafeCodeReviewError(error?: { message?: string } | null) {
   if (!error?.message) return "Code review action could not be completed.";
   if (import.meta.env.DEV) console.warn("[Commune code review]", error.message);
-  if (/submit_commune_code_revision_proposal|decide_commune_code_revision_proposal|commune_code_revision_proposals/i.test(error.message)) return "Coding Cornucopia revision proposals are not active until the latest Supabase migration is applied.";
+  if (/submit_(circle_)?commune_code_revision_proposal|submit_circle_code_revision_proposal|decide_commune_code_revision_proposal|commune_code_revision_proposals/i.test(error.message)) return "Coding Cornucopia revision proposals are not active until the latest Supabase migration is applied.";
   if (/schema cache|Could not find|does not exist|relation/i.test(error.message)) return "Collaborative code review tables are not active until the latest Supabase migration is applied.";
   if (/permission denied|row-level security|violates row-level security|JWT/i.test(error.message)) return "Your current account cannot use that code review action yet.";
   if (/check constraint|code_documents/i.test(error.message)) return "Code review content was blocked by safety limits.";
@@ -117,7 +117,9 @@ export async function submitCodeRevisionProposal(input: { clientRequestId: strin
   if (!account.userId) return { ok: false, message: "Sign in before proposing a Coding Cornucopia revision." };
   const validation = validateCodeDocumentInput({ title: input.changeSummary, language: input.language ?? "text", fileName: input.fileName ?? "", text: input.proposedCodeText, summary: input.explanation ?? "" });
   if (!validation.ok) return { ok: false, message: validation.message ?? "Revision proposal blocked by Coding Cornucopia safety limits." };
-  const { data, error } = await supabase.rpc("submit_commune_code_revision_proposal_v2", {
+  const { data: sourcePost } = await supabase.from("commune_posts").select("audience").eq("id", input.postId).maybeSingle();
+  const privateCircle = (sourcePost as { audience?: string } | null)?.audience === "circle";
+  const { data, error } = await supabase.rpc(privateCircle ? "submit_circle_code_revision_proposal_v2" : "submit_commune_code_revision_proposal_v2", {
     p_client_request_id: input.clientRequestId,
     p_post_id: input.postId,
     p_code_snippet_id: input.codeSnippetId,
@@ -128,7 +130,7 @@ export async function submitCodeRevisionProposal(input: { clientRequestId: strin
     p_explanation: input.explanation?.trim() || null
   });
   if (error) return { ok: false, message: formatSafeCodeReviewError(error) };
-  return { ok: true, message: "Revision proposal submitted. The attached code stays unchanged until the original post author accepts it.", proposalId: data as string };
+  return { ok: true, message: privateCircle ? "Revision proposal shared inside this private Circle post. The attached code stays unchanged until the original post author accepts it." : "Revision proposal submitted. The attached code stays unchanged until the original post author accepts it.", proposalId: data as string };
 }
 
 export async function decideCodeRevisionProposal(proposalId: string, decision: Extract<CodeRevisionProposalStatus, "accepted" | "rejected" | "needs_changes" | "hidden_by_moderation">, decisionNote?: string): Promise<{ ok: boolean; message: string }> {

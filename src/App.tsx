@@ -36,6 +36,7 @@ const MessagingAccessAdminPage = lazy(() => import("./pages/The-Commons-Circle/M
 const CommonsCircleSetupPage = lazy(() => import("./pages/The-Commons-Circle/CommonsCircleSetupPage"));
 const SavedShelvesPage = lazy(() => import("./pages/The-Commons-Circle/SavedShelvesPage"));
 const SignalConsolePage = lazy(() => import("./pages/The-Commons-Circle/SignalConsolePage"));
+const CirclePage = lazy(() => import("./pages/The-Commons-Circle/CirclePage"));
 const SignalDetailPage = lazy(() => import("./pages/The-Commons-Circle/SignalDetailPage"));
 const InboxPage = lazy(() => import("./pages/The-Commons-Circle/InboxPage"));
 const NewConversationPage = lazy(() => import("./pages/The-Commons-Circle/NewConversationPage"));
@@ -243,6 +244,7 @@ export default function App() {
             <Route path="*" element={<Navigate to="/" replace />} />
             <Route path="living-library/browse/:categorySlug" element={<LivingLibraryPage />} />
             <Route path="living-library/source/:sourceId" element={<LivingLibraryPage />} />
+            <Route path="commons-circle/signals/circle" element={<CirclePage />} />
             </Route>
             </Routes>
           </Suspense>

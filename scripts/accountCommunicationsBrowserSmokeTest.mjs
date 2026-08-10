@@ -211,6 +211,7 @@ try {
     { path: "/commons-circle/signals/requests-reviews", width: 1280, heading: "Requests & Reviews", kind: "requests" },
     { path: "/commons-circle/requests-reviews?domain=code_proposals#request-list", canonical: "/commons-circle/signals/requests-reviews?domain=code_proposals#request-list", width: 1280, heading: "Requests & Reviews", kind: "requests" },
     { path: "/commons-circle/signals?legacy-bookmark=preserved", width: 1280, heading: "Signals", kind: "signals" },
+    { path: "/commons-circle/signals", width: 820, heading: "Signals", kind: "signals" },
     { path: "/commons-circle/signals", width: 390, heading: "Signals", kind: "signals" },
     { path: "/commons-circle/signals", width: 1280, heading: "Signals", kind: "signals-admin", admin: true },
     { path: "/commons-circle/admin/messaging-access", width: 1280, heading: "Messaging access", kind: "messaging-access-denied" },
@@ -564,7 +565,10 @@ try {
       assert(observed.tables.has("addon_submissions") && observed.tables.has("marketplace_listings"), "Marketplace/Forge Signals must load safe owner submission and visible listing state.");
       for (const unrelated of ["work_with_requests", "commune_code_revision_proposals", "commune_research_notes"]) assert.equal(observed.tables.has(unrelated), false, `Marketplace/Forge Signals must not load unrelated ${unrelated} rows.`);
     }
-    if (screenshotDir && scenario.kind === "signals") await page.screenshot({ path: path.join(screenshotDir, `signals-hub-${scenario.width}.png`), fullPage: true });
+    if (screenshotDir && scenario.kind === "signals") {
+      await page.getByRole("heading", { name: "Your Circle", exact: true }).scrollIntoViewIfNeeded();
+      await page.screenshot({ path: path.join(screenshotDir, `signals-your-circle-${scenario.width}.png`), fullPage: false });
+    }
     if (screenshotDir && scenario.kind === "signal-detail") await page.screenshot({ path: path.join(screenshotDir, "signals-coding-proposals-1280.png"), fullPage: true });
     await context.close();
   }

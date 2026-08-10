@@ -17,9 +17,11 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
 import { useAuth } from "../../shared/auth/useAuth";
+import { loadCurrentUserCircle, type CircleRelationshipItem } from "../The-Commons-Circle/circleApi";
 import { billingErrorMessage, createBillingClientRequestId, createJobPostCheckout, loadBillingCapabilities, loadBillingOrder, loadJobPostOwnerEconomicStatus, type BillingCapabilities, type BillingOrderSummary, type JobPostOwnerEconomicStatus } from "../../shared/billing/billingClient";
 import {
   clearCommuneReaction,
+  addCommunePostCircleParticipants,
   castCommunityVoteBallot,
   communeReactionKey,
   createOfficialCodeSnippet,
@@ -32,6 +34,7 @@ import {
   loadCommuneReactionSummary,
   loadCodeSnippets,
   loadCommunePostPublicationState,
+  loadCommunePostCircleParticipants,
   isActivePublicCommunePost,
   loadIterationShowcaseForContext,
   loadRepositoryShowcaseForContext,
@@ -41,6 +44,7 @@ import {
   postTypeOptions,
   reportCommuneContent,
   requestIterationShowcaseSandboxReview,
+  removeCommunePostCircleParticipant,
   reportTypes,
   savePost,
   setCommuneReaction,
@@ -68,6 +72,8 @@ import {
   type CommuneMediaAttachment,
   type CommuneModerationItem,
   type CommunePost,
+  type CommunePostAudience,
+  type CommuneCircleParticipant,
   type CommunePostType,
   type CommuneReaction,
   type CommuneReactionSummary,
@@ -260,6 +266,8 @@ type PostDraft = {
   licenseNotes: string;
   redactionNotes: string;
   intendedAudience: string;
+  postAudience?: CommunePostAudience;
+  circleRelationshipIds?: string[];
   submitterName: string;
   submitterContact: string;
   checklist: Record<string, boolean>;
@@ -289,6 +297,8 @@ type RepoShowcaseDraft = {
   importedMetadata?: Record<string, unknown>;
   redactionNotes?: string;
   adminGuidancePost?: boolean;
+  postAudience?: CommunePostAudience;
+  circleRelationshipIds?: string[];
   createdAt: string;
 };
 
@@ -321,6 +331,8 @@ type IterationShowcaseDraft = {
   importedAt?: string | null;
   importedMetadata?: Record<string, unknown>;
   redactionNotes?: string;
+  postAudience?: CommunePostAudience;
+  circleRelationshipIds?: string[];
   createdAt: string;
 };
 
@@ -1433,6 +1445,7 @@ function postMarkdown(draft: PostDraft) {
     "",
     `Status: ${draft.status}`,
     `Post type: ${draft.postType}`,
+    `Visibility: ${draft.postAudience === "circle" ? "Private to selected Circle members" : "Public"}`,
     `Created: ${draft.createdAt}`,
     "",
     `Summary: ${draft.summary}`,
@@ -2079,7 +2092,91 @@ function CommunityVoteMiniPanel({ communityVote }: { communityVote?: CommunityVo
   </div>;
 }
 
+type CommuneAudienceDraft = {
+  postAudience: CommunePostAudience;
+  circleRelationshipIds: string[];
+  circlePrivacyAcknowledged: boolean;
+};
+
+const publicCommuneAudience: CommuneAudienceDraft = {
+  postAudience: "public",
+  circleRelationshipIds: [],
+  circlePrivacyAcknowledged: false,
+};
+
+function CommuneAudienceSelector({ value, onChange, idPrefix }: { value: CommuneAudienceDraft; onChange: (value: CommuneAudienceDraft) => void; idPrefix: string }) {
+  const [accepted, setAccepted] = useState<CircleRelationshipItem[]>([]);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  const [query, setQuery] = useState("");
+
+  useEffect(() => {
+    if (value.postAudience !== "circle" || loaded) return;
+    let active = true;
+    setLoading(true);
+    void loadCurrentUserCircle().then((result) => {
+      if (!active) return;
+      setAccepted(result.data.accepted);
+      setWarnings(result.warnings);
+      setLoaded(true);
+      setLoading(false);
+    });
+    return () => { active = false; };
+  }, [loaded, value.postAudience]);
+
+  const selected = useMemo(() => new Set(value.circleRelationshipIds), [value.circleRelationshipIds]);
+  const filtered = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    if (!needle) return accepted;
+    return accepted.filter((item) => [item.profile.handle, item.profile.displayName ?? "", item.profile.shortPublicBio ?? ""].some((part) => part.toLowerCase().includes(needle)));
+  }, [accepted, query]);
+
+  function chooseAudience(postAudience: CommunePostAudience) {
+    onChange(postAudience === "public" ? publicCommuneAudience : { postAudience: "circle", circleRelationshipIds: [], circlePrivacyAcknowledged: false });
+  }
+
+  function toggleRelationship(relationshipId: string) {
+    const next = selected.has(relationshipId)
+      ? value.circleRelationshipIds.filter((id) => id !== relationshipId)
+      : [...value.circleRelationshipIds, relationshipId];
+    onChange({ ...value, circleRelationshipIds: next });
+  }
+
+  return <fieldset className="commune-audience-selector">
+    <legend>Visibility</legend>
+    <p className="commune-field-help">Choose who can discover and open this room-native post before writing it.</p>
+    <div className="commune-audience-options">
+      <label className={value.postAudience === "public" ? "commune-audience-option is-selected" : "commune-audience-option"}>
+        <input type="radio" name={`${idPrefix}-audience`} checked={value.postAudience === "public"} onChange={() => chooseAudience("public")} />
+        <span><strong>Public</strong><small>Uses this room's existing moderation and publication path.</small></span>
+      </label>
+      <label className={value.postAudience === "circle" ? "commune-audience-option is-selected" : "commune-audience-option"}>
+        <input type="radio" name={`${idPrefix}-audience`} checked={value.postAudience === "circle"} onChange={() => chooseAudience("circle")} />
+        <span><strong>Private to selected Circle members</strong><small>Only you and people explicitly selected below can open the post.</small></span>
+      </label>
+    </div>
+    {value.postAudience === "circle" && <div className="commune-circle-participant-picker">
+      <p className="boundary-note"><strong>Cloud privacy boundary:</strong> Private posts are access-controlled through Elysia Ecobotics Online. They are not private local Elysia, end-to-end encrypted messaging, or a secrets vault. Do not post credentials, API keys, .env files, identity documents, or highly sensitive personal material.</p>
+      {loading && <p className="boundary-note" role="status">Loading accepted Circle members…</p>}
+      {warnings.map((warning) => <p className="message" key={warning}>{warning}</p>)}
+      {!loading && loaded && accepted.length === 0 && <div className="commune-circle-empty-state"><p>You do not have accepted Circle members available yet. Pending invitations cannot receive private posts.</p><Link className="button-link" to="/commons-circle/signals/circle">Open Your Circle</Link></div>}
+      {accepted.length > 4 && <label className="commune-circle-search"><span>Find a Circle member</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search accepted members" /></label>}
+      {filtered.length > 0 && <div className="commune-circle-member-options" aria-label="Accepted Circle members">
+        {filtered.map((item) => <label className={selected.has(item.relationshipId) ? "commune-circle-member-option is-selected" : "commune-circle-member-option"} key={item.relationshipId}>
+          <input type="checkbox" checked={selected.has(item.relationshipId)} onChange={() => toggleRelationship(item.relationshipId)} />
+          {item.profile.avatarUrl ? <img src={item.profile.avatarUrl} alt="" /> : <span className="commune-circle-member-avatar" aria-hidden="true">{(item.profile.displayName || item.profile.handle).slice(0, 1).toUpperCase()}</span>}
+          <span><strong>{item.profile.displayName || `@${item.profile.handle}`}</strong><small>@{item.profile.handle}</small></span>
+        </label>)}
+      </div>}
+      {value.circleRelationshipIds.length > 0 && <p className="commune-circle-selection-count" role="status">{value.circleRelationshipIds.length} Circle member{value.circleRelationshipIds.length === 1 ? "" : "s"} selected. You are included automatically.</p>}
+      <label className="checkbox-line commune-circle-boundary-ack"><input type="checkbox" checked={value.circlePrivacyAcknowledged} onChange={(event) => onChange({ ...value, circlePrivacyAcknowledged: event.target.checked })} /><span>I understand this is account-backed cloud access control—not local or end-to-end encrypted storage—and I will not include secrets or credentials.</span></label>
+    </div>}
+  </fieldset>;
+}
+
 function CommunityVoteComposer({ roomId, onRefresh, isAdmin }: { roomId?: string; onRefresh: () => Promise<void>; isAdmin: boolean }) {
+  const [audience, setAudience] = useState<CommuneAudienceDraft>(publicCommuneAudience);
   const [form, setForm] = useState({
     question: "",
     context: "",
@@ -2120,11 +2217,13 @@ function CommunityVoteComposer({ roomId, onRefresh, isAdmin }: { roomId?: string
         initialStatus: form.initialStatus,
         allowComments: form.allowComments,
         officialUpdatePostId: form.officialUpdatePostId.trim() || null,
-        acknowledgement: form.acknowledgement
+        acknowledgement: form.acknowledgement,
+        ...audience
       });
       setMessage(result.message);
       if (result.ok) {
         setForm({ ...form, question: "", context: "", options: "Yes\nNo", officialUpdatePostId: "" });
+        setAudience(publicCommuneAudience);
         await onRefresh();
       }
     } finally {
@@ -2135,6 +2234,7 @@ function CommunityVoteComposer({ roomId, onRefresh, isAdmin }: { roomId?: string
     <p className="eyebrow">Admin vote creation</p>
     <h2>Create Community Voting Room vote</h2>
     <p className="commune-vote-boundary-note">Community votes guide stewardship decisions. They do not automatically govern the site, change policy, create safety/legal obligations, alter Marketplace/Developer Forge behavior, change Elysia behavior, or publish Official Updates.</p>
+    <CommuneAudienceSelector value={audience} onChange={setAudience} idPrefix="community-vote" />
     <div className="commune-form-grid">
       <label className="wide-field"><span>Question</span><input value={form.question} onChange={(event) => setForm({ ...form, question: event.target.value })} placeholder="Which website stewardship priority should we consider next?" /></label>
       <label className="wide-field"><span>Context</span><textarea rows={4} value={form.context} onChange={(event) => setForm({ ...form, context: event.target.value })} /></label>
@@ -2251,6 +2351,74 @@ function CommunityVoteDetail({ communityVote, signedIn, isAdmin, onMessage, onCh
   </div>;
 }
 
+function CirclePostParticipantPanel({ post, onChanged }: { post: CommunePost; onChanged: () => Promise<void> }) {
+  const [participants, setParticipants] = useState<CommuneCircleParticipant[]>([]);
+  const [accepted, setAccepted] = useState<CircleRelationshipItem[]>([]);
+  const [selectedToAdd, setSelectedToAdd] = useState<string[]>([]);
+  const [viewerIsOwner, setViewerIsOwner] = useState(Boolean(post.viewer_is_owner));
+  const [message, setMessage] = useState("Loading private-post participants…");
+  const [busy, setBusy] = useState(false);
+
+  const refresh = useCallback(async () => {
+    const result = await loadCommunePostCircleParticipants(post.id);
+    setParticipants(result.participants);
+    setViewerIsOwner(result.viewerIsOwner);
+    setMessage(result.warning ?? "The author and listed participants can open this post. General Circle changes do not silently rewrite this explicit list.");
+    if (result.viewerIsOwner) {
+      const circle = await loadCurrentUserCircle();
+      setAccepted(circle.data.accepted);
+      if (circle.warnings.length) setMessage(circle.warnings[0]);
+    }
+  }, [post.id]);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+  const activeRelationshipIds = useMemo(() => new Set(participants.map((item) => item.relationshipId)), [participants]);
+  const eligibleToAdd = accepted.filter((item) => !activeRelationshipIds.has(item.relationshipId));
+
+  async function addSelected() {
+    if (!selectedToAdd.length) return;
+    setBusy(true);
+    const result = await addCommunePostCircleParticipants(post.id, selectedToAdd);
+    setMessage(result.message);
+    if (result.ok) {
+      setSelectedToAdd([]);
+      await refresh();
+      await onChanged();
+    }
+    setBusy(false);
+  }
+
+  async function remove(accessId: string) {
+    setBusy(true);
+    const result = await removeCommunePostCircleParticipant(accessId);
+    setMessage(result.message);
+    if (result.ok) {
+      await refresh();
+      await onChanged();
+    }
+    setBusy(false);
+  }
+
+  return <section className="commune-private-participants" aria-labelledby="commune-private-participants-title">
+    <div className="addon-card__topline"><div><p className="eyebrow">Private Circle access</p><h3 id="commune-private-participants-title">People with access</h3></div><span>{participants.length + 1} people including author</span></div>
+    <p className="boundary-note">This is an explicit post access list. Removing someone from Your Circle prevents new sharing but does not rewrite this post automatically. The post owner can revoke this post access below.</p>
+    <div className="commune-private-participant-list">
+      <span className="commune-private-participant is-author"><strong>{post.author_username ? `@${post.author_username}` : "Post author"}</strong><small>Author · always included</small></span>
+      {participants.map((participant) => <span className="commune-private-participant" key={participant.accessId}>
+        <span><strong>{participant.profile.displayName || `@${participant.profile.handle}`}</strong><small>@{participant.profile.handle}</small></span>
+        {viewerIsOwner && <button type="button" disabled={busy} onClick={() => void remove(participant.accessId)}>Remove access</button>}
+      </span>)}
+    </div>
+    {viewerIsOwner && eligibleToAdd.length > 0 && <details className="commune-private-add-participants">
+      <summary>Add accepted Circle members</summary>
+      <p className="boundary-note">Adding someone grants access to the existing post, comments, attachments, and room-native history. Only currently accepted Circle members are eligible.</p>
+      <div className="commune-circle-member-options">{eligibleToAdd.map((item) => <label className={selectedToAdd.includes(item.relationshipId) ? "commune-circle-member-option is-selected" : "commune-circle-member-option"} key={item.relationshipId}><input type="checkbox" checked={selectedToAdd.includes(item.relationshipId)} onChange={() => setSelectedToAdd((current) => current.includes(item.relationshipId) ? current.filter((id) => id !== item.relationshipId) : [...current, item.relationshipId])} /><span><strong>{item.profile.displayName || `@${item.profile.handle}`}</strong><small>@{item.profile.handle}</small></span></label>)}</div>
+      <button type="button" disabled={busy || !selectedToAdd.length} onClick={() => void addSelected()}>{busy ? "Updating access…" : "Add selected members"}</button>
+    </details>}
+    <p className="message" role="status">{message}</p>
+  </section>;
+}
+
 function PostCard({ post, saved, onSave, signedIn, officialUpdate, troubleshooting, jobPost, researchNote, communityVote }: { post: CommunePost; saved: boolean; onSave: (id: string) => void; signedIn: boolean; officialUpdate?: OfficialUpdateMetadata | null; troubleshooting?: TroubleshootingMetadata | null; jobPost?: JobPostMetadata | null; researchNote?: ResearchNotesMetadata | null; communityVote?: CommunityVoteView | null }) {
   const officialLabels = officialUpdate ? ["Official", officialUpdate.update_type.replace(/_/g, " "), officialUpdate.official_status, officialUpdate.severity, officialUpdate.pinned ? "Pinned" : "", officialUpdate.important ? "Important" : ""].filter(Boolean) : [];
   const voteLabels = communityVote ? ["Community Voting Room", communityVoteStatusLabel(communityVote.vote.vote_status), `${communityVoteTotal(communityVote)} votes`].filter(Boolean) : [];
@@ -2260,7 +2428,9 @@ function PostCard({ post, saved, onSave, signedIn, officialUpdate, troubleshooti
     ? ["Job Post", jobOpportunityTypeLabel(jobPost.opportunity_type), jobCompensationStatusLabel(jobPost.compensation_status), jobWorkArrangementLabel(jobPost.work_arrangement), jobApplicationStatusLabel(jobPost.application_status)].filter(Boolean)
     : ["Legacy Job Post", jobRoleLabel(jobPost.role_type), jobPaidStatusLabel(jobPost.paid_volunteer_status), jobApplicationStatusLabel(jobPost.application_status)].filter(Boolean) : [];
   const repositoryGuidanceLabels = isRepositoryShowcaseGuidancePost(post) ? ["Repository Showcase guidance", "Admin guidance post", "Not a trust signal"] : [];
-  return <article className={post.post_type === "official_update" ? "commune-post-card commune-official-card" : post.post_type === "community_vote" ? "commune-post-card commune-vote-post-card" : "commune-post-card"}><div className="addon-card__topline"><StatusBadges labels={officialLabels.length ? officialLabels : voteLabels.length ? voteLabels : troubleshootingLabels.length ? troubleshootingLabels : researchLabels.length ? researchLabels : jobLabels.length ? jobLabels : repositoryGuidanceLabels.length ? repositoryGuidanceLabels : [post.post_type, post.status]} /></div><h3><Link to={`/commune/posts/${post.id}`}>{post.title}</Link></h3><p>{officialUpdate?.summary || communityVote?.vote.context || researchNote?.evidence_summary || jobPost?.role_summary || post.excerpt || post.body.slice(0, 180)}</p>{repositoryGuidanceLabels.length > 0 && <p className="boundary-note">Repository Showcase guidance is not a repository approval, compatibility review, Marketplace listing, install recommendation, or trust signal.</p>}{communityVote && <CommunityVoteMiniPanel communityVote={communityVote} />}{troubleshooting?.accepted_summary && <p className="boundary-note">Accepted {troubleshooting.accepted_resolution_kind?.replace(/_/g, " ") ?? "resolution"}: {troubleshooting.accepted_summary}</p>}{researchNote?.uncertainty && <p className="boundary-note">Uncertainty: {researchNote.uncertainty.slice(0, 180)}</p>}{jobPost && <p className="boundary-note">{jobPost.model_version === JOB_OPPORTUNITY_MODEL_VERSION ? `${formatJobCompensation(jobPost)} · ${jobWorkArrangementLabel(jobPost.work_arrangement)}` : `${jobPaidStatusLabel(jobPost.paid_volunteer_status)} · ${jobLocationModeLabel(jobPost.location_mode)} · legacy listing`}</p>}<p>{post.post_type === "official_update" ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>} · {post.published_at ? new Date(post.published_at).toLocaleDateString() : "public date unavailable"}</p><TagChips tags={(post.tags ?? []).slice(0, 5)} /><ReactionBar targetType="post" targetId={post.id} signedIn={signedIn} /><div className="button-row"><Link className="button-link" to={`/commune/posts/${post.id}`}>Read</Link><button type="button" onClick={() => onSave(post.id)}>{saved ? "Saved" : "Save post"}</button></div></article>;
+  const nativeLabels = officialLabels.length ? officialLabels : voteLabels.length ? voteLabels : troubleshootingLabels.length ? troubleshootingLabels : researchLabels.length ? researchLabels : jobLabels.length ? jobLabels : repositoryGuidanceLabels.length ? repositoryGuidanceLabels : [post.post_type, post.status];
+  const cardLabels = post.audience === "circle" ? ["Private", ...nativeLabels] : nativeLabels;
+  return <article className={post.post_type === "official_update" ? "commune-post-card commune-official-card" : post.post_type === "community_vote" ? "commune-post-card commune-vote-post-card" : "commune-post-card"}><div className="addon-card__topline"><StatusBadges labels={cardLabels} /></div><h3><Link to={`/commune/posts/${post.id}`}>{post.title}</Link></h3><p>{officialUpdate?.summary || communityVote?.vote.context || researchNote?.evidence_summary || jobPost?.role_summary || post.excerpt || post.body.slice(0, 180)}</p>{repositoryGuidanceLabels.length > 0 && <p className="boundary-note">Repository Showcase guidance is not a repository approval, compatibility review, Marketplace listing, install recommendation, or trust signal.</p>}{communityVote && <CommunityVoteMiniPanel communityVote={communityVote} />}{troubleshooting?.accepted_summary && <p className="boundary-note">Accepted {troubleshooting.accepted_resolution_kind?.replace(/_/g, " ") ?? "resolution"}: {troubleshooting.accepted_summary}</p>}{researchNote?.uncertainty && <p className="boundary-note">Uncertainty: {researchNote.uncertainty.slice(0, 180)}</p>}{jobPost && <p className="boundary-note">{jobPost.model_version === JOB_OPPORTUNITY_MODEL_VERSION ? `${formatJobCompensation(jobPost)} · ${jobWorkArrangementLabel(jobPost.work_arrangement)}` : `${jobPaidStatusLabel(jobPost.paid_volunteer_status)} · ${jobLocationModeLabel(jobPost.location_mode)} · legacy listing`}</p>}<p>{post.post_type === "official_update" ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>} · {post.published_at ? new Date(post.published_at).toLocaleDateString() : post.audience === "circle" ? "shared privately" : "public date unavailable"}</p><TagChips tags={(post.tags ?? []).slice(0, 5)} /><ReactionBar targetType="post" targetId={post.id} signedIn={signedIn} /><div className="button-row"><Link className="button-link" to={`/commune/posts/${post.id}`}>Read</Link><button type="button" onClick={() => onSave(post.id)}>{saved ? "Saved" : "Save post"}</button></div></article>;
 }
 
 function CommunityFeed({ posts, savedPostIds, onSave, filters, signedIn, troubleshootingPosts, jobPosts, researchNotes, votePosts }: { posts: CommunePost[]; savedPostIds: string[]; onSave: (id: string) => void; filters: CommuneFilters; signedIn: boolean; troubleshootingPosts?: TroubleshootingMetadata[]; jobPosts?: JobPostMetadata[]; researchNotes?: ResearchNotesMetadata[]; votePosts?: CommunityVoteView[] }) {
@@ -2457,6 +2627,11 @@ function useCommuneLoad(roomSlug?: string, postId?: string, postType?: CommunePo
     setState({ rooms: result.rooms, posts: result.posts, comments: result.comments, threads: result.threads, media: result.media, troubleshootingPosts: result.troubleshootingPosts, jobPosts: result.jobPosts, researchNotes: result.researchNotes, repositoryShowcases: result.repositoryShowcases, iterationShowcases: result.iterationShowcases, officialUpdates: result.officialUpdates, officialCodeSnippets: result.officialCodeSnippets, votePosts: result.votePosts, savedPostIds: result.savedPostIds, followedThreadIds: result.followedThreadIds, signedIn: result.account.signedIn, userId: result.account.userId, isAdmin: result.account.isAdmin, isModerator: result.account.isModerator, accountReady: !result.warnings.some(isBackendDiagnostic) });
   }, [roomSlug, postId, postType]);
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => () => {
+    state.media.forEach((item) => {
+      if (item.signed_url?.startsWith("blob:")) URL.revokeObjectURL(item.signed_url);
+    });
+  }, [state.media]);
   return { state, refresh };
 }
 
@@ -2599,11 +2774,12 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     jobOpportunityAcknowledgement: false,
     sandboxRequested: false
   });
+  const [audience, setAudience] = useState<CommuneAudienceDraft>(publicCommuneAudience);
   const [file, setFile] = useState<File | null>(null);
   const [jobValidationVisible, setJobValidationVisible] = useState(false);
   const [iterationManifestInput, setIterationManifestInput] = useState("");
   const [iterationImporting, setIterationImporting] = useState(false);
-  const submitLabel = form.postType === "official_update" ? "Publish Official Update" : form.postType === "job_post" ? (isAdmin ? "Submit through governed review" : "Submit for moderation") : isAdmin ? "Publish as admin" : "Submit for moderation";
+  const submitLabel = audience.postAudience === "circle" ? "Create private room post" : form.postType === "official_update" ? "Publish Official Update" : form.postType === "job_post" ? (isAdmin ? "Submit through governed review" : "Submit for moderation") : isAdmin ? "Publish as admin" : "Submit for moderation";
   const [message, setMessage] = useState(isAdmin && form.postType === "job_post" ? "Administrator opportunities still pass through governed review and independent publication conditions. Attachments follow Commune media safety rules." : isAdmin ? "Admins can publish room posts directly. Attachments still follow Commune media safety rules." : "Signed-in users can submit posts to the active backend review queue. Local draft and export remain available separately.");
   const secretScan = scanCommuneTextForSecrets([
     form.title,
@@ -2804,8 +2980,10 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       tags: normalizedTags.map(formatCommuneTag).join(", "),
       sourceLinks: [form.links, form.repositoryUrl].filter(Boolean).join("\n"),
       licenseNotes: "",
-      redactionNotes: troubleshooting ? "Troubleshooting content should be redacted before sharing." : "Room-native public contribution. No private local Elysia data should be included.",
-      intendedAudience: "Community review",
+      redactionNotes: troubleshooting ? "Troubleshooting content should be redacted before sharing." : audience.postAudience === "circle" ? "Account-backed Circle access only. No secrets, credentials, or highly sensitive material should be included." : "Room-native public contribution. No private local Elysia data should be included.",
+      intendedAudience: audience.postAudience === "circle" ? "Selected Circle members" : "Community review",
+      postAudience: audience.postAudience,
+      circleRelationshipIds: audience.postAudience === "circle" ? [...audience.circleRelationshipIds] : [],
       submitterName: "",
       submitterContact: "",
       checklist: {
@@ -2848,6 +3026,8 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       importedAt: form.iterationImportedAt,
       importedMetadata: form.iterationImportedMetadata,
       redactionNotes: form.iterationRedactionNotes,
+      postAudience: audience.postAudience,
+      circleRelationshipIds: audience.postAudience === "circle" ? [...audience.circleRelationshipIds] : [],
       createdAt: new Date().toISOString()
     };
   }
@@ -3014,6 +3194,14 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
 
   async function submit() {
     if (showJobFields) setJobValidationVisible(true);
+    if (audience.postAudience === "circle" && audience.circleRelationshipIds.length === 0) {
+      setMessage("Choose at least one accepted Circle member for this private post. You are included automatically.");
+      return;
+    }
+    if (audience.postAudience === "circle" && !audience.circlePrivacyAcknowledged) {
+      setMessage("Confirm the account-backed private-post boundary before creating this Circle post.");
+      return;
+    }
     if (!submissionAcknowledged) {
       setMessage(showJobFields ? "Confirm each public-sharing acknowledgement and the Job Opportunity truthfulness acknowledgement before submitting." : "Confirm each public-sharing acknowledgement before submitting.");
       return;
@@ -3059,7 +3247,8 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
         important: form.officialImportant,
         commentsEnabled: form.officialCommentsEnabled,
         correctionNote: form.officialAuditNote,
-        codeSnippets: form.officialCodeText.trim() ? [{ language: form.officialCodeLanguage, fileName: form.officialCodeFileName, codeText: form.officialCodeText, contextNote: form.officialCodeContextNote, correctionNote: form.officialCodeCorrectionNote }] : []
+        codeSnippets: form.officialCodeText.trim() ? [{ language: form.officialCodeLanguage, fileName: form.officialCodeFileName, codeText: form.officialCodeText, contextNote: form.officialCodeContextNote, correctionNote: form.officialCodeCorrectionNote }] : [],
+        ...audience
       });
       if (result.ok) {
         setMessage(result.message);
@@ -3104,7 +3293,8 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
         importSource: form.iterationImportSource,
         importedMetadata: form.iterationImportedMetadata,
         importedAt: form.iterationImportedAt,
-        redactionNotes: form.iterationRedactionNotes
+        redactionNotes: form.iterationRedactionNotes,
+        ...audience
       });
       if (result.ok) {
         setMessage(result.message);
@@ -3139,7 +3329,8 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
         safetyNotes: form.jobSafetyNotes,
         roleSummary: form.jobRoleSummary || form.body,
         applicationStatus: form.jobApplicationStatus,
-        publicCorrectionNote: form.jobPublicCorrectionNote
+        publicCorrectionNote: form.jobPublicCorrectionNote,
+        ...audience
       });
       if (result.ok) {
         setMessage(result.message);
@@ -3178,7 +3369,8 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
         ecologicalSubsystem: form.researchEcologicalSubsystem,
         methodType: form.researchMethodType,
         dataType: form.researchDataType,
-        ethicsNote: form.researchEthicsNote
+        ethicsNote: form.researchEthicsNote,
+        ...audience
       });
       if (result.ok) {
         setMessage(result.message);
@@ -3220,7 +3412,8 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
         codeText: form.codeText,
         codeLanguage: form.codeLanguage,
         codeFileName: form.codeFileName,
-        codeAcknowledged: form.stepsCodeAck
+        codeAcknowledged: form.stepsCodeAck,
+        ...audience
       });
       if (result.ok) {
         setMessage(result.message);
@@ -3236,7 +3429,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       return;
     }
     const body = form.codeText ? `${bodyBase}\n\nCode snippet attached separately for inert display.` : bodyBase;
-    const result = await submitCommunePost({ ...form, acknowledgement: submissionAcknowledged, body, roomId: form.roomId || defaultRoomId, upload: file, sandboxRequested: form.sandboxRequested });
+    const result = await submitCommunePost({ ...form, acknowledgement: submissionAcknowledged, body, roomId: form.roomId || defaultRoomId, upload: file, sandboxRequested: form.sandboxRequested, ...audience });
     if (result.ok) {
       if (form.codeText && result.postId) {
         const snippet = await createCodeSnippet({ postId: result.postId, language: form.codeLanguage, fileName: form.codeFileName, codeText: form.codeText, sandboxAcknowledged: form.stepsCodeAck });
@@ -3260,8 +3453,9 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     <h2>{showOfficialFields ? "Publish an Official Update" : `Create a ${selectedPostTypeLabel} post`}</h2>
     <p className="boundary-note">Uploads are part of Elysia Ecobotics Online, not private local Elysia. Do not upload private local Elysia memory, logs, vault data, credentials, .env files, API keys, identity documents, or unredacted sensitive information.</p>
     <p className="boundary-note">Posting in: {selectedPostTypeLabel}</p>
-    {isAdmin && <p className="boundary-note">{showJobFields ? "Administrator mode: this opportunity still uses the governed review path and retains its independent economic publication condition." : "Administrator mode: this room post follows the room's existing direct-publication rules."} Attachment uploads use the Commune media safety policy.</p>}
-    {showOfficialFields && <><p className="boundary-note">Official Updates are administrator-authored public notices. Community users cannot self-assign official release, security, roadmap, or governance authority.</p><p className="boundary-note">Official Update composer: Community members can read and report Official Updates, but cannot submit, self-assign, or impersonate official authority.</p></>}
+    {isAdmin && <p className="boundary-note">{audience.postAudience === "circle" ? "Administrator mode does not grant anyone else access to this private post. Only the author and explicitly selected Circle participants can open it." : showJobFields ? "Administrator mode: this opportunity still uses the governed review path and retains its independent economic publication condition." : "Administrator mode: this room post follows the room's existing direct-publication rules."} Attachment uploads use the Commune media safety policy.</p>}
+    {showOfficialFields && <><p className="boundary-note">Official Updates are administrator-authored notices. Community users cannot self-assign official release, security, roadmap, or governance authority. Public notices use the normal public route; a private notice remains limited to selected Circle participants.</p><p className="boundary-note">Official Update composer: Community members can read and report public Official Updates, but cannot submit, self-assign, or impersonate official authority.</p></>}
+    <CommuneAudienceSelector value={audience} onChange={setAudience} idPrefix={`post-${form.postType}`} />
     <div className={`commune-form-grid${showJobFields ? " commune-job-post-form-grid" : ""}`}>
       <label><span>Title</span><input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} /></label>
       <label><span>Summary</span><input value={form.summary} onChange={(event) => setForm({ ...form, summary: event.target.value })} /></label>
@@ -3395,13 +3589,14 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
 
 function RepositoryShowcaseForm({ localDrafts, roomId, onRefresh, isAdmin = false }: { localDrafts: ReturnType<typeof useLocalDraftState>; roomId?: string; onRefresh?: () => Promise<void>; isAdmin?: boolean }) {
   const [form, setForm] = useState({ title: "", repoUrl: "", provider: "GitHub", branch: "", commit: "", license: "", description: "", readmePreview: "", fileTreePreview: "", screenshotNotes: "", manifestStatus: "No manifest checked", compatibility: "Unknown", warnings: [] as string[], sandboxRequested: false, adminGuidancePost: false, importSource: "manual", importedAt: null as string | null, importedMetadata: {} as Record<string, unknown>, redactionNotes: "" });
+  const [audience, setAudience] = useState<CommuneAudienceDraft>(publicCommuneAudience);
   const [message, setMessage] = useState("Repository showcases are metadata only. The website does not fetch private repos, clone, build, run, install, or execute repository code.");
   const [manifestInput, setManifestInput] = useState("");
   const [importing, setImporting] = useState(false);
   const adminGuidancePost = isAdmin && form.adminGuidancePost;
 
   function draft(): RepoShowcaseDraft {
-    return { ...form, id: "repo-" + Date.now(), schemaVersion: "repository_showcase_manifest.v1", createdAt: new Date().toISOString() };
+    return { ...form, id: "repo-" + Date.now(), schemaVersion: "repository_showcase_manifest.v2", postAudience: audience.postAudience, circleRelationshipIds: audience.postAudience === "circle" ? [...audience.circleRelationshipIds] : [], createdAt: new Date().toISOString() };
   }
 
   function saveLocal() {
@@ -3439,7 +3634,11 @@ function RepositoryShowcaseForm({ localDrafts, roomId, onRefresh, isAdmin = fals
   }
 
   async function submit() {
-    const result = await submitRepositoryShowcase({ repositoryUrl: form.repoUrl, projectName: form.title, projectSummary: form.description || form.readmePreview, roomId, body: repoBody(), tags: adminGuidancePost ? "repository showcase admin guidance template policy" : "repository showcase", links: adminGuidancePost ? "" : form.repoUrl, provider: form.provider, branch: form.branch, commit: form.commit, license: form.license, readmePreview: form.readmePreview, fileTreePreview: form.fileTreePreview, screenshotNotes: form.screenshotNotes, manifestStatus: form.manifestStatus, compatibility: form.compatibility, warnings: form.warnings, sandboxRequested: adminGuidancePost ? false : form.sandboxRequested, importSource: form.importSource, importedMetadata: form.importedMetadata, importedAt: form.importedAt, redactionNotes: form.redactionNotes, adminGuidancePost });
+    if (audience.postAudience === "circle" && (!audience.circleRelationshipIds.length || !audience.circlePrivacyAcknowledged)) {
+      setMessage(audience.circleRelationshipIds.length ? "Confirm the account-backed private-post boundary before creating this Circle post." : "Choose at least one accepted Circle member for this private Repository Showcase.");
+      return;
+    }
+    const result = await submitRepositoryShowcase({ repositoryUrl: form.repoUrl, projectName: form.title, projectSummary: form.description || form.readmePreview, roomId, body: repoBody(), tags: adminGuidancePost ? "repository showcase admin guidance template policy" : "repository showcase", links: adminGuidancePost ? "" : form.repoUrl, provider: form.provider, branch: form.branch, commit: form.commit, license: form.license, readmePreview: form.readmePreview, fileTreePreview: form.fileTreePreview, screenshotNotes: form.screenshotNotes, manifestStatus: form.manifestStatus, compatibility: form.compatibility, warnings: form.warnings, sandboxRequested: adminGuidancePost ? false : form.sandboxRequested, importSource: form.importSource, importedMetadata: form.importedMetadata, importedAt: form.importedAt, redactionNotes: form.redactionNotes, adminGuidancePost, ...audience });
     if (result.ok) {
       setMessage(result.message);
       await onRefresh?.();
@@ -3570,8 +3769,9 @@ function RepositoryShowcaseForm({ localDrafts, roomId, onRefresh, isAdmin = fals
     <p className="eyebrow">Repository Showcase</p>
     <h2>{adminGuidancePost ? "Publish Repository Showcase guidance" : "Show a repository without running it"}</h2>
     <p>No repo APIs are called unless you explicitly import public metadata. Nothing is cloned, installed, built, remotely validated, or executed.</p>
-    {isAdmin && <p className="boundary-note">Admin mode: this repository showcase can publish directly as a normal Commune post. It still does not imply installability, compatibility, license safety, or trust.</p>}
+    {isAdmin && <p className="boundary-note">{audience.postAudience === "circle" ? "Private mode: administrator authority does not grant other staff ambient access. Only explicitly selected Circle participants can open this showcase." : "Admin mode: this repository showcase can publish directly as a normal Commune post."} It still does not imply installability, compatibility, license safety, or trust.</p>}
     {adminGuidancePost && <WarningCallout title="Admin guidance post"><p>{repositoryShowcaseGuidanceBoundaryCopy} This post explains how to share repositories safely, and it does not approve, trust, sign, version, sandbox-approve, or make any repository install-safe.</p></WarningCallout>}
+    <CommuneAudienceSelector value={audience} onChange={setAudience} idPrefix="repository-showcase" />
     <section className="commune-repo-import-panel">
       <p className="eyebrow">Import source</p>
       <h3>Import public metadata or a local showcase manifest</h3>
@@ -3602,7 +3802,7 @@ function RepositoryShowcaseForm({ localDrafts, roomId, onRefresh, isAdmin = fals
     </div>
     <div className="commune-checklist commune-warning-checks">{repoWarnings.map((item) => <label className="checkbox-line" key={item}><input type="checkbox" checked={form.warnings.includes(item)} onChange={() => toggleWarning(item)} /><span>{item}</span></label>)}</div>
     <WarningCallout title="Developer Forge / Marketplace boundary"><p>Repository Showcase is a public presentation and discussion layer. Developer Forge and Marketplace approval remain separate security, compatibility, licensing, manifest, signing, versioning, and review processes.</p></WarningCallout>
-    <div className="button-row"><button className="button-primary" type="button" onClick={() => void submit()}>{adminGuidancePost ? "Publish Repository Showcase guidance" : "Submit showcase for review"}</button><button type="button" onClick={saveLocal}>Save showcase draft locally</button><button type="button" onClick={() => downloadText(slug(form.title) + "-repo-showcase.md", repoMarkdown(draft()), "text/markdown")}>Export Markdown</button><button type="button" onClick={() => downloadText(slug(form.title) + "-repo-showcase.json", repoManifestJson(draft()), "application/json")}>Export JSON</button><button type="button" onClick={() => copyText(repoMarkdown(draft()), setMessage)}>Copy showcase Markdown</button><Link className="button-link" to="/commune">Back</Link></div>
+    <div className="button-row"><button className="button-primary" type="button" onClick={() => void submit()}>{audience.postAudience === "circle" ? "Create private Repository Showcase" : adminGuidancePost ? "Publish Repository Showcase guidance" : "Submit showcase for review"}</button><button type="button" onClick={saveLocal}>Save showcase draft locally</button><button type="button" onClick={() => downloadText(slug(form.title) + "-repo-showcase.md", repoMarkdown(draft()), "text/markdown")}>Export Markdown</button><button type="button" onClick={() => downloadText(slug(form.title) + "-repo-showcase.json", repoManifestJson(draft()), "application/json")}>Export JSON</button><button type="button" onClick={() => copyText(repoMarkdown(draft()), setMessage)}>Copy showcase Markdown</button><Link className="button-link" to="/commune">Back</Link></div>
     <p className="message">{message}</p>
   </section>;
 }
@@ -3945,7 +4145,7 @@ function AttachedCodeSnippets({ snippets, authorUsername, signedIn, postType, pa
   return <div className="commune-code-section">
     <p className="eyebrow">{isTroubleshooting ? "Code attached for troubleshooting" : isMediaGarden ? "Visual code attached to this Media Garden post" : "Code attached to this post"}</p>
     <p className="commune-media-attribution">{isTroubleshooting ? "Reproduction snippet" : isMediaGarden ? "Visual/read-only code snippet" : "Coding Cornucopia snippet"} attached by {authorLink(authorUsername)}.</p>
-    <p className="boundary-note">{isTroubleshooting ? "Troubleshooting code should be a minimal redacted reproduction. Proposed fixes do not overwrite this public snapshot unless the original post author accepts them. Sandbox runs require explicit governed snapshots and do not create trust, approval, or Marketplace readiness." : isMediaGarden ? `${mediaGardenCodeSafetyCopy} ${mediaGardenCodePrivateDataCopy}` : "Code is inert public text. Proposed revisions do not overwrite this public snapshot unless the original post author accepts them. Sandbox runs require explicit governed snapshots and do not create trust, approval, or Marketplace readiness."}</p>
+    <p className="boundary-note">{isTroubleshooting ? "Troubleshooting code should be a minimal redacted reproduction. Proposed fixes do not overwrite this attached snapshot unless the original post author accepts them. Sandbox runs require explicit governed snapshots and do not create trust, approval, or Marketplace readiness." : isMediaGarden ? `${mediaGardenCodeSafetyCopy} ${mediaGardenCodePrivateDataCopy}` : "Code is inert attached text. Proposed revisions do not overwrite this snapshot unless the original post author accepts them. Sandbox runs require explicit governed snapshots and do not create trust, approval, or Marketplace readiness."}</p>
     <div className="commune-code-list">
       {snippets.map((snippet) => <article className="commune-code-preview" key={snippet.id}>
         <div className="addon-card__topline"><strong>{inertCodeSnippetLabel(snippet.language ?? "")}</strong><span>{sandboxCapable ? `${snippet.file_name ?? "snippet"} · current ${parentIsPublished ? "published" : "attached"} snapshot v${snippet.accepted_version_number ?? 1}` : snippet.file_name ?? "visual snippet"}</span></div>
@@ -4703,7 +4903,7 @@ function PostDetail({ postId }: { postId: string }) {
       <p>By {authorLink(item.author_username)} · {item.status}</p>
       <ReactionBar targetType="comment" targetId={item.id} signedIn={state.signedIn} onMessage={setMessage} />
       <div className="button-row"><button type="button" onClick={() => void reportComment(item.id)}>Report comment</button>{!isReply && <button type="button" onClick={() => setActiveReplyId(activeReplyId === item.id ? null : item.id)}>Reply</button>}</div>
-      <AdminContentControls targetType="comment" targetId={item.id} isModerator={state.isModerator} onChanged={refresh} onMessage={setMessage} />
+      <AdminContentControls targetType="comment" targetId={item.id} isModerator={state.isModerator && post?.audience !== "circle"} onChanged={refresh} onMessage={setMessage} />
       {activeReplyId === item.id && <div className="commune-reply-form"><label><span>Reply to this comment</span><textarea rows={3} value={replyDrafts[item.id] ?? ""} onChange={(event) => setReplyDrafts((current) => ({ ...current, [item.id]: event.target.value }))} /></label><button type="button" disabled={submittingReplyId === item.id} onClick={() => void submitCommentReply(item.id)}>{submittingReplyId === item.id ? "Submitting reply..." : "Submit reply"}</button>{replyStatuses[item.id] && <p className="message">{replyStatuses[item.id]}</p>}</div>}
       {replies.length > 0 && <div className="commune-reply-thread">{replies.map((reply) => renderComment(reply, true))}</div>}
     </article>;
@@ -4722,7 +4922,10 @@ function PostDetail({ postId }: { postId: string }) {
   const isTroubleshooting = post.post_type === "troubleshooting";
   const isResearchNotes = post.post_type === "research_note";
   const isJobPost = post.post_type === "job_post";
-  const isPrivateOwnerJobPreview = isJobPost && Boolean(state.userId && post.viewer_is_owner) && (post.status !== "published" || post.visibility !== "public");
+  const isCirclePrivate = post.audience === "circle";
+  const isPrivateOwnerJobPreview = isJobPost && !isCirclePrivate && Boolean(state.userId && post.viewer_is_owner) && (post.status !== "published" || post.visibility !== "public");
+  const privateRoomModerator = state.isModerator && !isCirclePrivate;
+  const privateRoomAdmin = state.isAdmin && (!isCirclePrivate || Boolean(post.viewer_is_owner));
   const commentsLocked = (isOfficialUpdate && officialUpdate?.comments_enabled === false) || (isCommunityVote && communityVote?.vote.allow_comments === false);
   const bodyMarkdown = bodyMarkdownForPost(post);
   const detailRoom = postTypes.find((type) => type.backendValue === post.post_type);
@@ -4744,35 +4947,36 @@ function PostDetail({ postId }: { postId: string }) {
   const additionalLinks = post.links?.filter((link) => !roomDetailLinks.has(link)) ?? [];
   return <>
     <section className="section-card commune-post-context-header" aria-label="Commune post context">
-      <div><p className="eyebrow">Public Commune record</p><h1>The Elysia Commune</h1><p>{detailRoom?.name ?? post.post_type.replace(/_/g, " ")} · Published community content remains moderated, reportable, and separate from endorsement or verification.</p></div>
+      <div><p className="eyebrow">{isCirclePrivate ? "Private Circle record" : "Public Commune record"}</p><h1>The Elysia Commune</h1><p>{detailRoom?.name ?? post.post_type.replace(/_/g, " ")} · {isCirclePrivate ? "Only the author and explicitly selected Circle participants can open this room-native post." : "Published community content remains moderated, reportable, and separate from endorsement or verification."}</p></div>
       <div className="button-row"><Link className="button-link" to={detailRoomPath}>Back to {detailRoom?.name ?? "room"}</Link><Link className="button-link" to="/commune">Commune home</Link></div>
     </section>
     <section className={isOfficialUpdate ? "section-card commune-post-detail commune-official-post-detail" : isCommunityVote ? "section-card commune-post-detail commune-vote-post-detail" : "section-card commune-post-detail"}>
       <p className="eyebrow">{post.post_type === "research_note" ? "Research Notes" : post.post_type === "community_vote" ? "Community Voting Room" : post.post_type.replace(/_/g, " ")}</p>
       <h2>{post.title}</h2>
       <p>{isOfficialUpdate ? "By Elysia Ecobotics Official" : <>By {authorLink(post.author_username)}</>}</p>
-      <StatusBadges labels={[post.status, post.visibility]} />
+      <StatusBadges labels={isCirclePrivate ? ["Private", "Circle only"] : [post.status, post.visibility]} />
       {isPrivateOwnerJobPreview && <p className="boundary-note" role="status"><strong>Private author view:</strong> this Job Post is not public. It is visible here only to its signed-in author so independent content review and any separate economic condition can be understood. Public comments, reactions, saves, follows, and reports stay unavailable until publication.</p>}
+      {isCirclePrivate && <CirclePostParticipantPanel post={post} onChanged={refresh} />}
       <RoomNativeDetails label="Room-native details" fields={genericRoomNativeDetails} />
       {isRepositoryShowcase && <RepositoryShowcaseDetail post={post} showcase={repositoryShowcase} parsedBody={parsedBody} />}
       {isIterationShowcase && <ElysiaIterationShowcaseDetail post={post} iteration={iterationShowcase} parsedBody={parsedBody} />}
       {isOfficialUpdate && <OfficialUpdateDetail post={post} officialUpdate={officialUpdate} parsedBody={parsedBody} />}
-      {isCommunityVote && <CommunityVoteDetail communityVote={communityVote} signedIn={state.signedIn} isAdmin={state.isAdmin} onMessage={setMessage} onChanged={refresh} />}
-      {isTroubleshooting && <TroubleshootingDetail post={post} troubleshooting={troubleshooting} parsedBody={parsedBody} comments={state.comments} userId={state.userId} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}
-      {isResearchNotes && <ResearchNotesDetail post={post} researchNote={researchNote} parsedBody={parsedBody} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}
-      {isJobPost && <JobPostDetail post={post} jobPost={jobPost} parsedBody={parsedBody} userId={state.userId} accessToken={accessToken} isModerator={state.isModerator} onMessage={setMessage} onChanged={refresh} />}
+      {isCommunityVote && <CommunityVoteDetail communityVote={communityVote} signedIn={state.signedIn} isAdmin={privateRoomAdmin} onMessage={setMessage} onChanged={refresh} />}
+      {isTroubleshooting && <TroubleshootingDetail post={post} troubleshooting={troubleshooting} parsedBody={parsedBody} comments={state.comments} userId={state.userId} isModerator={privateRoomModerator} onMessage={setMessage} onChanged={refresh} />}
+      {isResearchNotes && <ResearchNotesDetail post={post} researchNote={researchNote} parsedBody={parsedBody} isModerator={privateRoomModerator} onMessage={setMessage} onChanged={refresh} />}
+      {isJobPost && <JobPostDetail post={post} jobPost={jobPost} parsedBody={parsedBody} userId={state.userId} accessToken={accessToken} isModerator={privateRoomModerator} onMessage={setMessage} onChanged={refresh} />}
       <CommunePostBody body={bodyMarkdown} />
       <CommuneLinksList links={additionalLinks} />
-      {attachments.length > 0 && <div className="commune-media-section"><p className="eyebrow">Attached media</p><p className="commune-media-attribution">Attached to this post by {isOfficialUpdate ? "Elysia Ecobotics Official" : authorLink(post.author_username)}.</p><p className="boundary-note">Published attachments are read-only and remain governed by Commune moderation and safety policies.</p><div className="commune-media-grid">{attachments.map((item) => <article className="commune-media-card" key={item.id}>{item.media_kind === "image" && item.signed_url ? <button className="commune-media-image-button" type="button" onClick={() => setActiveMedia(item)}><img src={item.signed_url} alt={`Attached media: ${item.file_name}`} loading="lazy" /></button> : <div className="commune-media-unavailable"><strong>{item.file_name}</strong><p>{item.signed_url ? "This attachment can be opened from its signed public review URL." : "Attachment unavailable or still under review."}</p></div>}<div className="commune-media-meta"><strong>{item.file_name}</strong><span>{item.mime_type ?? item.media_kind}{item.file_size ? ` · ${item.file_size} bytes` : ""}</span></div></article>)}</div></div>}
-      {isOfficialUpdate ? <OfficialCodeSnippets officialUpdate={officialUpdate} officialCodeSnippets={officialCodeSnippets} fallbackSnippets={snippets} isAdmin={state.isAdmin} onMessage={setMessage} onChanged={refresh} /> : !isCommunityVote && <AttachedCodeSnippets snippets={snippets} authorUsername={post.author_username} postType={post.post_type} parentIsPublished={isActivePublicCommunePost(post)} signedIn={state.signedIn} onMessage={setMessage} />}
+      {attachments.length > 0 && <div className="commune-media-section"><p className="eyebrow">Attached media</p><p className="commune-media-attribution">Attached to this post by {isOfficialUpdate ? "Elysia Ecobotics Official" : authorLink(post.author_username)}.</p><p className="boundary-note">{isCirclePrivate ? "Private attachments are fetched only for an authorized signed-in participant and remain governed by this post's explicit access list." : "Published attachments are read-only and remain governed by Commune moderation and safety policies."}</p><div className="commune-media-grid">{attachments.map((item) => <article className="commune-media-card" key={item.id}>{item.media_kind === "image" && item.signed_url ? <button className="commune-media-image-button" type="button" onClick={() => setActiveMedia(item)}><img src={item.signed_url} alt={`Attached media: ${item.file_name}`} loading="lazy" /></button> : <div className="commune-media-unavailable"><strong>{item.file_name}</strong><p>{item.signed_url ? "This attachment can be opened for this authorized account session." : "Attachment unavailable or still under review."}</p></div>}<div className="commune-media-meta"><strong>{item.file_name}</strong><span>{item.mime_type ?? item.media_kind}{item.file_size ? ` · ${item.file_size} bytes` : ""}</span></div></article>)}</div></div>}
+      {isOfficialUpdate ? <OfficialCodeSnippets officialUpdate={officialUpdate} officialCodeSnippets={officialCodeSnippets} fallbackSnippets={snippets} isAdmin={privateRoomAdmin} onMessage={setMessage} onChanged={refresh} /> : !isCommunityVote && <AttachedCodeSnippets snippets={snippets} authorUsername={post.author_username} postType={post.post_type} parentIsPublished={isCirclePrivate || isActivePublicCommunePost(post)} signedIn={state.signedIn} onMessage={setMessage} />}
       <TagChips tags={post.tags} />
       {!isPrivateOwnerJobPreview && <><ReactionBar targetType="post" targetId={post.id} signedIn={state.signedIn} onMessage={setMessage} /><div className="button-row"><button type="button" onClick={() => void save()}>{state.savedPostIds.includes(postId) ? "Saved" : "Save post"}</button><button type="button" onClick={() => void follow()}>{thread && state.followedThreadIds.includes(thread.id) ? "Following" : "Follow thread"}</button><button type="button" onClick={() => void markRead()}>Mark read</button></div></>}
     </section>
     {activeMedia?.signed_url && <div className="commune-media-lightbox" role="dialog" aria-modal="true" aria-label={`Attachment preview: ${activeMedia.file_name}`} onClick={() => setActiveMedia(null)}><div className="commune-media-lightbox-panel" onClick={(event) => event.stopPropagation()}><button className="commune-media-lightbox-close" type="button" onClick={() => setActiveMedia(null)}>Close</button><img src={activeMedia.signed_url} alt={`Attached media: ${activeMedia.file_name}`} /></div></div>}
-    {!isPrivateOwnerJobPreview && <section className="section-card"><p className="eyebrow">Comments</p><h2>Comments and replies</h2><p className="boundary-note">{commentsLocked ? isCommunityVote ? "Comments are disabled for this Community Voting Room vote. Existing public comments remain visible unless moderated, but new public comments are disabled by an administrator." : "Comments are locked for this Official Update. Existing public comments remain visible unless moderated, but new public comments are disabled by an administrator." : state.isAdmin ? "Admin comments publish directly and remain auditable." : "First participation in a post/thread is reviewed. After approval in that thread, later comments and replies can publish directly while remaining reportable and removable."}</p>{!thread && <p className="boundary-note">This published post is missing its discussion thread. Submitting a comment will try to repair the thread with normal account permissions before saving.</p>}{topLevelComments.map((item) => renderComment(item))}{!topLevelComments.length && <p>Moderated comments will appear here once the backend tables are active and replies are approved.</p>}{commentsLocked ? <p className="message">{isCommunityVote ? "Comments are disabled for this Community Voting Room vote." : "Comments are locked for this official update."}</p> : <><label><span>Comment on this post</span><textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><div className="button-row"><button type="button" disabled={commentSubmitting} onClick={() => void submitThreadComment()}>{commentSubmitting ? "Submitting comment..." : "Submit comment"}</button></div></>}<p className="message">{commentStatus}</p></section>}
-    {!isPrivateOwnerJobPreview && <section className="section-card"><p className="eyebrow">Report</p><h2>Report this post</h2><p>Reports are reviewed by moderators/administrators. Reporting does not automatically remove content unless urgent automated controls are later added. Ratings do not replace reports or moderation.</p><label><span>Report type</span><select value={report.type} onChange={(event) => setReport({ ...report, type: event.target.value })}>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span>Reason</span><textarea rows={3} value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value })} /></label><button type="button" onClick={() => void reportPost()}>Send report</button><p className="message">{message}</p></section>}
-    {isOfficialUpdate && state.isAdmin && <OfficialUpdateAdminPanel officialUpdate={officialUpdate} postId={post.id} onMessage={setMessage} onChanged={refresh} />}
-    <AdminContentControls targetType="post" targetId={post.id} isModerator={state.isModerator} onChanged={refresh} onDeleted={handlePostDeleted} onMessage={setMessage} />
+    {!isPrivateOwnerJobPreview && <section className="section-card"><p className="eyebrow">Comments</p><h2>Comments and replies</h2><p className="boundary-note">{commentsLocked ? isCommunityVote ? `Comments are disabled for this Community Voting Room vote. Existing ${isCirclePrivate ? "private" : "public"} comments remain visible to authorized readers, but new comments are disabled by the post owner.` : `Comments are locked for this Official Update. Existing ${isCirclePrivate ? "private" : "public"} comments remain visible to authorized readers, but new comments are disabled by the post owner.` : isCirclePrivate ? "The author and selected participants can comment and reply directly inside this private post. Comments do not enter public moderation queues and remain inside the same explicit access boundary." : state.isAdmin ? "Admin comments publish directly and remain auditable." : "First participation in a post/thread is reviewed. After approval in that thread, later comments and replies can publish directly while remaining reportable and removable."}</p>{!thread && <p className="boundary-note">This post is missing its discussion thread. Submitting a comment will try to repair the thread with normal account permissions before saving.</p>}{topLevelComments.map((item) => renderComment(item))}{!topLevelComments.length && <p>{isCirclePrivate ? "No private comments yet." : "Moderated comments will appear here once the backend tables are active and replies are approved."}</p>}{commentsLocked ? <p className="message">{isCommunityVote ? "Comments are disabled for this Community Voting Room vote." : "Comments are locked for this official update."}</p> : <><label><span>Comment on this post</span><textarea rows={4} value={comment} onChange={(event) => setComment(event.target.value)} /></label><div className="button-row"><button type="button" disabled={commentSubmitting} onClick={() => void submitThreadComment()}>{commentSubmitting ? "Submitting comment..." : "Submit comment"}</button></div></>}<p className="message">{commentStatus}</p></section>}
+    {!isPrivateOwnerJobPreview && <section className="section-card"><p className="eyebrow">Report</p><h2>Report this post</h2><p>{isCirclePrivate ? "A report creates a narrow safety escalation for this post. It does not give reviewers or administrators routine access to your private Circle content; any exceptional disclosure must follow the governed report path." : "Reports are reviewed by moderators/administrators. Reporting does not automatically remove content unless urgent automated controls are later added. Ratings do not replace reports or moderation."}</p><label><span>Report type</span><select value={report.type} onChange={(event) => setReport({ ...report, type: event.target.value })}>{reportTypes.map((type) => <option key={type}>{type}</option>)}</select></label><label><span>Reason</span><textarea rows={3} value={report.reason} onChange={(event) => setReport({ ...report, reason: event.target.value })} /></label><button type="button" onClick={() => void reportPost()}>Send report</button><p className="message">{message}</p></section>}
+    {isOfficialUpdate && privateRoomAdmin && <OfficialUpdateAdminPanel officialUpdate={officialUpdate} postId={post.id} onMessage={setMessage} onChanged={refresh} />}
+    <AdminContentControls targetType="post" targetId={post.id} isModerator={privateRoomModerator} onChanged={refresh} onDeleted={handlePostDeleted} onMessage={setMessage} />
   </>;
 }
 
@@ -4867,6 +5071,7 @@ function CodeRevisionProposalWorkspace({ account, onMessage }: { account: { sign
   const publishedSandboxInput = publishedSnapshot ? publishedSnapshotSandboxInput(publishedSnapshot) : null;
   const proposalSandboxInput = publishedSnapshot && activeDraft ? proposalDraftSandboxInput(publishedSnapshot, activeDraft) : null;
   const selectedDiff = selectedProposal ? buildPatchOrDiffPreview(selectedProposal.base_code_text, selectedProposal.proposed_code_text) : null;
+  const isCircleProposalContext = publishedSnapshot?.parentPublicationState === "circle";
   const canDecide = Boolean(selectedProposal && account.userId && selectedProposal.original_author_user_id === account.userId && ["submitted", "needs_changes"].includes(selectedProposal.proposal_status));
   const canWithdraw = Boolean(selectedProposal && account.userId && selectedProposal.proposer_user_id === account.userId && ["draft", "submitted", "needs_changes"].includes(selectedProposal.proposal_status));
   const canMessageProposalParticipant = Boolean(selectedProposal && account.userId
@@ -4940,7 +5145,7 @@ function CodeRevisionProposalWorkspace({ account, onMessage }: { account: { sign
   async function submitProposal() {
     if (!publishedSnapshot || !activeDraft) return setProposalMessage(isTroubleshootingWorkbench ? "Choose an attached reproduction snippet before proposing a fix." : "Choose an attached code snippet before proposing a revision.");
     if (proposalSubmitting) return;
-    if (publishedSnapshot.parentPublicationState !== "published") return setProposalMessage("Revision proposals can be submitted only while the parent post is published and public.");
+    if (publishedSnapshot.parentPublicationState === "attached") return setProposalMessage("Revision proposals can be submitted only while the parent post is either public or available inside an explicit private Circle access list.");
     if (newerSnapshotAvailable) return setProposalMessage(`${newerSnapshotDraftWarning(publishedSnapshot)} Reset to the latest snapshot before submitting.`);
     if (!submissionReadiness?.changed) return setProposalMessage("Change the code, language, or filename before submitting a revision proposal.");
     if (!submissionReadiness.validLanguage) return setProposalMessage("Choose a supported proposal language before submitting.");
@@ -5010,7 +5215,7 @@ function CodeRevisionProposalWorkspace({ account, onMessage }: { account: { sign
     <div className="section-heading section-heading--inline">
       <div>
         <p className="eyebrow">{isTroubleshootingWorkbench ? "Troubleshooting workbench" : "Author-controlled revisions"}</p>
-        <h3>{isTroubleshootingWorkbench ? `Propose fixes without overwriting the ${publishedSnapshot?.parentPublicationState === "published" ? "public" : "attached"} reproduction` : `Propose changes without overwriting ${publishedSnapshot?.parentPublicationState === "published" ? "published" : "attached"} code`}</h3>
+        <h3>{isTroubleshootingWorkbench ? `Propose fixes without overwriting the ${publishedSnapshot ? snapshotVisibilityWord(publishedSnapshot) : "attached"} reproduction` : `Propose changes without overwriting ${publishedSnapshot ? snapshotVisibilityWord(publishedSnapshot) : "attached"} code`}</h3>
         <p>Community members can submit proposed {proposalPlural}. The original post author accepts, rejects, or asks for changes; moderators enforce safety without silently taking authorship control.</p>
       </div>
       <button type="button" onClick={() => void refreshProposals()}>Refresh proposals</button>
@@ -5025,7 +5230,7 @@ function CodeRevisionProposalWorkspace({ account, onMessage }: { account: { sign
         <div className="addon-card__topline"><strong>{currentSnapshotHeading(publishedSnapshot)}</strong><span>{publishedSnapshot.fileName}</span></div>
         <CodeWorkspaceEditor value={publishedSnapshot.codeText} language={publishedSnapshot.language} readOnly minHeight="280px" />
         {publishedSandboxInput && <CodingSandboxRunPanel {...publishedSandboxInput} signedIn={account.signedIn} runLabel={currentSnapshotRunLabel(publishedSnapshot)} />}
-        <p className="boundary-note">This is the {publishedSnapshot.parentPublicationState === "published" ? "published code" : "code attached to the nonpublic parent post"} right now. Proposal drafts below do not change it.</p>
+        <p className="boundary-note">This is the {publishedSnapshot.parentPublicationState === "published" ? "published code" : publishedSnapshot.parentPublicationState === "circle" ? "code attached inside the private Circle post" : "code attached to the nonpublic parent post"} right now. Proposal drafts below do not change it.</p>
       </article>
       <article className="commune-code-preview">
         <div className="addon-card__topline"><strong>{isTroubleshootingWorkbench ? "Proposed fix draft" : "Proposed revision draft"}</strong><span>{activeDraft.fileName || "snippet"}</span></div>
@@ -5035,8 +5240,8 @@ function CodeRevisionProposalWorkspace({ account, onMessage }: { account: { sign
         {draftDiff && artifactChanges && <StatusBadges labels={[artifactChanges.changed ? "changed" : "unchanged", artifactChanges.codeChanged ? "code changed" : "code unchanged", artifactChanges.languageChanged ? "language changed" : "language unchanged", artifactChanges.fileNameChanged ? "filename changed" : "filename unchanged", `${draftDiff.oldLineCount} -> ${draftDiff.newLineCount} lines`, `${draftDiff.sizeDelta >= 0 ? "+" : ""}${draftDiff.sizeDelta} chars`]} />}
         <DiagnosticsList diagnostics={proposalDiagnostics} />
         {proposalSandboxInput && <CodingSandboxRunPanel {...proposalSandboxInput} signedIn={account.signedIn} runLabel={isTroubleshootingWorkbench ? "Run proposed fix in sandbox" : "Run proposed revision in sandbox"} />}
-        <div className="button-row"><button className="button-primary" type="button" disabled={!account.signedIn || publishedSnapshot.parentPublicationState !== "published" || !submissionReadiness?.canSubmit || newerSnapshotAvailable} onClick={() => void submitProposal()}>{proposalSubmitting ? "Submitting proposal..." : isTroubleshootingWorkbench ? "Submit proposed fix" : "Submit proposed revision"}</button><button type="button" onClick={resetDraftToLatestSnapshot}>{newerSnapshotAvailable ? resetDraftToLatestLabel(publishedSnapshot) : resetDraftLabel(publishedSnapshot)}</button></div>
-        <p className="boundary-note">Run the proposed {proposalNoun} before submitting if you want sandbox evidence. Running does not submit the proposal, update the {publishedSnapshot.parentPublicationState === "published" ? "published" : "attached"} code, install anything, or mark this code safe.</p>
+        <div className="button-row"><button className="button-primary" type="button" disabled={!account.signedIn || publishedSnapshot.parentPublicationState === "attached" || !submissionReadiness?.canSubmit || newerSnapshotAvailable} onClick={() => void submitProposal()}>{proposalSubmitting ? "Submitting proposal..." : isTroubleshootingWorkbench ? "Submit proposed fix" : "Submit proposed revision"}</button><button type="button" onClick={resetDraftToLatestSnapshot}>{newerSnapshotAvailable ? resetDraftToLatestLabel(publishedSnapshot) : resetDraftLabel(publishedSnapshot)}</button></div>
+        <p className="boundary-note">Run the proposed {proposalNoun} before submitting if you want sandbox evidence. Running does not submit the proposal, update the {snapshotVisibilityWord(publishedSnapshot)} code, install anything, or mark this code safe.</p>
         <p className="boundary-note">Submitting sends a private signal to the original poster. It does not publish, install, execute, or mark this code safe.</p>
       </article>
     </div>}
@@ -5057,7 +5262,7 @@ function CodeRevisionProposalWorkspace({ account, onMessage }: { account: { sign
         <DiagnosticsList diagnostics={runStaticCodingDiagnostics({ language: selectedProposal.language, fileName: selectedProposal.file_name, code: selectedProposal.proposed_code_text })} />
         <CodingSandboxRunPanel snapshotId={selectedProposal.id} sourceType="commune_code_revision_proposal" sourceId={selectedProposal.id} postId={selectedProposal.post_id} language={selectedProposal.language ?? "text"} fileName={selectedProposal.file_name} code={selectedProposal.proposed_code_text} signedIn={account.signedIn} runLabel="Run proposed revision in sandbox" />
         <label><span>Decision note</span><input value={decisionNote} onChange={(event) => setDecisionNote(event.target.value)} placeholder="Optional note for proposer/history" /></label>
-        <div className="button-row">{canDecide && <><button className="button-primary" type="button" onClick={() => void decideProposal("accepted")}>{isTroubleshootingWorkbench ? "Accept fix" : "Accept revision"}</button><button type="button" onClick={() => void decideProposal("needs_changes")}>Ask for changes</button><button type="button" onClick={() => void decideProposal("rejected")}>{isTroubleshootingWorkbench ? "Reject fix" : "Reject revision"}</button></>}{canWithdraw && <button type="button" onClick={() => void withdrawProposal()}>Withdraw my proposal</button>}{canMessageProposalParticipant && <Link className="button-link" to={`/commons-circle/signals/inbox?view=messages&sourceDomain=code_proposals&sourceType=commune_code_revision_proposal&sourceRecord=${selectedProposal.id}`}>Message proposal participant</Link>}{account.isModerator && ["submitted", "needs_changes"].includes(selectedProposal.proposal_status) && <button type="button" onClick={() => void decideProposal("hidden_by_moderation")}>Hide unsafe proposal</button>}</div>
+        <div className="button-row">{canDecide && <><button className="button-primary" type="button" onClick={() => void decideProposal("accepted")}>{isTroubleshootingWorkbench ? "Accept fix" : "Accept revision"}</button><button type="button" onClick={() => void decideProposal("needs_changes")}>Ask for changes</button><button type="button" onClick={() => void decideProposal("rejected")}>{isTroubleshootingWorkbench ? "Reject fix" : "Reject revision"}</button></>}{canWithdraw && <button type="button" onClick={() => void withdrawProposal()}>Withdraw my proposal</button>}{canMessageProposalParticipant && <Link className="button-link" to={`/commons-circle/signals/inbox?view=messages&sourceDomain=code_proposals&sourceType=commune_code_revision_proposal&sourceRecord=${selectedProposal.id}`}>Message proposal participant</Link>}{account.isModerator && !isCircleProposalContext && ["submitted", "needs_changes"].includes(selectedProposal.proposal_status) && <button type="button" onClick={() => void decideProposal("hidden_by_moderation")}>Hide unsafe proposal</button>}</div>
         <p className="boundary-note">Author approval is separate from moderator safety enforcement. Sandbox success is evidence, not trust, Marketplace readiness, or approval.</p>
       </article>}
     </div>
