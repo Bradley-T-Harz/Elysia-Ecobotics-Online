@@ -13,6 +13,7 @@ function assert(condition, message) {
 
 const app = await read("src/App.tsx");
 const page = await read("src/pages/The-Elysia-Commune/index.tsx");
+const feedGrouping = await read("src/pages/The-Elysia-Commune/communeFeedGrouping.ts");
 const jobOpportunityFields = await read("src/pages/The-Elysia-Commune/JobOpportunityFields.tsx");
 const jobOpportunityModel = await read("src/pages/The-Elysia-Commune/jobOpportunityModel.ts");
 const safety = await read("src/pages/The-Elysia-Commune/communeSafety.ts");
@@ -159,6 +160,12 @@ for (const roomName of requiredLobbyRooms) {
 }
 const finalRoomOrder = requiredLobbyRooms.slice(-3).join(" > ");
 assert(finalRoomOrder === "Elysia Iteration Showcase > Community Voting Room > Official Update", "Community Voting Room must be second-last and Official Update last.");
+assert(page.includes("groupCommuneFeedPosts(filteredPosts, feedRooms)") && page.includes('data-post-type={room.postType}') && page.includes('data-room-slug={room.slug}'), "Commune lobby feed must group filtered public posts by the canonical post_type registry.");
+assert(page.includes("commune-feed-room-jumps") && page.includes("commune-feed-room-sections") && page.includes("commune-feed-room-empty"), "Commune lobby feed must retain accessible jumps, ten room sections, and compact empty-room states.");
+assert(feedGrouping.includes("groupByPostType.get(post.post_type") && !/tags|hashtag|title|body/.test(feedGrouping), "Commune feed membership must use authoritative post_type without content or hashtag heuristics.");
+assert(feedGrouping.includes("seenPostIds") && feedGrouping.includes("unknownPosts") && feedGrouping.includes("duplicatePostIds"), "Commune feed grouping must fail safely for duplicate IDs and unsupported room identifiers.");
+assert(feedGrouping.includes("published_at") && feedGrouping.includes("compareCommuneFeedPostsNewestFirst"), "Commune feed groups must order posts by canonical publication time.");
+assert(accountApi.includes("const lobbyFeed = !roomSlug && !postId && !postType") && accountApi.includes(".range(from, from + pageSize - 1)") && !accountApi.includes("postQuery.limit(50)"), "The Commune lobby must page through the complete published feed instead of silently truncating it at 50 rows.");
 assert(accountApi.includes('"community_vote"') && accountApi.includes("submitCommunityVotePost") && accountApi.includes("castCommunityVoteBallot") && accountApi.includes("updateCommunityVoteLifecycle"), "Community Voting Room API helpers/types missing.");
 assert(accountApi.includes("loadVotePostsForPosts") && accountApi.includes("commune_vote_result_summary") && accountApi.includes("Community Voting Room tables are not available yet"), "Community Voting Room loader or friendly drift error missing.");
 assert(page.includes("CommunityVoteComposer") && page.includes("Create community vote") && page.includes("CommunityVoteDetail") && page.includes("commune-vote-result-bar") && page.includes("CommunityVoteAdminPanel"), "Community Voting Room UI create/detail/result/admin controls missing.");

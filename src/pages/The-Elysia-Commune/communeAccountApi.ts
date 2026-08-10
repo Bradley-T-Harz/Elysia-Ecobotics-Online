@@ -1187,16 +1187,41 @@ export async function loadCommuneData(roomSlug?: string, postId?: string, postTy
   const selectedRoom = candidateRoomSlugs.length ? (rooms ?? []).find((room) => candidateRoomSlugs.includes(room.slug)) as CommuneRoom | undefined : undefined;
   const publicPostSelect = "id,post_type,title,body,excerpt,tags,links,repository_url,status,visibility,visibility_state,hidden_at,removed_at,archived_at,published_at,last_activity_at,created_at";
   const ownerJobPostSelect = "id,user_id,post_type,title,body,excerpt,tags,links,repository_url,status,visibility,visibility_state,hidden_at,removed_at,archived_at,published_at,last_activity_at,created_at";
-  let postQuery = supabase.from(canonicalCommuneTables.posts).select(publicPostSelect).eq("status", "published").eq("visibility", "public").order("last_activity_at", { ascending: false });
-  if (postId) postQuery = postQuery.eq("id", postId);
-  if (postType) postQuery = postQuery.eq("post_type", postType);
-  if (!postId && !postType) postQuery = postQuery.limit(50);
-  if (selectedRoom && !postType) {
-    const { data: roomThreads } = await supabase.from(canonicalCommuneTables.threads).select("post_id").eq("room_id", selectedRoom.id).eq("visibility", "public");
-    const ids = (roomThreads ?? []).map((row) => row.post_id).filter(Boolean) as string[];
-    postQuery = ids.length ? postQuery.in("id", ids) : postQuery.eq("id", "00000000-0000-0000-0000-000000000000");
+  const lobbyFeed = !roomSlug && !postId && !postType;
+  let posts: unknown[] = [];
+  let postError: { message: string } | null = null;
+  if (lobbyFeed) {
+    const pageSize = 250;
+    for (let from = 0; ; from += pageSize) {
+      const page = await supabase
+        .from(canonicalCommuneTables.posts)
+        .select(publicPostSelect)
+        .eq("status", "published")
+        .eq("visibility", "public")
+        .order("published_at", { ascending: false, nullsFirst: false })
+        .order("id", { ascending: true })
+        .range(from, from + pageSize - 1);
+      if (page.error) {
+        postError = page.error;
+        break;
+      }
+      const pageRows = page.data ?? [];
+      posts.push(...pageRows);
+      if (pageRows.length < pageSize) break;
+    }
+  } else {
+    let postQuery = supabase.from(canonicalCommuneTables.posts).select(publicPostSelect).eq("status", "published").eq("visibility", "public").order("published_at", { ascending: false, nullsFirst: false }).order("id", { ascending: true });
+    if (postId) postQuery = postQuery.eq("id", postId);
+    if (postType) postQuery = postQuery.eq("post_type", postType);
+    if (selectedRoom && !postType) {
+      const { data: roomThreads } = await supabase.from(canonicalCommuneTables.threads).select("post_id").eq("room_id", selectedRoom.id).eq("visibility", "public");
+      const ids = (roomThreads ?? []).map((row) => row.post_id).filter(Boolean) as string[];
+      postQuery = ids.length ? postQuery.in("id", ids) : postQuery.eq("id", "00000000-0000-0000-0000-000000000000");
+    }
+    const result = await postQuery;
+    posts = result.data ?? [];
+    postError = result.error;
   }
-  const { data: posts, error: postError } = await postQuery;
   if (postError) warnings.push(postError.message);
   let candidatePosts = (posts ?? []) as CommunePost[];
   if (postId && candidatePosts.length === 0 && account.userId) {

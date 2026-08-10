@@ -195,6 +195,7 @@ import {
   type PublishedSnapshot
 } from "./codeRevisionDraftState";
 import { communeLinkPresentation, parseCommuneLinksInput, safeCommuneLinkHref } from "../../shared/communeLinks";
+import { groupCommuneFeedPosts, type CommuneFeedRoomDefinition } from "./communeFeedGrouping";
 import JobOpportunityFields from "./JobOpportunityFields";
 import {
   JOB_OPPORTUNITY_MODEL_VERSION,
@@ -2276,12 +2277,40 @@ function CommunityFeed({ posts, savedPostIds, onSave, filters, signedIn, trouble
     const labels = [post.status, post.visibility, type?.name ?? post.post_type, ...(post.tags ?? []), ...(troubleshooting ? [troubleshooting.issue_type, troubleshooting.troubleshooting_status, troubleshooting.affected_area ?? ""] : []), ...(researchNote ? [researchEvidenceLabel(researchNote.evidence_strength), researchNote.review_status, researchNote.domain ?? ""] : []), ...(jobPost ? [jobPost.role_type, jobPost.paid_volunteer_status, jobPost.location_mode, jobPost.application_status, jobPost.anti_scam_review_status] : []), ...(votePost ? [votePost.vote.vote_status, votePost.vote.results_visibility, "advisory governance", "Community Voting Room"] : [])];
     return matchesCategory(type?.name ?? post.post_type, filters.category) && matchesSearch([post.title, post.excerpt ?? "", post.body, ...(post.tags ?? []), ...troubleshootingSearchValues(troubleshooting), ...researchSearchValues(researchNote), ...jobSearchValues(jobPost), ...(votePost ? [votePost.vote.question, votePost.vote.context ?? "", ...votePost.options.map((option) => option.option_label)] : [])], filters.search) && matchesStatus(labels, filters.status) && matchesSafety(labels, filters.safety);
   });
-  const emptyCards = postTypes.filter((type) => matchesCategory(type.name, filters.category) && matchesSearch([type.name, type.purpose], filters.search) && matchesStatus([...type.currentStatus, "needs backend"], filters.status) && matchesSafety([...type.currentStatus, type.cautions], filters.safety)).slice(0, 5);
+  const feedRooms: CommuneFeedRoomDefinition<CommunePostType>[] = postTypes.map((type) => ({
+    postType: type.backendValue,
+    slug: roomSlugByPostType[type.backendValue],
+    name: type.name,
+    purpose: type.purpose,
+    href: roomPathForType(type),
+  }));
+  const grouping = groupCommuneFeedPosts(filteredPosts, feedRooms);
   return <section className="section-card commune-feed" id="commune-feed">
     <p className="eyebrow">Community Feed</p>
-    <h2>{filteredPosts.length ? `${filteredPosts.length} published item${filteredPosts.length === 1 ? "" : "s"}` : "No published Commune posts yet"}</h2>
+    <h2>{grouping.representedPostCount ? `${grouping.representedPostCount} published item${grouping.representedPostCount === 1 ? "" : "s"}` : "No published Commune posts match this view"}</h2>
     <p className="boundary-note">Only posts approved/published by moderation are public here. Drafts and pending requests remain private to their owner and reviewers.</p>
-    {filteredPosts.length ? <div className="commune-feed-grid">{filteredPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} signedIn={signedIn} troubleshooting={troubleshootingByPostId.get(post.id)} jobPost={jobByPostId.get(post.id)} researchNote={researchByPostId.get(post.id)} communityVote={voteByPostId.get(post.id)} />)}</div> : <div className="commune-feed-grid">{emptyCards.map((type) => <article className="commune-feed-card" key={type.id}><div className="commune-author-sigil" aria-hidden="true">{type.name.slice(0, 1)}</div><p className="eyebrow">{type.name}</p><h3>No {type.name} posts yet.</h3><p>{type.purpose}</p><Link className="button-link" to={roomPathForType(type)}>Enter room</Link></article>)}</div>}
+    <nav className="commune-feed-room-jumps" aria-label="Jump to a Commune room section">
+      {grouping.groups.map(({ room }) => <a key={room.postType} href={`#commune-feed-room-${room.slug}`}>{room.name}</a>)}
+    </nav>
+    {grouping.unknownPosts.length > 0 && <p className="commune-feed-integrity-warning" role="alert">{grouping.unknownPosts.length} published item{grouping.unknownPosts.length === 1 ? " uses" : "s use"} an unsupported room identifier and cannot be placed safely. An administrator must repair the source record.</p>}
+    {grouping.duplicatePostIds.length > 0 && <p className="commune-feed-integrity-warning" role="alert">Duplicate published item identifiers were received and rendered only once. An administrator should inspect the feed source.</p>}
+    <div className="commune-feed-room-sections">
+      {grouping.groups.map(({ room, posts: roomPosts }) => <section className={`commune-feed-room-section commune-feed-room-section--${room.slug}`} id={`commune-feed-room-${room.slug}`} data-room-slug={room.slug} data-post-type={room.postType} key={room.postType}>
+        <header className="commune-feed-room-header">
+          <div>
+            <h3>{room.name}</h3>
+            <p>{room.purpose}</p>
+          </div>
+          <div className="commune-feed-room-actions">
+            <span>{roomPosts.length} published {roomPosts.length === 1 ? "post" : "posts"}</span>
+            <Link className="button-link" to={room.href}>View room <span aria-hidden="true">→</span></Link>
+          </div>
+        </header>
+        {roomPosts.length > 0
+          ? <div className="commune-feed-room-grid">{roomPosts.map((post) => <PostCard key={post.id} post={post} saved={savedPostIds.includes(post.id)} onSave={onSave} signedIn={signedIn} troubleshooting={troubleshootingByPostId.get(post.id)} jobPost={jobByPostId.get(post.id)} researchNote={researchByPostId.get(post.id)} communityVote={voteByPostId.get(post.id)} />)}</div>
+          : <p className="commune-feed-room-empty">No published posts yet. Visit the room to see its purpose, boundaries, and posting path.</p>}
+      </section>)}
+    </div>
   </section>;
 }
 
