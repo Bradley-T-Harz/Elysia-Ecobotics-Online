@@ -122,6 +122,7 @@ function participantCards(viewerIsOwner) {
     viewerIsOwner,
     participants: [{
       accessId: ids.access, relationshipId: ids.relationship, addedAt: "2026-08-10T01:00:00.000Z",
+      circleAccepted: viewerIsOwner ? false : null,
       profile: {
         handle: "private-participant", displayName: "Private Participant", avatarUrl: null,
         shortPublicBio: "Explicit Circle post participant.", profileUrl: "/commons-circle/@private-participant",
@@ -131,6 +132,7 @@ function participantCards(viewerIsOwner) {
 }
 
 async function installFixtures(context, role, captures, postType = "community_network") {
+  let participantAccess = true;
   await context.route(`${origin}/api/sandbox/health`, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, status: "available" }) }));
   await context.route(`${origin}/api/sandbox/credits`, (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ ok: false, error: "sandbox_service_unavailable" }) }));
   await context.route(/^https:\/\/[^/]+\.supabase\.co\//, async (route) => {
@@ -188,7 +190,9 @@ async function installFixtures(context, role, captures, postType = "community_ne
       return route.fulfill({ status: role.authorized ? 200 : 403, headers: { ...responseHeaders, "Content-Type": "text/plain" }, body: role.authorized ? "authorized private fixture file" : "denied" });
     }
     if (url.pathname.endsWith("/rest/v1/rpc/commune_post_circle_participant_cards")) {
-      return route.fulfill({ status: role.authorized ? 200 : 403, headers: responseHeaders, body: JSON.stringify(role.authorized ? participantCards(role.userId === ids.owner) : { message: "row-level security" }) });
+      const cards = participantCards(role.userId === ids.owner);
+      if (!participantAccess) cards.participants = [];
+      return route.fulfill({ status: role.authorized ? 200 : 403, headers: responseHeaders, body: JSON.stringify(role.authorized ? cards : { message: "row-level security" }) });
     }
     if (url.pathname.endsWith("/rest/v1/rpc/current_user_circle")) {
       const overview = role.userId === ids.owner ? {
@@ -199,6 +203,7 @@ async function installFixtures(context, role, captures, postType = "community_ne
     }
     if (url.pathname.endsWith("/rest/v1/rpc/remove_commune_post_circle_participant")) {
       captures.removals.push(request.postDataJSON());
+      if (role.userId === ids.owner) participantAccess = false;
       return route.fulfill({ status: role.userId === ids.owner ? 200 : 403, headers: responseHeaders, body: JSON.stringify(role.userId === ids.owner ? { removed: true } : { message: "Only owner" }) });
     }
     if (url.pathname.endsWith("/rest/v1/rpc/resolve_public_commune_attributions")) return route.fulfill({ status: 200, headers: responseHeaders, body: "[]" });
@@ -281,12 +286,22 @@ async function verifyAuthorized(browser, roleName, viewport, screenshotName) {
   assert(captures.downloads.length >= 1, `${roleName} should fetch the authorized attachment through its signed-in session`);
   assert.equal(await page.locator(".commune-private-participants").count(), 1);
   assert.equal(await page.getByRole("button", { name: "Remove access" }).count(), roleName === "owner" ? 1 : 0);
+  assert.equal(await page.getByText("No longer in Your Circle", { exact: true }).count(), roleName === "owner" ? 1 : 0, "Only the owner should see former-Circle relationship state");
   assert.equal(await page.getByText("Role-gated moderation", { exact: true }).count(), 0, "Private content must not expose ordinary moderation controls");
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   assert(overflow <= 1, `${roleName} private detail overflowed by ${overflow}px`);
   assert.deepEqual(pageErrors, []);
   await page.evaluate(() => scrollTo(0, 0));
   await page.screenshot({ path: path.join(evidenceDir, screenshotName), fullPage: false });
+  if (roleName === "owner") {
+    const participantPanel = page.locator(".commune-private-participants");
+    await participantPanel.screenshot({ path: path.join(evidenceDir, "desktop-private-owner-former-circle-participant.png") });
+    await participantPanel.getByRole("button", { name: "Remove access" }).click();
+    await page.getByText("Participant access removed. Their existing authored thread history remains part of the post.", { exact: true }).waitFor();
+    await participantPanel.getByText("1 person including author", { exact: true }).waitFor();
+    assert.deepEqual(captures.removals, [{ p_access_id: ids.access }]);
+    await participantPanel.screenshot({ path: path.join(evidenceDir, "desktop-private-owner-after-explicit-access-removal.png") });
+  }
   if (roleName === "participant") {
     await page.getByLabel("Comment on this post").fill("New direct private participant comment.");
     await page.getByRole("button", { name: "Submit comment" }).click();

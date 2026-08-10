@@ -6,6 +6,7 @@ const api = fs.readFileSync("src/pages/The-Elysia-Commune/communeAccountApi.ts",
 const codeApi = fs.readFileSync("src/pages/The-Elysia-Commune/communeCodeReviewApi.ts", "utf8");
 const draftState = fs.readFileSync("src/pages/The-Elysia-Commune/codeRevisionDraftState.ts", "utf8");
 const migration = fs.readFileSync("supabase/migrations/20260810030000_circle_private_commune_posts.sql", "utf8");
+const accessMigration = fs.readFileSync("supabase/migrations/20260810040000_circle_access_review.sql", "utf8");
 const fixture = fs.readFileSync("scripts/fixtures/communeCirclePrivateBehavior.sql", "utf8");
 const styles = fs.readFileSync("src/styles.css", "utf8");
 
@@ -55,6 +56,8 @@ assert.ok(page.includes('isCirclePrivate ? ["Private", "Circle only"]'), "Privat
 assert.ok(page.includes("Only the author and explicitly selected Circle participants"), "Private detail pages must state their access boundary.");
 assert.ok(page.includes("does not give reviewers or administrators routine access"), "Private reporting copy must not imply blanket staff access.");
 assert.ok(page.includes("state.isModerator && post?.audience !== \"circle\"") && page.includes("const privateRoomModerator = state.isModerator && !isCirclePrivate"), "Private posts must suppress ordinary ambient moderation controls.");
+assert.ok(page.includes("No longer in Your Circle") && page.includes("viewerIsOwner && participant.circleAccepted === false"), "Only private-post owners should see the durable ACL's former-Circle marker.");
+assert.ok(api.includes("circleAccepted?: boolean | null") && api.includes("circleAccepted"), "Participant cards must normalize the owner-only relationship marker without inventing authority.");
 
 assert.ok(page.includes("postAudience: audience.postAudience") && page.includes("circleRelationshipIds"), "Local drafts must preserve audience and selected Circle relationships.");
 assert.ok(page.includes("Visibility: ${draft.postAudience === \"circle\""), "Markdown export must identify private versus public audience.");
@@ -85,6 +88,9 @@ assert.ok(!/current_user_is_admin|current_user_can_review|moderator|reviewer|ser
 assert.ok(!/organization_project|author_username|poster_type[\s\S]{0,120}(?:authorize|access)/i.test(migration), "Private authorization must not trust display strings or client-declared poster identity.");
 assert.match(migration, /post_type not in \('official_update', 'community_vote'\)[\s\S]*current_user_is_admin/, "Official Updates and Community Voting must remain admin-only creation rooms.");
 assert.ok(migration.includes("Existing explicit private-post access is unchanged") || fs.readFileSync("supabase/migrations/20260810020000_mutual_commons_circle.sql", "utf8").includes("Existing explicit private-post access is unchanged"), "Circle removal must not silently rewrite established post ACLs.");
+assert.ok(accessMigration.includes("current_user_circle_access_review") && accessMigration.includes("post.user_id = v_actor"), "Access review must derive only the caller's owned private posts.");
+assert.ok(accessMigration.includes("grant execute on function public.current_user_circle_access_review() to authenticated") && !accessMigration.includes("to anon"), "Access review must be authenticated-only.");
+assert.ok(!/current_user_is_admin|current_user_can_review|has_role\s*\(/i.test(accessMigration), "Admin/reviewer status must not reveal private ACL review state.");
 
 for (const marker of [
   "commune-audience-selector", "commune-audience-options", "commune-circle-participant-picker",
@@ -101,6 +107,12 @@ for (const marker of [
   "unrelated member reported a guessed private post", "anonymous reader reported a guessed private post",
   "administrator could not see narrow private-content report metadata",
   "explicit participant removal did not revoke exactly one post", "public post compatibility regressed",
+  "former Circle member remained eligible for a new invitation",
+  "former participant received owner-only Access Review state",
+  "nonparticipant administrator inspected Access Review",
+  "nonparticipant reviewer inspected Access Review",
+  "anonymous reader inspected Access Review",
+  "Access Review remained after every explicit ACL removal",
 ]) assert.ok(fixture.includes(marker), `Hostile database fixture omits ${marker}`);
 
 console.log("Circle/private Commune contracts passed across all ten rooms.");

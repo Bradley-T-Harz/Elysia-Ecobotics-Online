@@ -1,9 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
-import { loadCurrentUserCircle, removeFromCircle, respondToCircleInvitation, type CircleOverview, type CircleRelationshipItem } from "./circleApi";
+import {
+  emptyCircleAccessReview,
+  loadCurrentUserCircle,
+  loadCurrentUserCircleAccessReview,
+  removeCircleAccessReviewParticipant,
+  removeFromCircle,
+  respondToCircleInvitation,
+  type CircleAccessReview,
+  type CircleOverview,
+  type CircleRelationshipItem,
+} from "./circleApi";
 
 const emptyCircle: CircleOverview = { accepted: [], incoming: [], sent: [], counts: { accepted: 0, incoming: 0, sent: 0 } };
 
@@ -18,19 +28,30 @@ function CircleCard({ item, actions }: { item: CircleRelationshipItem; actions?:
 }
 
 export default function CirclePage() {
+  const location = useLocation();
   const [circle, setCircle] = useState(emptyCircle);
+  const [accessReview, setAccessReview] = useState<CircleAccessReview>(emptyCircleAccessReview);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    const result = await loadCurrentUserCircle();
-    setCircle(result.data);
-    setWarnings(result.warnings);
+    const [circleResult, reviewResult] = await Promise.all([loadCurrentUserCircle(), loadCurrentUserCircleAccessReview()]);
+    setCircle(circleResult.data);
+    setAccessReview(reviewResult.data);
+    setWarnings(Array.from(new Set([...circleResult.warnings, ...reviewResult.warnings])));
     setLoading(false);
   }, []);
   useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    if (location.hash !== "#access-review" || accessReview.counts.privatePosts === 0) return;
+    window.requestAnimationFrame(() => {
+      const target = document.getElementById("access-review");
+      target?.scrollIntoView({ block: "start" });
+      target?.focus({ preventScroll: true });
+    });
+  }, [accessReview.counts.privatePosts, location.hash]);
 
   async function respond(id: string, accept: boolean) {
     const result = await respondToCircleInvitation(id, accept);
@@ -39,6 +60,11 @@ export default function CirclePage() {
   }
   async function remove(id: string) {
     const result = await removeFromCircle(id);
+    setMessage(result.message);
+    if (result.ok) await refresh();
+  }
+  async function removePostAccess(accessId: string) {
+    const result = await removeCircleAccessReviewParticipant(accessId);
     setMessage(result.message);
     if (result.ok) await refresh();
   }
@@ -54,6 +80,24 @@ export default function CirclePage() {
       {message && <p className="message" role="status">{message}</p>}
       {warnings.map((warning) => <p className="message" key={warning}>{warning}</p>)}
     </section>
+    {accessReview.counts.privatePosts > 0 && <section className="section-card commons-circle-access-review" id="access-review" tabIndex={-1}>
+      <div className="section-heading section-heading--inline"><div><p className="eyebrow">Access review</p><h2>Review durable private-post access</h2><p>{accessReview.counts.formerMembers} former Circle {accessReview.counts.formerMembers === 1 ? "member still has" : "members still have"} access to {accessReview.counts.privatePosts} private {accessReview.counts.privatePosts === 1 ? "post" : "posts"} you own.</p></div></div>
+      <p className="boundary-note">Circle removal prevents new invitations. Existing private-post access stays intact until you explicitly remove it from each post.</p>
+      <div className="commons-circle-access-review-list">
+        {accessReview.members.map((member) => <article className="commons-circle-access-review-member" key={member.relationshipId}>
+          <div className="commons-circle-access-review-member__heading">
+            <div><strong>{member.profile.displayName || `@${member.profile.handle}`}</strong><span>@{member.profile.handle} · No longer in Your Circle</span></div>
+            <span>{member.privatePostCount} private {member.privatePostCount === 1 ? "post" : "posts"}</span>
+          </div>
+          <ul className="commons-circle-access-review-posts">
+            {member.posts.map((post) => <li key={post.accessId}>
+              <div><Link to={post.postUrl}>{post.title}</Link><span>{post.postType.replace(/_/g, " ")}</span></div>
+              <button type="button" onClick={() => void removePostAccess(post.accessId)}>Remove access</button>
+            </li>)}
+          </ul>
+        </article>)}
+      </div>
+    </section>}
     <section className="section-card">
       <div className="section-heading"><p className="eyebrow">Invitations received</p><h2>Choose each connection deliberately</h2></div>
       <div className="commons-circle-member-grid">{circle.incoming.map((item) => <CircleCard key={item.relationshipId} item={item} actions={<><button className="button-primary" type="button" onClick={() => void respond(item.relationshipId, true)}>Accept invitation</button><button type="button" onClick={() => void respond(item.relationshipId, false)}>Decline</button></>} />)}</div>

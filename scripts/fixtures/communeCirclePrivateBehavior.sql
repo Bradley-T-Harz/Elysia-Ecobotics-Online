@@ -316,25 +316,90 @@ insert into public.commune_reports(
   'submitted'
 );
 
--- Circle membership later changing does not silently rewrite a post's stable ACL.
-reset role;
-update public.commons_circle_relationships
-set status = 'removed', removed_at = now(), removed_by = 'ca000000-0000-4000-8000-000000000001'
-where id = 'ca300000-0000-4000-8000-000000000001';
-set local role authenticated;
+-- Circle removal ends new-sharing eligibility, preserves stable post ACLs, and
+-- privately returns only the removing owner's relevant review count.
+select set_config('request.jwt.claim.sub', 'ca000000-0000-4000-8000-000000000001', true);
+do $circle_owner_removal_creates_access_review$
+declare v_remove jsonb; v_review jsonb; v_cards jsonb;
+begin
+  v_remove := public.remove_from_commons_circle('ca300000-0000-4000-8000-000000000001');
+  if (v_remove ->> 'remainingOwnedPrivatePostCount')::integer <> 10 then
+    raise exception 'Circle removal did not return the owner-only durable ACL count: %', v_remove;
+  end if;
+  v_review := public.current_user_circle_access_review();
+  if (v_review #>> '{counts,formerMembers}')::integer <> 1
+     or (v_review #>> '{counts,privatePosts}')::integer <> 10
+     or pg_catalog.jsonb_array_length(v_review -> 'members') <> 1
+     or pg_catalog.jsonb_array_length(v_review #> '{members,0,posts}') <> 10 then
+    raise exception 'owner Access Review did not derive the ten durable ACLs: %', v_review;
+  end if;
+  if v_review #>> '{members,0,profile,handle}' <> 'private-participant' then
+    raise exception 'owner Access Review returned the wrong former participant: %', v_review;
+  end if;
+  v_cards := public.commune_post_circle_participant_cards('ca100000-0000-4000-8000-000000000001');
+  if (v_cards #>> '{participants,0,circleAccepted}')::boolean is distinct from false then
+    raise exception 'owner participant cards did not mark the durable ACL as no longer in Circle: %', v_cards;
+  end if;
+  begin
+    perform public.add_commune_post_circle_participants(
+      'ca100000-0000-4000-8000-000000000001',
+      array['ca300000-0000-4000-8000-000000000001'::uuid]
+    );
+    raise exception 'former Circle member remained eligible for a new invitation';
+  exception when sqlstate '42501' then null;
+  end;
+end
+$circle_owner_removal_creates_access_review$;
+
 select set_config('request.jwt.claim.sub', 'ca000000-0000-4000-8000-000000000002', true);
 do $circle_relationship_removal_preserves_post_acl$
+declare v_review jsonb; v_cards jsonb;
 begin
   if (select count(*) from public.commune_posts where audience = 'circle') <> 10 then
     raise exception 'relationship removal silently rewrote established post ACLs';
   end if;
+  v_review := public.current_user_circle_access_review();
+  if (v_review #>> '{counts,privatePosts}')::integer <> 0 then
+    raise exception 'former participant received owner-only Access Review state: %', v_review;
+  end if;
+  v_cards := public.commune_post_circle_participant_cards('ca100000-0000-4000-8000-000000000001');
+  if v_cards #> '{participants,0,circleAccepted}' <> 'null'::jsonb then
+    raise exception 'participant learned the private owner relationship marker: %', v_cards;
+  end if;
 end
 $circle_relationship_removal_preserves_post_acl$;
+
+-- Mutual consent later restores eligibility without duplicating old ACL rows.
+select set_config('request.jwt.claim.sub', 'ca000000-0000-4000-8000-000000000001', true);
+select public.invite_to_commons_circle('private-participant');
+select set_config('request.jwt.claim.sub', 'ca000000-0000-4000-8000-000000000002', true);
+select public.invite_to_commons_circle('private-owner');
+select set_config('request.jwt.claim.sub', 'ca000000-0000-4000-8000-000000000001', true);
+do $circle_reaccept_restores_new_invitation_eligibility$
+declare v_review jsonb; v_add jsonb; v_remove jsonb;
+begin
+  v_review := public.current_user_circle_access_review();
+  if (v_review #>> '{counts,privatePosts}')::integer <> 0 then
+    raise exception 'accepted mutual remained in Access Review: %', v_review;
+  end if;
+  v_add := public.add_commune_post_circle_participants(
+    'ca100000-0000-4000-8000-000000000001',
+    array['ca300000-0000-4000-8000-000000000001'::uuid]
+  );
+  if (v_add ->> 'added')::integer <> 0 then
+    raise exception 'reacceptance duplicated an established private-post ACL: %', v_add;
+  end if;
+  v_remove := public.remove_from_commons_circle('ca300000-0000-4000-8000-000000000001');
+  if (v_remove ->> 'remainingOwnedPrivatePostCount')::integer <> 10 then
+    raise exception 'second Circle removal corrupted durable ACL review state: %', v_remove;
+  end if;
+end
+$circle_reaccept_restores_new_invitation_eligibility$;
 
 -- Unrelated members cannot discover or mutate Circle-private records by guessed IDs.
 select set_config('request.jwt.claim.sub', 'ca000000-0000-4000-8000-000000000003', true);
 do $circle_unrelated_hostile_requests$
-declare v_count integer;
+declare v_count integer; v_review jsonb;
 begin
   if (select count(*) from public.commune_posts where audience = 'circle') <> 0 then raise exception 'unrelated member discovered private posts'; end if;
   if (select count(*) from public.commune_threads where visibility = 'circle') <> 0 then raise exception 'unrelated member discovered private threads'; end if;
@@ -348,6 +413,8 @@ begin
   select count(*) into v_count
   from public.commune_vote_result_summary(array['ca100000-0000-4000-8000-000000000009'::uuid]);
   if v_count <> 0 then raise exception 'unrelated member discovered private vote results'; end if;
+  v_review := public.current_user_circle_access_review();
+  if (v_review #>> '{counts,privatePosts}')::integer <> 0 then raise exception 'unrelated member inspected owner Access Review'; end if;
 
   begin
     insert into public.commune_comments(thread_id, post_id, user_id, body, status)
@@ -387,27 +454,41 @@ begin
     raise exception 'unrelated member changed private participants';
   exception when sqlstate '42501' then null;
   end;
+  begin
+    perform public.remove_commune_post_circle_participant(
+      (select id from public.commune_post_circle_participants
+       where post_id = 'ca100000-0000-4000-8000-000000000001' and removed_at is null limit 1)
+    );
+    raise exception 'non-owner removed another participant';
+  exception when sqlstate '42501' then null;
+  end;
 end
 $circle_unrelated_hostile_requests$;
 
 -- Administrator and reviewer roles are not ambient private readers.
 select set_config('request.jwt.claim.sub', 'ca000000-0000-4000-8000-000000000004', true);
 do $circle_admin_no_ambient_content_access$
+declare v_review jsonb;
 begin
   if (select count(*) from public.commune_posts where audience = 'circle') <> 0 then raise exception 'nonparticipant administrator read private posts'; end if;
   if (select count(*) from public.commune_comments where post_id = 'ca100000-0000-4000-8000-000000000001') <> 0 then raise exception 'nonparticipant administrator read private comments'; end if;
   if (select count(*) from public.commune_code_revision_proposals where post_id = 'ca100000-0000-4000-8000-000000000003') <> 0 then raise exception 'nonparticipant administrator read private code proposal'; end if;
   if (select count(*) from public.commune_reports where id = 'ca710000-0000-4000-8000-000000000001') <> 1 then raise exception 'administrator could not see narrow private-content report metadata'; end if;
+  v_review := public.current_user_circle_access_review();
+  if (v_review #>> '{counts,privatePosts}')::integer <> 0 then raise exception 'nonparticipant administrator inspected Access Review'; end if;
 end
 $circle_admin_no_ambient_content_access$;
 
 select set_config('request.jwt.claim.sub', 'ca000000-0000-4000-8000-000000000005', true);
 do $circle_reviewer_no_ambient_content_access$
+declare v_review jsonb;
 begin
   if (select count(*) from public.commune_posts where audience = 'circle') <> 0 then raise exception 'nonparticipant reviewer read private posts'; end if;
   if (select count(*) from public.commune_job_posts where post_id = 'ca100000-0000-4000-8000-000000000006') <> 0 then raise exception 'nonparticipant reviewer read private Job metadata'; end if;
   if (select count(*) from public.commune_sandbox_review_requests where id = 'ca800000-0000-4000-8000-000000000001') <> 0 then raise exception 'nonparticipant reviewer read private sandbox request'; end if;
   if (select count(*) from public.commune_reports where id = 'ca710000-0000-4000-8000-000000000001') <> 0 then raise exception 'unassigned reviewer unexpectedly read private-content report metadata'; end if;
+  v_review := public.current_user_circle_access_review();
+  if (v_review #>> '{counts,privatePosts}')::integer <> 0 then raise exception 'nonparticipant reviewer inspected Access Review'; end if;
 end
 $circle_reviewer_no_ambient_content_access$;
 
@@ -444,6 +525,11 @@ do $circle_anonymous_no_access$
 begin
   if (select count(*) from public.commune_posts where audience = 'circle') <> 0 then raise exception 'anonymous reader discovered private posts'; end if;
   if public.current_user_can_access_commune_post('ca100000-0000-4000-8000-000000000001') then raise exception 'anonymous reader passed direct-post access helper'; end if;
+  begin
+    perform public.current_user_circle_access_review();
+    raise exception 'anonymous reader inspected Access Review';
+  exception when sqlstate '42501' then null;
+  end;
   begin
     insert into public.commune_reports(reporter_user_id, target_type, target_id, reason, details)
     values (null, 'post', 'ca100000-0000-4000-8000-000000000006', 'guessed_id', 'Must fail.');
@@ -485,6 +571,17 @@ where post_id = 'ca100000-0000-4000-8000-000000000001'
   and participant_user_id = 'ca000000-0000-4000-8000-000000000002'
   and removed_at is null;
 
+do $circle_owner_review_decrements_one_acl$
+declare v_review jsonb;
+begin
+  v_review := public.current_user_circle_access_review();
+  if (v_review #>> '{counts,formerMembers}')::integer <> 1
+     or (v_review #>> '{counts,privatePosts}')::integer <> 9 then
+    raise exception 'explicit per-post removal did not decrement Access Review: %', v_review;
+  end if;
+end
+$circle_owner_review_decrements_one_acl$;
+
 select set_config('request.jwt.claim.sub', 'ca000000-0000-4000-8000-000000000002', true);
 do $circle_explicit_removal_revokes_access$
 begin
@@ -494,6 +591,41 @@ begin
   if (select count(*) from storage.objects where bucket_id = 'commune-media' and name = 'circle-fixture/private-note.txt') <> 0 then raise exception 'removed participant retained attachment object access'; end if;
 end
 $circle_explicit_removal_revokes_access$;
+
+-- Clearing each remaining ACL is explicit, owner-controlled, and makes the
+-- derived Access Review disappear without rewriting unrelated records.
+select set_config('request.jwt.claim.sub', 'ca000000-0000-4000-8000-000000000001', true);
+do $circle_owner_clears_remaining_access_review$
+declare v_access uuid; v_review jsonb;
+begin
+  for v_access in
+    select access.id
+    from public.commune_post_circle_participants as access
+    join public.commune_posts as post on post.id = access.post_id
+    where post.user_id = auth.uid()
+      and access.participant_user_id = 'ca000000-0000-4000-8000-000000000002'
+      and access.removed_at is null
+    order by access.id
+  loop
+    perform public.remove_commune_post_circle_participant(v_access);
+  end loop;
+  v_review := public.current_user_circle_access_review();
+  if (v_review #>> '{counts,formerMembers}')::integer <> 0
+     or (v_review #>> '{counts,privatePosts}')::integer <> 0
+     or pg_catalog.jsonb_array_length(v_review -> 'members') <> 0 then
+    raise exception 'Access Review remained after every explicit ACL removal: %', v_review;
+  end if;
+end
+$circle_owner_clears_remaining_access_review$;
+
+select set_config('request.jwt.claim.sub', 'ca000000-0000-4000-8000-000000000002', true);
+do $circle_former_participant_loses_all_explicit_access$
+begin
+  if (select count(*) from public.commune_posts where audience = 'circle') <> 0 then
+    raise exception 'former participant retained access after all explicit ACLs were removed';
+  end if;
+end
+$circle_former_participant_loses_all_explicit_access$;
 
 -- Public posts remain unchanged and publicly discoverable.
 reset role;

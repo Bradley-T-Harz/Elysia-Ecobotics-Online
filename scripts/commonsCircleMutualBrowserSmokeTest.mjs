@@ -97,6 +97,23 @@ function initialOverview() {
 function withCounts(state) {
   return { ...state, counts: { accepted: state.accepted.length, incoming: state.incoming.length, sent: state.sent.length } };
 }
+function reviewFixture(profileKind = "former") {
+  const posts = [
+    { accessId: "cc400000-0000-4000-8000-000000000001", postId: "cc100000-0000-4000-8000-000000000001", title: "Private Research Planning", postType: "research_note", postUrl: "/commune/posts/cc100000-0000-4000-8000-000000000001", sharedAt: "2026-08-10T01:00:00.000Z" },
+    { accessId: "cc400000-0000-4000-8000-000000000002", postId: "cc100000-0000-4000-8000-000000000002", title: "Private Community Coordination", postType: "community_network", postUrl: "/commune/posts/cc100000-0000-4000-8000-000000000002", sharedAt: "2026-08-10T02:00:00.000Z" },
+  ];
+  return {
+    members: [{
+      relationshipId: profileKind === "existing" ? ids.existing : "cc300000-0000-4000-8000-000000000005",
+      profile: profileKind === "existing"
+        ? { handle: "existing-mutual", displayName: "Existing Mutual", avatarUrl: null, shortPublicBio: "Existing Mutual browser fixture.", profileUrl: "/commons-circle/@existing-mutual" }
+        : { handle: "former-collaborator", displayName: "Former Collaborator", avatarUrl: null, shortPublicBio: "Former collaborator browser fixture.", profileUrl: "/commons-circle/@former-collaborator" },
+      privatePostCount: posts.length,
+      posts,
+    }],
+    counts: { formerMembers: 1, privatePosts: posts.length },
+  };
+}
 function jsonHeaders() {
   return { "Access-Control-Allow-Headers": "*", "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Access-Control-Allow-Origin": "*", "Content-Type": "application/json; charset=utf-8" };
 }
@@ -109,6 +126,7 @@ function viewportLabel(viewport) {
 
 async function verify(viewport, exerciseMutations, stateKind = "mixed") {
   let state = stateKind === "empty" ? { accepted: [], incoming: [], sent: [] } : initialOverview();
+  let accessReview = stateKind === "review" ? reviewFixture() : { members: [], counts: { formerMembers: 0, privatePosts: 0 } };
   const calls = [];
   const context = await browser.newContext({ viewport, isMobile: viewport.width < 600 });
   await context.addInitScript(({ storageKey, value }) => localStorage.setItem(storageKey, JSON.stringify(value)), { storageKey: `sb-${projectRef}-auth-token`, value: session });
@@ -119,6 +137,7 @@ async function verify(viewport, exerciseMutations, stateKind = "mixed") {
     if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers, body: "" });
     if (url.pathname.endsWith("/auth/v1/user")) return route.fulfill({ status: 200, headers, body: JSON.stringify(fixtureUser) });
     if (url.pathname.endsWith("/rest/v1/rpc/current_user_circle")) return route.fulfill({ status: 200, headers, body: JSON.stringify(withCounts(state)) });
+    if (url.pathname.endsWith("/rest/v1/rpc/current_user_circle_access_review")) return route.fulfill({ status: 200, headers, body: JSON.stringify(accessReview) });
     if (url.pathname.endsWith("/rest/v1/rpc/respond_to_commons_circle_invitation")) {
       const payload = request.postDataJSON();
       calls.push({ name: "respond", payload });
@@ -136,7 +155,18 @@ async function verify(viewport, exerciseMutations, stateKind = "mixed") {
       const payload = request.postDataJSON();
       calls.push({ name: "remove", payload });
       state = { ...state, accepted: state.accepted.filter((entry) => entry.relationshipId !== payload.p_relationship_id) };
-      return route.fulfill({ status: 200, headers, body: JSON.stringify({ state: "removed" }) });
+      accessReview = reviewFixture("existing");
+      return route.fulfill({ status: 200, headers, body: JSON.stringify({ state: "removed", remainingOwnedPrivatePostCount: 2 }) });
+    }
+    if (url.pathname.endsWith("/rest/v1/rpc/remove_commune_post_circle_participant")) {
+      const payload = request.postDataJSON();
+      calls.push({ name: "remove-access", payload });
+      const members = accessReview.members.flatMap((member) => {
+        const posts = member.posts.filter((post) => post.accessId !== payload.p_access_id);
+        return posts.length ? [{ ...member, privatePostCount: posts.length, posts }] : [];
+      });
+      accessReview = { members, counts: { formerMembers: members.length, privatePosts: members.reduce((total, member) => total + member.posts.length, 0) } };
+      return route.fulfill({ status: 200, headers, body: JSON.stringify({ removed: true }) });
     }
     return route.fulfill({ status: 200, headers, body: "[]" });
   });
@@ -148,7 +178,13 @@ async function verify(viewport, exerciseMutations, stateKind = "mixed") {
   await page.getByRole("heading", { name: stateKind === "empty" ? "0 mutual Circle members" : "1 mutual Circle member", exact: true }).waitFor();
   assert.equal(await page.getByText("Circle membership is not a follower count, endorsement, employment relationship, reviewer status, moderator status, or administrator authority.", { exact: true }).count(), 1);
   assert.equal(await page.getByText("Administrators do not receive blanket access.", { exact: false }).count(), 1);
-  await page.screenshot({ path: path.join(evidenceDir, `${viewportLabel(viewport)}-circle-${stateKind === "empty" ? "empty" : "before"}.png`), fullPage: true });
+  await page.screenshot({ path: path.join(evidenceDir, `${viewportLabel(viewport)}-circle-${stateKind === "empty" ? "empty" : stateKind === "review" ? "review-overview" : "before"}.png`), fullPage: true });
+  if (stateKind === "review") {
+    const review = page.locator("#access-review");
+    await review.getByRole("heading", { name: "Review durable private-post access", exact: true }).waitFor();
+    assert.equal(await review.getByRole("button", { name: "Remove access" }).count(), 2);
+    await review.screenshot({ path: path.join(evidenceDir, `${viewportLabel(viewport)}-circle-access-review.png`) });
+  }
   if (exerciseMutations) {
     const acceptCard = page.getByRole("heading", { name: "Incoming Accept", exact: true }).locator("xpath=ancestor::article[1]");
     await acceptCard.getByRole("button", { name: "Accept invitation" }).click();
@@ -159,10 +195,33 @@ async function verify(viewport, exerciseMutations, stateKind = "mixed") {
     const existingCard = page.getByRole("heading", { name: "Existing Mutual", exact: true }).locator("xpath=ancestor::article[1]");
     await existingCard.getByRole("button", { name: "Remove from Circle" }).click();
     await page.getByRole("heading", { name: "1 mutual Circle member", exact: true }).waitFor();
-    assert.deepEqual(calls, [
+    await page.getByText("Removed from Your Circle. They still have access to 2 private posts you own. Existing private-post access was not changed.", { exact: true }).waitFor();
+    const accessReviewSection = page.locator("#access-review");
+    await accessReviewSection.getByRole("heading", { name: "Review durable private-post access", exact: true }).waitFor();
+    await accessReviewSection.screenshot({ path: path.join(evidenceDir, "desktop-circle-access-review-after-remove.png") });
+    assert.deepEqual(calls.slice(0, 3), [
       { name: "respond", payload: { p_relationship_id: ids.accept, p_accept: true } },
       { name: "respond", payload: { p_relationship_id: ids.decline, p_accept: false } },
       { name: "remove", payload: { p_relationship_id: ids.existing } },
+    ]);
+
+    await page.goto(`${origin}/commons-circle/signals`, { waitUntil: "networkidle", timeout: 45_000 });
+    const circleCard = page.getByRole("heading", { name: "Your Circle", exact: true }).locator("xpath=ancestor::article[1]");
+    await circleCard.getByText("1 former Circle member still has access to 2 private posts you own.", { exact: true }).waitFor();
+    assert.equal(await circleCard.getByText("Private Research Planning", { exact: true }).count(), 0, "Signals must not embed private post titles.");
+    await circleCard.screenshot({ path: path.join(evidenceDir, "desktop-signals-circle-access-review-warning.png") });
+    await circleCard.getByRole("link", { name: "Review access" }).click();
+    await accessReviewSection.getByRole("heading", { name: "Review durable private-post access", exact: true }).waitFor();
+
+    await accessReviewSection.getByRole("button", { name: "Remove access" }).first().click();
+    await accessReviewSection.getByText("1 private post", { exact: true }).waitFor();
+    await accessReviewSection.screenshot({ path: path.join(evidenceDir, "desktop-circle-access-review-after-one-explicit-removal.png") });
+    await accessReviewSection.getByRole("button", { name: "Remove access" }).click();
+    await page.getByText("Participant access removed from this private post. Other private-post access was not changed.", { exact: true }).waitFor();
+    await page.locator("#access-review").waitFor({ state: "detached" });
+    assert.deepEqual(calls.slice(3), [
+      { name: "remove-access", payload: { p_access_id: "cc400000-0000-4000-8000-000000000001" } },
+      { name: "remove-access", payload: { p_access_id: "cc400000-0000-4000-8000-000000000002" } },
     ]);
     await page.screenshot({ path: path.join(evidenceDir, "desktop-circle-after-accept-decline-remove.png"), fullPage: true });
   }
@@ -175,12 +234,14 @@ async function verify(viewport, exerciseMutations, stateKind = "mixed") {
 async function verifySignedOutBoundary() {
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   let circleRpcCalls = 0;
+  let accessReviewRpcCalls = 0;
   await context.route(/^https:\/\/[^/]+\.supabase\.co\//, async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     const headers = jsonHeaders();
     if (request.method() === "OPTIONS") return route.fulfill({ status: 204, headers, body: "" });
     if (url.pathname.endsWith("/rest/v1/rpc/current_user_circle")) circleRpcCalls += 1;
+    if (url.pathname.endsWith("/rest/v1/rpc/current_user_circle_access_review")) accessReviewRpcCalls += 1;
     return route.fulfill({ status: 401, headers, body: JSON.stringify({ message: "authentication required" }) });
   });
   const page = await context.newPage();
@@ -189,6 +250,7 @@ async function verifySignedOutBoundary() {
   await page.goto(`${origin}/commons-circle/signals/circle`, { waitUntil: "networkidle", timeout: 45_000 });
   await page.getByText("Sign in to use Your Circle.", { exact: true }).waitFor();
   assert.equal(circleRpcCalls, 0, "Signed-out Circle page must not call the authenticated Circle RPC.");
+  assert.equal(accessReviewRpcCalls, 0, "Signed-out Circle page must not call the owner-only Access Review RPC.");
   assert.deepEqual(consoleErrors, [], "Signed-out Circle page must not emit a 401 console error.");
   await page.screenshot({ path: path.join(evidenceDir, "desktop-circle-signed-out-boundary.png"), fullPage: true });
   await context.close();
@@ -199,9 +261,11 @@ try {
   await verify({ width: 1440, height: 1000 }, true);
   await verify({ width: 820, height: 900 }, false);
   await verify({ width: 390, height: 844 }, false);
+  await verify({ width: 820, height: 900 }, false, "review");
+  await verify({ width: 390, height: 844 }, false, "review");
   await verify({ width: 1440, height: 1000 }, false, "empty");
   await verifySignedOutBoundary();
-  console.log(`Mutual Commons Circle browser flow passed for accept, decline, remove, desktop, half-screen, mobile, empty, and signed-out no-RPC states. Evidence: ${evidenceDir}`);
+  console.log(`Mutual Commons Circle browser flow passed for accept, decline, Circle removal, compact Signals review routing, explicit ACL removal, desktop, half-screen, mobile, empty, and signed-out no-RPC states. Evidence: ${evidenceDir}`);
 } finally {
   await browser.close();
   await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

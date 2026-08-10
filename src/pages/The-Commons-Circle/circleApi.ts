@@ -23,6 +23,27 @@ export type CircleOverview = {
   counts: { accepted: number; incoming: number; sent: number };
 };
 
+export type CircleAccessReviewPost = {
+  accessId: string;
+  postId: string;
+  title: string;
+  postType: string;
+  postUrl: string;
+  sharedAt: string | null;
+};
+
+export type CircleAccessReviewMember = {
+  relationshipId: string;
+  profile: CircleProfileCard;
+  privatePostCount: number;
+  posts: CircleAccessReviewPost[];
+};
+
+export type CircleAccessReview = {
+  members: CircleAccessReviewMember[];
+  counts: { formerMembers: number; privatePosts: number };
+};
+
 export type CircleHandleState = {
   state: "self" | "can_invite" | "sent" | "incoming" | "accepted" | "unavailable";
   relationshipId: string | null;
@@ -30,6 +51,9 @@ export type CircleHandleState = {
 
 const emptyOverview: CircleOverview = {
   accepted: [], incoming: [], sent: [], counts: { accepted: 0, incoming: 0, sent: 0 },
+};
+export const emptyCircleAccessReview: CircleAccessReview = {
+  members: [], counts: { formerMembers: 0, privatePosts: 0 },
 };
 
 function record(value: unknown): Record<string, unknown> {
@@ -72,6 +96,34 @@ function normalizeList(value: unknown) {
   return Array.isArray(value) ? value.map(normalizeItem).filter((item): item is CircleRelationshipItem => Boolean(item)) : [];
 }
 
+function normalizeAccessReviewPost(value: unknown): CircleAccessReviewPost | null {
+  const source = record(value);
+  const accessId = safeText(source.accessId);
+  const postId = safeText(source.postId);
+  const title = safeText(source.title);
+  const postUrl = safeText(source.postUrl);
+  if (!/^[0-9a-f-]{36}$/i.test(accessId) || !/^[0-9a-f-]{36}$/i.test(postId) || !title || postUrl !== `/commune/posts/${postId}`) return null;
+  return {
+    accessId,
+    postId,
+    title,
+    postType: safeText(source.postType),
+    postUrl,
+    sharedAt: safeNullableText(source.sharedAt),
+  };
+}
+
+function normalizeAccessReviewMember(value: unknown): CircleAccessReviewMember | null {
+  const source = record(value);
+  const relationshipId = safeText(source.relationshipId);
+  const profile = normalizeProfile(source.profile);
+  const posts = Array.isArray(source.posts)
+    ? source.posts.map(normalizeAccessReviewPost).filter((post): post is CircleAccessReviewPost => Boolean(post))
+    : [];
+  if (!/^[0-9a-f-]{36}$/i.test(relationshipId) || !profile || !posts.length) return null;
+  return { relationshipId, profile, privatePostCount: posts.length, posts };
+}
+
 function messageFor(error: string, fallback: string) {
   if (/authentication_required|JWT|not authenticated/i.test(error)) return "Sign in to use Your Circle.";
   if (/profile_unavailable/i.test(error)) return "This public profile is not currently available for Circle invitations.";
@@ -96,6 +148,32 @@ export async function loadCurrentUserCircle(): Promise<{ data: CircleOverview; w
       counts: { accepted: safeCount(counts.accepted), incoming: safeCount(counts.incoming), sent: safeCount(counts.sent) },
     },
     warnings: [],
+  };
+}
+
+export async function loadCurrentUserCircleAccessReview(): Promise<{ data: CircleAccessReview; warnings: string[] }> {
+  if (!hasSupabaseConfig || !supabase) return { data: emptyCircleAccessReview, warnings: [supabaseNotConfiguredMessage] };
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+  if (sessionError || !sessionData.session?.user) return { data: emptyCircleAccessReview, warnings: [] };
+  const { data, error } = await supabase.rpc("current_user_circle_access_review");
+  if (error) return { data: emptyCircleAccessReview, warnings: [messageFor(error.message, "Private-post access review is temporarily unavailable.")] };
+  const source = record(data);
+  const counts = record(source.counts);
+  const members = Array.isArray(source.members)
+    ? source.members.map(normalizeAccessReviewMember).filter((member): member is CircleAccessReviewMember => Boolean(member))
+    : [];
+  const privatePosts = members.reduce((total, member) => total + member.posts.length, 0);
+  return {
+    data: {
+      members,
+      counts: {
+        formerMembers: members.length,
+        privatePosts,
+      },
+    },
+    warnings: safeCount(counts.formerMembers) === members.length && safeCount(counts.privatePosts) === privatePosts
+      ? []
+      : ["Access-review counts were normalized from the authoritative post list."],
   };
 }
 
@@ -134,5 +212,19 @@ export async function respondToCircleInvitation(relationshipId: string, accept: 
 
 export async function removeFromCircle(relationshipId: string) {
   const result = await circleMutation("remove_from_commons_circle", { p_relationship_id: relationshipId });
-  return result.ok ? { ...result, message: "Removed from your Circle. Existing posts shared explicitly with this person keep their original participant list." } : result;
+  if (!result.ok) return result;
+  const remaining = safeCount(result.data?.remainingOwnedPrivatePostCount);
+  return {
+    ...result,
+    message: remaining > 0
+      ? `Removed from Your Circle. They still have access to ${remaining} private ${remaining === 1 ? "post" : "posts"} you own. Existing private-post access was not changed.`
+      : "Removed from Your Circle.",
+  };
+}
+
+export async function removeCircleAccessReviewParticipant(accessId: string) {
+  const result = await circleMutation("remove_commune_post_circle_participant", { p_access_id: accessId });
+  return result.ok
+    ? { ...result, message: "Participant access removed from this private post. Other private-post access was not changed." }
+    : { ...result, message: result.message || "Only the private-post owner can remove this access." };
 }

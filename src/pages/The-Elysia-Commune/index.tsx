@@ -2391,21 +2391,21 @@ function CirclePostParticipantPanel({ post, onChanged }: { post: CommunePost; on
   async function remove(accessId: string) {
     setBusy(true);
     const result = await removeCommunePostCircleParticipant(accessId);
-    setMessage(result.message);
     if (result.ok) {
       await refresh();
       await onChanged();
     }
+    setMessage(result.message);
     setBusy(false);
   }
 
   return <section className="commune-private-participants" aria-labelledby="commune-private-participants-title">
-    <div className="addon-card__topline"><div><p className="eyebrow">Private Circle access</p><h3 id="commune-private-participants-title">People with access</h3></div><span>{participants.length + 1} people including author</span></div>
+    <div className="addon-card__topline"><div><p className="eyebrow">Private Circle access</p><h3 id="commune-private-participants-title">People with access</h3></div><span>{participants.length + 1} {participants.length === 0 ? "person" : "people"} including author</span></div>
     <p className="boundary-note">This is an explicit post access list. Removing someone from Your Circle prevents new sharing but does not rewrite this post automatically. The post owner can revoke this post access below.</p>
     <div className="commune-private-participant-list">
       <span className="commune-private-participant is-author"><strong>{post.author_username ? `@${post.author_username}` : "Post author"}</strong><small>Author · always included</small></span>
       {participants.map((participant) => <span className="commune-private-participant" key={participant.accessId}>
-        <span><strong>{participant.profile.displayName || `@${participant.profile.handle}`}</strong><small>@{participant.profile.handle}</small></span>
+        <span><strong>{participant.profile.displayName || `@${participant.profile.handle}`}</strong><small>@{participant.profile.handle}</small>{viewerIsOwner && participant.circleAccepted === false && <small className="commune-private-participant__circle-status">No longer in Your Circle</small>}</span>
         {viewerIsOwner && <button type="button" disabled={busy} onClick={() => void remove(participant.accessId)}>Remove access</button>}
       </span>)}
     </div>

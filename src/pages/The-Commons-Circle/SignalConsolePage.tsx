@@ -6,12 +6,14 @@ import { loadCurrentRoleState } from "../../shared/review/reviewClient";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
 import { loadAccountHomebaseCounts, type AccountHomebaseCounts } from "./accountCommunicationsApi";
 import { commonsStorageKeys, readLocalStorage } from "./commonsCircleApi";
+import { emptyCircleAccessReview, loadCurrentUserCircleAccessReview, type CircleAccessReview } from "./circleApi";
 
 type SignalHubState = {
   signedIn: boolean;
   isAdmin: boolean;
   canOpenReviewCenter: boolean;
   counts: AccountHomebaseCounts;
+  circleAccessReview: CircleAccessReview;
   warnings: string[];
 };
 
@@ -78,12 +80,16 @@ export default function SignalConsolePage() {
 
   const refresh = useCallback(async () => {
     const [roles, counts] = await Promise.all([loadCurrentRoleState(), loadAccountHomebaseCounts()]);
-    const warnings = Array.from(new Set([...roles.warnings, ...counts.warnings]));
+    const accessReview = roles.signedIn && counts.signedIn
+      ? await loadCurrentUserCircleAccessReview()
+      : { data: emptyCircleAccessReview, warnings: [] };
+    const warnings = Array.from(new Set([...roles.warnings, ...counts.warnings, ...accessReview.warnings]));
     setState({
       signedIn: roles.signedIn && counts.signedIn,
       isAdmin: roles.isAdmin,
       canOpenReviewCenter: roles.isAdmin || roles.roles.length > 0,
       counts,
+      circleAccessReview: accessReview.data,
       warnings,
     });
     setLocalActivity(loadBrowserLocalActivity());
@@ -93,6 +99,7 @@ export default function SignalConsolePage() {
   useEffect(() => { void refresh(); }, [refresh]);
 
   const counts = state?.counts ?? emptyCounts;
+  const circleAccessReview = state?.circleAccessReview ?? emptyCircleAccessReview;
 
   return <div className="page-stack commons-circle-page commons-signal-console commons-signals-hub">
     <PageHero eyebrow="Commons Circle" title="Signals">
@@ -142,7 +149,8 @@ export default function SignalConsolePage() {
             <h3>Your Circle</h3>
             <p>Accept invitations and manage the private list of Commons members who may be selected for Circle-only room posts.</p>
             <p>Circle membership is mutual consent, not following, endorsement, or authority.</p>
-            <Link className="button-link button-link--primary" to="/commons-circle/signals/circle">Open Your Circle</Link>
+            {circleAccessReview.counts.privatePosts > 0 && <p className="boundary-note">{circleAccessReview.counts.formerMembers} former Circle {circleAccessReview.counts.formerMembers === 1 ? "member still has" : "members still have"} access to {circleAccessReview.counts.privatePosts} private {circleAccessReview.counts.privatePosts === 1 ? "post" : "posts"} you own.</p>}
+            <div className="button-row"><Link className="button-link button-link--primary" to="/commons-circle/signals/circle">Open Your Circle</Link>{circleAccessReview.counts.privatePosts > 0 && <Link className="button-link" to="/commons-circle/signals/circle#access-review">Review access</Link>}</div>
           </article>
 
           <article className="section-card commons-account-room-card signals-primary-card">

@@ -86,6 +86,7 @@ const opportunityPaths = [
 const circlePrivatePaths = [
   "supabase/migrations/20260810020000_mutual_commons_circle.sql",
   "supabase/migrations/20260810030000_circle_private_commune_posts.sql",
+  "supabase/migrations/20260810040000_circle_access_review.sql",
 ];
 
 const activePaths = [

@@ -24,7 +24,7 @@ export type CommunePostAudience = "public" | "circle";
 export type CommuneAudienceInput = { postAudience?: CommunePostAudience; circleRelationshipIds?: string[]; circlePrivacyAcknowledged?: boolean };
 export type CommuneRoom = { id: string; slug: string; name: string; description?: string | null; room_type: string; requires_moderation: boolean };
 export type CommunePost = { id: string; user_id?: string; author_username?: string | null; author_profile_url?: string | null; viewer_is_owner?: boolean; post_type: CommunePostType; title: string; body: string; excerpt?: string | null; tags?: string[] | null; links?: string[] | null; repository_url?: string | null; status: CommunePostStatus; visibility: string; audience?: CommunePostAudience; visibility_state?: string | null; hidden_at?: string | null; removed_at?: string | null; archived_at?: string | null; published_at?: string | null; last_activity_at?: string | null; created_at?: string | null };
-export type CommuneCircleParticipant = { accessId: string; relationshipId: string; profile: CircleProfileCard; addedAt?: string | null };
+export type CommuneCircleParticipant = { accessId: string; relationshipId: string; profile: CircleProfileCard; addedAt?: string | null; circleAccepted?: boolean | null };
 export type CommuneThread = { id: string; post_id?: string | null; room_id?: string | null; title: string; status: string; visibility: string; last_reply_at?: string | null };
 export type CommuneComment = { id: string; thread_id: string; post_id?: string | null; parent_comment_id?: string | null; user_id?: string; author_username?: string | null; author_profile_url?: string | null; viewer_is_owner?: boolean; body: string; status: string; created_at?: string | null; published_at?: string | null };
 export type CommuneMediaAttachment = { id: string; post_id: string; file_name: string; mime_type?: string | null; file_size?: number | null; media_kind: "image" | "document" | "code_text" | "archive" | "other"; visibility_state: string; storage_bucket?: string | null; storage_path?: string | null; signed_url?: string | null; created_at?: string | null };
@@ -613,6 +613,7 @@ export async function loadCommunePostCircleParticipants(postId: string): Promise
       accessId,
       relationshipId,
       addedAt: typeof item.addedAt === "string" ? item.addedAt : null,
+      circleAccepted: item.circleAccepted === true ? true : item.circleAccepted === false ? false : null,
       profile: {
         handle,
         displayName: typeof profile.displayName === "string" ? profile.displayName : null,
