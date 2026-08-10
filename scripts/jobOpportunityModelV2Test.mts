@@ -136,7 +136,7 @@ for (const code of ["unpaid_for_profit", "unpaid_business_internship", "applican
   assert(flags.some((item) => item.code === code), `review advisory flag missing: ${code}`);
 }
 
-const [composer, fields, service, reviewClient, admin, legal, migration, workWithAuthorityMigration] = await Promise.all([
+const [composer, fields, service, reviewClient, admin, legal, migration, workWithAuthorityMigration, privateNoteBoundaryMigration] = await Promise.all([
   fs.readFile("src/pages/The-Elysia-Commune/index.tsx", "utf8"),
   fs.readFile("src/pages/The-Elysia-Commune/JobOpportunityFields.tsx", "utf8"),
   fs.readFile("src/pages/The-Elysia-Commune/communeAccountApi.ts", "utf8"),
@@ -145,6 +145,7 @@ const [composer, fields, service, reviewClient, admin, legal, migration, workWit
   fs.readFile("src/pages/Legal/legalPolicyPages.ts", "utf8"),
   fs.readFile("supabase/migrations/20260808010000_job_post_opportunity_model_v2.sql", "utf8"),
   fs.readFile("supabase/migrations/20260809010000_job_post_private_work_with_admin_authority.sql", "utf8"),
+  fs.readFile("supabase/migrations/20260810010000_job_post_private_reviewer_note_boundary.sql", "utf8"),
 ]);
 assert(composer.includes("<JobOpportunityFields") && composer.includes("jobOpportunityAcknowledgement"), "composer must use the centralized progressive v2 control and independent truth acknowledgement");
 assert(!composer.includes("Creator anti-scam") && !service.includes("private_application_note:"), "creator trust controls and writes to the public-row pseudo-private note must stay removed");
@@ -166,5 +167,6 @@ assert(
 assert(migration.includes("model_version smallint not null default 1") && !/\bupdate\s+public\.commune_job_posts\b/i.test(migration), "migration must be additive and must not rewrite legacy rows");
 assert(migration.includes('as restrictive') && migration.includes("private work with"), "first-party Work With must be RLS-enforced");
 assert(workWithAuthorityMigration.includes("public.current_user_is_admin()") && workWithAuthorityMigration.includes("/work-with-elysia-ecobotics") && !workWithAuthorityMigration.includes("organization_project"), "forward policy repair must use canonical admin authority, not free-text organization matching");
+assert(privateNoteBoundaryMigration.includes("revoke select on table public.commune_job_posts") && privateNoteBoundaryMigration.includes("'private_application_note', 'reviewed_by'") && privateNoteBoundaryMigration.includes("grant select (%s)"), "the deprecated pseudo-private note and review-actor identity must be denied at the database column-privilege boundary while safe fields remain readable");
 
 console.log("Opportunity Commons v2 model, compatibility, validation, safety, review, and legal contracts passed.");

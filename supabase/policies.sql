@@ -3502,11 +3502,20 @@ create policy "reviewers manage job post metadata" on public.commune_job_posts
   using (public.current_user_can_review_domain('commune'::public.review_domain))
   with check (public.current_user_can_review_domain('commune'::public.review_domain));
 
-revoke all on function public.update_own_commune_job_post_application_status(uuid, uuid, text, text) from public;
+revoke all on function public.update_own_commune_job_post_application_status(uuid, uuid, text, text) from public, anon;
 grant execute on function public.update_own_commune_job_post_application_status(uuid, uuid, text, text) to authenticated;
 
-grant select on table public.commune_job_posts to anon;
-grant select, insert, update on table public.commune_job_posts to authenticated;
+revoke select on table public.commune_job_posts from public, anon, authenticated;
+grant select (
+  id, post_id, thread_id, author_user_id, role_title, organization_project,
+  role_type, paid_volunteer_status, location_mode, location_text,
+  time_commitment, deadline, compensation_clarity, contact_path,
+  requirements_skills, safety_notes, role_summary, application_status,
+  anti_scam_review_status, work_with_link_enabled, public_correction_note,
+  reviewed_at, filled_at, closed_at, archived_at, created_at,
+  updated_at
+) on table public.commune_job_posts to anon, authenticated;
+grant insert, update on table public.commune_job_posts to authenticated;
 
 -- Community Voting Room snapshot. Canonical repair migrations:
 -- supabase/legacy-migrations/2026_07_05_01_commune_community_voting_room_enum.sql

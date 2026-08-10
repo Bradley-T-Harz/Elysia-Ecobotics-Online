@@ -80,6 +80,7 @@ const opportunityPaths = [
   "supabase/migrations/20260808010000_job_post_opportunity_model_v2.sql",
   "supabase/migrations/20260809010000_job_post_private_work_with_admin_authority.sql",
   "supabase/migrations/20260809020000_correct_post_a_canonical_links.sql",
+  "supabase/migrations/20260810010000_job_post_private_reviewer_note_boundary.sql",
 ];
 
 const activePaths = [

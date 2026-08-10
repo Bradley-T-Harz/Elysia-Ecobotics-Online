@@ -179,6 +179,7 @@ const futureRoleJob = {
   application_destination: "/work-with-elysia-ecobotics",
   contact_path: "/work-with-elysia-ecobotics",
   future_interest_acknowledged: true,
+  public_correction_note: "Public clarification: use only the stated Private Work With route.",
 };
 const legacyJob = {
   id: ids.legacyJob, post_id: ids.legacyPost, thread_id: null, author_user_id: ids.user,
@@ -948,6 +949,8 @@ try {
     assert(detailLayout.narrative.every((item) => item.width >= 500), "long narrative cards should receive wide desktop columns");
     assert.equal(await page.locator(".commune-job-review-controls").count(), 0, "ordinary member must not receive Job Post operator controls");
     assert.equal(await page.locator(".commune-job-economic-owner").count(), 0, "non-owner member must not receive owner economic UI");
+    assert.equal(await page.getByText("Public clarification: use only the stated Private Work With route.", { exact: true }).count(), 1, "ordinary members must retain public read access to the author's public-safe clarification");
+    assert.equal(await page.getByLabel(/^Public correction \/ clarification note/).count(), 0, "ordinary members must not receive another author's correction editor");
     const linkItems = page.locator('[aria-label="Links"] li');
     assert.deepEqual(await linkItems.allTextContents().then((values) => values.map((value) => value.trim())), ["The Elysia Commune", "Community Guidelines", "Work With Elysia Ecobotics", "Unsafe example | javascript:alert(1)"]);
     assert.equal(await linkItems.nth(0).locator("a").getAttribute("href"), "https://elysiaecobotics.com/commune", "labeled link destination changed");
@@ -968,6 +971,7 @@ try {
     await readableScreenshot(page, "desktop", "27-publication-not-verification-desktop", page.getByText(/Publication is not endorsement or verification/), 0);
     await readableScreenshot(page, "desktop", "41-published-job-post-tags-desktop", page.locator(".commune-post-detail .tag-row"), -300);
     await readableScreenshot(page, "desktop", "46-member-public-detail-no-operator-controls", page.locator(".commune-job-application-route"), -250);
+    await readableScreenshot(page, "desktop", "46b-member-public-detail-lower-read-only", page.getByText("Public application privacy", { exact: true }), 260);
     assert.equal(await page.getByText(/Opportunity Commons/i).count(), 0, "public Job Post detail must not expose internal redesign terminology");
     await context.close();
   }
@@ -978,8 +982,12 @@ try {
     await page.locator(".commune-job-review-controls").waitFor();
     assert.equal(await page.getByLabel(/^Anti-scam review/).count(), 1, "reviewer/admin must retain anti-scam controls");
     assert.equal(await page.getByLabel(/^Application status/).count(), 1, "reviewer/admin must retain listing-status controls");
+    assert.equal(await page.getByLabel(/^Public correction \/ clarification note/).count(), 1, "reviewer/admin must retain the public-safe clarification editor");
+    assert.equal(await page.getByRole("button", { name: "Save listing status" }).count(), 1, "reviewer/admin listing-status mutation control missing");
+    assert.equal(await page.getByRole("button", { name: "Save anti-scam review" }).count(), 1, "reviewer/admin anti-scam mutation control missing");
     assert.equal(await page.locator(".commune-job-economic-owner").count(), 0, "non-owner admin must not receive another author's economic UI");
     await readableScreenshot(page, "desktop", "47-admin-public-detail-operator-controls", page.locator(".commune-job-review-controls"), -220);
+    await readableScreenshot(page, "desktop", "47b-admin-public-detail-operator-actions", page.getByRole("button", { name: "Save anti-scam review" }), -360);
     await context.close();
   }
   {
@@ -989,6 +997,10 @@ try {
     await page.locator(".commune-job-review-controls").waitFor();
     assert.equal(await page.getByLabel(/^Application status/).count(), 1, "the post owner must retain listing-status controls");
     assert.equal(await page.getByLabel(/^Anti-scam review/).count(), 0, "an ordinary post owner must not receive reviewer-only anti-scam controls");
+    assert.equal(await page.getByLabel(/^Public correction \/ clarification note/).count(), 1, "the post owner must retain their public-safe clarification editor");
+    assert.equal(await page.getByRole("button", { name: "Save listing status" }).count(), 1, "the post owner listing-status mutation control missing");
+    assert.equal(await page.getByRole("button", { name: "Save anti-scam review" }).count(), 0, "the post owner must never receive the reviewer anti-scam mutation action");
+    assert.equal(await page.locator(".commune-job-economic-owner").count(), 1, "the post owner must retain only their own listing's economic-condition panel");
     await readableScreenshot(page, "desktop", "48-owner-public-detail-listing-controls", page.locator(".commune-job-review-controls"), -220);
     await context.close();
   }
@@ -1000,9 +1012,12 @@ try {
     assert.equal(await page.locator(".commune-job-review-controls").count(), 0, "logged-out reader must not receive Job Post operator controls");
     assert.equal(await page.locator(".commune-job-economic-owner").count(), 0, "logged-out reader must not receive economic UI");
     assert.equal(await page.getByLabel(/^Anti-scam review/).count(), 0, "logged-out reader must not receive anti-scam controls");
+    assert.equal(await page.getByLabel(/^Public correction \/ clarification note/).count(), 0, "logged-out readers must not receive a public-correction editor");
+    assert.equal(await page.getByText("Public clarification: use only the stated Private Work With route.", { exact: true }).count(), 1, "logged-out readers must retain public read access to public-safe clarification text");
     await assertNoOverflow(page, "logged-out mobile public Job detail");
     await readableScreenshot(page, "mobile", "24-logged-out-public-detail-no-private-controls", page.locator(".commune-post-context-header"), -80);
     await readableScreenshot(page, "mobile", "25-logged-out-public-detail-structured", page.locator(".commune-job-native-details"), -80);
+    await readableScreenshot(page, "mobile", "25b-logged-out-public-detail-lower-read-only", page.getByText("Public application privacy", { exact: true }), 220);
     await context.close();
   }
   if (readableEvidenceDir) {
