@@ -1,6 +1,8 @@
 # Submission and Review Process
 
-A developer creates a draft, edits the inert Forge workspace, validates the manifest, explains permissions, prepares package metadata, previews the listing, and submits for Marketplace review.
+A developer creates a draft, edits the inert Forge workspace or imports an explicitly selected source, validates the manifest, explains permissions, prepares package metadata, previews the listing, and submits for Marketplace review.
+
+Local/in-browser import, local package export, private package transfer, submission, approval, publication, installation, and enablement are distinct states. Before private transfer, the website must disclose that selected files leave the developer's computer for Elysia Ecobotics / EcoSyneva Commons review infrastructure. Submission creates only a private pending-review record and never public-lists automatically.
 
 Reviewers may request changes, reject, approve, place a security hold, publish approved versions through Marketplace tooling, or revoke listings/versions. Developers cannot approve, publish, or revoke their own submissions.
 
@@ -11,5 +13,7 @@ Submitted drafts are locked against ordinary owner edits. If a developer needs t
 What is live: profile requests, drafts, Monaco-backed inert workspace editing with text fallback, Ajv/semver manifest validation, permission design, private package metadata, inert package export, immutable submission snapshots, review status tracking, reviewer package inspection, Marketplace publication records, and revocation records. Local install/sandbox handoff remains a local Elysia authority boundary.
 
 Publication does not mean installation, signing, or runtime trust. A published Marketplace listing can only prepare an install intent. Local Elysia must still validate, review permissions, and decide whether anything may be installed or enabled.
+
+Admin review reduces risk but does not guarantee safety. Installed does not mean enabled; enabled does not mean unrestricted; a granted permission does not create broad authority.
 
 Private reviewer notes and package review evidence are not public. Developer-facing feedback is intentionally separate.

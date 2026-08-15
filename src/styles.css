@@ -4765,6 +4765,90 @@ button.commune-vote-option-card:disabled {
   --forge-gold: #d8b66f;
 }
 
+.addon-intake-panel {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0.8rem 0;
+}
+
+.addon-intake-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.addon-intake-option {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.025);
+}
+
+.addon-intake-option span,
+.addon-intake-summary > p,
+.addon-intake-file-list span {
+  color: var(--muted);
+}
+
+.addon-intake-option input[type="file"] {
+  width: 100%;
+}
+
+.addon-intake-summary {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(20, 92, 73, 0.08);
+}
+
+.addon-intake-summary--blocked {
+  border-color: rgba(255, 112, 112, 0.45);
+  background: rgba(126, 35, 35, 0.09);
+}
+
+.addon-intake-file-list {
+  display: grid;
+  gap: 0.35rem;
+  max-height: 18rem;
+  overflow: auto;
+  padding: 0.5rem 0.25rem 0.5rem 1.4rem;
+}
+
+.addon-intake-file-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: baseline;
+}
+
+.addon-intake-file-list code {
+  overflow-wrap: anywhere;
+}
+
+.submission-permissions {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0.85rem 0;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+}
+
+@media (max-width: 720px) {
+  .addon-intake-options {
+    grid-template-columns: 1fr;
+  }
+
+  .addon-intake-file-list li {
+    grid-template-columns: 1fr;
+  }
+}
+
 .forge-nav,
 .forge-doc-links {
   display: flex;

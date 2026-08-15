@@ -255,6 +255,7 @@ function allowHit(file, line, checkName) {
   if (normalized.endsWith("src/shared/sandbox/sandboxRequestValidator.ts") && /pattern|secret|scanner|scan|block|dangerous|SUPABASE_SERVICE_ROLE|service_role|postinstall|preinstall|child_process|exec|spawn|eval|new\s\+Function/i.test(line)) return true;
   if (normalized.endsWith("src/shared/sandbox/sandboxHandoffBuilder.ts") && /does not execute|website_executed_code|private_reviewer_notes_included/i.test(line)) return true;
   if (normalized.endsWith("src/shared/addons/browserArchiveInspector.ts") && /pattern|scanner|scan|blocked|inspect|archive|does not execute|will not execute|SUPABASE_SERVICE_ROLE|service_role|postinstall|preinstall|child_process|exec|spawn|eval|new\s\+Function/i.test(line)) return true;
+  if (normalized.endsWith("src/shared/addons/browserAddonIntake.ts") && /pattern|scanner|scan|blocked|inspect|archive|credential|private key|SUPABASE_SERVICE_ROLE|service_role|postinstall|preinstall|child_process|exec|spawn|eval|new\s\+Function/i.test(line)) return true;
   if (normalized.endsWith("src/pages/The-Developer-Forge/developerForgeValidator.ts") && /pattern|blocked|scanner|scan|Static scan|secret-looking|dangerousShellPattern|forbiddenManifestFields/i.test(line)) return true;
   if (normalized.includes("docs/") && /flag|scanner|warning|policy|`|does not execute|never executes|never installs|archive inspection|service-role|SUPABASE_SERVICE_ROLE|postinstall|preinstall/i.test(line)) return true;
   if (checkName === "package hook execution" && /blocked|scan|scanner|policy|documentation|does not execute|will not execute/i.test(line)) return true;
@@ -269,6 +270,7 @@ async function listFiles(dir) {
   for (const entry of entries) {
     if (["node_modules", "dist", ".git"].includes(entry.name)) continue;
     const full = path.join(dir, entry.name);
+    if (entry.isDirectory() && full.replaceAll(path.sep, "/") === "supabase/.temp") continue;
     if (entry.isDirectory()) files.push(...await listFiles(full));
     else if (includeExtensions.has(path.extname(entry.name))) files.push(full);
   }

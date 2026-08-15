@@ -25,8 +25,8 @@ export default function BrowsePage() {
         <p className="eyebrow">Marketplace Catalog</p>
         <h1>Browse Elysia add-ons</h1>
         <p>
-          Search official, reviewed, community, and planned add-ons. Each listing shows marketplace truth only:
-          trust tier, manifest status, dependency declarations, and future local action previews.
+          Browse reviewed public add-ons and clearly labeled official candidates. Core dependencies are not add-ons,
+          candidates are not installable, and admin review reduces risk but does not guarantee safety.
         </p>
         <div className="page-header__actions">
           <Link className="button-link" to="/marketplace/trust">How trust tiers work</Link>

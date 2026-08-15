@@ -2,7 +2,7 @@
 
 A future `.elysia-addon` package should contain `manifest.json`, `README.md`, `LICENSE`, `CHANGELOG.md`, optional assets, and optional source files.
 
-Developer Forge package intake is inert. It can calculate metadata and private storage paths when policies are active, but it does not build packages or execute code. Published packages require Marketplace review.
+Developer Forge package intake is inert. It can import explicitly selected folders/repositories, ZIP source bundles, `.elysia-addon` files, or a manifest into browser memory and prepare a ZIP-compatible package without executing code. Choosing files does not upload them. A separate acknowledged private-transfer action may store the package for account-backed review when policies are active. Published packages require Marketplace review.
 
 Current Forge exports are inert browser-built starter archives. They may include `manifest.json`, `README.md`, `LICENSE`, `CHANGELOG.md`, `PERMISSIONS.md`, starter placeholder files, and `checksums.json`. Exporting a `.elysia-addon` file from the website does not mean the package is reviewed, published, installed, enabled, or safe. Local Elysia must validate the archive, hashes, permissions, compatibility, revocation status, and user consent before any local installation.
 
@@ -25,4 +25,4 @@ checksums.json
 
 The local packager excludes common working folders such as `node_modules`, `.git`, and `dist` by default. It refuses path traversal, absolute paths, `.env` files, credential filenames, and blocking static scan results.
 
-No package hook, build hook, dependency install, repository clone, or add-on runtime code is executed during package creation or inspection.
+No package hook, build hook, dependency install, repository clone, or add-on runtime code is executed during package creation or inspection. Git URLs are review metadata only.

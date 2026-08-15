@@ -10,13 +10,15 @@ import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import type { AddonDraft } from "./developerForgeApi";
 import type { ForgeValidationResult } from "./developerForgeValidator";
+import "../../shared/editor/localMonaco";
 
 export type ForgeWorkspaceFile = {
   path: string;
   label: string;
-  language: "json" | "markdown" | "typescript" | "javascript" | "text";
+  language: "json" | "markdown" | "typescript" | "javascript" | "css" | "html" | "python" | "rust" | "yaml" | "toml" | "text";
   value: string;
   locked?: boolean;
+  imported?: boolean;
 };
 
 export type ForgeCommandAction = {
@@ -51,6 +53,12 @@ function languageForMonaco(language: ForgeWorkspaceFile["language"]) {
   if (language === "markdown") return "markdown";
   if (language === "typescript") return "typescript";
   if (language === "javascript") return "javascript";
+  if (language === "css") return "css";
+  if (language === "html") return "html";
+  if (language === "python") return "python";
+  if (language === "rust") return "rust";
+  if (language === "yaml") return "yaml";
+  if (language === "toml") return "toml";
   return "plaintext";
 }
 
@@ -148,7 +156,7 @@ export function ForgeWorkbenchSurface({
         <span>{file.label}</span>
         {file.locked && <small>locked</small>}
       </button>)}
-      <p className="boundary-note">Virtual files only. The website does not read local folders, run package code, or control local Elysia.</p>
+      <p className="boundary-note">Virtual and explicitly imported files only. Local imports stay in browser memory until a separate private-transfer action. The website never runs package code or controls local Elysia.</p>
     </aside>
     <div className="forge-editor-stack">
       <div className="forge-editor-tabs">{files.map((file) => <button type="button" className={file.path === active.path ? "active" : ""} key={file.path} onClick={() => onSelect(file.path)}>{file.label}</button>)}</div>

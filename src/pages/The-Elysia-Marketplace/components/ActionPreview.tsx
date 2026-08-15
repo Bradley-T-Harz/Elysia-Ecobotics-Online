@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import type { AddonManifest } from "../types";
 import { toneForRisk } from "../lib/securityLabels";
 import TrustBadge from "./TrustBadge";
+import { canPrepareMarketplaceInstall } from "../lib/listingTruth";
 
 type ActionPreviewProps = {
   addon: AddonManifest | null;
@@ -28,6 +29,7 @@ export default function ActionPreview({ addon, onSaveAddon, onPrepareLocalInstal
       </section>
     );
   }
+  const installAvailable = canPrepareMarketplaceInstall(addon);
 
   return (
     <section className="action-preview action-preview--full">
@@ -53,11 +55,12 @@ export default function ActionPreview({ addon, onSaveAddon, onPrepareLocalInstal
         ))}
       </div>
       <div className="button-row">
-        <button type="button" onClick={() => onSaveAddon(addon.id)}>Save plan</button>
+        <button type="button" disabled={!installAvailable} onClick={() => onSaveAddon(addon.id)}>{installAvailable ? "Save plan" : "Plan unavailable"}</button>
         <Link className="button-link" to={`/marketplace/addons/${addon.id}`}>View Manifest</Link>
         <Link className="button-link" to="/marketplace/browse">Browse Add-ons</Link>
-        <button type="button" onClick={() => onPrepareLocalInstall(addon.id)}>Prepare Local Install</button><button type="button" disabled>.elysia-addon package preview only</button><a className="button-link" href="/catalog-preview.json" target="_blank" rel="noreferrer">View catalog preview JSON</a><button type="button" disabled>Copy install command, planned</button>
+        <button type="button" disabled={!installAvailable} onClick={() => onPrepareLocalInstall(addon.id)}>{installAvailable ? "Prepare Local Install" : "Local install unavailable"}</button><button type="button" disabled>.elysia-addon package preview only</button><a className="button-link" href="/catalog-preview.json" target="_blank" rel="noreferrer">View catalog preview JSON</a><button type="button" disabled>Copy install command, planned</button>
       </div>
+      {!installAvailable && <p className="boundary-note">This candidate is not an approved public install listing. The action information above is disclosure metadata only.</p>}
     </section>
   );
 }

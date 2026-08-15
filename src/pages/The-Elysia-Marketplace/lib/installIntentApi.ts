@@ -1,5 +1,6 @@
 import type { AddonManifest, MarketplaceApiResult } from "../types";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "./supabase";
+import { canPrepareMarketplaceInstall } from "./listingTruth";
 
 export type InstallIntentResult = {
   created: boolean;
@@ -51,6 +52,7 @@ async function sha256Hex(value: string): Promise<string> {
 }
 
 function blockedByManifest(addon: AddonManifest) {
+  if (!canPrepareMarketplaceInstall(addon)) return true;
   if (["revoked", "security_hold", "deprecated", "rejected"].includes(addon.status ?? "")) return true;
   if (["blocked", "deprecated"].includes(addon.trust_tier)) return true;
   return false;
@@ -81,7 +83,7 @@ export async function prepareLocalInstallIntent(addon: AddonManifest): Promise<M
     return configured({
       created: false,
       opened: false,
-      message: "This add-on is not install-intent eligible because it is blocked, revoked, deprecated, rejected, or under security hold. Local Elysia cannot be asked to install it from the website."
+      message: "This add-on is not install-intent eligible because it is not a reviewed public listing, or it is blocked, revoked, deprecated, rejected, or under security hold. Local Elysia cannot be asked to install it from the website."
     }, ["Install intent blocked by Marketplace status."]);
   }
 

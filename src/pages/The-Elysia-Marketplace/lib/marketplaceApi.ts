@@ -12,6 +12,16 @@ import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "./sup
 import { createReviewItem } from "../../../shared/review/reviewClient";
 
 const seedBySlug = new Map(seedAddons.map((addon) => [addon.id, addon]));
+const hiddenLegacyMarketplaceIds = new Set(["advanced-pdf-parser", "ollama-local-models", "searxng-research"]);
+const hiddenLegacyMarketplaceNames = new Set(["advanced pdf parser", "ollama local models", "searxng research"]);
+
+export function isHiddenLegacyMarketplaceListing(addon: Pick<AddonManifest, "id" | "name">) {
+  return hiddenLegacyMarketplaceIds.has(addon.id.toLowerCase()) || hiddenLegacyMarketplaceNames.has(addon.name.trim().toLowerCase());
+}
+
+function visibleCatalog(addons: AddonManifest[]) {
+  return addons.filter((addon) => !isHiddenLegacyMarketplaceListing(addon));
+}
 
 const demoProfile: MarketplaceProfile = {
   username: "demo-builder",
@@ -23,7 +33,7 @@ const demoProfile: MarketplaceProfile = {
   organization: "",
   is_developer: true,
   is_admin: true,
-  saved_addon_ids: ["advanced-pdf-parser", "searxng-research"]
+  saved_addon_ids: []
 };
 
 function demo<T>(data: T, extraWarnings: string[] = []): MarketplaceApiResult<T> {
@@ -276,7 +286,7 @@ async function ensureMarketplaceProfileForUser(user: { id: string; email?: strin
 
 
 export async function loadPublishedAddons(): Promise<MarketplaceApiResult<AddonManifest[]>> {
-  if (!hasSupabaseConfig || !supabase) return demo(seedAddons);
+  if (!hasSupabaseConfig || !supabase) return demo(visibleCatalog(seedAddons), ["Only truthful local candidate metadata is shown; it is not installable."]);
 
   const { data: liveData, error: liveError } = await supabase
     .from("marketplace_listings")
@@ -286,13 +296,14 @@ export async function loadPublishedAddons(): Promise<MarketplaceApiResult<AddonM
     .order("name", { ascending: true });
 
   if (!liveError && (liveData?.length ?? 0) > 0) {
-    const liveAddons = ((liveData ?? []) as MarketplaceListingRow[]).map(liveListingToManifest);
+    const liveAddons = visibleCatalog(((liveData ?? []) as MarketplaceListingRow[]).map(liveListingToManifest));
     const liveIds = new Set(liveAddons.map((addon) => addon.id));
-    return configuredResult([...liveAddons, ...seedAddons.filter((addon) => !liveIds.has(addon.id))], {
+    const candidates = visibleCatalog(seedAddons).filter((addon) => !liveIds.has(addon.id));
+    return configuredResult([...liveAddons, ...candidates], {
       sourceState: "supabase_connected",
       statusMessage: `Supabase is connected and returned ${liveAddons.length} reviewed Marketplace listing${liveAddons.length === 1 ? "" : "s"}.`,
-      seedFallbackActive: true,
-      warnings: ["Live reviewed listings are shown first. Local seed catalog entries remain as examples until replaced by published listings."]
+      seedFallbackActive: candidates.length > 0,
+      warnings: candidates.length ? ["Live reviewed listings are shown first. Codev is separately labeled as a non-installable official candidate."] : []
     });
   }
 
@@ -304,8 +315,8 @@ export async function loadPublishedAddons(): Promise<MarketplaceApiResult<AddonM
 
   if (error) {
     const liveMessage = liveError ? ` Live reviewed listing query also failed: ${liveError.message}.` : "";
-    const message = `Supabase is configured, but the approved add-on query failed: ${error.message}.${liveMessage} Showing local seed catalog.`;
-    return configuredResult(seedAddons, {
+    const message = `Supabase is configured, but the approved add-on query failed: ${error.message}.${liveMessage} Showing only non-installable local candidate metadata.`;
+    return configuredResult(visibleCatalog(seedAddons), {
       sourceState: "supabase_query_failed",
       statusMessage: message,
       warnings: [message],
@@ -315,8 +326,8 @@ export async function loadPublishedAddons(): Promise<MarketplaceApiResult<AddonM
 
   const rows = (data ?? []) as AddonRow[];
   if (!rows.length) {
-    const message = "Supabase is connected, but no approved remote add-ons were returned. Showing local seed catalog.";
-    return configuredResult(seedAddons, {
+    const message = "Supabase is connected, but no approved remote add-ons were returned. Showing only non-installable official candidate metadata.";
+    return configuredResult(visibleCatalog(seedAddons), {
       sourceState: "supabase_empty_seed_fallback",
       statusMessage: message,
       warnings: [message],
@@ -324,9 +335,12 @@ export async function loadPublishedAddons(): Promise<MarketplaceApiResult<AddonM
     });
   }
 
-  return configuredResult(rows.map(rowToManifest), {
+  const visibleRows = visibleCatalog(rows.map(rowToManifest));
+  const visibleIds = new Set(visibleRows.map((addon) => addon.id));
+  const candidates = visibleCatalog(seedAddons).filter((addon) => !visibleIds.has(addon.id));
+  return configuredResult([...visibleRows, ...candidates], {
     sourceState: "supabase_connected",
-    statusMessage: `Supabase is connected and returned ${rows.length} approved add-on${rows.length === 1 ? "" : "s"}.`
+    statusMessage: `Supabase is connected and returned ${visibleRows.length} visible approved add-on${visibleRows.length === 1 ? "" : "s"}. Named legacy dependency listings are hidden in website source without deleting database rows.`
   });
 }
 

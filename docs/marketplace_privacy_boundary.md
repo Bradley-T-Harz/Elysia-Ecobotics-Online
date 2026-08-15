@@ -6,6 +6,8 @@ Marketplace data may include account email handled by Supabase Auth, public prof
 
 The marketplace must not collect local Elysia passwords, local files, local memory, request traces, operator-room state, dependency inventory, vault content, `.env` data, SSH keys, or private machine metadata by default.
 
+Developer submission is the narrow exception for files the developer explicitly selects. Folder/package import and static inspection run in browser memory first. A separate confirmation must disclose that the selected files leave the developer's computer and transfer to Elysia Ecobotics / EcoSyneva Commons review infrastructure. The website must never describe that transfer as local-only, silently include unselected files, clone a Git URL, or publish a submission automatically.
+
 Future linking should use a short-lived pairing code. Passwords must never be shared between marketplace and local Elysia.
 
 

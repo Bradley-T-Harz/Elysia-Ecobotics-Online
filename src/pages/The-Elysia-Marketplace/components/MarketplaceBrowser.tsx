@@ -20,10 +20,10 @@ export default function MarketplaceBrowser({ addons, totalCount, selectedAddonId
           <p className="eyebrow">Browse Add-ons</p>
           <h2>{addons.length} visible / {totalCount} total</h2>
         </div>
-        <p>Seed add-ons render without Supabase. When Supabase is configured, profiles, saved add-ons, submissions, and review queues use real RLS-governed Marketplace data.</p>
+        <p>Reviewed public listings come from the governed Marketplace catalog. Local fallback content is limited to clearly labeled, non-installable official candidates.</p>
       </div>
       {addons.length === 0 ? (
-        <div className="empty-state">No add-ons match this filter set.</div>
+        <div className="empty-state">No reviewed public add-ons match this view. An honest empty catalog is shown instead of core dependencies or nonfunctional examples.</div>
       ) : (
         <div className="addon-grid">
           {addons.map((addon) => (

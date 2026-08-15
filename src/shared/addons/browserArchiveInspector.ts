@@ -40,6 +40,19 @@ function likelyText(path: string) {
   return /\.(json|md|txt|ts|tsx|js|jsx|mjs|cjs|css|html|yml|yaml|toml|csv|svg)$/i.test(path) || ["README", "LICENSE", "CHANGELOG", "PERMISSIONS"].some((name) => path.toUpperCase().endsWith(name));
 }
 
+function archiveEntryKind(unixPermissions: number | string | null | undefined) {
+  if (typeof unixPermissions === "string") {
+    if (unixPermissions.startsWith("l")) return "symlink";
+    if (!unixPermissions.startsWith("-") && !unixPermissions.startsWith("d")) return "special";
+  }
+  if (typeof unixPermissions === "number") {
+    const kind = unixPermissions & 0o170000;
+    if (kind === 0o120000) return "symlink";
+    if (kind !== 0 && kind !== 0o100000 && kind !== 0o040000) return "special";
+  }
+  return "ordinary";
+}
+
 async function sha256(bytes: Uint8Array) {
   const copy = new Uint8Array(bytes.byteLength);
   copy.set(bytes);
@@ -82,6 +95,11 @@ export async function inspectArchiveFile(file: File): Promise<BrowserArchiveInsp
     const originalPath = entry.unsafeOriginalName && entry.unsafeOriginalName !== entry.name ? entry.unsafeOriginalName : entry.name;
     const pathProblem = unsafePath(entry.name) ?? (originalPath !== entry.name ? unsafePath(originalPath) : null);
     if (pathProblem) errors.push(issue("unsafe_path", `${originalPath}: ${pathProblem}`, entry.name));
+    const entryKind = archiveEntryKind(entry.unixPermissions);
+    if (entryKind !== "ordinary") {
+      errors.push(issue(entryKind === "symlink" ? "symlink_blocked" : "special_file_blocked", `${entryKind} archive entry is blocked.`, entry.name));
+      continue;
+    }
     if (entry.dir) {
       file_inventory.push({ path: entry.name, kind: "directory", size: 0, scanned_as_text: false });
       continue;

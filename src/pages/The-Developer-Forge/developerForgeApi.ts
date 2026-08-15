@@ -387,6 +387,9 @@ function safeFileName(name: string) {
 }
 
 export async function uploadPackageMetadata(draft: AddonDraft, file: File): Promise<{ packageRow: AddonPackageRow | null; scan: ForgeValidationResult[]; warnings: string[] }> {
+  if (!/\.(elysia-addon|zip)$/i.test(file.name)) {
+    return { packageRow: null, scan: [{ severity: "blocked", code: "unsupported_package_type", message: "Private package transfer accepts only .elysia-addon or ZIP-compatible source bundles." }], warnings: ["Package was not transferred."] };
+  }
   const sha256 = await calculateBrowserSha256(file);
   const scan = staticSafetyScan({ fileName: file.name, fileSize: file.size, manifestText: JSON.stringify(draft.manifest_json) });
   let archiveInspection: BrowserArchiveInspectionResult | null = null;
@@ -402,6 +405,7 @@ export async function uploadPackageMetadata(draft: AddonDraft, file: File): Prom
     }
   }
   const scanStatus = scan.some((item) => item.severity === "blocked" || item.severity === "error") ? "blocked" : scan.some((item) => item.severity === "warning" || item.severity === "needs_reviewer") ? "warning" : "passed";
+  if (scanStatus === "blocked") return { packageRow: null, scan, warnings: ["Blocking static/archive findings prevented private package transfer."] };
   if (draft.id.startsWith("local-")) return { packageRow: null, scan, warnings: ["Package scan ran locally. Sign in and save an account-backed draft before uploading private package metadata."] };
   const { userId, warning } = await currentUserId();
   if (!userId || !supabase) return { packageRow: null, scan, warnings: [warning ?? supabaseNotConfiguredMessage] };

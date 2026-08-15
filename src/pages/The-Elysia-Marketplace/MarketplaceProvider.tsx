@@ -50,7 +50,7 @@ export default function MarketplaceProvider() {
     setDemoMode((current) => current || catalog.demoMode);
     setSeedFallbackActive(Boolean(catalog.seedFallbackActive));
     setCatalogSourceState(catalog.sourceState ?? null);
-    setCatalogStatusMessage(catalog.statusMessage ?? (catalog.demoMode ? "Seed catalog fallback active." : "Supabase catalog loaded."));
+    setCatalogStatusMessage(catalog.statusMessage ?? (catalog.demoMode ? "Non-installable candidate fallback active." : "Supabase catalog loaded."));
     catalog.warnings.forEach(pushMessage);
   }, [pushMessage]);
 

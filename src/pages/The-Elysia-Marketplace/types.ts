@@ -101,6 +101,7 @@ export type AddonManifest = {
   signature_status?: "unsigned" | "pending" | "signed" | "signature_failed" | string;
   package_sha256?: string;
   revocation_reason?: string;
+  listing_stage?: "reviewed_public" | "official_candidate" | "legacy_reviewed";
 };
 
 export type CatalogFilters = {

@@ -4,10 +4,10 @@ import PageBrandMark from "../../../shared/components/PageBrandMark";
 import { useMarketplaceContext } from "./useMarketplaceContext";
 
 const steps = [
-  { title: "Catalog", detail: "Browse approved, planned, and review-labeled add-ons without granting local authority." },
+  { title: "Catalog", detail: "Browse reviewed public listings and explicitly non-installable candidates without granting local authority." },
   { title: "Manifest", detail: "Inspect dependencies, action kinds, network behavior, and security declarations." },
   { title: "Review", detail: "Trust tiers and admin review state separate official, reviewed, community, and unreviewed entries." },
-  { title: "Save / Prepare", detail: "Save add-ons to a marketplace profile or prepare an install plan for later local review." },
+  { title: "Save / Prepare", detail: "Save eligible reviewed listings or prepare an install-review intent for later local review." },
   { title: "Local Elysia later", detail: "Only local Elysia can execute approved actions through the password-gated Add-ons room." }
 ];
 
@@ -25,7 +25,7 @@ export default function MarketplaceHomePage() {
             The Elysia Marketplace distributes digital add-ons, extensions, themes, tools, and manifests for Elysia while keeping local install authority inside local Elysia.
           </p>
           <p className="boundary-note">
-            Marketplace actions prepare plans only. It stores public add-on metadata and account-linked saved items; it does not access private Elysia memory, files, logs, credentials, identity vaults, or machine data.
+            Marketplace actions prepare plans only. It never accesses private Elysia memory, logs, credentials, identity vaults, or unselected machine data. Developer submission can transfer only files the developer explicitly selects after a clear remote-upload confirmation.
           </p>
           <div className="hero-actions">
             <Link className="button-link button-link--primary" to="/marketplace/browse"><Store size={18} /> Browse Add-ons</Link>
@@ -38,12 +38,12 @@ export default function MarketplaceHomePage() {
           <PageBrandMark variant="marketplace-column" />
           <aside className="hero-card production-card">
             <ShieldCheck size={38} />
-            <h2>{supabaseConfigured ? "Supabase status" : "Seed catalog ready"}</h2>
+            <h2>{supabaseConfigured ? "Supabase status" : "Candidate catalog ready"}</h2>
             <p>{catalogStatusMessage}</p>
-            {seedFallbackActive && <p className="boundary-note">Seed catalog fallback is active. This is a browse/demo fallback, not local installation state.</p>}
+            {seedFallbackActive && <p className="boundary-note">Local candidate fallback is active. Candidate metadata is not approval, public listing, download, or local installation state.</p>}
             <dl className="mini-facts">
               <div><dt>Catalog entries</dt><dd>{sortedAddons.length}</dd></div>
-              <div><dt>Local machine data</dt><dd>Not collected</dd></div>
+              <div><dt>Local machine data</dt><dd>Unselected data not collected</dd></div>
               <div><dt>Commerce</dt><dd>Separate test-mode offers only</dd></div>
               <div><dt>Execution</dt><dd>Future local Elysia only</dd></div>
             </dl>

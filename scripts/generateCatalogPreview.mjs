@@ -4,7 +4,7 @@ import ts from "typescript";
 import vm from "node:vm";
 
 const root = process.cwd();
-const sourcePath = path.join(root, "src/data/seedAddons.ts");
+const sourcePath = path.join(root, "src/pages/The-Elysia-Marketplace/data/seedAddons.ts");
 const source = fs.readFileSync(sourcePath, "utf8");
 const transpiled = ts.transpileModule(source, {
   compilerOptions: {
@@ -24,7 +24,7 @@ if (!Array.isArray(seedAddons)) {
 const output = {
   schema_version: "0.1",
   generated_from: "src/data/seedAddons.ts",
-  note: "Static public preview only. Local Elysia must validate manifests before future local actions.",
+  note: "Static candidate metadata only. Candidate status is not publication, installability, enablement, or authority. Local Elysia must validate any future reviewed package.",
   addons: seedAddons
 };
 

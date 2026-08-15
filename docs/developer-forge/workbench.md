@@ -5,6 +5,8 @@ The Developer Forge workbench is an inert add-on studio for preparing Elysia add
 ## What the workbench can do
 
 - Edit virtual draft files such as `manifest.json`, `README.md`, `LICENSE`, and review-boundary notes.
+- Import an explicitly selected local folder/repository, ZIP source bundle, `.elysia-addon`, or `manifest.json` into browser memory.
+- Show the imported file tree, file count, total size, manifest/license presence, dependency-file inventory, and static findings.
 - Use Monaco syntax highlighting when available, with a plain text fallback.
 - Validate manifests with structured Ajv checks, URL format checks, and semver version checks.
 - Preview Markdown through sanitized rendering with GitHub-flavored Markdown support.
@@ -14,11 +16,13 @@ The Developer Forge workbench is an inert add-on studio for preparing Elysia add
 - Submit immutable review snapshots.
 - Duplicate a locked draft for a revision.
 
+Choosing files is not an upload. Import and initial static inspection happen in browser memory. A separate private-transfer action requires an explicit disclosure acknowledgment before selected bytes can leave the computer for Elysia Ecobotics / EcoSyneva Commons review infrastructure. A Git repository URL is metadata only and is never silently fetched or cloned.
+
 ## What the workbench must not do
 
 - It must not run package code, scripts, build hooks, dependency hooks, or shell commands.
 - It must not install, enable, disable, or control local Elysia.
-- It must not access private local Elysia memory, logs, vaults, credentials, private repositories, or machine data.
+- It must not access private local Elysia memory, logs, vaults, credentials, or machine data. It reads only files the developer explicitly selects; developers must not select private repositories or confidential material for remote review.
 - It must not expose private packages before review publication.
 - It must not let developers approve, publish, revoke, or trust-label their own submissions.
 

@@ -14,7 +14,7 @@ export default function AddonDetailsPage() {
         <p className="eyebrow">Add-on not found</p>
         <h1>No marketplace add-on matches this route.</h1>
         <p>
-          The add-on may not exist in the current seed catalog, may still be in review,
+          The add-on may not exist in the current reviewed/candidate catalog, may still be in private review,
           or may require Supabase catalog data that is not configured yet.
         </p>
         <Link className="button-link button-link--primary" to="/marketplace/browse">Back to Browse Add-ons</Link>

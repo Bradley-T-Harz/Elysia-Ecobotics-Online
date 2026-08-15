@@ -4,6 +4,7 @@ import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
+import JSZip from "jszip";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const dist = path.join(root, "dist");
@@ -80,6 +81,33 @@ assert(
 );
 const origin = `http://127.0.0.1:${address.port}`;
 const browser = await chromium.launch({ headless: true });
+const intakeZip = new JSZip();
+intakeZip.file("manifest.json", JSON.stringify({
+  schema_version: "1.0",
+  addon_id: "developer.browser-intake",
+  name: "Browser Intake",
+  version: "0.1.0",
+  description: "Synthetic browser regression package.",
+  author: { name: "Regression Test", url: "https://example.com" },
+  license: "MIT",
+  entrypoints: [],
+  permissions: ["public_docs_read"],
+  compatibility: { elysia_min_version: "0.1.0", addon_api_version: "0.1" },
+  runtime: { kind: "static", requires_network: false, requires_filesystem: false },
+  security: { sandbox_required: false, network_domains: [], file_access: [] }
+}, null, 2));
+intakeZip.file("README.md", "# Browser Intake\n\nSynthetic regression package only.");
+intakeZip.file("LICENSE", "MIT");
+const intakeBytes = await intakeZip.generateAsync({ type: "nodebuffer" });
+const blockedIntakeZip = new JSZip();
+blockedIntakeZip.file("manifest.json", JSON.stringify({
+  schema_version: "1.0",
+  addon_id: "developer.blocked-browser-intake",
+  name: "Blocked Browser Intake",
+  version: "0.1.0"
+}));
+blockedIntakeZip.file(".env", "EXAMPLE_SECRET=must-not-transfer");
+const blockedIntakeBytes = await blockedIntakeZip.generateAsync({ type: "nodebuffer" });
 
 try {
   for (const viewport of [
@@ -97,9 +125,10 @@ try {
     const badResponses = [];
     const loadedScripts = [];
     const sandboxRequests = [];
+    let currentPhase = "initial Developer Forge route";
 
     page.on("pageerror", (error) =>
-      pageErrors.push(error.stack || error.message),
+      pageErrors.push(`${currentPhase}: ${error.stack || error.message}`),
     );
     page.on("console", (message) => {
       if (message.type() === "error") consoleErrors.push(message.text());
@@ -160,6 +189,48 @@ try {
         .isVisible(),
       "The no-execution boundary must remain visible.",
     );
+    currentPhase = "create local draft";
+    await page.goto(`${origin}/developer-forge/drafts/new`, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "Create blank manifest draft" }).click();
+    await page.waitForFunction(() => {
+      try { return (JSON.parse(localStorage.getItem("developerForge.localDrafts.v1") ?? "[]")?.length ?? 0) > 0; }
+      catch { return false; }
+    });
+    currentPhase = "open draft workbench";
+    await page.goto(`${origin}/developer-forge/drafts`, { waitUntil: "networkidle" });
+    await page.getByRole("heading", { name: "Package and repository intake" }).waitFor({ state: "visible" });
+    assert(await page.getByText("Package or source bundle", { exact: true }).isVisible(), "Forge must expose .elysia-addon/ZIP/manifest intake.");
+    assert(await page.getByText("Folder or repository", { exact: true }).isVisible(), "Forge must expose browser folder/repository intake.");
+    const packageInput = page.locator('input[type="file"]:not([webkitdirectory])').last();
+    currentPhase = "inspect inert package";
+    await packageInput.setInputFiles({ name: "browser-intake.elysia-addon", mimeType: "application/vnd.elysia-addon+zip", buffer: intakeBytes });
+    await page.getByText("3 files held in browser memory", { exact: false }).waitFor({ state: "visible" });
+    assert(await page.getByText("no remote transfer occurred", { exact: false }).isVisible(), "Selecting a Forge package must remain local until separate confirmation.");
+    const transferButton = page.getByRole("button", { name: "Transfer selected package privately" });
+    assert(await transferButton.isDisabled(), "Private package transfer must require explicit disclosure confirmation.");
+    assert(await page.getByText("will leave my computer", { exact: false }).isVisible(), "Forge private transfer disclosure is missing.");
+    currentPhase = "refuse credential-bearing package";
+    await packageInput.setInputFiles({ name: "blocked-browser-intake.elysia-addon", mimeType: "application/vnd.elysia-addon+zip", buffer: blockedIntakeBytes });
+    await page.getByText(/\.env files are (?:blocked|not accepted)/i).first().waitFor({ state: "visible" });
+    assert(await transferButton.isDisabled(), "A package with blocked credential-bearing material must not become transferable.");
+
+    currentPhase = "open Marketplace Submit";
+    await page.goto(`${origin}/marketplace/submit`, { waitUntil: "networkidle" });
+    await page.getByRole("heading", { name: "Submit a complete add-on source for review" }).waitFor({ state: "visible" });
+    assert(await page.getByText("Package or source bundle", { exact: true }).isVisible(), "Marketplace Submit must expose package/source-bundle intake.");
+    assert(await page.getByText("Folder or repository", { exact: true }).isVisible(), "Marketplace Submit must expose folder/repository intake.");
+    assert(await page.getByText("Git repository URL (metadata only)", { exact: true }).isVisible(), "Marketplace Submit must label Git URLs as metadata-only.");
+    assert(await page.getByRole("button", { name: "Submit private pending review" }).isDisabled(), "Remote Marketplace submission must be blocked without sign-in and confirmation.");
+    assert(await page.getByText("Admin review reduces risk but does not guarantee safety", { exact: false }).isVisible(), "Marketplace submission review disclaimer is missing.");
+
+    currentPhase = "open Marketplace Browse";
+    await page.goto(`${origin}/marketplace/browse`, { waitUntil: "networkidle" });
+    await page.getByRole("heading", { name: "Browse Elysia add-ons" }).waitFor({ state: "visible" });
+    assert(await page.getByRole("heading", { name: "Codev" }).isVisible(), "Codev official candidate must appear in the local fallback catalog.");
+    assert(await page.getByRole("button", { name: "Candidate · not installable" }).isDisabled(), "Codev candidate must not expose a working install action.");
+    for (const staleListing of ["Advanced PDF Parser", "Ollama Local Models", "SearXNG Research"]) {
+      assert.equal(await page.getByText(staleListing, { exact: true }).count(), 0, `${staleListing} must not appear in the v1 Marketplace catalog.`);
+    }
     assert.equal(
       await page
         .getByRole("button", { name: /^(run|execute|install|enable)$/i })
@@ -196,7 +267,7 @@ try {
     assert.deepEqual(
       pageErrors,
       [],
-      `Uncaught browser errors occurred: ${pageErrors.join("\n")}`,
+      `Uncaught browser errors occurred: ${pageErrors.join("\n")}\nConsole: ${consoleErrors.join("\n")}\nFailed requests: ${failedRequests.join("\n")}\nBad responses: ${badResponses.join("\n")}`,
     );
     assert.deepEqual(
       consoleErrors,

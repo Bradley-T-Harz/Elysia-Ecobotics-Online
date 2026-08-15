@@ -122,6 +122,23 @@ export const legalPolicyPages: LegalPolicyPage[] = [
   }
 ];
 
+const addonSubmissionPolicy = legalPolicyPages.find((page) => page.slug === "add-on-submission-policy");
+if (addonSubmissionPolicy) {
+  addonSubmissionPolicy.lastUpdated = "2026-08-15";
+  addonSubmissionPolicy.body += `
+
+## 17. Browser intake and upload disclosure
+
+Choosing a local folder, repository, ZIP source bundle, \`.elysia-addon\`, or manifest starts an inert browser-side inspection. Choosing files alone does not upload or execute them. Before private Marketplace review transfer, the site must disclose that the selected files leave the user's computer and are transferred to Elysia Ecobotics / EcoSyneva Commons review infrastructure. Developers are responsible for reviewing the exact selection and removing secrets, credentials, private data, logs, vault material, hidden telemetry, and content they lack rights to distribute.
+
+A Git repository URL is review metadata only unless a separate governed fetch action is explicitly offered. The website does not silently clone or authenticate to remote repositories.
+
+## 18. Review and authority distinctions
+
+Submitted does not mean approved. Approved does not mean published. Published does not mean installed. Installed does not mean enabled. Enabled does not mean unrestricted. A granted permission does not create broad authority. Admin review reduces risk but does not guarantee safety.
+`;
+}
+
 const economicPolicyDate = "2026-07-16";
 const economicPolicyStatus = "Test-mode operating terms";
 
