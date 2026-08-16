@@ -125,17 +125,19 @@ export default function DeveloperSubmissionForm({ onMessage }: DeveloperSubmissi
   return <section className="submission-card" id="submit">
     <p className="eyebrow">Developer Submission</p>
     <h2>Submit a complete add-on source for review</h2>
-    <p>Start with an inert .elysia-addon, ZIP source bundle, local folder/repository, manifest.json, or Git repository URL metadata. Static review never executes uploaded code.</p>
+    <p>Choose a complete local package, ZIP source bundle, folder/repository, or manifest below. You may also paste manifest JSON or attach a Git URL as metadata. Static review never executes uploaded code.</p>
     <p className="boundary-note">{hasSupabaseConfig ? auth.userId ? forgeState?.profile ? "Signed-in Developer Forge profile found. A valid submission creates only a private pending-review record." : "Signed in, but a Developer Forge profile is required before remote submission." : "Sign in to create a remote review submission." : "Remote review storage is not configured. Local intake and validation still work, but no submission will be created."}</p>
     <AddonIntakePanel result={intake} onResult={acceptIntake} onMessage={(message) => { setSubmitStatus(message); onMessage(message); }} />
     <div className="form-grid">
       <label><span>Add-on name</span><input value={validation.manifest?.name ?? ""} onChange={(event) => updateManifest({ name: event.target.value })} /></label>
       <label><span>Add-on ID</span><input value={validation.manifest?.addon_id ?? ""} onChange={(event) => updateManifest({ addon_id: event.target.value })} /></label>
       <label><span>Publisher name</span><input value={validation.manifest?.author?.name ?? ""} onChange={(event) => updateManifest({ author: { ...validation.manifest?.author, name: event.target.value } })} /></label>
-      <label><span>Git repository URL (metadata only)</span><input value={typeof validation.manifest?.source_url === "string" ? validation.manifest.source_url : ""} onChange={(event) => updateManifest({ source_url: event.target.value })} placeholder="https://example.com/repository" /></label>
     </div>
-    <p className="boundary-note">A Git repository URL is recorded as review metadata only. This page does not clone, fetch, authenticate to, or inspect a remote repository.</p>
-    <label><span>manifest.json</span><textarea value={manifestText} onChange={(event) => setManifestText(event.target.value)} rows={16} /></label>
+    <section className="submission-source-metadata" aria-labelledby="git-metadata-heading">
+      <div><p className="eyebrow">Optional source reference</p><h3 id="git-metadata-heading">Add Git repository URL as review metadata</h3><p>This records a reference only. The website does not clone, fetch, authenticate to, or inspect the repository.</p></div>
+      <label><span>Git repository URL (metadata only)</span><input value={typeof validation.manifest?.source_url === "string" ? validation.manifest.source_url : ""} onChange={(event) => updateManifest({ source_url: event.target.value })} placeholder="https://example.com/repository" /></label>
+    </section>
+    <label className="submission-manifest-editor"><span>Paste or edit manifest JSON</span><small>Use this for manifest-only review or to edit the manifest loaded from a package, ZIP, or folder.</small><textarea aria-label="Paste or edit manifest JSON" value={manifestText} onChange={(event) => setManifestText(event.target.value)} rows={16} /></label>
     <div className={!blocking ? "validation validation--ok" : "validation validation--bad"}>{!blocking ? `Manifest validation: ${validationStatus(validation.results)}.` : validation.results.filter((result) => result.severity === "blocked" || result.severity === "error").map((result) => result.message).join(" | ")}</div>
     {permissions.length > 0 && <section className="submission-permissions"><h3>Permission reasons</h3><p>Requested permissions are declarations, not grants. Admin review and Local Elysia may still deny them.</p>{permissions.map((permission) => <label key={permission}><span>{permission}</span><input value={permissionReasons[permission] ?? ""} onChange={(event) => setPermissionReasons((current) => ({ ...current, [permission]: event.target.value }))} placeholder="Why is this exact permission needed?" /></label>)}</section>}
     {hasElevatedPermission && <label className="checkbox-line"><input type="checkbox" checked={riskAccepted} onChange={(event) => setRiskAccepted(event.target.checked)} /><span>I acknowledge that these permissions require additional reviewer and local user scrutiny.</span></label>}

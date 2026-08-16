@@ -83,6 +83,13 @@ assert(
 const origin = `http://127.0.0.1:${address.port}`;
 const browser = await chromium.launch({ headless: true });
 const observedSupabaseClientStates = new Set();
+const visualProofRoot = process.env.ELYSIA_CAPTURE_VISUAL_PROOF === "1"
+  ? await fs.mkdtemp(path.join(os.tmpdir(), "elysia-pass8d-visual-"))
+  : null;
+async function captureVisual(locator, name, viewport) {
+  if (!visualProofRoot || viewport.width < 1000) return;
+  await locator.screenshot({ path: path.join(visualProofRoot, `${name}.png`), animations: "disabled" });
+}
 const intakeZip = new JSZip();
 intakeZip.file("manifest.json", JSON.stringify({
   schema_version: "1.0",
@@ -227,8 +234,15 @@ try {
         .isVisible(),
       "The no-execution boundary must remain visible.",
     );
+    await page.getByRole("heading", { name: "Create, import, package, or prepare review" }).waitFor({ state: "visible" });
+    for (const intakePath of ["Create from template", "Import .elysia-addon", "Import ZIP / source bundle", "Import folder / repository", "Import manifest.json", "Use Git URL metadata", "Export inert .elysia-addon", "Prepare Marketplace review"]) {
+      assert(await page.getByRole("heading", { name: intakePath, exact: true }).isVisible(), `Developer Forge landing page must expose ${intakePath}.`);
+    }
+    await captureVisual(page.locator(".forge-intake-map"), "developer-forge-intake-map", viewport);
     currentPhase = "create local draft";
     await page.goto(`${origin}/developer-forge/drafts/new`, { waitUntil: "networkidle" });
+    await page.getByRole("heading", { name: "Create, import, package, or prepare review" }).waitFor({ state: "visible" });
+    await captureVisual(page.locator(".forge-intake-map"), "developer-forge-new-intake-map", viewport);
     await page.getByRole("button", { name: "Create blank manifest draft" }).click();
     await page.waitForFunction(() => {
       try { return (JSON.parse(localStorage.getItem("developerForge.localDrafts.v1") ?? "[]")?.length ?? 0) > 0; }
@@ -237,9 +251,11 @@ try {
     currentPhase = "open draft workbench";
     await page.goto(`${origin}/developer-forge/drafts`, { waitUntil: "networkidle" });
     await page.getByRole("heading", { name: "Package and repository intake" }).waitFor({ state: "visible" });
-    assert(await page.getByText("Package or source bundle", { exact: true }).isVisible(), "Forge must expose .elysia-addon/ZIP/manifest intake.");
-    assert(await page.getByText("Folder or repository", { exact: true }).isVisible(), "Forge must expose browser folder/repository intake.");
-    const packageInput = page.locator('input[type="file"]:not([webkitdirectory])').last();
+    for (const intakePath of ["Import .elysia-addon", "Import ZIP / source bundle", "Import folder / repository", "Import manifest.json"]) {
+      assert(await page.getByText(intakePath, { exact: true }).last().isVisible(), `Forge workspace must expose ${intakePath}.`);
+    }
+    await captureVisual(page.locator("#forge-package"), "developer-forge-draft-intake", viewport);
+    const packageInput = page.getByLabel("Import .elysia-addon").last();
     currentPhase = "inspect inert package";
     await packageInput.setInputFiles({ name: "browser-intake.elysia-addon", mimeType: "application/vnd.elysia-addon+zip", buffer: intakeBytes });
     await page.getByText("3 files held in browser memory", { exact: false }).waitFor({ state: "visible" });
@@ -251,7 +267,7 @@ try {
     await packageInput.setInputFiles({ name: "blocked-browser-intake.elysia-addon", mimeType: "application/vnd.elysia-addon+zip", buffer: blockedIntakeBytes });
     await page.getByText(/\.env files are (?:blocked|not accepted)/i).first().waitFor({ state: "visible" });
     assert(await transferButton.isDisabled(), "A package with blocked credential-bearing material must not become transferable.");
-    const folderInput = page.locator('input[type="file"][webkitdirectory]').last();
+    const folderInput = page.getByLabel("Import folder or repository").last();
     currentPhase = "inspect real folder picker fixture";
     await folderInput.setInputFiles(validFolderFixture);
     await page.getByText("7 files held in browser memory", { exact: false }).waitFor({ state: "visible" });
@@ -270,13 +286,17 @@ try {
     const supabaseUnconfigured = await page.getByText("Remote review storage is not configured.", { exact: false }).isVisible().catch(() => false);
     assert.notEqual(supabaseConfigured, supabaseUnconfigured, "Marketplace Submit must expose exactly one sanitized Supabase client-configuration state.");
     observedSupabaseClientStates.add(supabaseConfigured ? "configured_public_client_no_session" : "not_configured");
-    assert(await page.getByText("Package or source bundle", { exact: true }).isVisible(), "Marketplace Submit must expose package/source-bundle intake.");
-    assert(await page.getByText("Folder or repository", { exact: true }).isVisible(), "Marketplace Submit must expose folder/repository intake.");
+    for (const intakePath of ["Import .elysia-addon", "Import ZIP / source bundle", "Import folder / repository", "Import manifest.json"]) {
+      assert(await page.getByText(intakePath, { exact: true }).isVisible(), `Marketplace Submit must expose ${intakePath}.`);
+    }
+    assert(await page.getByText("Paste or edit manifest JSON", { exact: true }).isVisible(), "Marketplace Submit must expose pasted manifest JSON intake.");
+    assert(await page.getByRole("heading", { name: "Add Git repository URL as review metadata" }).isVisible(), "Marketplace Submit must expose Git metadata as a distinct path.");
     assert(await page.getByText("Git repository URL (metadata only)", { exact: true }).isVisible(), "Marketplace Submit must label Git URLs as metadata-only.");
     await page.getByLabel("Git repository URL (metadata only)").fill("https://code.example.invalid/repository.git");
     assert.deepEqual(gitFetchRequests, [], "Entering Git URL metadata must not fetch or clone the repository.");
     assert(await page.getByRole("button", { name: "Submit private pending review" }).isDisabled(), "Remote Marketplace submission must be blocked without sign-in and confirmation.");
     assert(await page.getByText("Admin review reduces risk but does not guarantee safety", { exact: false }).isVisible(), "Marketplace submission review disclaimer is missing.");
+    await captureVisual(page.locator(".submission-card"), "marketplace-submit-intake", viewport);
 
     currentPhase = "open Marketplace Browse";
     await page.goto(`${origin}/marketplace/browse`, { waitUntil: "networkidle" });
@@ -286,6 +306,7 @@ try {
     for (const staleListing of ["Advanced PDF Parser", "Ollama Local Models", "SearXNG Research"]) {
       assert.equal(await page.getByText(staleListing, { exact: true }).count(), 0, `${staleListing} must not appear in the v1 Marketplace catalog.`);
     }
+    await captureVisual(page.locator(".catalog-page"), "marketplace-browse-truth", viewport);
     assert.equal(
       await page
         .getByRole("button", { name: /^(run|execute|install|enable)$/i })
@@ -344,6 +365,7 @@ try {
     "Developer Forge CSP browser regression test passed at desktop and mobile widths.",
   );
   console.log(`Sanitized Supabase browser state: ${[...observedSupabaseClientStates].join(", ")}.`);
+  if (visualProofRoot) console.log(`Pass 8D visual proof written to ${visualProofRoot}.`);
 } finally {
   await browser.close();
   await new Promise((resolve, reject) =>
