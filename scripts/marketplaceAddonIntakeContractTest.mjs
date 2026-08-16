@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 
 const read = (path) => fs.readFile(path, "utf8");
-const [intake, intakePolicy, panel, styles, workbench, localManifestContract, submit, submissionReadiness, forge, forgeApi, catalogApi, seeds, card, details, installIntent, preview, privacy, submissionRules, cleanup] = await Promise.all([
+const [intake, intakePolicy, panel, repositoryTree, styles, workbench, localManifestContract, submit, submissionReadiness, forge, forgeApi, catalogApi, seeds, card, details, installIntent, preview, privacy, submissionRules, cleanup] = await Promise.all([
   read("src/shared/addons/browserAddonIntake.ts"),
   read("src/shared/addons/addonIntakePolicy.ts"),
   read("src/shared/addons/AddonIntakePanel.tsx"),
+  read("src/shared/addons/RepositoryTreeExplorer.tsx"),
   read("src/styles.css"),
   read("src/pages/The-Developer-Forge/ForgeWorkbench.tsx"),
   read("src/shared/addons/localElysiaManifestContract.ts"),
@@ -30,11 +31,12 @@ for (const required of ["inspectAddonArchive", "inspectAddonFiles", "maxFiles", 
 for (const directory of ["node_modules", ".git", "dist", "build", ".next", "target", "venv", ".venv", "__pycache__", ".pytest_cache", ".cache", "coverage"]) assert(intakePolicy.includes(`"${directory}"`), `Generated/vendor exclusion policy is missing ${directory}.`);
 assert(intakePolicy.includes("containsPrivateAbsolutePath") && intakePolicy.includes("file:\\/\\/\\/") && intakePolicy.includes("[A-Za-z]:"), "Private absolute path policy lost Unix/file/Windows coverage.");
 for (const relativePath of ["node_modules/ignore/README.md", "src/index.ts", "docs/review-boundary.md"]) assert(!intakePolicy.includes(relativePath), `Relative path must not be hard-coded as private: ${relativePath}.`);
-for (const required of ["Import .elysia-addon", "Import ZIP / source bundle", "Import folder / repository", "Import manifest.json", "Choosing files does not upload them", "Included file tree", "manifest.json", "it is not the entire add-on", "Selected files", "Included in scan", "Excluded by default", "Deferred by limits", "needs manifest", "blocked from transfer", "Grouped findings", "Export bounded scan summary", "Filter included files"]) {
+for (const required of ["Import .elysia-addon", "Import ZIP / source bundle", "Import folder / repository", "Import manifest.json", "Choosing files does not upload them", "Included file tree", "manifest.json", "it is not the entire add-on", "Selected files", "Included in scan", "Excluded by default", "Deferred by limits", "needs manifest", "blocked from transfer", "Grouped findings", "Export bounded scan summary", "RepositoryTreeExplorer"]) {
   assert(panel.includes(required), `Browser intake UI is missing: ${required}.`);
 }
-for (const required of ["addon-intake-issue-groups", "max-height: 30rem", "addon-intake-file-list", "max-height: 18rem", "forge-result-list--bounded", "forge-file-tree"]) assert(styles.includes(required), `Large-intake bounded layout CSS is missing ${required}.`);
-assert(workbench.includes("matchingFiles.slice(0, 200)") && workbench.includes("visibleTabs") && workbench.includes("Filter files"), "Developer Forge workspace does not cap/search large imported file sets.");
+for (const required of ["buildRepositoryTree", "aria-expanded", "role=\"tree\"", "maximumRows", "repository-tree-cap", "Filter repository"]) assert(repositoryTree.includes(required), `Hierarchical repository explorer is missing ${required}.`);
+for (const required of ["addon-intake-issue-groups", "max-height: 22rem", "repository-tree", "max-height: 18rem", "forge-result-list--bounded", "forge-file-tree", "scrollbar-gutter: stable", "text-overflow: ellipsis"]) assert(styles.includes(required), `Large-intake bounded layout CSS is missing ${required}.`);
+assert(workbench.includes("RepositoryTreeExplorer") && workbench.includes("diagnosticGroups") && workbench.includes("visibleTabs") && workbench.includes("Repository explorer"), "Developer Forge workspace does not provide a bounded hierarchical explorer and grouped diagnostics.");
 assert(panel.includes("Local Elysia contract") && localManifestContract.includes('localElysiaCanonicalSchema = "1.1"'), "Browser intake does not surface Local Elysia schema truth.");
 assert(submit.includes("Submit private pending review") && submit.includes("will leave my computer") && submit.includes("Git repository URL (metadata only)") && submit.includes("Paste or edit manifest JSON") && submit.includes("Add Git repository URL as review metadata"), "Marketplace Submit lost explicit source paths, pending-review, upload-disclosure, or Git-metadata truth.");
 assert(submit.includes("evaluateMarketplaceSubmissionReadiness") && submissionReadiness.includes("sign_in_required") && submissionReadiness.includes("developer_profile_required") && submissionReadiness.includes("upload_disclosure_required"), "Marketplace submission is not fail-closed on account/profile/disclosure requirements.");

@@ -4824,8 +4824,7 @@ button.commune-vote-option-card:disabled {
 }
 
 .addon-intake-option span,
-.addon-intake-summary > p,
-.addon-intake-file-list span {
+.addon-intake-summary > p {
   color: var(--muted);
 }
 
@@ -4954,9 +4953,10 @@ button.commune-vote-option-card:disabled {
 .addon-intake-issue-groups {
   display: grid;
   gap: 0.5rem;
-  max-height: 30rem;
+  max-height: 22rem;
   overflow: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .addon-intake-issue-group {
@@ -4986,40 +4986,112 @@ button.commune-vote-option-card:disabled {
 }
 
 .addon-intake-issue-group code,
-.addon-intake-bounded-details code,
-.addon-intake-file-list code {
+.addon-intake-bounded-details code {
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
-.addon-intake-file-search {
+.repository-tree-explorer {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+  min-height: 0;
+}
+
+.repository-tree-filter {
   display: grid;
   gap: 0.3rem;
-  margin-top: 0.65rem;
 }
 
-.addon-intake-file-search input {
+.repository-tree-filter span,
+.repository-tree-cap,
+.repository-tree-empty {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.repository-tree-filter input {
+  min-width: 0;
   width: 100%;
+  border: 1px solid color-mix(in srgb, var(--forge-accent) 22%, var(--line));
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.24);
+  color: var(--text);
+  padding: 0.42rem 0.5rem;
 }
 
-.addon-intake-file-list {
+.repository-tree {
   display: grid;
-  gap: 0.35rem;
-  max-height: 18rem;
+  align-content: start;
+  min-width: 0;
+  max-height: 25rem;
   overflow: auto;
   overscroll-behavior: contain;
-  padding: 0.5rem 0.25rem 0.5rem 1.4rem;
+  scrollbar-gutter: stable;
+  border: 1px solid color-mix(in srgb, var(--forge-accent) 16%, var(--line));
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.16);
+  padding: 0.35rem;
 }
 
-.addon-intake-file-list li {
+.repository-tree-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 0.75rem;
-  align-items: baseline;
+  grid-template-columns: 0.8rem minmax(0, 1fr) auto;
+  gap: 0.35rem;
+  align-items: center;
+  min-width: 0;
+  width: 100%;
+  min-height: 2rem;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text);
+  padding-block: 0.3rem;
+  padding-inline-end: 0.4rem;
+  text-align: left;
 }
 
-.addon-intake-file-list code {
+button.repository-tree-row {
+  cursor: pointer;
+}
+
+.repository-tree-row:hover,
+.repository-tree-row:focus-visible,
+.repository-tree-row.active {
+  border-color: color-mix(in srgb, var(--forge-accent) 38%, var(--line));
+  background: rgba(142, 232, 220, 0.07);
+}
+
+.repository-tree-row__disclosure,
+.repository-tree-row__file-mark {
+  color: var(--forge-accent);
+  text-align: center;
+}
+
+.repository-tree-row__name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repository-tree-row small {
+  max-width: 7rem;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.7rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.repository-tree-cap,
+.repository-tree-empty {
+  margin: 0;
   overflow-wrap: anywhere;
+}
+
+.addon-intake-file-tree .repository-tree {
+  max-height: 18rem;
 }
 
 .submission-permissions {
@@ -5063,10 +5135,6 @@ button.commune-vote-option-card:disabled {
 @media (max-width: 720px) {
   .addon-intake-options,
   .submission-source-metadata {
-    grid-template-columns: 1fr;
-  }
-
-  .addon-intake-file-list li {
     grid-template-columns: 1fr;
   }
 }
@@ -5187,9 +5255,21 @@ button.commune-vote-option-card:disabled {
 }
 
 .forge-result-list--bounded {
-  max-height: 34rem;
+  max-height: 22rem;
   overflow: auto;
   overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.forge-validation-summary {
+  display: grid;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.forge-validation-summary > p {
+  margin: 0;
+  color: var(--muted);
 }
 
 .forge-result-list--bounded .forge-result > summary {
@@ -5329,6 +5409,11 @@ button.commune-vote-option-card:disabled {
   grid-template-columns: minmax(160px, 210px) minmax(0, 1fr);
   gap: .85rem;
   align-items: start;
+  min-width: 0;
+  max-height: min(54rem, calc(100vh - 7rem));
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .forge-file-tree,
@@ -5342,13 +5427,29 @@ button.commune-vote-option-card:disabled {
 .forge-file-tree {
   display: grid;
   gap: .45rem;
-  max-height: 34rem;
-  overflow: auto;
-  overscroll-behavior: contain;
+  min-width: 0;
+  max-height: 46rem;
+  overflow: hidden;
   padding: .75rem;
 }
 
-.forge-file-tree button,
+.forge-file-tree__heading {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.forge-file-tree__heading span,
+.forge-file-tree__selection {
+  color: var(--muted);
+  font-size: 0.76rem;
+  overflow-wrap: anywhere;
+}
+
+.forge-file-tree__selection {
+  margin: 0;
+}
+
 .forge-editor-tabs button {
   border: 1px solid transparent;
   border-radius: 10px;
@@ -5358,59 +5459,43 @@ button.commune-vote-option-card:disabled {
   padding: .45rem .55rem;
 }
 
-.forge-file-filter {
-  position: sticky;
-  top: -0.75rem;
-  z-index: 1;
-  display: grid;
-  gap: 0.3rem;
-  margin: -0.2rem -0.15rem 0.2rem;
-  padding: 0.2rem 0.15rem 0.55rem;
-  background: rgba(4, 10, 16, 0.96);
-}
-
-.forge-file-filter span,
 .forge-editor-tabs > span {
   color: var(--muted);
   font-size: 0.78rem;
 }
 
-.forge-file-filter input {
-  min-width: 0;
-  width: 100%;
-  border: 1px solid color-mix(in srgb, var(--forge-accent) 22%, var(--line));
-  border-radius: 9px;
-  background: rgba(0, 0, 0, 0.24);
-  color: var(--text);
-  padding: 0.42rem 0.5rem;
-}
-
-.forge-file-tree button.active,
 .forge-editor-tabs button.active {
   border-color: color-mix(in srgb, var(--forge-accent) 46%, var(--line));
   background: rgba(142, 232, 220, .08);
 }
 
-.forge-file-tree button {
-  display: flex;
-  justify-content: space-between;
-  gap: .5rem;
-}
-
 .forge-editor-stack {
   min-width: 0;
-  overflow: hidden;
+  max-height: 48rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .forge-editor-tabs {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: .35rem;
-  max-height: 7rem;
-  overflow: auto;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
   overscroll-behavior: contain;
   padding: .55rem;
   border-bottom: 1px solid color-mix(in srgb, var(--forge-accent) 14%, var(--line));
+}
+
+.forge-editor-tabs button,
+.forge-editor-tabs > span {
+  flex: 0 0 auto;
+  max-width: 13rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .forge-monaco-shell,
@@ -5440,6 +5525,10 @@ button.commune-vote-option-card:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: .45rem;
+  max-height: 6rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   padding: .65rem;
   border-top: 1px solid color-mix(in srgb, var(--forge-accent) 14%, var(--line));
 }
@@ -6517,7 +6606,10 @@ button.commune-vote-option-card:disabled {
 
 @media (max-width: 860px) {
   .forge-workspace-grid { grid-template-columns: 1fr; }
-  .forge-workbench-surface { grid-template-columns: 1fr; }
+  .forge-workbench-surface { grid-template-columns: 1fr; max-height: 52rem; }
+  .forge-file-tree { max-height: 22rem; }
+  .repository-tree { max-height: 15rem; }
+  .forge-editor-stack { max-height: 42rem; }
   .forge-left-rail { position: static; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); }
   .forge-workspace-actions { justify-content: flex-start; }
   .forge-command-overlay { padding-top: 4rem; }

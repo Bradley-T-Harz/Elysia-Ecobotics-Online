@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type InputHTMLAttributes } from "react";
+import { useMemo, type InputHTMLAttributes } from "react";
 import {
   addonIntakeLimits,
   inspectAddonArchive,
@@ -7,6 +7,7 @@ import {
   type AddonIntakeIssueGroup,
   type AddonIntakeResult
 } from "./browserAddonIntake";
+import RepositoryTreeExplorer from "./RepositoryTreeExplorer";
 
 type AddonIntakePanelProps = {
   disabled?: boolean;
@@ -46,9 +47,6 @@ function IssueGroups({ groups }: { groups: AddonIntakeIssueGroup[] }) {
 }
 
 export default function AddonIntakePanel({ disabled, result, onResult, onMessage }: AddonIntakePanelProps) {
-  const [fileQuery, setFileQuery] = useState("");
-  useEffect(() => setFileQuery(""), [result]);
-
   async function inspectArchive(file: File | null, sourceLabel: string) {
     if (!file) return;
     try {
@@ -73,17 +71,6 @@ export default function AddonIntakePanel({ disabled, result, onResult, onMessage
     }
   }
 
-  const visibleFiles = useMemo(() => {
-    if (!result) return [];
-    const query = fileQuery.trim().toLowerCase();
-    const matches = query ? result.files.filter((file) => file.path.toLowerCase().includes(query)) : result.files;
-    return matches.slice(0, addonIntakeLimits.maxRenderedFiles);
-  }, [fileQuery, result]);
-  const matchingFileCount = useMemo(() => {
-    if (!result) return 0;
-    const query = fileQuery.trim().toLowerCase();
-    return query ? result.files.filter((file) => file.path.toLowerCase().includes(query)).length : result.files.length;
-  }, [fileQuery, result]);
   const dependencySummary = useMemo(() => {
     const summary = new Map<string, number>();
     for (const path of result?.dependencyFiles ?? []) {
@@ -158,9 +145,7 @@ export default function AddonIntakePanel({ disabled, result, onResult, onMessage
       <details className="addon-intake-bounded-details"><summary>Dependency inventory ({result.dependencyFiles.length} declared files)</summary>{dependencySummary.length ? <ul>{dependencySummary.map(([name, count]) => <li key={name}><code>{name}</code><span>{count}</span></li>)}</ul> : <p>No root/source dependency manifests detected.</p>}</details>
       <IssueGroups groups={result.issueGroups} />
       <details className="addon-intake-file-tree"><summary>Included file tree ({result.fileCount})</summary>
-        <label className="addon-intake-file-search"><span>Filter included files</span><input type="search" value={fileQuery} onChange={(event) => setFileQuery(event.target.value)} placeholder="src/, README, schema..." /></label>
-        <ul className="addon-intake-file-list">{visibleFiles.map((file) => <li key={file.path}><code>{file.path}</code><span>{file.kind} · {formatAddonIntakeBytes(file.size)}</span></li>)}</ul>
-        {matchingFileCount > visibleFiles.length && <p>Showing the first {visibleFiles.length} of {matchingFileCount} matching files. Refine the filter to inspect deeper without rendering the whole repository.</p>}
+        <RepositoryTreeExplorer ariaLabel="Included add-on repository tree" maximumRows={addonIntakeLimits.maxRenderedFiles} entries={result.files.map((file) => ({ path: file.path, meta: `${file.kind} · ${formatAddonIntakeBytes(file.size)}` }))} />
       </details>
       <div className="button-row"><button type="button" onClick={exportSummary}>Export bounded scan summary</button></div>
     </section>}

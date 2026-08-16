@@ -10,6 +10,7 @@ import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import type { AddonDraft } from "./developerForgeApi";
 import type { ForgeValidationResult } from "./developerForgeValidator";
+import RepositoryTreeExplorer from "../../shared/addons/RepositoryTreeExplorer";
 import "../../shared/editor/localMonaco";
 
 export type ForgeWorkspaceFile = {
@@ -136,6 +137,7 @@ export function ForgeWorkbenchSurface({
   files,
   activePath,
   diagnostics,
+  repositoryStats,
   readOnly,
   onSelect,
   onChange
@@ -143,39 +145,44 @@ export function ForgeWorkbenchSurface({
   files: ForgeWorkspaceFile[];
   activePath: string;
   diagnostics: ForgeValidationResult[];
+  repositoryStats?: { selectedFileCount: number; includedFileCount: number; excludedFileCount: number };
   readOnly?: boolean;
   onSelect: (path: string) => void;
   onChange: (path: string, value: string) => void;
 }) {
-  const [fileQuery, setFileQuery] = useState("");
   const active = files.find((file) => file.path === activePath) ?? files[0];
-  const visibleDiagnostics = diagnostics.slice(0, 6);
-  const matchingFiles = useMemo(() => {
-    const query = fileQuery.trim().toLowerCase();
-    return query ? files.filter((file) => file.path.toLowerCase().includes(query)) : files;
-  }, [fileQuery, files]);
-  const visibleFiles = matchingFiles.slice(0, 200);
-  const visibleTabs = [active, ...files.filter((file) => file.path !== active?.path)].filter(Boolean).slice(0, 12) as ForgeWorkspaceFile[];
+  const diagnosticGroups = useMemo(() => {
+    const groups = new Map<string, { severity: ForgeValidationResult["severity"]; code: string; count: number }>();
+    for (const diagnostic of diagnostics) {
+      const key = `${diagnostic.severity}:${diagnostic.code}`;
+      const group = groups.get(key) ?? { severity: diagnostic.severity, code: diagnostic.code, count: 0 };
+      group.count += 1;
+      groups.set(key, group);
+    }
+    return [...groups.values()].slice(0, 8);
+  }, [diagnostics]);
+  const visibleTabs = [active, ...files.filter((file) => file.path !== active?.path)].filter(Boolean).slice(0, 6) as ForgeWorkspaceFile[];
   return <div className="forge-workbench-surface">
     <aside className="forge-file-tree" aria-label="Add-on workspace files">
-      <strong>Workspace files</strong>
-      <label className="forge-file-filter"><span>Filter files</span><input type="search" value={fileQuery} onChange={(event) => setFileQuery(event.target.value)} placeholder="src/, README..." /></label>
-      {visibleFiles.map((file) => <button type="button" className={file.path === active.path ? "active" : ""} key={file.path} onClick={() => onSelect(file.path)}>
-        <span>{file.label}</span>
-        {file.locked && <small>locked</small>}
-      </button>)}
-      {matchingFiles.length > visibleFiles.length && <p className="boundary-note">Showing 200 of {matchingFiles.length} matching files. Refine the filter to inspect deeper.</p>}
+      <div className="forge-file-tree__heading"><strong>Repository explorer</strong><span>{repositoryStats ? `${repositoryStats.includedFileCount} scanned · ${repositoryStats.excludedFileCount} excluded` : `${files.length} workspace files`}</span></div>
+      {repositoryStats && <p className="forge-file-tree__selection">{repositoryStats.selectedFileCount} selected locally · generated/vendor directories excluded by default</p>}
+      <RepositoryTreeExplorer
+        ariaLabel="Add-on workspace repository tree"
+        activePath={active.path}
+        entries={files.map((file) => ({ path: file.path, meta: file.locked ? "locked" : undefined }))}
+        onSelect={onSelect}
+      />
       <p className="boundary-note">Virtual and explicitly imported files only. Local imports stay in browser memory until a separate private-transfer action. The website never runs package code or controls local Elysia.</p>
     </aside>
     <div className="forge-editor-stack">
-      <div className="forge-editor-tabs" aria-label="Bounded workspace file tabs">{visibleTabs.map((file) => <button type="button" className={file.path === active.path ? "active" : ""} key={file.path} onClick={() => onSelect(file.path)}>{file.label}</button>)}{files.length > visibleTabs.length && <span>{files.length - visibleTabs.length} more available through file filter</span>}</div>
+      <div className="forge-editor-tabs" aria-label="Bounded workspace file tabs">{visibleTabs.map((file) => <button type="button" className={file.path === active.path ? "active" : ""} title={file.path} key={file.path} onClick={() => onSelect(file.path)}>{file.path.split("/").pop()}</button>)}{files.length > visibleTabs.length && <span>{files.length - visibleTabs.length} more in repository explorer</span>}</div>
       <ForgeWorkspaceEditor file={active} readOnly={readOnly} onChange={(value) => onChange(active.path, value)} />
       {active.language === "markdown" && <section id={active.path === "README.md" ? "forge-readme-preview" : undefined} className="forge-markdown-preview-region" aria-labelledby={active.path === "README.md" ? "forge-readme-preview-heading" : undefined}>
         <h3 id={active.path === "README.md" ? "forge-readme-preview-heading" : undefined}>{active.label} preview</h3>
         <ForgeMarkdownPreview markdown={active.value} />
       </section>}
-      {visibleDiagnostics.length > 0 && <div className="forge-diagnostics-strip">
-        {visibleDiagnostics.map((diagnostic, index) => <span key={`${diagnostic.code}-${index}`} className={`forge-result--${diagnostic.severity}`}>{diagnostic.severity}: {diagnostic.code}</span>)}
+      {diagnosticGroups.length > 0 && <div className="forge-diagnostics-strip" aria-label="Grouped workbench diagnostics">
+        {diagnosticGroups.map((diagnostic) => <span key={`${diagnostic.severity}-${diagnostic.code}`} className={`forge-result--${diagnostic.severity}`}>{diagnostic.severity}: {diagnostic.code} · {diagnostic.count}</span>)}
       </div>}
     </div>
   </div>;
