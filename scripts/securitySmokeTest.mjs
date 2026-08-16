@@ -58,6 +58,9 @@ const checks = [
 const readOnlyInventorySource = await fs.readFile("scripts/supabaseReadOnlyInventory.mjs", "utf8");
 const readOnlyInventoryUsesControlledPsqlSpawn = /spawn\(\s*"psql"\s*,\s*\[\s*"--no-psqlrc"\s*,\s*"--quiet"\s*,\s*"--set"\s*,\s*"ON_ERROR_STOP=1"\s*,\s*"--file"\s*,\s*sqlPath\s*\]\s*,\s*\{[\s\S]{0,240}\bshell:\s*false\b/.test(readOnlyInventorySource);
 assert(readOnlyInventoryUsesControlledPsqlSpawn, "Read-only Supabase inventory must spawn only fixed-argument psql with shell:false.");
+const marketplaceInventorySource = await fs.readFile("scripts/marketplaceV1LegacyInventory.mjs", "utf8");
+const marketplaceInventoryUsesControlledPsqlSpawn = /spawn\(\s*"psql"\s*,\s*\[\s*"--no-psqlrc"\s*,\s*"--quiet"\s*,\s*"--set"\s*,\s*"ON_ERROR_STOP=1"\s*,\s*"--file"\s*,\s*sqlPath\s*\]\s*,\s*\{[\s\S]{0,240}\bshell:\s*false\b/.test(marketplaceInventorySource);
+assert(marketplaceInventoryUsesControlledPsqlSpawn, "Read-only Marketplace inventory must spawn only fixed-argument psql with shell:false.");
 
 const reviewedBillingServerBindingFiles = new Set([
   "functions/api/billing/_shared/auth.ts",
@@ -135,6 +138,12 @@ function allowHit(file, line, checkName) {
   if (
     normalized === "scripts/supabaseReadOnlyInventory.mjs"
     && readOnlyInventoryUsesControlledPsqlSpawn
+    && ["Node child process", "process spawn"].includes(checkName)
+    && (/node:child_process/.test(line) || /spawn\("psql"/.test(line))
+  ) return true;
+  if (
+    normalized === "scripts/marketplaceV1LegacyInventory.mjs"
+    && marketplaceInventoryUsesControlledPsqlSpawn
     && ["Node child process", "process spawn"].includes(checkName)
     && (/node:child_process/.test(line) || /spawn\("psql"/.test(line))
   ) return true;

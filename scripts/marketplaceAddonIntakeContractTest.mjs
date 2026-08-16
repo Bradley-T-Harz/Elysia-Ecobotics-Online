@@ -2,10 +2,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 
 const read = (path) => fs.readFile(path, "utf8");
-const [intake, panel, submit, forge, forgeApi, catalogApi, seeds, card, details, installIntent, preview, privacy, submissionRules, cleanup] = await Promise.all([
+const [intake, panel, localManifestContract, submit, submissionReadiness, forge, forgeApi, catalogApi, seeds, card, details, installIntent, preview, privacy, submissionRules, cleanup] = await Promise.all([
   read("src/shared/addons/browserAddonIntake.ts"),
   read("src/shared/addons/AddonIntakePanel.tsx"),
+  read("src/shared/addons/localElysiaManifestContract.ts"),
   read("src/pages/The-Elysia-Marketplace/components/DeveloperSubmissionForm.tsx"),
+  read("src/pages/The-Elysia-Marketplace/lib/submissionReadiness.ts"),
   read("src/pages/The-Developer-Forge/index.tsx"),
   read("src/pages/The-Developer-Forge/developerForgeApi.ts"),
   read("src/pages/The-Elysia-Marketplace/lib/marketplaceApi.ts"),
@@ -25,8 +27,9 @@ for (const required of ["inspectAddonArchive", "inspectAddonFiles", "maxFiles", 
 for (const required of ["Package or source bundle", "Folder or repository", "Choosing files does not upload them", "Selected file tree"]) {
   assert(panel.includes(required), `Browser intake UI is missing: ${required}.`);
 }
+assert(panel.includes("Local Elysia contract") && localManifestContract.includes('localElysiaCanonicalSchema = "1.1"'), "Browser intake does not surface Local Elysia schema truth.");
 assert(submit.includes("Submit private pending review") && submit.includes("will leave my computer") && submit.includes("Git repository URL (metadata only)"), "Marketplace Submit lost pending-review, upload-disclosure, or Git-metadata truth.");
-assert(submit.includes("!auth.userId") && submit.includes("!forgeState?.profile") && submit.includes("uploadAccepted"), "Marketplace submission is not fail-closed on account/profile/disclosure requirements.");
+assert(submit.includes("evaluateMarketplaceSubmissionReadiness") && submissionReadiness.includes("sign_in_required") && submissionReadiness.includes("developer_profile_required") && submissionReadiness.includes("upload_disclosure_required"), "Marketplace submission is not fail-closed on account/profile/disclosure requirements.");
 assert(forge.includes("Transfer selected package privately") && forge.includes("files held in browser memory") && forge.includes("does not fetch, clone"), "Developer Forge lost its local-import/private-transfer/Git boundary.");
 assert(forgeApi.includes("Blocking static/archive findings prevented private package transfer") && forgeApi.includes("unsupported_package_type"), "Private package transfer does not fail closed on static findings/type.");
 for (const stale of ["Advanced PDF Parser", "Ollama Local Models", "SearXNG Research"]) assert(!seeds.includes(stale) && !preview.includes(stale), `Stale static listing remains: ${stale}.`);

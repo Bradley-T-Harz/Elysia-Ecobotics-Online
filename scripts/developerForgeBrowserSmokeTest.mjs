@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import http from "node:http";
+import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -81,6 +82,7 @@ assert(
 );
 const origin = `http://127.0.0.1:${address.port}`;
 const browser = await chromium.launch({ headless: true });
+const observedSupabaseClientStates = new Set();
 const intakeZip = new JSZip();
 intakeZip.file("manifest.json", JSON.stringify({
   schema_version: "1.0",
@@ -108,6 +110,40 @@ blockedIntakeZip.file("manifest.json", JSON.stringify({
 }));
 blockedIntakeZip.file(".env", "EXAMPLE_SECRET=must-not-transfer");
 const blockedIntakeBytes = await blockedIntakeZip.generateAsync({ type: "nodebuffer" });
+const folderFixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), "elysia-forge-folder-picker-"));
+const validFolderFixture = path.join(folderFixtureRoot, "valid-addon");
+const blockedFolderFixture = path.join(folderFixtureRoot, "blocked-addon");
+await Promise.all([
+  fs.mkdir(path.join(validFolderFixture, "src"), { recursive: true }),
+  fs.mkdir(path.join(validFolderFixture, "docs"), { recursive: true }),
+  fs.mkdir(path.join(validFolderFixture, "assets"), { recursive: true }),
+  fs.mkdir(blockedFolderFixture, { recursive: true })
+]);
+const folderManifest = JSON.stringify({
+  schema_version: "1.0",
+  addon_id: "developer.folder-picker-proof",
+  name: "Folder Picker Proof",
+  version: "0.1.0",
+  description: "Harmless folder-picker regression fixture.",
+  author: { name: "Regression Test", url: "https://example.com" },
+  license: "MIT",
+  entrypoints: [],
+  permissions: ["public_docs_read"],
+  compatibility: { elysia_min_version: "0.1.0", addon_api_version: "0.1" },
+  runtime: { kind: "static", requires_network: false, requires_filesystem: false },
+  security: { sandbox_required: false, network_domains: [], file_access: [] }
+}, null, 2);
+await Promise.all([
+  fs.writeFile(path.join(validFolderFixture, "manifest.json"), folderManifest),
+  fs.writeFile(path.join(validFolderFixture, "README.md"), "# Folder Picker Proof\n"),
+  fs.writeFile(path.join(validFolderFixture, "LICENSE"), "MIT\n"),
+  fs.writeFile(path.join(validFolderFixture, "src/index.ts"), "export const proof = true;\n"),
+  fs.writeFile(path.join(validFolderFixture, "docs/review-boundary.md"), "No execution. Local selection only.\n"),
+  fs.writeFile(path.join(validFolderFixture, "assets/icon.svg"), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"/>\n'),
+  fs.writeFile(path.join(validFolderFixture, "package.json"), '{"name":"folder-picker-proof","private":true}\n'),
+  fs.writeFile(path.join(blockedFolderFixture, "manifest.json"), folderManifest),
+  fs.writeFile(path.join(blockedFolderFixture, ".env"), "EXAMPLE_SECRET=must-not-transfer\n")
+]);
 
 try {
   for (const viewport of [
@@ -125,6 +161,7 @@ try {
     const badResponses = [];
     const loadedScripts = [];
     const sandboxRequests = [];
+    const gitFetchRequests = [];
     let currentPhase = "initial Developer Forge route";
 
     page.on("pageerror", (error) =>
@@ -136,6 +173,7 @@ try {
     page.on("request", (request) => {
       if (new URL(request.url()).pathname.startsWith("/api/sandbox/"))
         sandboxRequests.push(request.url());
+      if (request.url().includes("code.example.invalid")) gitFetchRequests.push(request.url());
     });
     page.on("requestfailed", (request) => {
       if (request.url().startsWith(origin))
@@ -213,13 +251,30 @@ try {
     await packageInput.setInputFiles({ name: "blocked-browser-intake.elysia-addon", mimeType: "application/vnd.elysia-addon+zip", buffer: blockedIntakeBytes });
     await page.getByText(/\.env files are (?:blocked|not accepted)/i).first().waitFor({ state: "visible" });
     assert(await transferButton.isDisabled(), "A package with blocked credential-bearing material must not become transferable.");
+    const folderInput = page.locator('input[type="file"][webkitdirectory]').last();
+    currentPhase = "inspect real folder picker fixture";
+    await folderInput.setInputFiles(validFolderFixture);
+    await page.getByText("7 files held in browser memory", { exact: false }).waitFor({ state: "visible" });
+    assert(await page.getByText("src/index.ts", { exact: true }).first().isVisible(), "Folder intake must surface nested source files in the file tree.");
+    assert(await page.getByText("legacy revalidation required", { exact: true }).isVisible(), "Folder intake must surface Local Elysia schema truth.");
+    assert(await transferButton.isDisabled(), "Folder selection must remain local until explicit transfer acknowledgement.");
+    currentPhase = "refuse credential-bearing folder";
+    await folderInput.setInputFiles(blockedFolderFixture);
+    await page.getByText(/\.env files are (?:blocked|not accepted)/i).first().waitFor({ state: "visible" });
+    assert(await transferButton.isDisabled(), "A folder containing .env must not become transferable.");
 
     currentPhase = "open Marketplace Submit";
     await page.goto(`${origin}/marketplace/submit`, { waitUntil: "networkidle" });
     await page.getByRole("heading", { name: "Submit a complete add-on source for review" }).waitFor({ state: "visible" });
+    const supabaseConfigured = await page.getByText("Sign in to create a remote review submission.", { exact: true }).isVisible().catch(() => false);
+    const supabaseUnconfigured = await page.getByText("Remote review storage is not configured.", { exact: false }).isVisible().catch(() => false);
+    assert.notEqual(supabaseConfigured, supabaseUnconfigured, "Marketplace Submit must expose exactly one sanitized Supabase client-configuration state.");
+    observedSupabaseClientStates.add(supabaseConfigured ? "configured_public_client_no_session" : "not_configured");
     assert(await page.getByText("Package or source bundle", { exact: true }).isVisible(), "Marketplace Submit must expose package/source-bundle intake.");
     assert(await page.getByText("Folder or repository", { exact: true }).isVisible(), "Marketplace Submit must expose folder/repository intake.");
     assert(await page.getByText("Git repository URL (metadata only)", { exact: true }).isVisible(), "Marketplace Submit must label Git URLs as metadata-only.");
+    await page.getByLabel("Git repository URL (metadata only)").fill("https://code.example.invalid/repository.git");
+    assert.deepEqual(gitFetchRequests, [], "Entering Git URL metadata must not fetch or clone the repository.");
     assert(await page.getByRole("button", { name: "Submit private pending review" }).isDisabled(), "Remote Marketplace submission must be blocked without sign-in and confirmation.");
     assert(await page.getByText("Admin review reduces risk but does not guarantee safety", { exact: false }).isVisible(), "Marketplace submission review disclaimer is missing.");
 
@@ -288,9 +343,11 @@ try {
   console.log(
     "Developer Forge CSP browser regression test passed at desktop and mobile widths.",
   );
+  console.log(`Sanitized Supabase browser state: ${[...observedSupabaseClientStates].join(", ")}.`);
 } finally {
   await browser.close();
   await new Promise((resolve, reject) =>
     server.close((error) => (error ? reject(error) : resolve())),
   );
+  await fs.rm(folderFixtureRoot, { recursive: true, force: true });
 }

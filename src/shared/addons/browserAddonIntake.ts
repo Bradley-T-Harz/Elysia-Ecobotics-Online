@@ -1,5 +1,6 @@
 import JSZip from "jszip";
 import { inspectArchiveFile, type BrowserArchiveIssue } from "./browserArchiveInspector";
+import { assessLocalElysiaManifestText, type LocalElysiaManifestAssessment } from "./localElysiaManifestContract";
 
 export type AddonIntakeKind = "manifest" | "archive" | "source_bundle" | "folder";
 
@@ -17,6 +18,7 @@ export type AddonIntakeResult = {
   totalBytes: number;
   manifestText: string | null;
   manifestCount: number;
+  localElysiaContract: LocalElysiaManifestAssessment;
   licensePresent: boolean;
   dependencyFiles: string[];
   scriptFiles: string[];
@@ -105,6 +107,9 @@ function summarize(sourceKind: AddonIntakeKind, label: string, files: AddonIntak
   const totalBytes = files.reduce((sum, file) => sum + file.size, 0);
   if (totalBytes > addonIntakeLimits.maxTotalBytes) errors.push({ code: "selection_too_large", message: `Selection expands to ${totalBytes} bytes; limit is ${addonIntakeLimits.maxTotalBytes}.` });
   const manifestText = manifests.length === 1 ? manifests[0].text ?? null : null;
+  const localElysiaContract = manifestText
+    ? assessLocalElysiaManifestText(manifestText)
+    : { schemaVersion: "unavailable", status: "unreadable" as const, summary: "A single readable manifest.json is required before Local Elysia compatibility can be assessed.", issues: ["manifest_unavailable"] };
   if (manifests.length === 1 && manifestText === null) errors.push({ code: "manifest_not_readable", message: "manifest.json is too large or not readable as text.", path: manifests[0].path });
   if (manifestText) {
     try {
@@ -128,6 +133,7 @@ function summarize(sourceKind: AddonIntakeKind, label: string, files: AddonIntak
     totalBytes,
     manifestText,
     manifestCount: manifests.length,
+    localElysiaContract,
     licensePresent: files.some((file) => file.kind === "license"),
     dependencyFiles: files.filter((file) => file.kind === "dependency").map((file) => file.path),
     scriptFiles: files.filter((file) => file.kind === "script").map((file) => file.path),

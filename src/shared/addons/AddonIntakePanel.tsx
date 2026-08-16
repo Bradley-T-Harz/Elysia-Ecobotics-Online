@@ -47,10 +47,12 @@ export default function AddonIntakePanel({ disabled, result, onResult, onMessage
         <div><dt>Files</dt><dd>{result.fileCount}</dd></div>
         <div><dt>Total size</dt><dd>{formatAddonIntakeBytes(result.totalBytes)}</dd></div>
         <div><dt>Manifest</dt><dd>{result.manifestCount === 1 ? "present" : result.manifestCount ? "duplicate" : "missing"}</dd></div>
+        <div><dt>Local Elysia contract</dt><dd>{result.localElysiaContract.status.replace(/_/g, " ")}</dd></div>
         <div><dt>License</dt><dd>{result.licensePresent ? "present" : "not found"}</dd></div>
         <div><dt>Static result</dt><dd>{result.errors.length ? "blocked" : result.warnings.length ? "warnings" : "clear so far"}</dd></div>
       </div>
       <p>{result.label}</p>
+      <p className="boundary-note">{result.localElysiaContract.summary}</p>
       <p>Dependencies: {result.dependencyFiles.length ? result.dependencyFiles.join(", ") : "none detected"}. Scripts: {result.scriptFiles.length}. Binary/other files: {result.binaryFiles.length}.</p>
       {result.errors.slice(0, 5).map((item, index) => <p className="validation validation--bad" key={`${item.code}-${index}`}>{item.code}: {item.message}{item.path ? ` (${item.path})` : ""}</p>)}
       {result.warnings.slice(0, 5).map((item, index) => <p className="validation" key={`${item.code}-${index}`}>{item.code}: {item.message}{item.path ? ` (${item.path})` : ""}</p>)}

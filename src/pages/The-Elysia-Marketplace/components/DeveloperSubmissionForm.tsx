@@ -20,6 +20,7 @@ import {
 } from "../../The-Developer-Forge/developerForgeValidator";
 import type { ForgeManifest } from "../../The-Developer-Forge/developerForgeValidator";
 import { hasSupabaseConfig } from "../lib/supabase";
+import { evaluateMarketplaceSubmissionReadiness, marketplaceSubmissionBlockerMessage } from "../lib/submissionReadiness";
 
 type DeveloperSubmissionFormProps = {
   onMessage: (message: string) => void;
@@ -51,7 +52,19 @@ export default function DeveloperSubmissionForm({ onMessage }: DeveloperSubmissi
   const reasonsComplete = permissions.every((permission) => Boolean(permissionReasons[permission]?.trim()));
   const catalog = forgeState?.permissionCatalog.length ? forgeState.permissionCatalog : defaultPermissionCatalog;
   const hasElevatedPermission = permissions.some((permission) => catalog.find((item) => item.permission_key === permission)?.risk_level !== "low");
-  const canSubmit = hasSupabaseConfig && Boolean(auth.userId) && Boolean(forgeState?.profile) && !blocking && !intake?.errors.length && uploadAccepted && reasonsComplete && (!hasElevatedPermission || riskAccepted) && !isSubmitting;
+  const readiness = evaluateMarketplaceSubmissionReadiness({
+    supabaseConfigured: hasSupabaseConfig,
+    signedIn: Boolean(auth.userId),
+    developerProfileAvailable: Boolean(forgeState?.profile),
+    manifestBlocked: blocking,
+    intakeBlocked: Boolean(intake?.errors.length),
+    uploadDisclosureAccepted: uploadAccepted,
+    permissionReasonsComplete: reasonsComplete,
+    elevatedPermissionRequested: hasElevatedPermission,
+    elevatedRiskAccepted: riskAccepted,
+    submitting: isSubmitting
+  });
+  const canSubmit = readiness.ready;
 
   function updateManifest(patch: Partial<ForgeManifest>) {
     if (!validation.manifest) return;
@@ -66,11 +79,7 @@ export default function DeveloperSubmissionForm({ onMessage }: DeveloperSubmissi
 
   async function submitDraft() {
     if (!canSubmit || !validation.manifest || !forgeState?.profile) {
-      const message = !auth.userId
-        ? "Sign in before creating a remote Marketplace review submission."
-        : !forgeState?.profile
-          ? "Create a Developer Forge profile before remote submission."
-          : "Complete validation, permission reasons, risk acknowledgement, and the upload disclosure before submitting.";
+      const message = marketplaceSubmissionBlockerMessage(readiness.blockers[0]);
       setSubmitStatus(message);
       onMessage(message);
       return;
