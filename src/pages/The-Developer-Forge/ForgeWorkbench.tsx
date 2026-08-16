@@ -147,19 +147,28 @@ export function ForgeWorkbenchSurface({
   onSelect: (path: string) => void;
   onChange: (path: string, value: string) => void;
 }) {
+  const [fileQuery, setFileQuery] = useState("");
   const active = files.find((file) => file.path === activePath) ?? files[0];
   const visibleDiagnostics = diagnostics.slice(0, 6);
+  const matchingFiles = useMemo(() => {
+    const query = fileQuery.trim().toLowerCase();
+    return query ? files.filter((file) => file.path.toLowerCase().includes(query)) : files;
+  }, [fileQuery, files]);
+  const visibleFiles = matchingFiles.slice(0, 200);
+  const visibleTabs = [active, ...files.filter((file) => file.path !== active?.path)].filter(Boolean).slice(0, 12) as ForgeWorkspaceFile[];
   return <div className="forge-workbench-surface">
     <aside className="forge-file-tree" aria-label="Add-on workspace files">
       <strong>Workspace files</strong>
-      {files.map((file) => <button type="button" className={file.path === active.path ? "active" : ""} key={file.path} onClick={() => onSelect(file.path)}>
+      <label className="forge-file-filter"><span>Filter files</span><input type="search" value={fileQuery} onChange={(event) => setFileQuery(event.target.value)} placeholder="src/, README..." /></label>
+      {visibleFiles.map((file) => <button type="button" className={file.path === active.path ? "active" : ""} key={file.path} onClick={() => onSelect(file.path)}>
         <span>{file.label}</span>
         {file.locked && <small>locked</small>}
       </button>)}
+      {matchingFiles.length > visibleFiles.length && <p className="boundary-note">Showing 200 of {matchingFiles.length} matching files. Refine the filter to inspect deeper.</p>}
       <p className="boundary-note">Virtual and explicitly imported files only. Local imports stay in browser memory until a separate private-transfer action. The website never runs package code or controls local Elysia.</p>
     </aside>
     <div className="forge-editor-stack">
-      <div className="forge-editor-tabs">{files.map((file) => <button type="button" className={file.path === active.path ? "active" : ""} key={file.path} onClick={() => onSelect(file.path)}>{file.label}</button>)}</div>
+      <div className="forge-editor-tabs" aria-label="Bounded workspace file tabs">{visibleTabs.map((file) => <button type="button" className={file.path === active.path ? "active" : ""} key={file.path} onClick={() => onSelect(file.path)}>{file.label}</button>)}{files.length > visibleTabs.length && <span>{files.length - visibleTabs.length} more available through file filter</span>}</div>
       <ForgeWorkspaceEditor file={active} readOnly={readOnly} onChange={(value) => onChange(active.path, value)} />
       {active.language === "markdown" && <section id={active.path === "README.md" ? "forge-readme-preview" : undefined} className="forge-markdown-preview-region" aria-labelledby={active.path === "README.md" ? "forge-readme-preview-heading" : undefined}>
         <h3 id={active.path === "README.md" ? "forge-readme-preview-heading" : undefined}>{active.label} preview</h3>

@@ -4868,9 +4868,132 @@ button.commune-vote-option-card:disabled {
   background: rgba(20, 92, 73, 0.08);
 }
 
-.addon-intake-summary--blocked {
+.addon-intake-summary--blocked_from_transfer {
   border-color: rgba(255, 112, 112, 0.45);
   background: rgba(126, 35, 35, 0.09);
+}
+
+.addon-intake-summary--needs_manifest,
+.addon-intake-summary--needs_review {
+  border-color: color-mix(in srgb, var(--forge-gold) 48%, var(--line));
+  background: rgba(126, 91, 35, 0.08);
+}
+
+.addon-intake-summary__heading {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.addon-intake-summary__heading h4,
+.addon-intake-summary__heading p {
+  margin: 0;
+}
+
+.addon-intake-guidance {
+  display: grid;
+  gap: 0.3rem;
+  border: 1px solid color-mix(in srgb, var(--forge-gold) 42%, var(--line));
+  border-radius: 12px;
+  background: rgba(216, 182, 111, 0.08);
+  padding: 0.7rem;
+}
+
+.addon-intake-guidance span,
+.addon-intake-issue-summary > p,
+.addon-intake-bounded-details > p,
+.addon-intake-file-tree > p {
+  color: var(--muted);
+}
+
+.addon-intake-bounded-details,
+.addon-intake-file-tree,
+.addon-intake-issue-summary {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.14);
+  padding: 0.65rem;
+}
+
+.addon-intake-bounded-details > summary,
+.addon-intake-file-tree > summary,
+.addon-intake-issue-group > summary {
+  cursor: pointer;
+  font-weight: 800;
+}
+
+.addon-intake-bounded-details ul,
+.addon-intake-issue-group ul {
+  display: grid;
+  gap: 0.35rem;
+  max-height: 14rem;
+  overflow: auto;
+  margin: 0.6rem 0 0;
+  padding: 0 0.2rem 0 1.35rem;
+}
+
+.addon-intake-bounded-details li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.addon-intake-issue-summary {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.addon-intake-issue-summary > p {
+  margin: 0;
+}
+
+.addon-intake-issue-groups {
+  display: grid;
+  gap: 0.5rem;
+  max-height: 30rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.addon-intake-issue-group {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 0.55rem 0.65rem;
+  min-width: 0;
+}
+
+.addon-intake-issue-group--blocked {
+  border-color: rgba(255, 112, 112, 0.42);
+}
+
+.addon-intake-issue-group--warning {
+  border-color: color-mix(in srgb, var(--forge-gold) 46%, var(--line));
+}
+
+.addon-intake-issue-group > summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.65rem;
+}
+
+.addon-intake-issue-group code,
+.addon-intake-bounded-details code,
+.addon-intake-file-list code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.addon-intake-file-search {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0.65rem;
+}
+
+.addon-intake-file-search input {
+  width: 100%;
 }
 
 .addon-intake-file-list {
@@ -4878,6 +5001,7 @@ button.commune-vote-option-card:disabled {
   gap: 0.35rem;
   max-height: 18rem;
   overflow: auto;
+  overscroll-behavior: contain;
   padding: 0.5rem 0.25rem 0.5rem 1.4rem;
 }
 
@@ -5056,6 +5180,32 @@ button.commune-vote-option-card:disabled {
   gap: .75rem;
 }
 
+.forge-result-list--bounded {
+  max-height: 34rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.forge-result-list--bounded .forge-result > summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.65rem;
+  cursor: pointer;
+}
+
+.forge-result-list--bounded .forge-result ul {
+  display: grid;
+  gap: 0.35rem;
+  max-height: 14rem;
+  overflow: auto;
+  padding-left: 1.25rem;
+}
+
+.forge-result-list--bounded code {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .forge-draft-card,
 .forge-result,
 .forge-permission-card,
@@ -5186,6 +5336,9 @@ button.commune-vote-option-card:disabled {
 .forge-file-tree {
   display: grid;
   gap: .45rem;
+  max-height: 34rem;
+  overflow: auto;
+  overscroll-behavior: contain;
   padding: .75rem;
 }
 
@@ -5197,6 +5350,33 @@ button.commune-vote-option-card:disabled {
   color: var(--text);
   text-align: left;
   padding: .45rem .55rem;
+}
+
+.forge-file-filter {
+  position: sticky;
+  top: -0.75rem;
+  z-index: 1;
+  display: grid;
+  gap: 0.3rem;
+  margin: -0.2rem -0.15rem 0.2rem;
+  padding: 0.2rem 0.15rem 0.55rem;
+  background: rgba(4, 10, 16, 0.96);
+}
+
+.forge-file-filter span,
+.forge-editor-tabs > span {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.forge-file-filter input {
+  min-width: 0;
+  width: 100%;
+  border: 1px solid color-mix(in srgb, var(--forge-accent) 22%, var(--line));
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.24);
+  color: var(--text);
+  padding: 0.42rem 0.5rem;
 }
 
 .forge-file-tree button.active,
@@ -5220,16 +5400,25 @@ button.commune-vote-option-card:disabled {
   display: flex;
   flex-wrap: wrap;
   gap: .35rem;
+  max-height: 7rem;
+  overflow: auto;
+  overscroll-behavior: contain;
   padding: .55rem;
   border-bottom: 1px solid color-mix(in srgb, var(--forge-accent) 14%, var(--line));
 }
 
 .forge-monaco-shell,
 .forge-monaco-fallback {
+  height: 380px;
+  max-height: 60vh;
+  overflow: auto;
   min-height: 380px;
 }
 
 .forge-markdown-preview {
+  max-height: 32rem;
+  overflow: auto;
+  overscroll-behavior: contain;
   margin: .75rem;
   padding: .85rem;
   color: var(--muted);

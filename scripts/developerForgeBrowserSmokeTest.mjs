@@ -120,11 +120,21 @@ const blockedIntakeBytes = await blockedIntakeZip.generateAsync({ type: "nodebuf
 const folderFixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), "elysia-forge-folder-picker-"));
 const validFolderFixture = path.join(folderFixtureRoot, "valid-addon");
 const blockedFolderFixture = path.join(folderFixtureRoot, "blocked-addon");
+const privatePathFolderFixture = path.join(folderFixtureRoot, "private-path-addon");
+const largeFolderFixture = path.join(folderFixtureRoot, "large-addon");
+const marketplaceLargeFolderFixture = path.join(folderFixtureRoot, "marketplace-large-addon");
 await Promise.all([
   fs.mkdir(path.join(validFolderFixture, "src"), { recursive: true }),
   fs.mkdir(path.join(validFolderFixture, "docs"), { recursive: true }),
   fs.mkdir(path.join(validFolderFixture, "assets"), { recursive: true }),
-  fs.mkdir(blockedFolderFixture, { recursive: true })
+  fs.mkdir(blockedFolderFixture, { recursive: true }),
+  fs.mkdir(path.join(privatePathFolderFixture, "docs"), { recursive: true }),
+  fs.mkdir(path.join(largeFolderFixture, "src"), { recursive: true }),
+  fs.mkdir(path.join(largeFolderFixture, "docs"), { recursive: true }),
+  fs.mkdir(path.join(largeFolderFixture, "scripts"), { recursive: true }),
+  fs.mkdir(path.join(largeFolderFixture, ".git"), { recursive: true }),
+  fs.mkdir(path.join(marketplaceLargeFolderFixture, "src"), { recursive: true }),
+  fs.mkdir(path.join(marketplaceLargeFolderFixture, "scripts"), { recursive: true })
 ]);
 const folderManifest = JSON.stringify({
   schema_version: "1.0",
@@ -149,8 +159,31 @@ await Promise.all([
   fs.writeFile(path.join(validFolderFixture, "assets/icon.svg"), '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"/>\n'),
   fs.writeFile(path.join(validFolderFixture, "package.json"), '{"name":"folder-picker-proof","private":true}\n'),
   fs.writeFile(path.join(blockedFolderFixture, "manifest.json"), folderManifest),
-  fs.writeFile(path.join(blockedFolderFixture, ".env"), "EXAMPLE_SECRET=must-not-transfer\n")
+  fs.writeFile(path.join(blockedFolderFixture, ".env"), "EXAMPLE_SECRET=must-not-transfer\n"),
+  fs.writeFile(path.join(privatePathFolderFixture, "manifest.json"), folderManifest),
+  fs.writeFile(path.join(privatePathFolderFixture, "docs/private-path.txt"), "/home/example/private-vault/model.bin\n"),
+  fs.writeFile(path.join(privatePathFolderFixture, "docs/private-windows-path.txt"), "C:\\Users\\example\\private-vault\\model.bin\n"),
+  fs.writeFile(path.join(privatePathFolderFixture, "docs/private-file-uri.txt"), "file:///root/private-vault/model.bin\n"),
+  fs.writeFile(path.join(largeFolderFixture, "package.json"), '{"name":"large-folder-proof","private":true}\n'),
+  fs.writeFile(path.join(largeFolderFixture, "README.md"), "# Large folder proof\n"),
+  fs.writeFile(path.join(largeFolderFixture, "src/index.ts"), "export const proof = true;\n"),
+  fs.writeFile(path.join(largeFolderFixture, "docs/relative-paths.md"), "node_modules/ignore/README.md\nsrc/index.ts\ndocs/review-boundary.md\n"),
+  fs.writeFile(path.join(largeFolderFixture, ".git/config"), "synthetic metadata excluded by default\n"),
+  fs.writeFile(path.join(marketplaceLargeFolderFixture, "package.json"), '{"name":"marketplace-large-folder-proof","private":true}\n'),
+  fs.writeFile(path.join(marketplaceLargeFolderFixture, "src/index.ts"), "export const proof = true;\n")
 ]);
+for (let group = 0; group < 100; group += 1) {
+  const directory = path.join(largeFolderFixture, "node_modules", `synthetic-package-${group}`);
+  await fs.mkdir(directory, { recursive: true });
+  await Promise.all(Array.from({ length: 100 }, (_, index) => fs.writeFile(path.join(directory, `file-${index}.js`), "export default true;\n")));
+}
+await Promise.all(Array.from({ length: 30 }, (_, index) => fs.writeFile(path.join(largeFolderFixture, "scripts", `review-${index}.sh`), "#!/bin/sh\necho review\n")));
+for (let group = 0; group < 12; group += 1) {
+  const directory = path.join(marketplaceLargeFolderFixture, "node_modules", `synthetic-package-${group}`);
+  await fs.mkdir(directory, { recursive: true });
+  await Promise.all(Array.from({ length: 100 }, (_, index) => fs.writeFile(path.join(directory, `file-${index}.js`), "export default true;\n")));
+}
+await Promise.all(Array.from({ length: 30 }, (_, index) => fs.writeFile(path.join(marketplaceLargeFolderFixture, "scripts", `review-${index}.sh`), "#!/bin/sh\necho review\n")));
 
 try {
   for (const viewport of [
@@ -258,26 +291,50 @@ try {
     const packageInput = page.getByLabel("Import .elysia-addon").last();
     currentPhase = "inspect inert package";
     await packageInput.setInputFiles({ name: "browser-intake.elysia-addon", mimeType: "application/vnd.elysia-addon+zip", buffer: intakeBytes });
-    await page.getByText("3 files held in browser memory", { exact: false }).waitFor({ state: "visible" });
+    await page.getByText("3 files selected locally", { exact: false }).first().waitFor({ state: "visible" });
     assert(await page.getByText("no remote transfer occurred", { exact: false }).isVisible(), "Selecting a Forge package must remain local until separate confirmation.");
     const transferButton = page.getByRole("button", { name: "Transfer selected package privately" });
     assert(await transferButton.isDisabled(), "Private package transfer must require explicit disclosure confirmation.");
     assert(await page.getByText("will leave my computer", { exact: false }).isVisible(), "Forge private transfer disclosure is missing.");
     currentPhase = "refuse credential-bearing package";
     await packageInput.setInputFiles({ name: "blocked-browser-intake.elysia-addon", mimeType: "application/vnd.elysia-addon+zip", buffer: blockedIntakeBytes });
-    await page.getByText(/\.env files are (?:blocked|not accepted)/i).first().waitFor({ state: "visible" });
+    await page.getByText("credential_path", { exact: true }).first().waitFor({ state: "visible" });
     assert(await transferButton.isDisabled(), "A package with blocked credential-bearing material must not become transferable.");
     const folderInput = page.getByLabel("Import folder or repository").last();
     currentPhase = "inspect real folder picker fixture";
     await folderInput.setInputFiles(validFolderFixture);
-    await page.getByText("7 files held in browser memory", { exact: false }).waitFor({ state: "visible" });
+    await page.getByText("7 files selected locally", { exact: false }).first().waitFor({ state: "visible" });
     assert(await page.getByText("src/index.ts", { exact: true }).first().isVisible(), "Folder intake must surface nested source files in the file tree.");
     assert(await page.getByText("legacy revalidation required", { exact: true }).isVisible(), "Folder intake must surface Local Elysia schema truth.");
     assert(await transferButton.isDisabled(), "Folder selection must remain local until explicit transfer acknowledgement.");
+    currentPhase = "refuse true private absolute path content";
+    await folderInput.setInputFiles(privatePathFolderFixture);
+    await page.getByText("private_absolute_path", { exact: true }).waitFor({ state: "visible" });
+    assert(await transferButton.isDisabled(), "True private absolute paths must block remote transfer.");
     currentPhase = "refuse credential-bearing folder";
     await folderInput.setInputFiles(blockedFolderFixture);
-    await page.getByText(/\.env files are (?:blocked|not accepted)/i).first().waitFor({ state: "visible" });
+    await page.getByText("credential_path", { exact: true }).first().waitFor({ state: "visible" });
     assert(await transferButton.isDisabled(), "A folder containing .env must not become transferable.");
+    if (viewport.width >= 1000) {
+      currentPhase = "inspect large repository with generated exclusions";
+      await folderInput.setInputFiles(largeFolderFixture, { timeout: 90_000 });
+      await page.getByText("10035 files selected locally", { exact: false }).first().waitFor({ state: "visible", timeout: 90_000 });
+      const intakeSummary = page.locator(".addon-intake-summary");
+      assert(await intakeSummary.getByText("needs manifest", { exact: true }).first().isVisible(), "A large ordinary repository without root manifest.json must be classified as needs manifest.");
+      assert(await intakeSummary.getByText("Node project detected", { exact: false }).isVisible(), "A root package.json should produce concise Node-project guidance.");
+      assert(await intakeSummary.getByText("Generated/vendor exclusions (10001 files)", { exact: true }).isVisible(), "Generated/vendor exclusions must be summarized, not rendered as files.");
+      assert.equal(await intakeSummary.getByText("private_absolute_path", { exact: true }).count(), 0, "Relative dependency paths must not be flagged as private absolute paths.");
+      const scriptGroup = intakeSummary.locator(".addon-intake-issue-group").filter({ hasText: "script_file" });
+      assert(await scriptGroup.isVisible(), "Repeated script findings must be grouped.");
+      assert(await scriptGroup.getByText("30", { exact: true }).isVisible(), "The script finding group must retain its exact count.");
+      await intakeSummary.getByText("Included file tree", { exact: false }).click();
+      assert((await intakeSummary.locator(".addon-intake-file-list li").count()) <= 200, "The visible file tree must remain capped at 200 entries.");
+      assert.equal(await intakeSummary.locator(".addon-intake-file-list code").filter({ hasText: "node_modules/" }).count(), 0, "Excluded dependency paths must not flood the visible tree.");
+      const treeStyle = await intakeSummary.locator(".addon-intake-file-list").evaluate((element) => ({ overflowY: getComputedStyle(element).overflowY, maxHeight: getComputedStyle(element).maxHeight }));
+      assert(["auto", "scroll"].includes(treeStyle.overflowY) && treeStyle.maxHeight !== "none", "The included file tree must use a bounded embedded scroller.");
+      const largePageHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+      assert(largePageHeight < 25_000, `Large intake must not create an unbounded page wall; observed ${largePageHeight}px.`);
+    }
 
     currentPhase = "open Marketplace Submit";
     await page.goto(`${origin}/marketplace/submit`, { waitUntil: "networkidle" });
@@ -296,6 +353,18 @@ try {
     assert.deepEqual(gitFetchRequests, [], "Entering Git URL metadata must not fetch or clone the repository.");
     assert(await page.getByRole("button", { name: "Submit private pending review" }).isDisabled(), "Remote Marketplace submission must be blocked without sign-in and confirmation.");
     assert(await page.getByText("Admin review reduces risk but does not guarantee safety", { exact: false }).isVisible(), "Marketplace submission review disclaimer is missing.");
+    if (viewport.width >= 1000) {
+      currentPhase = "verify large repository behavior on Marketplace Submit";
+      const marketplaceFolderInput = page.getByLabel("Import folder or repository").last();
+      await marketplaceFolderInput.setInputFiles(marketplaceLargeFolderFixture, { timeout: 90_000 });
+      const marketplaceSummary = page.locator(".addon-intake-summary");
+      await marketplaceSummary.waitFor({ state: "visible", timeout: 90_000 });
+      const marketplaceSummaryText = await marketplaceSummary.innerText();
+      assert(marketplaceSummaryText.includes("1232"), `Marketplace large intake must retain selected file count; summary was: ${marketplaceSummaryText.slice(0, 600)}`);
+      assert(await marketplaceSummary.getByText("Generated/vendor exclusions (1200 files)", { exact: true }).isVisible(), "Marketplace Submit must share generated/vendor exclusion truth.");
+      assert(await marketplaceSummary.getByText("needs manifest", { exact: true }).first().isVisible(), "Marketplace Submit must distinguish needs-manifest from forbidden selection.");
+      assert.equal(await marketplaceSummary.locator(".addon-intake-issue-group").filter({ hasText: "private_absolute_path" }).count(), 0, "Marketplace Submit must not flag relative dependency paths as private absolute paths.");
+    }
     await captureVisual(page.locator(".submission-card"), "marketplace-submit-intake", viewport);
 
     currentPhase = "open Marketplace Browse";

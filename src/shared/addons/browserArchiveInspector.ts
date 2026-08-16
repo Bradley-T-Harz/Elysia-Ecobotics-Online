@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import { generatedVendorDirectoryForPath } from "./addonIntakePolicy";
 
 export type BrowserArchiveIssue = { code: string; message: string; path?: string; suggestion?: string };
 export type BrowserArchiveInspectionResult = {
@@ -34,6 +35,13 @@ function unsafePath(path: string) {
   if (/(^|\/)(id_rsa|id_dsa|id_ed25519|credentials|credential|secrets?|vault)(\.|$)/i.test(value)) return "credential/private-key filenames are blocked";
   if (/\.(pem|p12|pfx|key)$/i.test(value)) return "private key/certificate containers are blocked";
   return null;
+}
+
+function structurallyUnsafePath(path: string) {
+  const value = path.replace(/\\/g, "/").replace(/\/$/, "");
+  if (!value || value.includes("\0")) return true;
+  if (value.startsWith("/") || /^[A-Za-z]:\//.test(value)) return true;
+  return value.split("/").some((part: string) => part === "..");
 }
 
 function likelyText(path: string) {
@@ -87,11 +95,18 @@ export async function inspectArchiveFile(file: File): Promise<BrowserArchiveInsp
     return { status: "fail", risk_level: "blocked", summary: "Archive could not be opened as ZIP/.elysia-addon.", errors: [issue("invalid_archive", "Archive could not be opened as ZIP/.elysia-addon.")], warnings, info, file_inventory, manifest_summary: null, checksums_summary: null, archive_size: archiveBytes, total_uncompressed_size: 0, sha256: archiveHash };
   }
   const entries = Object.values(zip.files);
-  if (entries.length > maxFileCount) errors.push(issue("too_many_files", `Archive contains ${entries.length} entries; limit is ${maxFileCount}.`));
+  const inspectableEntries = entries.filter((entry) => {
+    const originalPath = entry.unsafeOriginalName && entry.unsafeOriginalName !== entry.name ? entry.unsafeOriginalName : entry.name;
+    const pathProblem = structurallyUnsafePath(entry.name) || (originalPath !== entry.name && structurallyUnsafePath(originalPath));
+    return pathProblem || !generatedVendorDirectoryForPath(entry.name);
+  });
+  const inspectableFileCount = inspectableEntries.filter((entry) => !entry.dir).length;
+  if (inspectableFileCount > maxFileCount) errors.push(issue("too_many_files", `Archive contains ${inspectableFileCount} included files after generated/vendor exclusions; scan limit is ${maxFileCount}.`));
   let total = 0;
+  let processedFiles = 0;
   let manifestSummary: BrowserArchiveInspectionResult["manifest_summary"] = null;
   let checksumsSummary: BrowserArchiveInspectionResult["checksums_summary"] = null;
-  for (const entry of entries) {
+  for (const entry of inspectableEntries) {
     const originalPath = entry.unsafeOriginalName && entry.unsafeOriginalName !== entry.name ? entry.unsafeOriginalName : entry.name;
     const pathProblem = unsafePath(entry.name) ?? (originalPath !== entry.name ? unsafePath(originalPath) : null);
     if (pathProblem) errors.push(issue("unsafe_path", `${originalPath}: ${pathProblem}`, entry.name));
@@ -104,6 +119,8 @@ export async function inspectArchiveFile(file: File): Promise<BrowserArchiveInsp
       file_inventory.push({ path: entry.name, kind: "directory", size: 0, scanned_as_text: false });
       continue;
     }
+    if (processedFiles >= maxFileCount) continue;
+    processedFiles += 1;
     const data = await entry.async("uint8array");
     total += data.byteLength;
     const scanned = likelyText(entry.name) && data.byteLength <= maxTextScanBytes;

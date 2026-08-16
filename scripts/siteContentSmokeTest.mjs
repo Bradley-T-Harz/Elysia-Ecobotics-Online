@@ -93,6 +93,7 @@ const marketplaceSubmission = await read("src/pages/The-Elysia-Marketplace/compo
 const marketplaceApi = await read("src/pages/The-Elysia-Marketplace/lib/marketplaceApi.ts");
 const marketplaceSeeds = await read("src/pages/The-Elysia-Marketplace/data/seedAddons.ts");
 const addonIntake = await read("src/shared/addons/browserAddonIntake.ts");
+const addonIntakePolicy = await read("src/shared/addons/addonIntakePolicy.ts");
 const addonIntakePanel = await read("src/shared/addons/AddonIntakePanel.tsx");
 const installIntentApi = await read("src/pages/The-Elysia-Marketplace/lib/installIntentApi.ts");
 const marketplaceIdentifierMigration = await read("supabase/migrations/20260716012000_marketplace_identifier_compatibility.sql");
@@ -746,7 +747,8 @@ for (const staleId of ["advanced-pdf-parser", "ollama-local-models", "searxng-re
 assert(marketplaceSubmission.includes("Submit private pending review") && marketplaceSubmission.includes("will leave my computer") && marketplaceSubmission.includes("Git repository URL (metadata only)") && marketplaceSubmission.includes("Paste or edit manifest JSON"), "Marketplace Submit must expose governed source intake, upload disclosure, and non-fetching Git metadata.");
 for (const intakePath of ["Import .elysia-addon", "Import ZIP / source bundle", "Import folder / repository", "Import manifest.json"]) assert(addonIntakePanel.includes(intakePath), `Browser add-on intake path is missing: ${intakePath}`);
 assert(addonIntakePanel.includes("does not upload them") && addonIntakePanel.includes("it is not the entire add-on"), "Browser add-on intake local-selection or package-reality truth is missing.");
-for (const intakeGuard of [".env files are not accepted", "Path traversal is not accepted", "Secret-looking token", "Private or machine-specific absolute path", "git_metadata_excluded"]) assert(addonIntake.includes(intakeGuard), `Browser add-on intake guard missing: ${intakeGuard}`);
+for (const intakeGuard of [".env files are not accepted", "Path traversal is not accepted", "Secret-looking token", "Private or machine-specific absolute path"]) assert(addonIntake.includes(intakeGuard), `Browser add-on intake guard missing: ${intakeGuard}`);
+for (const excludedDirectory of ["node_modules", ".git", "dist", "build", "target", ".venv", "coverage"]) assert(addonIntakePolicy.includes(`"${excludedDirectory}"`), `Browser add-on generated/vendor exclusion missing: ${excludedDirectory}`);
 assert(installIntentApi.includes("legacy_addon_id: addonRow?.id ?? null") && !installIntentApi.includes("\n      addon_id: addonRow?.id ?? null"), "Marketplace install intent must use the migration-declared legacy_addon_id rather than the absent active-baseline addon_id column.");
 assert(installIntentApi.includes("marketplace_addon_version_id: liveVersion?.id ?? null") && installIntentApi.includes("addon_version_id: versionRow?.id ?? null"), "Marketplace install intent must preserve current Marketplace and legacy add-on version lineages for the compatibility trigger.");
 assert(marketplaceIdentifierMigration.includes("new.legacy_addon_version_id := coalesce(") && marketplaceIdentifierMigration.includes("new.addon_version_id := new.marketplace_addon_version_id") && marketplaceIdentifierMigration.includes("if new.legacy_addon_id is null and new.addon_slug is not null"), "Marketplace identifier migration must normalize the explicitly separated current and legacy install-intent identifiers.");

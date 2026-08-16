@@ -2,9 +2,12 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 
 const read = (path) => fs.readFile(path, "utf8");
-const [intake, panel, localManifestContract, submit, submissionReadiness, forge, forgeApi, catalogApi, seeds, card, details, installIntent, preview, privacy, submissionRules, cleanup] = await Promise.all([
+const [intake, intakePolicy, panel, styles, workbench, localManifestContract, submit, submissionReadiness, forge, forgeApi, catalogApi, seeds, card, details, installIntent, preview, privacy, submissionRules, cleanup] = await Promise.all([
   read("src/shared/addons/browserAddonIntake.ts"),
+  read("src/shared/addons/addonIntakePolicy.ts"),
   read("src/shared/addons/AddonIntakePanel.tsx"),
+  read("src/styles.css"),
+  read("src/pages/The-Developer-Forge/ForgeWorkbench.tsx"),
   read("src/shared/addons/localElysiaManifestContract.ts"),
   read("src/pages/The-Elysia-Marketplace/components/DeveloperSubmissionForm.tsx"),
   read("src/pages/The-Elysia-Marketplace/lib/submissionReadiness.ts"),
@@ -21,17 +24,22 @@ const [intake, panel, localManifestContract, submit, submissionReadiness, forge,
   read("docs/marketplace/v1-catalog-cleanup-plan.md")
 ]);
 
-for (const required of ["inspectAddonArchive", "inspectAddonFiles", "maxFiles", "maxTotalBytes", "missing_manifest", "duplicate_manifest", "private_absolute_path", "secret_api_key", "network_behavior_indicator"]) {
+for (const required of ["inspectAddonArchive", "inspectAddonFiles", "maxFiles", "maxTotalBytes", "maxRenderedFiles", "missing_manifest", "duplicate_manifest", "nested_manifest_candidates", "private_absolute_path", "secret_api_key", "network_behavior_indicator", "selectedFileCount", "excludedFileCount", "deferredFileCount", "issueGroups", "needs_manifest", "blocked_from_transfer"]) {
   assert(intake.includes(required), `Browser intake contract is missing ${required}.`);
 }
-for (const required of ["Import .elysia-addon", "Import ZIP / source bundle", "Import folder / repository", "Import manifest.json", "Choosing files does not upload them", "Selected file tree", "manifest.json", "it is not the entire add-on"]) {
+for (const directory of ["node_modules", ".git", "dist", "build", ".next", "target", "venv", ".venv", "__pycache__", ".pytest_cache", ".cache", "coverage"]) assert(intakePolicy.includes(`"${directory}"`), `Generated/vendor exclusion policy is missing ${directory}.`);
+assert(intakePolicy.includes("containsPrivateAbsolutePath") && intakePolicy.includes("file:\\/\\/\\/") && intakePolicy.includes("[A-Za-z]:"), "Private absolute path policy lost Unix/file/Windows coverage.");
+for (const relativePath of ["node_modules/ignore/README.md", "src/index.ts", "docs/review-boundary.md"]) assert(!intakePolicy.includes(relativePath), `Relative path must not be hard-coded as private: ${relativePath}.`);
+for (const required of ["Import .elysia-addon", "Import ZIP / source bundle", "Import folder / repository", "Import manifest.json", "Choosing files does not upload them", "Included file tree", "manifest.json", "it is not the entire add-on", "Selected files", "Included in scan", "Excluded by default", "Deferred by limits", "needs manifest", "blocked from transfer", "Grouped findings", "Export bounded scan summary", "Filter included files"]) {
   assert(panel.includes(required), `Browser intake UI is missing: ${required}.`);
 }
+for (const required of ["addon-intake-issue-groups", "max-height: 30rem", "addon-intake-file-list", "max-height: 18rem", "forge-result-list--bounded", "forge-file-tree"]) assert(styles.includes(required), `Large-intake bounded layout CSS is missing ${required}.`);
+assert(workbench.includes("matchingFiles.slice(0, 200)") && workbench.includes("visibleTabs") && workbench.includes("Filter files"), "Developer Forge workspace does not cap/search large imported file sets.");
 assert(panel.includes("Local Elysia contract") && localManifestContract.includes('localElysiaCanonicalSchema = "1.1"'), "Browser intake does not surface Local Elysia schema truth.");
 assert(submit.includes("Submit private pending review") && submit.includes("will leave my computer") && submit.includes("Git repository URL (metadata only)") && submit.includes("Paste or edit manifest JSON") && submit.includes("Add Git repository URL as review metadata"), "Marketplace Submit lost explicit source paths, pending-review, upload-disclosure, or Git-metadata truth.");
 assert(submit.includes("evaluateMarketplaceSubmissionReadiness") && submissionReadiness.includes("sign_in_required") && submissionReadiness.includes("developer_profile_required") && submissionReadiness.includes("upload_disclosure_required"), "Marketplace submission is not fail-closed on account/profile/disclosure requirements.");
 for (const path of ["Create from template", "Import .elysia-addon", "Import ZIP / source bundle", "Import folder / repository", "Import manifest.json", "Use Git URL metadata", "Export inert .elysia-addon", "Prepare Marketplace review"]) assert(forge.includes(path), `Developer Forge workflow map is missing ${path}.`);
-assert(forge.includes("Transfer selected package privately") && forge.includes("files held in browser memory") && forge.includes("does not fetch, clone"), "Developer Forge lost its local-import/private-transfer/Git boundary.");
+assert(forge.includes("Transfer selected package privately") && forge.includes("files selected locally") && forge.includes("No remote transfer occurred") && forge.includes("does not fetch, clone"), "Developer Forge lost its local-import/private-transfer/Git boundary.");
 assert(forgeApi.includes("Blocking static/archive findings prevented private package transfer") && forgeApi.includes("unsupported_package_type"), "Private package transfer does not fail closed on static findings/type.");
 for (const stale of ["Advanced PDF Parser", "Ollama Local Models", "SearXNG Research"]) assert(!seeds.includes(stale) && !preview.includes(stale), `Stale static listing remains: ${stale}.`);
 for (const staleId of ["advanced-pdf-parser", "ollama-local-models", "searxng-research"]) assert(catalogApi.includes(staleId), `Source-side remote suppression missing ${staleId}.`);

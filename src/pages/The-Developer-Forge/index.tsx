@@ -89,7 +89,21 @@ function ForgeNav({ current }: { current: string }) {
 
 function ResultList({ results }: { results: ForgeValidationResult[] }) {
   if (!results.length) return <p className="forge-empty">No validation results yet. Run validation to check the manifest and static metadata.</p>;
-  return <div className="forge-result-list">{results.map((result, index) => <article className={`forge-result forge-result--${result.severity}`} key={`${result.code}-${index}`}><strong>{result.severity.toUpperCase()} · {result.code}</strong><p>{result.message}</p>{result.field_path && <span>{result.field_path}</span>}{result.fix_suggestion && <p>{result.fix_suggestion}</p>}</article>)}</div>;
+  const grouped = new Map<string, { severity: ForgeValidationResult["severity"]; code: string; message: string; fix?: string; count: number; examples: string[] }>();
+  for (const result of results) {
+    const key = `${result.severity}:${result.code}`;
+    const current = grouped.get(key) ?? { severity: result.severity, code: result.code, message: result.message, fix: result.fix_suggestion, count: 0, examples: [] };
+    current.count += 1;
+    if (result.field_path && current.examples.length < 10 && !current.examples.includes(result.field_path)) current.examples.push(result.field_path);
+    grouped.set(key, current);
+  }
+  return <div className="forge-result-list forge-result-list--bounded">{[...grouped.values()].map((group) => <details className={`forge-result forge-result--${group.severity}`} key={`${group.severity}-${group.code}`}>
+    <summary><strong>{group.severity.toUpperCase()} · {group.code}</strong><span>{group.count}</span></summary>
+    <p>{group.message}</p>
+    {group.examples.length > 0 && <ul>{group.examples.map((example) => <li key={example}><code>{example}</code></li>)}</ul>}
+    {group.count > group.examples.length && <p>Showing {group.examples.length} of {group.count} examples.</p>}
+    {group.fix && <p>{group.fix}</p>}
+  </details>)}</div>;
 }
 
 function PermissionPill({ permission }: { permission: PermissionDefinition }) {
@@ -321,11 +335,11 @@ function DraftWorkspace({ draft, catalog, onChanged }: { draft: AddonDraft; cata
       setActiveFilePath(result.files.find((file) => file.kind === "manifest")?.path ?? "manifest.json");
     }
     const intakeResults: ForgeValidationResult[] = [
-      ...result.errors.map((item) => ({ severity: "blocked" as const, code: `intake_${item.code}`, message: item.message, field_path: item.path })),
+      ...result.errors.map((item) => ({ severity: item.code === "missing_manifest" ? "needs_reviewer" as const : "blocked" as const, code: `intake_${item.code}`, message: item.message, field_path: item.path })),
       ...result.warnings.map((item) => ({ severity: "warning" as const, code: `intake_${item.code}`, message: item.message, field_path: item.path }))
     ];
     setResults(intakeResults);
-    setPackageMessage(`${result.fileCount} files held in browser memory; no remote transfer occurred.`);
+    setPackageMessage(`${result.selectedFileCount} files selected locally; ${result.fileCount} included in the bounded scan and ${result.excludedFileCount} generated/vendor files excluded by default. No remote transfer occurred.`);
   }
   async function transferPackage() {
     const file = intake?.packageFile;
