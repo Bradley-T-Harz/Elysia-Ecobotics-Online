@@ -26,17 +26,21 @@ const transitionLabels: Record<AddonIntakeResult["transitionState"], string> = {
 
 function IssueGroups({ groups }: { groups: AddonIntakeIssueGroup[] }) {
   if (!groups.length) return <p className="validation validation--ok">No static intake findings so far. Static inspection is evidence, not proof.</p>;
-  const blocked = groups.filter((group) => group.severity === "blocked");
+  const needsManifest = groups.filter((group) => group.code === "missing_manifest");
+  const blocked = groups.filter((group) => group.severity === "blocked" && group.code !== "missing_manifest");
   const warnings = groups.filter((group) => group.severity === "warning");
   return <div className="addon-intake-issue-summary" aria-label="Grouped validation and static scan findings">
-    <p><strong>Grouped findings:</strong> {blocked.length} blocking group{blocked.length === 1 ? "" : "s"} · {warnings.length} warning group{warnings.length === 1 ? "" : "s"}. Open a group to inspect bounded examples.</p>
+    <p><strong>Grouped findings:</strong> {needsManifest.length} needs-manifest group{needsManifest.length === 1 ? "" : "s"} · {blocked.length} transfer-blocking group{blocked.length === 1 ? "" : "s"} · {warnings.length} warning group{warnings.length === 1 ? "" : "s"}. Open a group to inspect bounded examples.</p>
     <div className="addon-intake-issue-groups">
-      {groups.map((group) => <details className={`addon-intake-issue-group addon-intake-issue-group--${group.severity}`} key={`${group.severity}-${group.code}`}>
-        <summary><span>{group.severity === "blocked" ? "Blocked from transfer" : "Warning"} · <code>{group.code}</code></span><strong>{group.count}</strong></summary>
+      {groups.map((group) => {
+        const displayState = group.code === "missing_manifest" ? "needs_manifest" : group.severity;
+        const displayLabel = displayState === "needs_manifest" ? "Needs manifest" : displayState === "blocked" ? "Blocked from transfer" : "Warning";
+        return <details className={`addon-intake-issue-group addon-intake-issue-group--${displayState}`} key={`${group.severity}-${group.code}`}>
+        <summary><span>{displayLabel} · <code>{group.code}</code></span><strong>{group.count}</strong></summary>
         <p>{group.message}</p>
         {group.examples.length > 0 && <ul>{group.examples.map((example) => <li key={example}><code>{example}</code></li>)}</ul>}
         {group.count > group.examples.length && <p>Showing {group.examples.length} of {group.count} examples.</p>}
-      </details>)}
+      </details>})}
     </div>
   </div>;
 }

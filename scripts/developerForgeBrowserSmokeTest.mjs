@@ -321,6 +321,9 @@ try {
       await page.getByText("10035 files selected locally", { exact: false }).first().waitFor({ state: "visible", timeout: 90_000 });
       const intakeSummary = page.locator(".addon-intake-summary");
       assert(await intakeSummary.getByText("needs manifest", { exact: true }).first().isVisible(), "A large ordinary repository without root manifest.json must be classified as needs manifest.");
+      const missingManifestGroup = intakeSummary.locator(".addon-intake-issue-group--needs_manifest");
+      assert(await missingManifestGroup.isVisible() && (await missingManifestGroup.innerText()).includes("Needs manifest"), "Missing manifest findings must not be mislabeled as a generic blocked repository.");
+      assert.equal(await intakeSummary.getByText("Blocked from transfer", { exact: true }).count(), 0, "A missing manifest alone must not make local repository selection look forbidden.");
       assert(await intakeSummary.getByText("Node project detected", { exact: false }).isVisible(), "A root package.json should produce concise Node-project guidance.");
       assert(await intakeSummary.getByText("Generated/vendor exclusions (10001 files)", { exact: true }).isVisible(), "Generated/vendor exclusions must be summarized, not rendered as files.");
       assert.equal(await intakeSummary.getByText("private_absolute_path", { exact: true }).count(), 0, "Relative dependency paths must not be flagged as private absolute paths.");

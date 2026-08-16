@@ -4973,6 +4973,11 @@ button.commune-vote-option-card:disabled {
   border-color: color-mix(in srgb, var(--forge-gold) 46%, var(--line));
 }
 
+.addon-intake-issue-group--needs_manifest {
+  border-color: color-mix(in srgb, var(--forge-gold) 58%, var(--line));
+  background: rgba(216, 182, 111, 0.04);
+}
+
 .addon-intake-issue-group > summary {
   display: flex;
   justify-content: space-between;
