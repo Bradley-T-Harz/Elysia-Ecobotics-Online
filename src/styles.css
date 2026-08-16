@@ -4860,6 +4860,7 @@ button.commune-vote-option-card:disabled {
 }
 
 .addon-intake-summary {
+  contain: layout style;
   display: grid;
   gap: 0.65rem;
   padding: 0.85rem;

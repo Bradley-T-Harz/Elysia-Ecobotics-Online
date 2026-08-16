@@ -134,7 +134,7 @@ export default function AddonIntakePanel({ disabled, result, onResult, onMessage
       <span><strong>Admin review:</strong> required before publication</span>
     </div>
     <p className="boundary-note">Choosing files does not upload them, clone a repository, execute code, run scripts, install dependencies, or create a public listing.</p>
-    {result && <section className={`addon-intake-summary addon-intake-summary--${result.transitionState}`} aria-live="polite">
+    {result && <section className={`addon-intake-summary addon-intake-summary--${result.transitionState}`} data-intake-revision="pass-8e-1" aria-live="polite">
       <div className="addon-intake-summary__heading">
         <div><p className="eyebrow">Local intake result</p><h4>{result.label}</h4></div>
         <span className={`forge-status forge-status--${result.transitionState}`}>{transitionLabels[result.transitionState]}</span>
