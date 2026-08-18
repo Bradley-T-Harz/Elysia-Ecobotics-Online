@@ -26,14 +26,24 @@ assert.throws(() => buildCleanupPlan({ ...inventory, marketplace_listings: [{ id
 assert.throws(() => parseCleanupPlanArguments(["--apply"]), /Unknown argument/);
 assert.throws(() => parseCleanupPlanArguments(["--inventory", path.resolve("inventory.json"), "--output", path.resolve("plan.json")]), /outside the repository/);
 
-const [inventoryScript, inventorySql] = await Promise.all([
+const [inventoryScript, inventorySql, seedSql, policiesSql, publicationBoundaryMigration] = await Promise.all([
   fs.readFile("scripts/marketplaceV1LegacyInventory.mjs", "utf8"),
-  fs.readFile("scripts/sql/marketplace_v1_legacy_listing_inventory.sql", "utf8")
+  fs.readFile("scripts/sql/marketplace_v1_legacy_listing_inventory.sql", "utf8"),
+  fs.readFile("supabase/seed.sql", "utf8"),
+  fs.readFile("supabase/policies.sql", "utf8"),
+  fs.readFile("supabase/migrations/20260818010000_legacy_marketplace_publication_boundary.sql", "utf8")
 ]);
 assert.match(inventorySql, /begin transaction read only;/i);
 assert.match(inventorySql, /rollback;/i);
 assert(!/\b(?:insert|update|delete|truncate|alter|create|drop|grant|revoke)\b\s+(?:table|into|from|on|schema|function|policy|role)/i.test(inventorySql));
 for (const name of ["Advanced PDF Parser", "Ollama Local Models", "SearXNG Research"]) assert(inventorySql.includes(name));
+for (const staleSeed of ["advanced-pdf-parser", "ollama-local-models", "searxng-research"]) {
+  assert(!seedSql.includes(staleSeed), `Public seed still creates stale pseudo-add-on ${staleSeed}`);
+}
+for (const policySource of [policiesSql, publicationBoundaryMigration]) {
+  assert.match(policySource, /status\s*=\s*'approved'/i);
+  assert(!/status\s+in\s*\([^)]*'deprecated'/i.test(policySource), "Deprecated legacy add-ons must not remain public-readable");
+}
 assert(inventoryScript.includes('mode: 0o600') && inventoryScript.includes('flag: "wx"'));
 assert(!inventoryScript.includes("console.log(configured)"));
 

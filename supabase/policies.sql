@@ -45,7 +45,7 @@ drop policy if exists "publisher owners insert addons" on addons;
 drop policy if exists "publisher owners update addons" on addons;
 drop policy if exists "admins manage addons" on addons;
 
-create policy "public approved addons readable" on addons for select using (status in ('approved','deprecated'));
+create policy "public approved addons readable" on addons for select using (status = 'approved');
 create policy "publisher owners see drafts" on addons for select using (publisher_id in (select id from publishers where owner_id = auth.uid()));
 create policy "publisher owners insert addons" on addons for insert with check (publisher_id in (select id from publishers where owner_id = auth.uid()));
 create policy "publisher owners update addons" on addons for update using (publisher_id in (select id from publishers where owner_id = auth.uid()));
