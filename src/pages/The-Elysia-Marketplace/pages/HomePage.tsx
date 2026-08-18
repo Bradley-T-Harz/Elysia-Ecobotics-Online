@@ -7,8 +7,8 @@ const steps = [
   { title: "Catalog", detail: "Browse reviewed public listings and explicitly non-installable candidates without granting local authority." },
   { title: "Manifest", detail: "Inspect dependencies, action kinds, network behavior, and security declarations." },
   { title: "Review", detail: "Trust tiers and admin review state separate official, reviewed, community, and unreviewed entries." },
-  { title: "Save / Prepare", detail: "Save eligible reviewed listings or prepare an install-review intent for later local review." },
-  { title: "Local Elysia later", detail: "Only local Elysia can execute approved actions through the password-gated Add-ons room." }
+  { title: "Review record", detail: "A catalog listing or private review record grants no local install or execution authority." },
+  { title: "Local authority", detail: "A user-selected package is independently revalidated by Local Elysia before any staged or enabled state." }
 ];
 
 export default function MarketplaceHomePage() {
@@ -45,7 +45,7 @@ export default function MarketplaceHomePage() {
               <div><dt>Catalog entries</dt><dd>{sortedAddons.length}</dd></div>
               <div><dt>Local machine data</dt><dd>Unselected data not collected</dd></div>
               <div><dt>Commerce</dt><dd>Separate test-mode offers only</dd></div>
-              <div><dt>Execution</dt><dd>Future local Elysia only</dd></div>
+              <div><dt>Website execution</dt><dd>Unavailable</dd></div>
             </dl>
           </aside>
         </div>
@@ -73,7 +73,7 @@ export default function MarketplaceHomePage() {
       <section className="section-card split-callout">
         <div>
           <p className="eyebrow"><UploadCloud size={16} /> Developer-ready</p>
-          <h2>Manifests first, execution later.</h2>
+          <h2>Manifests and review records, without website execution.</h2>
           <p>
             Developers can prepare add-on manifests and submissions. Reviewers can inspect dependency sources,
             action kinds, network boundaries, rollback notes, and trust tiers before anything is offered as safe.

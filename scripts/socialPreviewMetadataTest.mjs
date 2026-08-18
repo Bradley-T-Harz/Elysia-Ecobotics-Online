@@ -10,7 +10,7 @@ const expectedImageUrl = "https://elysiaecobotics.com/images/social/Elysia_Ecobo
 const expectedImageAlt = "Elysia Ecobotics™ eco-futurist circuit-city exchanging energy and data with a living forest.";
 const expectedImageSha256 = "c50584f3afd10138055cddd4cacdecd33f67540265330982a5237785651a7f7b";
 const homepageTitle = "Elysia Ecobotics Online";
-const homepageDescription = "Elysia Ecobotics Online: public downloads, Marketplace, Developer Forge, Living Library, Commune, Commons Circle, and project documentation around Elysia.";
+const homepageDescription = "Elysia Ecobotics Online: governed Marketplace intake, Developer Forge, Living Library, Commons Circle, and public project documentation around local Elysia.";
 const artisanTitle = "Elysia Artisan Collective | Elysia Ecobotics Online";
 const artisanDescription = "Meet the Elysia Artisan Collective, a separate creative commons for credited human-made, AI-assisted, generative, hybrid, and difficult-to-classify art.";
 

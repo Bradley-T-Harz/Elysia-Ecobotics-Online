@@ -35,7 +35,7 @@ export default function ActionPreview({ addon, onSaveAddon, onPrepareLocalInstal
     <section className="action-preview action-preview--full">
       <p className="eyebrow">Action Preview Only</p>
       <h1>{addon.name}</h1>
-      <p className="boundary-note">No install, uninstall, enable, disable, or local mutation occurs on this website. These are marketplace plans for later local Elysia review. Add-ons install later into an Elysia_Add-ons folder beside the Elysia folder, not inside Elysia core.</p>
+      <p className="boundary-note">No install, uninstall, enable, disable, or local mutation occurs on this website. This page discloses manifest actions for review; it grants no local authority.</p>
       <div className="action-preview-grid">
         {addon.actions.map((action) => (
           <article className="action-card" key={action.action_key}>
@@ -48,17 +48,18 @@ export default function ActionPreview({ addon, onSaveAddon, onPrepareLocalInstal
               <div><dt>Action kind</dt><dd>{action.action_kind}</dd></div>
               <div><dt>Allowed by manifest</dt><dd>{action.allowed ? "Declared" : "Not declared"}</dd></div>
               <div><dt>Network contact</dt><dd>{action.network_access ? "Declared" : "Not declared"}</dd></div>
-              <div><dt>Future local approval</dt><dd>{action.requires_local_operator_password ? "Required" : "Not declared"}</dd></div>
+              <div><dt>Declared local approval</dt><dd>{action.requires_local_operator_password ? "Required" : "Not declared"}</dd></div>
             </dl>
             <ul>{action.notes.map((note) => <li key={note}>{note}</li>)}</ul>
           </article>
         ))}
       </div>
       <div className="button-row">
-        <button type="button" disabled={!installAvailable} onClick={() => onSaveAddon(addon.id)}>{installAvailable ? "Save plan" : "Plan unavailable"}</button>
+        {installAvailable && <button type="button" onClick={() => onSaveAddon(addon.id)}>Save plan</button>}
         <Link className="button-link" to={`/marketplace/addons/${addon.id}`}>View Manifest</Link>
         <Link className="button-link" to="/marketplace/browse">Browse Add-ons</Link>
-        <button type="button" disabled={!installAvailable} onClick={() => onPrepareLocalInstall(addon.id)}>{installAvailable ? "Prepare Local Install" : "Local install unavailable"}</button><button type="button" disabled>.elysia-addon package preview only</button><a className="button-link" href="/catalog-preview.json" target="_blank" rel="noreferrer">View catalog preview JSON</a><button type="button" disabled>Copy install command, planned</button>
+        {installAvailable && <button type="button" onClick={() => onPrepareLocalInstall(addon.id)}>Prepare Local Install</button>}
+        <a className="button-link" href="/catalog-preview.json" target="_blank" rel="noreferrer">View catalog preview JSON</a>
       </div>
       {!installAvailable && <p className="boundary-note">This candidate is not an approved public install listing. The action information above is disclosure metadata only.</p>}
     </section>

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 
 const read = (path) => fs.readFile(path, "utf8");
-const [intake, intakePolicy, panel, repositoryTree, styles, workbench, localManifestContract, submit, submissionReadiness, forge, forgeApi, catalogApi, seeds, card, details, installIntent, preview, privacy, submissionRules, cleanup] = await Promise.all([
+const [intake, intakePolicy, panel, repositoryTree, styles, workbench, localManifestContract, submit, submissionReadiness, forge, forgeApi, catalogApi, seeds, card, details, listingTruth, installIntent, preview, privacy, submissionRules, cleanup] = await Promise.all([
   read("src/shared/addons/browserAddonIntake.ts"),
   read("src/shared/addons/addonIntakePolicy.ts"),
   read("src/shared/addons/AddonIntakePanel.tsx"),
@@ -18,6 +18,7 @@ const [intake, intakePolicy, panel, repositoryTree, styles, workbench, localMani
   read("src/pages/The-Elysia-Marketplace/data/seedAddons.ts"),
   read("src/pages/The-Elysia-Marketplace/components/AddonCard.tsx"),
   read("src/pages/The-Elysia-Marketplace/components/AddonDetails.tsx"),
+  read("src/pages/The-Elysia-Marketplace/lib/listingTruth.ts"),
   read("src/pages/The-Elysia-Marketplace/lib/installIntentApi.ts"),
   read("public/catalog-preview.json"),
   read("docs/marketplace_privacy_boundary.md"),
@@ -46,7 +47,8 @@ assert(forgeApi.includes("Blocking static/archive findings prevented private pac
 for (const stale of ["Advanced PDF Parser", "Ollama Local Models", "SearXNG Research"]) assert(!seeds.includes(stale) && !preview.includes(stale), `Stale static listing remains: ${stale}.`);
 for (const staleId of ["advanced-pdf-parser", "ollama-local-models", "searxng-research"]) assert(catalogApi.includes(staleId), `Source-side remote suppression missing ${staleId}.`);
 assert(seeds.includes("Codev") && seeds.includes('status: "pending_review"') && seeds.includes('listing_stage: "official_candidate"'), "Codev is not represented as a pending, non-installable official candidate.");
-assert(card.includes("Candidate · not installable") && details.includes("Install intent unavailable"), "Candidate UI still looks installable.");
+assert(card.includes("Candidate · not installable") && !details.includes("Install intent unavailable") && !details.includes("disabled={!installAvailable}"), "Candidate UI still looks installable.");
+assert(listingTruth.includes("MARKETPLACE_LOCAL_INSTALL_ENABLED = false"), "Website install intent must remain hard-gated until the OS protocol handler is proven.");
 assert(installIntent.includes("canPrepareMarketplaceInstall"), "Install-intent service does not enforce shared listing eligibility.");
 assert(privacy.includes("explicitly selects") && privacy.includes("leave") && submissionRules.includes("Admin review reduces risk but does not guarantee safety"), "Privacy/developer submission docs lack the remote transfer/review disclaimer.");
 assert(cleanup.includes("No Supabase rows were queried, changed, hidden, or deleted") && cleanup.includes("Bradley/admin approval"), "Catalog cleanup record lost the database non-mutation gate.");

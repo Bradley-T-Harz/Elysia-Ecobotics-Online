@@ -55,6 +55,7 @@ export function CommonsCircleAdminConsolePanel({ homebase, roleState }: { homeba
     </dl>
     <div className="commons-admin-grid">
       {adminConsoleLinks.map(([href, label, description]) => <a className="commons-admin-link" href={href} key={href}><strong>{label}</strong><span>{description}</span></a>)}
+      {roleState.isAdmin && <a className="commons-admin-link" href="/admin/badges"><strong>Badge management</strong><span>Audited manual recognition grants, revocations, and durable re-award suppression.</span></a>}
       {canOpenPrivateCommunications && <a className="commons-admin-link" href="/commons-circle/admin-communications"><strong>Account communications</strong><span>{roleState.isAdmin ? "Governed support, individual notices, opted-in announcements, and reported-message cases." : "Claimed, report-bound private-message moderation cases only."}</span></a>}
       {profile?.is_admin && roleState.isAdmin && <a className="commons-admin-link" href="/commons-circle/admin/messaging-access"><strong>Messaging access</strong><span>Controlled-beta enrollment and the audited new-initiation kill switch.</span></a>}
     </div>

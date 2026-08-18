@@ -38,7 +38,7 @@ export default function AddonDetails({ addon, onPrepareInstall, onOpenLocalInsta
         <TrustBadge label={addon.local_only ? "Local-only plan" : "External boundary"} tone={addon.local_only ? "safe" : "warning"} />
         <TrustBadge label={addon.security.local_file_access === "none" ? "No file access declared" : addon.security.local_file_access} tone={addon.security.local_file_access === "none" ? "safe" : "warning"} />
       </div>
-      <p className="boundary-note">This website does not install this add-on locally. If a future local installer/runtime is used, Local Elysia remains the password-gated final authority for validation, permissions, and any allowed action.</p>
+      <p className="boundary-note">This website does not install this add-on locally. A package imported into Local Elysia is revalidated there before install-disabled staging or enablement, and this catalog record grants no local authority.</p>
       {addon.status === "revoked" && <p className="boundary-note">This listing or version is revoked, so Marketplace install intent is blocked. Revocation preserves evidence and does not delete private review history.</p>}
       {!installAvailable && <p className="boundary-note">This candidate/review record is not a public install listing. No install, package download, enablement, or authority is available from this page.</p>}
       <div className="details-grid details-grid--wide">
@@ -56,7 +56,7 @@ export default function AddonDetails({ addon, onPrepareInstall, onOpenLocalInsta
         <pre>{JSON.stringify(addon, null, 2)}</pre>
       </details>
       <MarketplaceCommercePanel addon={addon} />
-      <div className="button-row"><button type="button" className="button-primary" disabled={!installAvailable} onClick={() => onPrepareInstall(addon.id)}>{installAvailable ? "Review permissions" : "Install intent unavailable"}</button><button type="button" disabled={!installAvailable} onClick={() => onOpenLocalInstall(addon.id)}>{installAvailable ? "Prepare Local Install" : "Local install unavailable"}</button><button type="button" disabled>.elysia-addon package preview only</button><a className="button-link" href="/catalog-preview.json" target="_blank" rel="noreferrer">View catalog preview JSON</a></div>
+      <div className="button-row">{installAvailable && <button type="button" className="button-primary" onClick={() => onPrepareInstall(addon.id)}>Review permissions</button>}{installAvailable && <button type="button" onClick={() => onOpenLocalInstall(addon.id)}>Prepare Local Install</button>}<a className="button-link" href="/catalog-preview.json" target="_blank" rel="noreferrer">View catalog preview JSON</a></div>
     </section>
   );
 }

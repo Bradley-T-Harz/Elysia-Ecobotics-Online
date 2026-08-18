@@ -420,7 +420,7 @@ export async function uploadPackageMetadata(draft: AddonDraft, file: File): Prom
   if (error) return { packageRow: null, scan, warnings: [friendly("Package metadata", error.message)] };
   await supabase.from("addon_drafts").update({ package_status: storedPath ? "uploaded" : "metadata_only", updated_at: new Date().toISOString() }).eq("id", draft.id).eq("owner_user_id", userId);
   await supabase.from("addon_audit_log").insert({ actor_user_id: userId, target_type: "addon_draft", target_id: draft.id, action: "package_scanned", metadata: { scanStatus, privateUploadStored: Boolean(storedPath) } });
-  return { packageRow: data as AddonPackageRow, scan, warnings: storedPath ? [] : ["Package metadata was saved, but private package storage is not active yet. No public URL was created."] };
+  return { packageRow: data as AddonPackageRow, scan, warnings: storedPath ? [] : ["Private package storage was unavailable. Package metadata was saved, but no package was transferred and no public URL was created."] };
 }
 
 export async function validateAndSaveDraft(draft: AddonDraft, catalog: PermissionDefinition[]): Promise<{ results: ForgeValidationResult[]; warnings: string[] }> {
@@ -540,5 +540,5 @@ export async function submitDraftForReview(draft: AddonDraft, termsAccepted: boo
   }
   await supabase.from("addon_drafts").update({ submission_status: "submitted", review_status: "pending", source_submission_id: submissionId, locked_at: new Date().toISOString(), locked_reason: "submitted_for_marketplace_review", submitted_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", draft.id).eq("owner_user_id", userId);
   await supabase.from("addon_audit_log").insert({ actor_user_id: userId, target_type: "addon_submission", target_id: submissionId, action: "submitted_for_review" });
-  return [...snapshotWarnings, ...(reviewError ? ["Submitted to the private Developer Forge submission queue. Marketplace review item creation is not active yet."] : ["Submitted to the private Developer Forge review queue. An immutable review snapshot was created; edit a revision draft for changes."])];
+  return [...snapshotWarnings, ...(reviewError ? ["The private submission record was created, but the cross-domain review index was unavailable. The submission is not public-listed, and administrator review must use the add-on submissions queue."] : ["Submitted to the private Developer Forge review queue. An immutable review snapshot was created; edit a revision draft for changes."])];
 }

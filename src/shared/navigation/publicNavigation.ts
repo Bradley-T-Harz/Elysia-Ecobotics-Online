@@ -1,21 +1,9 @@
 export const publicNavigationUtilities = [
   { id: "home", label: "Home", to: "/" },
-  { id: "download", label: "Download", to: "/archive" },
   { id: "account", label: "Account / Sign In", to: "/commons-circle" }
 ] as const;
 
 export const publicNavigationTerritories = [
-  {
-    id: "get-elysia",
-    label: "Get Elysia",
-    destinations: [
-      {
-        label: "Archive & Release Status",
-        to: "/archive",
-        description: "See release availability, system information, verification guidance, and the public release history."
-      }
-    ]
-  },
   {
     id: "explore",
     label: "Explore",
@@ -24,11 +12,6 @@ export const publicNavigationTerritories = [
         label: "Marketplace",
         to: "/marketplace",
         description: "Discover approved add-ons, review permissions and trust information, and explore ways to extend Elysia."
-      },
-      {
-        label: "Products",
-        to: "/products",
-        description: "Explore the long-term physical product directions being developed around Elysia Ecobotics."
       },
       {
         label: "Living Library",
@@ -45,11 +28,6 @@ export const publicNavigationTerritories = [
         label: "Developer Forge",
         to: "/developer-forge",
         description: "Design, validate, document, and submit add-ons through Elysia’s governed developer workspace."
-      },
-      {
-        label: "Lab",
-        to: "/lab",
-        description: "See the research, experiments, people, and projects shaping future Elysia Ecobotics work."
       }
     ]
   },
@@ -57,11 +35,6 @@ export const publicNavigationTerritories = [
     id: "community",
     label: "Community",
     destinations: [
-      {
-        label: "Commune",
-        to: "/commune",
-        description: "Enter the public commons for discussion, research notes, troubleshooting, code, projects, and community work."
-      },
       {
         label: "Work With Elysia Ecobotics",
         to: "/work-with-elysia-ecobotics",

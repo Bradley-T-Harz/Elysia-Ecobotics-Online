@@ -16,6 +16,9 @@ assert(
   /<meta\s+name="referrer"\s+content="no-referrer"\s*\/?>/.test(documentShell),
   "The document shell must not leak guest order references or recovery URLs through browser referrers."
 );
+const securityTxt = await fs.readFile("public/.well-known/security.txt", "utf8");
+assert(securityTxt.includes("Contact: mailto:security@elysiaecobotics.com"), "security.txt must expose the public security contact.");
+assert(!/token|password|service[_-]?role|private[_-]?key/i.test(securityTxt), "security.txt must not expose credential-shaped fields.");
 
 const staticHeaders = await fs.readFile("public/_headers", "utf8");
 for (const requiredHeader of [

@@ -176,16 +176,14 @@ try {
 
     await page.goto(`${origin}/archive`, { waitUntil: "domcontentloaded" });
     await settle(page);
-    await page.getByRole("link", { name: "Check $0 release availability", exact: true }).click();
-    await settle(page, "#release-availability");
-    await assertVisibleTarget(page, "#release-availability", "release-availability", `${viewportName} Archive release target`);
+    await assertTopEntry(page, `${viewportName} Archive release blocker`);
+    assert.equal(await page.getByRole("heading", { name: "No public Elysia download is published", exact: true }).count(), 1, `${viewportName} Archive must expose the release blocker`);
     await capture(page, `archive-release-${viewportName}.png`);
 
-    await page.getByRole("link", { name: "Learn about separate optional support", exact: true }).scrollIntoViewIfNeeded();
-    await page.getByRole("link", { name: "Learn about separate optional support", exact: true }).click();
+    await page.goto(`${origin}/support?source=products`, { waitUntil: "domcontentloaded" });
     await page.waitForURL((url) => url.pathname === "/support" && url.search === "?source=products" && !url.hash);
     await settle(page);
-    await assertTopEntry(page, `${viewportName} optional-support educational entry`);
+    await assertTopEntry(page, `${viewportName} historical release-context support entry`);
 
     await page.goto(`${origin}/account/forgot-password`, { waitUntil: "domcontentloaded" });
     await settle(page);
@@ -239,12 +237,9 @@ try {
     assert(categoryPosition.targetTop >= categoryPosition.headerBottom + 4, `${viewportName} Living Library target should clear the sticky header.`);
 
     await page.goto(`${origin}/commune/rooms/coding-cornucopia`, { waitUntil: "domcontentloaded" });
+    await page.waitForURL((url) => url.pathname === "/");
     await settle(page);
-    await page.getByRole("link", { name: "Open Coding Workbench", exact: true }).first().click();
-    await page.waitForURL((url) => url.pathname === "/commune/coding-cornucopia/review" && url.hash === "#coding-workbench-heading");
-    await settle(page, "#coding-workbench-heading");
-    await assertVisibleTarget(page, "#coding-workbench-heading", "coding-workbench-heading", `${viewportName} Coding Workbench`);
-    await capture(page, `coding-workbench-${viewportName}.png`);
+    await assertTopEntry(page, `${viewportName} hidden Commune compatibility route`);
 
     await page.goto(`${origin}/developer-forge/drafts/${forgeDraft.id}`, { waitUntil: "domcontentloaded" });
     await settle(page);
@@ -262,7 +257,7 @@ try {
 
     await context.close();
   }
-  console.log("Route-entry browser regression passed for PUSH, POP restoration, delayed settling, approved targets, Support top entry, Forgot Password, profile transitions/validation, Living Library, Coding Workbench, and Forge README at desktop/mobile widths.");
+  console.log("Route-entry browser regression passed for PUSH, POP restoration, delayed settling, approved targets, Support top entry, Forgot Password, profile transitions/validation, Living Library, hidden Commune compatibility routing, and Forge README at desktop/mobile widths.");
 } finally {
   await browser.close();
   await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

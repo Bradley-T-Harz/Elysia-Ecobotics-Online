@@ -90,7 +90,7 @@ export default function ProfilePanel({ profile, supabaseConfigured, onMessage, o
         <div><dt>Admin</dt><dd>{profile?.is_admin ? "Yes" : "No"}</dd></div>
         <div><dt>Saved add-ons</dt><dd>{profile?.saved_addon_ids.length ?? 0}</dd></div>
       </dl>
-      <p className="boundary-note">{copy?.boundaryNote ?? "Admin status cannot be self-assigned in this UI. Local Elysia account linking is planned; Marketplace profile data does not overwrite local Elysia profile data, and passwords are never shared."}</p>
+      <p className="boundary-note">{copy?.boundaryNote ?? "Admin status cannot be self-assigned in this UI. This Website Account is separate from Local Elysia; Marketplace profile data does not overwrite local Elysia profile data, and passwords are never shared."}</p>
     </section>
   );
 }

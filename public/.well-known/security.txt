@@ -1,0 +1,5 @@
+Contact: mailto:security@elysiaecobotics.com
+Policy: https://elysiaecobotics.com/legal/vulnerability-disclosure-policy
+Canonical: https://elysiaecobotics.com/.well-known/security.txt
+Preferred-Languages: en
+Expires: 2027-08-18T23:59:59Z

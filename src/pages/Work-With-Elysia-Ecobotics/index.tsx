@@ -45,7 +45,7 @@ const roles = [
   { title: "Collaboration", text: "Open to thoughtful proposals, especially where expectations, time, boundaries, and ownership are clear.", status: "Requestable" },
   { title: "Paid employment", text: "Not currently promised. Paid roles will only be listed when they actually exist.", status: "Not promised" },
   { title: "Reviewer / moderator roles", text: "Trust roles are administrator-assigned only and cannot be self-assigned through this form.", status: "Admin-assigned" },
-  { title: "Membership recognition", text: "Membership tier increases are administrator-awarded after constructive contribution or verified stewardship support.", status: "Review later" }
+  { title: "Membership recognition", text: "Membership tier increases are administrator-awarded after constructive contribution or verified stewardship support.", status: "Admin review" }
 ];
 
 const initialForm = {
@@ -190,14 +190,12 @@ export default function WorkWithPage() {
 
   async function submitForAdministratorReview() {
     if (!hasSupabaseConfig || !supabase) {
-      saveRequest("pending_admin_review_local");
-      setMessage(`${supabaseNotConfiguredMessage} Request saved locally as a pending administrator-review draft.`);
+      setMessage(`${supabaseNotConfiguredMessage} No request was submitted. Use Save request draft locally if you want to retain this form in the browser.`);
       return;
     }
     const { data: auth, error: authError } = await supabase.auth.getUser();
     if (authError || !auth.user) {
-      saveRequest("pending_admin_review_local");
-      setMessage("Sign in to a Website Account before uploading a resume or CV or saving a request for administrator review. A local pending-review draft was saved in this browser.");
+      setMessage("Sign in to a Website Account before uploading a resume or CV or submitting a request for administrator review. No review submission was created.");
       return;
     }
 
@@ -324,14 +322,6 @@ export default function WorkWithPage() {
         <p className="boundary-note">This request does not guarantee a role, paid work, membership tier, or reviewer authority. Requests will require administrator review.</p>
       </section>
 
-      <section className="section-card work-job-post-bridge">
-        <p className="eyebrow">Public opportunities</p>
-        <h2>Job Posts are the public board; Work With is the private intake path.</h2>
-        <p>Browse public, admin-approved Job Posts in the Commune for open opportunities and public questions. Use this Work With page for private applications, resumes/CVs, and administrator-review requests.</p>
-        <p className="boundary-note">Do not post resumes, CVs, SSNs, identity documents, bank details, private addresses, private phone numbers, contracts, or private application packets in public Job Post comments.</p>
-        <div className="button-row"><Link className="button-link" to="/commune/rooms/job-post/posts">Browse public Job Posts</Link><Link className="button-link" to="/commune/rooms/job-post/new">Submit public Job Post for admin approval</Link></div>
-      </section>
-
       <section className="feature-grid feature-grid--three">
         {roles.map((role) => <FeatureCard key={role.title} title={role.title}><p>{role.text}</p><span className="trust-badge">{role.status}</span></FeatureCard>)}
       </section>
@@ -379,8 +369,8 @@ export default function WorkWithPage() {
           <label className="checkbox-line"><input type="checkbox" checked={form.understandsPublicPrivacy} onChange={(event) => setForm({ ...form, understandsPublicPrivacy: event.target.checked })} /><span>I understand this is a public website request and I should not include secrets, private Elysia memory, credentials, .env files, private logs, or sensitive personal/customer data.</span></label>
           <label className="checkbox-line"><input type="checkbox" checked={form.understandsReview} onChange={(event) => setForm({ ...form, understandsReview: event.target.checked })} /><span>I understand this request requires administrator review and does not automatically grant a role, badge, membership tier, moderator authority, reviewer authority, or paid position.</span></label>
         </div>
-        <div className="button-row"><button type="button" onClick={() => saveRequest("draft_local")}>Save request draft locally</button><button type="button" className="button-primary" onClick={() => void submitForAdministratorReview()} disabled={uploadBusy}>{uploadBusy ? "Saving for review..." : "Save as pending administrator-review request"}</button><button type="button" onClick={exportMarkdown}>Export request as Markdown</button><button type="button" onClick={() => void copyRequest()}>Copy request</button></div>
-        <p className="boundary-note">If Supabase is configured and you are signed in, pending administrator-review requests are saved to the private review table. Otherwise requests are saved locally in this browser only. Later, this form will connect to an administrator review queue. The administrator will decide which requests become volunteer tasks, collaboration threads, contributor recognition, reviewer roles, or future paid opportunities.</p>
+        <div className="button-row"><button type="button" onClick={() => saveRequest("draft_local")}>Save request draft locally</button><button type="button" className="button-primary" onClick={() => void submitForAdministratorReview()} disabled={uploadBusy || !hasSupabaseConfig || !signedInUserId}>{uploadBusy ? "Saving for review..." : !hasSupabaseConfig ? "Review submission unavailable" : !signedInUserId ? "Sign in to submit for review" : "Submit for administrator review"}</button><button type="button" onClick={exportMarkdown}>Export request as Markdown</button><button type="button" onClick={() => void copyRequest()}>Copy request</button></div>
+        <p className="boundary-note">Local drafts remain only in this browser. A remote administrator-review submission is available only when Supabase is configured and you are signed in; it is written to private review storage and does not grant a role, badge, authority, or paid position.</p>
       </section>
 
       <section className="two-column work-review-panels">

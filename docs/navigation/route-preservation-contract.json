@@ -6,7 +6,7 @@
     "repository": "Elysia-Ecobotics-Online",
     "branchPoint": "97bfc8b95f295c9c6dae98c9feb914e88c91b036",
     "routerSource": "src/App.tsx",
-    "routerDeclarationCount": 132,
+    "routerDeclarationCount": 133,
     "deployedBehaviorClaimed": false
   },
   "invariants": [
@@ -171,13 +171,9 @@
   "currentNavigationBaselines": {
     "globalHeader": [
       { "label": "Home", "path": "/", "routeId": "RT-0002" },
-      { "label": "Archive", "path": "/archive", "routeId": "RT-0003" },
       { "label": "Marketplace", "path": "/marketplace", "routeId": "RT-0005" },
-      { "label": "Products", "path": "/products", "routeId": "RT-0014" },
-      { "label": "Lab", "path": "/lab", "routeId": "RT-0015" },
       { "label": "Developer Forge", "path": "/developer-forge", "routeId": "RT-0016" },
       { "label": "Living Library", "path": "/living-library", "routeId": "RT-0037" },
-      { "label": "Commune", "path": "/commune", "routeId": "RT-0038" },
       { "label": "Work With", "path": "/work-with-elysia-ecobotics", "routeId": "RT-0061" },
       { "label": "Commons Circle", "path": "/commons-circle", "routeId": "RT-0068" },
       { "label": "Artisan Collective", "path": "/artisan-collective", "routeId": "RT-0099" },
@@ -189,18 +185,17 @@
     ],
     "headerUtilities": [
       { "label": "Home/brand", "path": "/", "routeId": "RT-0002", "source": "src/shared/components/SiteHeader.tsx" },
-      { "label": "Download Elysia", "path": "/archive", "routeId": "RT-0003", "source": "src/shared/components/SiteHeader.tsx" },
       { "label": "Account / Sign in", "path": "/commons-circle", "routeId": "RT-0068", "source": "src/shared/components/AccountButton.tsx" }
     ],
     "footer": [
       "/about", "/mission", "/marketplace/trust", "/commons-circle", "/artisan-collective", "/story", "/support", "/commons-circle/support-billing", "/legal", "/legal/privacy-policy", "/legal/terms-of-use", "/legal/support-and-billing-terms", "/legal/refund-and-cancellation-policy", "/legal/community-guidelines", "/legal/vulnerability-disclosure-policy", "/legal/trademark-notice"
     ],
     "homepage": [
-      "/archive", "/commons-circle", "/commune", "/developer-forge", "/lab", "/living-library", "/marketplace", "/mission", "/products"
+      "/commons-circle", "/developer-forge", "/living-library", "/marketplace", "/mission"
     ]
   },
   "sitemapBaseline": [
-    "/", "/archive", "/marketplace", "/marketplace/browse", "/marketplace/trust", "/marketplace/manifest-api", "/products", "/lab", "/developer-forge", "/developer-forge/docs", "/living-library", "/commune", "/commune/rooms", "/work-with-elysia-ecobotics", "/support", "/commons-circle", "/artisan-collective", "/story", "/about", "/mission", "/legal", "/legal/privacy-policy", "/legal/terms-of-use", "/legal/community-guidelines", "/legal/marketplace-developer-agreement", "/legal/add-on-submission-policy", "/legal/security-review-policy", "/legal/vulnerability-disclosure-policy", "/legal/dmca-copyright-policy", "/legal/acceptable-use-policy", "/legal/code-of-conduct", "/legal/volunteer-contributor-disclaimer", "/legal/donation-recognition-terms", "/legal/trademark-notice", "/legal/support-and-billing-terms", "/legal/refund-and-cancellation-policy", "/legal/sandbox-credit-terms", "/legal/job-post-fee-terms", "/legal/marketplace-commerce-terms", "/legal/organization-services-terms", "/legal/sponsorship-independence-policy", "/legal/account-closure-financial-retention", "/legal/living-library-third-party-resources"
+    "/", "/marketplace", "/marketplace/browse", "/marketplace/trust", "/marketplace/manifest-api", "/developer-forge", "/developer-forge/docs", "/living-library", "/work-with-elysia-ecobotics", "/support", "/commons-circle", "/artisan-collective", "/story", "/about", "/mission", "/legal", "/legal/privacy-policy", "/legal/terms-of-use", "/legal/community-guidelines", "/legal/marketplace-developer-agreement", "/legal/add-on-submission-policy", "/legal/security-review-policy", "/legal/vulnerability-disclosure-policy", "/legal/dmca-copyright-policy", "/legal/acceptable-use-policy", "/legal/code-of-conduct", "/legal/volunteer-contributor-disclaimer", "/legal/donation-recognition-terms", "/legal/trademark-notice", "/legal/support-and-billing-terms", "/legal/refund-and-cancellation-policy", "/legal/sandbox-credit-terms", "/legal/job-post-fee-terms", "/legal/marketplace-commerce-terms", "/legal/organization-services-terms", "/legal/sponsorship-independence-policy", "/legal/account-closure-financial-retention", "/legal/living-library-third-party-resources"
   ],
   "routes": [
     { "id": "RT-0001", "declaredPath": null, "resolvedPattern": null, "kind": "layout", "parentId": null, "owner": "SiteLayout", "redirectTarget": null, "stateProfile": "not-applicable", "dynamicSource": null, "accessProfile": "infrastructure", "statusProfile": "registered-route", "zone": "infrastructure", "reachability": ["nonnavigational-infrastructure"], "smokePaths": [] },
@@ -215,7 +210,7 @@
     { "id": "RT-0010", "declaredPath": "submit", "resolvedPattern": "/marketplace/submit", "kind": "nested-static", "parentId": "RT-0004", "owner": "SubmitPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "signed-in-or-component-gated", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["page-local", "restricted", "direct-load"], "smokePaths": ["/marketplace/submit"] },
     { "id": "RT-0011", "declaredPath": "trust", "resolvedPattern": "/marketplace/trust", "kind": "nested-static", "parentId": "RT-0004", "owner": "TrustPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "public-entry", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["footer", "page-local", "sitemap", "direct-load"], "smokePaths": ["/marketplace/trust"] },
     { "id": "RT-0012", "declaredPath": "manifest-api", "resolvedPattern": "/marketplace/manifest-api", "kind": "nested-static", "parentId": "RT-0004", "owner": "ManifestApiPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "public-entry", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["page-local", "sitemap", "direct-load"], "smokePaths": ["/marketplace/manifest-api"] },
-    { "id": "RT-0013", "declaredPath": "admin", "resolvedPattern": "/marketplace/admin", "kind": "nested-static", "parentId": "RT-0004", "owner": "MarketplaceAdminPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "role-restricted", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["restricted", "direct-load"], "smokePaths": ["/marketplace/admin"] },
+    { "id": "RT-0013", "declaredPath": "admin", "resolvedPattern": "/marketplace/admin", "kind": "redirect", "parentId": "RT-0004", "owner": "Navigate", "redirectTarget": "/admin/addon-submissions", "stateProfile": "redirect-path-only", "dynamicSource": null, "accessProfile": "alias-inherits-target", "statusProfile": "registered-compatibility", "zone": "orange-boundary", "reachability": ["restricted", "legacy-direct-load"], "smokePaths": ["/marketplace/admin"] },
     { "id": "RT-0014", "declaredPath": "products", "resolvedPattern": "/products", "kind": "static", "parentId": "RT-0001", "owner": "ProductsPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "public-entry", "statusProfile": "registered-route", "zone": "lower-risk-presentation", "reachability": ["global-header", "homepage", "sitemap", "direct-load"], "smokePaths": ["/products"] },
     { "id": "RT-0015", "declaredPath": "lab", "resolvedPattern": "/lab", "kind": "static", "parentId": "RT-0001", "owner": "LabPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "public-entry", "statusProfile": "registered-route", "zone": "lower-risk-presentation", "reachability": ["global-header", "homepage", "sitemap", "direct-load"], "smokePaths": ["/lab"] },
     { "id": "RT-0016", "declaredPath": "developer-forge", "resolvedPattern": "/developer-forge", "kind": "static", "parentId": "RT-0001", "owner": "DeveloperForgePage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "public-entry", "statusProfile": "registered-route", "zone": "red-entry-only", "reachability": ["global-header", "homepage", "sitemap", "direct-load"], "smokePaths": ["/developer-forge"] },
@@ -334,7 +329,8 @@
     { "id": "RT-0129", "declaredPath": "*", "resolvedPattern": "*", "kind": "wildcard", "parentId": "RT-0001", "owner": "Navigate", "redirectTarget": "/", "stateProfile": "redirect-path-only", "dynamicSource": null, "accessProfile": "unknown-fallback", "statusProfile": "registered-compatibility", "zone": "infrastructure", "reachability": ["unknown-path-fallback"], "smokePaths": [] },
     { "id": "RT-0130", "declaredPath": "living-library/browse/:categorySlug", "resolvedPattern": "/living-library/browse/:categorySlug", "kind": "dynamic", "parentId": "RT-0001", "owner": "LivingLibraryPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": "living-library-category-slug", "accessProfile": "public-record", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["page-local", "shareable-search-state", "direct-load"], "smokePaths": ["/living-library/browse/earth-environment"] },
     { "id": "RT-0131", "declaredPath": "living-library/source/:sourceId", "resolvedPattern": "/living-library/source/:sourceId", "kind": "dynamic", "parentId": "RT-0001", "owner": "LivingLibraryPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": "living-library-source-id", "accessProfile": "public-record", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["page-local", "saved-shelf", "shareable-source-detail", "direct-load"], "smokePaths": ["/living-library/source/nasa-earthdata"] },
-    { "id": "RT-0132", "declaredPath": "commons-circle/signals/circle", "resolvedPattern": "/commons-circle/signals/circle", "kind": "static", "parentId": "RT-0001", "owner": "CirclePage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "signed-in-or-component-gated", "statusProfile": "registered-route", "zone": "red-entry-only", "reachability": ["page-local", "restricted", "direct-load"], "smokePaths": ["/commons-circle/signals/circle"] }
+    { "id": "RT-0132", "declaredPath": "commons-circle/signals/circle", "resolvedPattern": "/commons-circle/signals/circle", "kind": "static", "parentId": "RT-0001", "owner": "CirclePage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "signed-in-or-component-gated", "statusProfile": "registered-route", "zone": "red-entry-only", "reachability": ["page-local", "restricted", "direct-load"], "smokePaths": ["/commons-circle/signals/circle"] },
+    { "id": "RT-0133", "declaredPath": "admin/badges", "resolvedPattern": "/admin/badges", "kind": "static", "parentId": "RT-0001", "owner": "AdminBadgesPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "role-restricted", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["restricted", "direct-load"], "smokePaths": ["/admin/badges"] }
   ],
   "externalDestinations": [
     { "id": "EXT-0001", "url": "https://elysiaartisancollective.pages.dev", "kind": "external", "owner": "ElysiaArtisanCollectivePage", "accessProfile": "external-approved-boundary", "statusProfile": "approved-external-boundary", "zone": "orange-boundary", "reachability": ["artisan-bridge-page-only"] },

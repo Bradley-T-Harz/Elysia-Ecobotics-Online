@@ -64,7 +64,7 @@ export default function SupportThankYouPage() {
         {(order.status === "processing" || order.status === "unavailable") && <button type="button" disabled={loading} onClick={() => void refresh()}>{loading ? "Checking..." : "Check again"}</button>}
         <Link className="button-link button-link--primary" to="/commons-circle/support-billing">Open private Support &amp; Billing</Link>
         <Link className="button-link" to="/support">Back to Support</Link>
-        <Link className="button-link" to="/archive#release-availability">Open the free release path</Link>
+        <Link className="button-link" to="/archive">Check public release status</Link>
         <Link className="button-link" to="/">Return home</Link>
       </div>
     </section>

@@ -62,6 +62,7 @@ import {
   type ReviewItem,
   type ReviewQueueFilter,
   type ReviewStatus,
+  type StewardshipReceiptEvidence,
   addInternalReviewComment,
   assignReviewItemToMe,
   activeReviewStatuses,
@@ -71,12 +72,20 @@ import {
   loadCurrentRoleState,
   loadReviewEvents,
   loadReviewItems,
+  loadStewardshipReceiptEvidence,
   loadUserRoles,
   recoverRejectedCommuneReviewSubject,
   revokeRole,
   restoreCommuneReviewSubject,
   updateReviewStatus
 } from "../../shared/review/reviewClient";
+import {
+  grantBadgeToUser,
+  loadBadgeAdministration,
+  revokeBadgeFromUser,
+  type BadgeAwardAdmin,
+  type BadgeDefinitionAdmin
+} from "../../shared/review/badgeAdminClient";
 
 const adminLinks = [
   ["/admin", "Admin Home"],
@@ -94,6 +103,7 @@ const adminLinks = [
   ["/admin/review/marketplace", "Marketplace"],
   ["/admin/review/broken-links", "Broken Links"],
   ["/admin/roles", "Roles"],
+  ["/admin/badges", "Badges"],
   ["/admin/audit", "Audit"],
   ["/admin/economic-operations", "Economic Operations"]
 ] as const;
@@ -221,6 +231,38 @@ function ReviewActions({ item, onChanged }: { item: ReviewItem; onChanged: (mess
   </div>;
 }
 
+function StewardshipReceiptReview({ item }: { item: ReviewItem }) {
+  const [evidence, setEvidence] = useState<StewardshipReceiptEvidence | null>(null);
+  const [message, setMessage] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    setEvidence(null);
+    setMessage("");
+    setLoaded(false);
+  }, [item.id]);
+
+  if (item.domain !== "stewardship" || item.source_table !== "stewardship_recognition_requests") return null;
+
+  async function openPrivateProof() {
+    setBusy(true);
+    const result = await loadStewardshipReceiptEvidence(item);
+    setBusy(false);
+    setLoaded(true);
+    setEvidence(result.evidence);
+    setMessage(result.warning ?? (result.evidence ? "Private proof metadata loaded for this reviewer session." : "No private receipt/proof is attached to this request."));
+  }
+
+  return <section className="review-actions" aria-labelledby="stewardship-private-proof-title">
+    <h3 id="stewardship-private-proof-title">Private stewardship proof</h3>
+    <p className="boundary-note">Receipt/proof files remain in a private storage bucket. Only an authorized stewardship reviewer can request a short-lived access link; no storage path or public URL is rendered.</p>
+    <div className="button-row"><button type="button" onClick={() => void openPrivateProof()} disabled={busy}>{busy ? "Checking private proof…" : evidence ? "Refresh 5-minute access link" : "Load private proof"}</button>{evidence && <a className="button-link" href={evidence.signedUrl} target="_blank" rel="noreferrer">Open private proof (5-minute link)</a>}</div>
+    {loaded && <p className="boundary-note">{message}</p>}
+    {evidence && <dl className="mini-facts"><div><dt>File</dt><dd>{evidence.displayName}</dd></div><div><dt>Type</dt><dd>{evidence.mimeType}</dd></div><div><dt>Size</dt><dd>{evidence.sizeBytes === null ? "Not recorded" : `${evidence.sizeBytes.toLocaleString()} bytes`}</dd></div><div><dt>SHA-256</dt><dd>{evidence.sha256Prefix ? `${evidence.sha256Prefix}…` : "Not recorded"}</dd></div><div><dt>Redaction</dt><dd>{evidence.redactionStatus.replace(/_/g, " ")}</dd></div><div><dt>Access</dt><dd>Private, reviewer-only, expires in {evidence.expiresInSeconds / 60} minutes</dd></div></dl>}
+  </section>;
+}
+
 function CommuneRecoveryActions({ item, onChanged }: { item: ReviewItem; onChanged: (message: string) => void }) {
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
@@ -266,7 +308,7 @@ function CommuneRejectedRecoveryActions({ item, onChanged }: { item: ReviewItem;
 
 function JobOpportunityReviewPanel({ item }: { item: ReviewItem }) {
   const opportunity = item.job_post_case;
-  if (!opportunity) return null;
+  if (!opportunity) return <StewardshipReceiptReview item={item} />;
   return <section className="admin-job-opportunity-case" aria-labelledby="admin-job-opportunity-case-title">
     <p className="eyebrow">Joined Job Post case</p>
     <h3 id="admin-job-opportunity-case-title">{opportunity.title}</h3>
@@ -326,6 +368,59 @@ function RolesPage() {
   useEffect(() => { if (gate.isAdmin) void refresh(); }, [gate.isAdmin, refresh]);
   if (!gate.isAdmin) return <Unauthorized warnings={[...gate.warnings, "Role management requires administrator authority."]} />;
   return <div className="page-stack admin-page"><PageHero eyebrow="Admin" title="Role Management"><p>Authority roles are manually assigned and revocable. Membership, stewardship recognition, donation support, developer visibility, or contribution interest does not grant authority.</p></PageHero><AdminNav />{messages.map((message) => <p className="message" key={message}>{message}</p>)}<section className="two-column"><div className="section-card"><h2>Grant role</h2><p className="boundary-note">This UI refuses self-assignment. Use a target user's auth UUID; do not use public usernames as authority identifiers.</p><label><span>User auth UUID</span><input value={form.userId} onChange={(event) => setForm({ ...form, userId: event.target.value })} /></label><label><span>Role</span><select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value as AppRole })}>{roleOptions.map((role) => <option key={role} value={role}>{role.replace(/_/g, " ")}</option>)}</select></label><label><span>Reason</span><input value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} /></label><button type="button" className="button-primary" onClick={async () => { const result = await grantRole(form.userId.trim(), form.role, form.reason); setMessages([result.ok ? "Role granted." : result.warning ?? "Role grant failed."]); void refresh(); }}>Grant role</button></div><div className="section-card"><h2>Assigned roles</h2>{rows.map((row) => <article className="review-list-item" key={row.id}><strong>{row.user_id}</strong><RoleBadge role={row.role} /><span>{row.revoked_at ? `Revoked ${row.revoked_at}` : `Granted ${row.granted_at}`}</span>{!row.revoked_at && <button type="button" onClick={async () => { const result = await revokeRole(row.id, "Revoked from admin UI"); setMessages([result.ok ? "Role revoked." : result.warning ?? "Role revoke failed."]); void refresh(); }}>Revoke</button>}</article>)}</div></section></div>;
+}
+
+function BadgesPage() {
+  const gate = useRoleGate();
+  const [definitions, setDefinitions] = useState<BadgeDefinitionAdmin[]>([]);
+  const [awards, setAwards] = useState<BadgeAwardAdmin[]>([]);
+  const [messages, setMessages] = useState<string[]>([]);
+  const [form, setForm] = useState({ userId: "", badgeKey: "", reason: "" });
+  const refresh = useCallback(async () => {
+    const result = await loadBadgeAdministration();
+    setDefinitions(result.definitions);
+    setAwards(result.awards);
+    setMessages(result.warnings);
+    setForm((current) => ({ ...current, badgeKey: current.badgeKey || result.definitions[0]?.badge_key || "" }));
+  }, []);
+  useEffect(() => { if (gate.isAdmin) void refresh(); }, [gate.isAdmin, refresh]);
+  if (!gate.isAdmin) return <Unauthorized warnings={[...gate.warnings, "Badge management requires administrator authority."]} />;
+
+  return <div className="page-stack admin-page">
+    <PageHero eyebrow="Admin" title="Badge Management"><p>Grant and revoke recognition through audited, administrator-only backend functions. Badges never create roles, moderation authority, Marketplace approval, paid status, or trust by themselves.</p></PageHero>
+    <AdminNav />
+    {messages.map((message) => <p className="message" key={message}>{message}</p>)}
+    <section className="two-column">
+      <div className="section-card">
+        <h2>Manual badge grant</h2>
+        <p className="boundary-note">Use a target account auth UUID. Self-awards are refused by both this client and the database function. Every successful grant writes badge audit evidence.</p>
+        <label><span>Target user auth UUID</span><input value={form.userId} onChange={(event) => setForm({ ...form, userId: event.target.value })} /></label>
+        <label><span>Badge</span><select value={form.badgeKey} onChange={(event) => setForm({ ...form, badgeKey: event.target.value })}><option value="">Choose a badge</option>{definitions.map((definition) => <option key={definition.badge_key} value={definition.badge_key}>{definition.name} · {definition.award_mode ?? "governed"}</option>)}</select></label>
+        <label><span>Audited reason</span><textarea value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} /></label>
+        <button className="button-primary" type="button" onClick={async () => {
+          const result = await grantBadgeToUser(form.userId.trim(), form.badgeKey, form.reason);
+          setMessages([result.ok ? "Badge granted through the audited administrator operation." : result.warning ?? "Badge grant failed."]);
+          if (result.ok) { setForm((current) => ({ ...current, reason: "" })); void refresh(); }
+        }}>Grant badge</button>
+      </div>
+      <div className="section-card">
+        <h2>Active definitions</h2>
+        {!definitions.length && <p>No active badge definitions were returned.</p>}
+        {definitions.map((definition) => <article className="review-list-item" key={definition.badge_key}><strong>{definition.name}</strong><span>{definition.badge_key} · {definition.category ?? "uncategorized"}</span><span>{definition.award_mode ?? "governed"}{definition.is_manual_only ? " · manual only" : ""}</span><p>{definition.description}</p></article>)}
+      </div>
+    </section>
+    <section className="section-card">
+      <h2>Recent badge awards</h2>
+      <p className="boundary-note">This administrator view omits private evidence payloads. Revocation creates durable suppression so automatic evaluation cannot immediately recreate the award.</p>
+      {!awards.filter((award) => !award.revoked_at).length && <p>No active badge awards were returned.</p>}
+      {awards.filter((award) => !award.revoked_at).map((award) => <article className="review-list-item admin-detail-card" key={award.id}><strong>{award.badge_key}</strong><span>Target: {award.user_id}</span><span>{award.award_source ?? "unspecified source"} · {award.visibility}</span><span>Awarded {award.awarded_at}</span><button type="button" onClick={async () => {
+        if (!window.confirm(`Revoke ${award.badge_key} from this target and create durable suppression?`)) return;
+        const result = await revokeBadgeFromUser(award.user_id, award.badge_key, form.reason);
+        setMessages([result.ok ? "Badge revoked and automatic re-award suppressed." : result.warning ?? "Badge revocation failed."]);
+        if (result.ok) { setForm((current) => ({ ...current, reason: "" })); void refresh(); }
+      }}>Revoke badge</button></article>)}
+    </section>
+  </div>;
 }
 
 function AuditPage() {
@@ -678,6 +773,7 @@ export function AdminReviewPage() {
 }
 
 export function AdminRolesPage() { return <RolesPage />; }
+export function AdminBadgesPage() { return <BadgesPage />; }
 export function AdminAuditPage() { return <CombinedAuditPage />; }
 export function AdminReportsPage() { return <ReportsPage />; }
 export function AdminDevelopersPage() { return <DevelopersPage />; }

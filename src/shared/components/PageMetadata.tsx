@@ -14,7 +14,7 @@ const socialPreviewMetadata = {
 
 const defaultMetadata = {
   title: "Elysia Ecobotics Online",
-  description: "Elysia Ecobotics Online: public downloads, Marketplace, Developer Forge, Living Library, Commune, Commons Circle, and project documentation around Elysia.",
+  description: "Elysia Ecobotics Online: governed Marketplace intake, Developer Forge, Living Library, Commons Circle, and public project documentation around local Elysia.",
   canonicalUrl: `${ELYSIA_ECOBOTICS_ONLINE_URL}/`,
   ...socialPreviewMetadata
 };

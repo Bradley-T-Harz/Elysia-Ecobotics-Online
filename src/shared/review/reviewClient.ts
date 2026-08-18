@@ -92,6 +92,16 @@ export type ReviewEvent = {
   created_at: string;
 };
 
+export type StewardshipReceiptEvidence = {
+  displayName: string;
+  mimeType: string;
+  sizeBytes: number | null;
+  sha256Prefix: string | null;
+  redactionStatus: string;
+  signedUrl: string;
+  expiresInSeconds: number;
+};
+
 export const activeReviewStatuses: ReviewStatus[] = ["pending_review", "in_review", "needs_information"];
 export const historyReviewStatuses: ReviewStatus[] = ["approved", "rejected", "withdrawn", "archived"];
 const moderatedContentStates = ["flagged", "flagged_for_removal", "hidden", "hidden_from_public", "removed", "removed_by_moderator", "soft_deleted_by_moderator", "deleted_by_admin"];
@@ -470,6 +480,73 @@ export async function loadReviewItems(domain?: ReviewDomain, filter: ReviewQueue
   const communeEnriched = await enrichCommuneReviewItems((data ?? []) as ReviewItem[], warnings);
   const enrichedItems = await enrichJobCasesAndInternalComments(communeEnriched, warnings);
   return { items: filter === "moderated" ? enrichedItems.filter(isModeratedReviewItem) : enrichedItems, warnings };
+}
+
+export async function loadStewardshipReceiptEvidence(
+  item: ReviewItem
+): Promise<{ evidence: StewardshipReceiptEvidence | null; warning?: string }> {
+  if (!hasSupabaseConfig || !supabase) return { evidence: null, warning: supabaseNotConfiguredMessage };
+  if (item.domain !== "stewardship" || item.source_table !== "stewardship_recognition_requests") {
+    return { evidence: null, warning: "Private stewardship proof is not available for this review item." };
+  }
+
+  const role = await loadCurrentRoleState();
+  if (!role.userId || (!role.isAdmin && !canReviewDomain(role.roles, "stewardship"))) {
+    return { evidence: null, warning: "Stewardship reviewer authority is required to open private proof." };
+  }
+
+  const requestResult = await supabase
+    .from("stewardship_recognition_requests")
+    .select("receipt_file_id")
+    .eq("id", item.source_id)
+    .maybeSingle();
+  if (requestResult.error) return { evidence: null, warning: friendlyReviewWarning(requestResult.error.message) };
+  const receiptFileId = (requestResult.data as { receipt_file_id?: string | null } | null)?.receipt_file_id;
+  if (!receiptFileId) return { evidence: null };
+
+  const fileResult = await supabase
+    .from("stewardship_receipt_files")
+    .select("bucket,storage_path,original_filename,mime_type,size_bytes,sha256_hash,redaction_status,deleted_at")
+    .eq("id", receiptFileId)
+    .maybeSingle();
+  if (fileResult.error) return { evidence: null, warning: friendlyReviewWarning(fileResult.error.message) };
+  const file = fileResult.data as {
+    bucket?: string;
+    storage_path?: string;
+    original_filename?: string;
+    mime_type?: string | null;
+    size_bytes?: number | null;
+    sha256_hash?: string | null;
+    redaction_status?: string | null;
+    deleted_at?: string | null;
+  } | null;
+  if (!file || file.deleted_at) return { evidence: null };
+  if (file.bucket !== "stewardship-receipts" || !file.storage_path) {
+    return { evidence: null, warning: "Private proof metadata failed its storage-boundary check." };
+  }
+
+  const expiresInSeconds = 300;
+  const signed = await supabase.storage.from("stewardship-receipts").createSignedUrl(file.storage_path, expiresInSeconds);
+  if (signed.error || !signed.data?.signedUrl) {
+    return { evidence: null, warning: friendlyReviewWarning(signed.error?.message ?? "signed URL unavailable") };
+  }
+  const normalizedHash = String(file.sha256_hash ?? "").trim().toLowerCase();
+  const safeName = String(file.original_filename ?? "private-proof")
+    .replace(/[\u0000-\u001f\u007f]/g, "")
+    .replace(/[\\/]/g, "_")
+    .slice(0, 120) || "private-proof";
+
+  return {
+    evidence: {
+      displayName: safeName,
+      mimeType: String(file.mime_type ?? "application/octet-stream").slice(0, 100),
+      sizeBytes: Number.isFinite(file.size_bytes) && Number(file.size_bytes) >= 0 ? Number(file.size_bytes) : null,
+      sha256Prefix: /^[a-f0-9]{64}$/.test(normalizedHash) ? normalizedHash.slice(0, 12) : null,
+      redactionStatus: String(file.redaction_status ?? "not_recorded").slice(0, 80),
+      signedUrl: signed.data.signedUrl,
+      expiresInSeconds
+    }
+  };
 }
 
 export async function addInternalReviewComment(reviewItemId: string, body: string): Promise<{ ok: boolean; warning?: string }> {

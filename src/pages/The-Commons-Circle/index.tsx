@@ -29,7 +29,6 @@ import {
   defaultCustomization,
   defaultNotificationPreferences,
   defaultVisibility,
-  freeMemberFallbackBadge,
   loadCommonsHomebase,
   normalizeCommonsBannerPosition,
   normalizeCommonsBannerZoom,
@@ -223,12 +222,16 @@ export default function CommonsCirclePage() {
   ].filter(Boolean).join(" ");
   const hasUnsavedCustomization = styleSignature(customizationDraft) !== styleSignature(savedCustomization);
   const earnedBadges = useMemo(() => {
-    const earned = homebase?.userBadges.filter((badge) => badge.earned && !badge.revoked_at) ?? [];
-    const hasFreeMember = earned.some((badge) => badge.badge_key === "free_member");
-    return profile?.commons_onboarding_completed_at && !hasFreeMember ? [freeMemberFallbackBadge(profile.commons_onboarding_completed_at), ...earned] : earned;
-  }, [homebase?.userBadges, profile?.commons_onboarding_completed_at]);
+    return homebase?.userBadges.filter((badge) => badge.earned && !badge.revoked_at) ?? [];
+  }, [homebase?.userBadges]);
   const freeMemberRecognized = earnedBadges.some((badge) => badge.badge_key === "free_member");
-  const membershipTierLabel = freeMemberRecognized ? "Free Member" : profile ? "Pending — finish Commons Profile setup" : "Pending — create Commons Profile";
+  const membershipTierLabel = freeMemberRecognized
+    ? "Free Member"
+    : profile?.commons_onboarding_completed_at
+      ? "Awaiting authoritative badge record"
+      : profile
+        ? "Pending — finish Commons Profile setup"
+        : "Pending — create Commons Profile";
 
   async function saveVisibility() {
     if (!homebase?.signedIn) {
@@ -237,7 +240,7 @@ export default function CommonsCirclePage() {
       return;
     }
     const warnings = await saveVisibilitySettings(visibilityDraft);
-    const visibleMessages = polishedActionMessages("visibility", warnings, "Public profile visibility saving is not active yet. Your current choices remain available in this browser for now.");
+    const visibleMessages = polishedActionMessages("visibility", warnings, "Public profile visibility could not be saved. Your current choices remain available in this browser only.");
     visibleMessages.forEach(pushMessage);
     if (!visibleMessages.length) pushMessage("Public profile visibility saved to your Website Account.");
     await refreshHomebase();
@@ -281,7 +284,7 @@ export default function CommonsCirclePage() {
       return;
     }
     const warnings = await saveCustomization(savedDraft);
-    const visibleMessages = polishedActionMessages("customization", warnings, "Saved locally in this browser. Account sync is unavailable until the profile customization table/policies are active.");
+    const visibleMessages = polishedActionMessages("customization", warnings, "Account-backed customization could not be saved. The preview remains in this browser only.");
     if (visibleMessages.length) {
       writeLocalStorage("commonsCircle.customizationDemo.v1", savedDraft);
       visibleMessages.forEach(pushMessage);
@@ -295,7 +298,7 @@ export default function CommonsCirclePage() {
 
   async function saveNoticePrefs() {
     const warnings = await saveNotificationPreferences(notificationDraft);
-    const visibleMessages = polishedActionMessages("notifications", warnings, "Notification preferences are not active yet. Signals will appear here when this section is ready.");
+    const visibleMessages = polishedActionMessages("notifications", warnings, "Notification preferences could not be saved. No account setting was changed.");
     visibleMessages.forEach(pushMessage);
     if (!visibleMessages.length) pushMessage("Notification preferences saved.");
     await refreshHomebase();
@@ -303,7 +306,7 @@ export default function CommonsCirclePage() {
 
   async function syncLivingLibrary() {
     const result = await syncLocalLivingLibraryToAccount();
-    const visibleMessages = polishedActionMessages("living-library-sync", result.warnings, "Living Library account sync is not active yet. Your browser-local saves are still safe in this browser.");
+    const visibleMessages = polishedActionMessages("living-library-sync", result.warnings, "Living Library account sync could not complete. Your browser-local saves remain in this browser.");
     visibleMessages.forEach(pushMessage);
     pushMessage(visibleMessages.length ? `Living Library sync prepared ${result.synced} item changes before account storage stopped.` : `Synced ${result.synced} Living Library saved item changes to your Website Account.`);
     await Promise.all([refreshHomebase(), refreshSavedShelves()]);
@@ -328,7 +331,7 @@ export default function CommonsCirclePage() {
     setCustomizationDraft((current) => ({ ...current, [urlKey]: localPreviewUrl, [idKey]: null }));
 
     const result = await uploadProfileMedia(file, mediaType);
-    const visibleMessages = polishedActionMessages("profile-media", result.warnings, `${label} upload is not active yet. The selected image is only previewing in this browser.`);
+    const visibleMessages = polishedActionMessages("profile-media", result.warnings, `${label} could not be uploaded. The selected image is only previewing in this browser.`);
 
     if (result.publicUrl && result.mediaId) {
       revokeLocalPreview(mediaType);
@@ -353,7 +356,7 @@ export default function CommonsCirclePage() {
     const idKey = mediaType === "avatar" ? "avatar_media_id" : "banner_media_id";
     setMediaStatus(`Removing ${mediaType}...`);
     const warnings = await removeProfileMedia(mediaType);
-    const visibleMessages = polishedActionMessages("profile-media-remove", warnings, `${label} removal is not active yet.`);
+    const visibleMessages = polishedActionMessages("profile-media-remove", warnings, `${label} could not be removed. No account-backed media record was changed.`);
     visibleMessages.forEach(pushMessage);
 
     if (!warnings.length) {
@@ -482,7 +485,7 @@ export default function CommonsCirclePage() {
       <section className="section-card commons-medallion-wall">
         <p className="eyebrow">Medallion Wall</p>
         <h2>Badges are recognition, not authority</h2>
-        <div className="commons-medallion-grid">{earnedBadges.map((badge) => <article className={`earned${badge.authority || badge.authority_linked ? " authority-linked" : ""}`} key={badge.badge_key}><BadgeIcon badge={badge} /><h3>{badge.name}</h3><p>{badge.description}</p>{badge.rule_summary && <p className="commons-medallion-note">{badge.rule_summary}</p>}{badge.note && <p className="commons-medallion-note">{badge.note}</p>}<BadgeRow labels={badgeLabels(badge)} />{badge.award_source === "local_fallback" ? <p className="commons-medallion-note">Free Member is shown because your Commons Profile is complete. Live badge storage will record it after the Free Member migration/RPC is active.</p> : <label className="checkbox-line"><span>Visibility</span><select value={badge.visibility || "public"} onChange={async (event) => { polishedActionMessages("badge-visibility", await updateBadgeVisibility(badge.badge_key, event.target.value as "public" | "private"), "Badge visibility controls are not active yet.").forEach(pushMessage); await refreshHomebase(); }}><option value="public">public</option><option value="private">private</option></select></label>}</article>)}</div>{!earnedBadges.length && <EmptyState>No badges awarded yet. Free Member appears after your Commons Profile is completed. Badges are recognition, not authority.</EmptyState>}
+        <div className="commons-medallion-grid">{earnedBadges.map((badge) => <article className={`earned${badge.authority || badge.authority_linked ? " authority-linked" : ""}`} key={badge.badge_key}><BadgeIcon badge={badge} /><h3>{badge.name}</h3><p>{badge.description}</p>{badge.rule_summary && <p className="commons-medallion-note">{badge.rule_summary}</p>}{badge.note && <p className="commons-medallion-note">{badge.note}</p>}<BadgeRow labels={badgeLabels(badge)} /><label className="checkbox-line"><span>Visibility</span><select value={badge.visibility || "public"} onChange={async (event) => { polishedActionMessages("badge-visibility", await updateBadgeVisibility(badge.badge_key, event.target.value as "public" | "private"), "Badge visibility could not be changed. No visibility claim was updated.").forEach(pushMessage); await refreshHomebase(); }}><option value="public">public</option><option value="private">private</option></select></label></article>)}</div>{!earnedBadges.length && <EmptyState>No badges are recorded in the authoritative badge ledger. Badges are recognition, not authority.</EmptyState>}
       </section>
 
       <section className="commons-tier-grid">{membershipTiers.map((tier) => <article className="section-card commons-tier-card" key={tier.name}><p className="eyebrow">{tier.status}</p><h3>{tier.name}</h3><p>{tier.purpose}</p><p><strong>How awarded:</strong> {tier.awarded}</p><p className="boundary-note">{tier.note}</p></article>)}</section>

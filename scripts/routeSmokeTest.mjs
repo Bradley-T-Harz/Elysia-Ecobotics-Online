@@ -18,7 +18,7 @@ const requiredRoutes = [
   "/admin/addon-submissions", "/admin/developers", "/admin/library-sources",
   "/admin/work-submissions", "/admin/review", "/admin/review/work-with",
   "/admin/review/stewardship", "/admin/review/commune", "/admin/review/living-library",
-  "/admin/review/marketplace", "/admin/review/broken-links", "/admin/roles", "/admin/audit", "/browse", "/addons/:id", "/action-preview", "/account", "/submit",
+  "/admin/review/marketplace", "/admin/review/broken-links", "/admin/roles", "/admin/badges", "/admin/audit", "/browse", "/addons/:id", "/action-preview", "/account", "/submit",
   "/trust", "/manifest-api", "/admin"
 ];
 const app = await import("node:fs/promises").then((fs) => fs.readFile(new URL("../src/App.tsx", import.meta.url), "utf8"));

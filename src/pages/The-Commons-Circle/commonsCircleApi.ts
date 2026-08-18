@@ -1012,7 +1012,7 @@ const tableReadinessLabels: Record<string, string> = {
   "Saved Living Library sources": "No account-backed Living Library saves yet.",
   "Saved citations": "No account-backed saved citations yet.",
   "Saved add-ons": "No account-backed Marketplace saves yet.",
-  "Public profile fields": "Optional public profile fields are not active yet.",
+  "Public profile fields": "Optional public profile fields are unavailable in the current backend response.",
   "Coding Cornucopia proposal activity": "Coding Cornucopia proposal activity is not configured yet.",
   "Coding Cornucopia proposal posts": "Coding Cornucopia proposal post details are not configured yet.",
   "Troubleshooting Grove activity": "Troubleshooting Grove structured activity is not configured yet.",
@@ -1206,10 +1206,6 @@ function safePublicLinks(value: unknown): FeaturedPublicLink[] {
   });
 }
 
-export function freeMemberFallbackBadge(awardedAt?: string | null): UserBadge {
-  return mergeBadges(plannedBadges, [{ badge_key: "free_member", awarded_at: awardedAt ?? new Date().toISOString(), award_source: "local_fallback", visibility: "public" }])[0];
-}
-
 export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
   const warnings: string[] = [];
   const profileResult = await loadCurrentProfile();
@@ -1303,12 +1299,13 @@ export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
     const rpcResult = await supabase.rpc("grant_free_member_for_user", { p_target_user_id: userId });
     if (rpcResult.error) {
       logBackendDetail("Free Member badge", rpcResult.error.message);
-      badgeAwards = [{ badge_key: "free_member", awarded_at: canonicalFreeMemberCompletedAt as string, award_source: "local_fallback", visibility: "public" }, ...badgeAwards];
+      warnings.push("Free Member recognition could not be persisted. No unrecorded badge is being displayed.");
     } else {
       const refreshed = await safeQuery<BadgeAwardRow[]>(warnings, "User badges", supabase.from("user_badges").select(selfBadgeAwardColumns).eq("user_id", userId).is("revoked_at", null), []);
-      badgeAwards = refreshed.some((badge) => badge.badge_key === "free_member" && !badge.revoked_at)
-        ? refreshed
-        : [{ badge_key: "free_member", awarded_at: canonicalFreeMemberCompletedAt as string, award_source: "local_fallback", visibility: "public" }, ...badgeAwards];
+      badgeAwards = refreshed;
+      if (!refreshed.some((badge) => badge.badge_key === "free_member" && !badge.revoked_at)) {
+        warnings.push("Free Member recognition was not returned by the authoritative badge ledger. No badge is being inferred locally.");
+      }
     }
   }
   const customization = normalizeProfileCustomization({

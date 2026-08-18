@@ -15,12 +15,8 @@ const AccountPage = lazy(() => import("./pages/The-Elysia-Marketplace/pages/Acco
 const SubmitPage = lazy(() => import("./pages/The-Elysia-Marketplace/pages/SubmitPage"));
 const TrustPage = lazy(() => import("./pages/The-Elysia-Marketplace/pages/TrustPage"));
 const ManifestApiPage = lazy(() => import("./pages/The-Elysia-Marketplace/pages/ManifestApiPage"));
-const MarketplaceAdminPage = lazy(() => import("./pages/The-Elysia-Marketplace/pages/AdminPage"));
-const ProductsPage = lazy(() => import("./pages/Elysia-Ecobotics-Products"));
-const LabPage = lazy(() => import("./pages/The-Elysia-Ecobotics-Lab"));
 const DeveloperForgePage = lazy(() => import("./pages/The-Developer-Forge"));
 const LivingLibraryPage = lazy(() => import("./pages/The-Living-Library"));
-const CommunePage = lazy(() => import("./pages/The-Elysia-Commune"));
 const WorkWithPage = lazy(() => import("./pages/Work-With-Elysia-Ecobotics"));
 const SupportPage = lazy(() => import("./pages/Support"));
 const SupportThankYouPage = lazy(() => import("./pages/Support/SupportThankYouPage"));
@@ -54,6 +50,7 @@ const LegalPolicyPage = lazy(() => import("./pages/Legal").then((module) => ({ d
 const AdminHomePage = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminHomePage })));
 const AdminReviewPage = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminReviewPage })));
 const AdminRolesPage = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminRolesPage })));
+const AdminBadgesPage = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminBadgesPage })));
 const AdminAuditPage = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminAuditPage })));
 const AdminReportsPage = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminReportsPage })));
 const AdminDevelopersPage = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminDevelopersPage })));
@@ -65,6 +62,16 @@ const EconomicOperationsPage = lazy(() => import("./pages/Admin/EconomicOperatio
 function PageLoading() {
   return <main className="site-loading" aria-live="polite">Loading Elysia Ecobotics Online...</main>;
 }
+
+// Preserve historical route compatibility without exposing unfinished public
+// product, team-directory, or Commune capability surfaces in the v1 release UI.
+function HiddenReleaseSurface() {
+  return <Navigate replace to="/" />;
+}
+
+const ProductsPage = HiddenReleaseSurface;
+const LabPage = HiddenReleaseSurface;
+const CommunePage = HiddenReleaseSurface;
 
 function LegacyAddonAlias() {
   const { id } = useParams();
@@ -124,7 +131,7 @@ export default function App() {
               <Route path="submit" element={<SubmitPage />} />
               <Route path="trust" element={<TrustPage />} />
               <Route path="manifest-api" element={<ManifestApiPage />} />
-              <Route path="admin" element={<MarketplaceAdminPage />} />
+              <Route path="admin" element={<Navigate replace to="/admin/addon-submissions" />} />
             </Route>
             <Route path="products" element={<ProductsPage />} />
             <Route path="lab" element={<LabPage />} />
@@ -245,6 +252,7 @@ export default function App() {
             <Route path="living-library/browse/:categorySlug" element={<LivingLibraryPage />} />
             <Route path="living-library/source/:sourceId" element={<LivingLibraryPage />} />
             <Route path="commons-circle/signals/circle" element={<CirclePage />} />
+            <Route path="admin/badges" element={<AdminBadgesPage />} />
             </Route>
             </Routes>
           </Suspense>
