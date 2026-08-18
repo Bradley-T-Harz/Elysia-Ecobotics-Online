@@ -10,6 +10,8 @@ const [script, sql] = await Promise.all([
 ]);
 
 assert(script.includes("SUPABASE_READONLY_DATABASE_URL"), "Inventory must require a narrowly named read-only URL.");
+assert(script.includes("PGHOST: parsed.hostname") && script.includes("PGPASSWORD: decodeURIComponent(parsed.password)"), "Inventory must parse the connection URL into bounded libpq environment fields.");
+assert(!script.includes('"--dbname", databaseUrl') && !script.includes("PGDATABASE: databaseUrl"), "Inventory must not expose or misuse the full connection URL in psql arguments or PGDATABASE.");
 assert(script.includes('flag: "wx"') && script.includes("mode: 0o600"), "Inventory output must be exclusive and private.");
 assert(!script.includes("console.log(configured)"), "Inventory tooling must never print the connection URL.");
 assert(/begin transaction read only;/i.test(sql), "Inventory SQL must start a read-only transaction.");

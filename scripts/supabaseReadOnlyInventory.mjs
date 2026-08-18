@@ -42,13 +42,22 @@ function parseArguments(argv) {
 }
 
 async function runPsql(databaseUrl) {
+  const parsed = new URL(databaseUrl);
+  const connectionEnvironment = {
+    PGHOST: parsed.hostname,
+    PGPORT: parsed.port || "5432",
+    PGDATABASE: decodeURIComponent(parsed.pathname.replace(/^\//, "")),
+    PGUSER: decodeURIComponent(parsed.username),
+    PGPASSWORD: decodeURIComponent(parsed.password),
+    PGSSLMODE: parsed.searchParams.get("sslmode") || "require"
+  };
   return await new Promise((resolve, reject) => {
     const child = spawn("psql", ["--no-psqlrc", "--quiet", "--set", "ON_ERROR_STOP=1", "--file", sqlPath], {
       shell: false,
       cwd: root,
       env: {
         PATH: process.env.PATH,
-        PGDATABASE: databaseUrl,
+        ...connectionEnvironment,
         PGCONNECT_TIMEOUT: "8",
         PSQL_PAGER: "off"
       },

@@ -45,6 +45,8 @@ for (const policySource of [policiesSql, publicationBoundaryMigration]) {
   assert(!/status\s+in\s*\([^)]*'deprecated'/i.test(policySource), "Deprecated legacy add-ons must not remain public-readable");
 }
 assert(inventoryScript.includes('mode: 0o600') && inventoryScript.includes('flag: "wx"'));
+assert(inventoryScript.includes("PGHOST: parsed.hostname") && inventoryScript.includes("PGPASSWORD: decodeURIComponent(parsed.password)"));
+assert(!inventoryScript.includes('"--dbname", databaseUrl') && !inventoryScript.includes("PGDATABASE: databaseUrl"));
 assert(!inventoryScript.includes("console.log(configured)"));
 
 console.log("Marketplace v1 read-only inventory and reversible cleanup-plan contract passed.");

@@ -531,14 +531,22 @@ export async function submitDraftForReview(draft: AddonDraft, termsAccepted: boo
   const submissionId = (submission as AddonSubmission).id;
   const snapshotWarnings = await createSubmissionSnapshot({ submissionId, draft: { ...draft, manifest_json: manifest }, userId, catalog });
   const { data: reviewItem, error: reviewError } = await supabase.from("review_items").insert({ domain: "marketplace", source_table: "addon_submissions", source_id: submissionId, submitted_by: userId, title: draft.addon_name, summary: draft.short_summary, status: "pending_review" }).select("id").single();
+  const reviewWarnings: string[] = [];
   if (!reviewError && reviewItem) {
     const reviewItemId = (reviewItem as { id: string }).id;
-    await supabase.from("addon_submissions").update({ review_item_id: reviewItemId }).eq("id", submissionId).eq("submitted_by", userId);
+    const linkResult = await supabase.rpc("link_own_addon_submission_review_item", {
+      p_submission_id: submissionId,
+      p_review_item_id: reviewItemId
+    });
+    if (linkResult.error || linkResult.data !== true) {
+      logDetail("Submission review link", linkResult.error?.message ?? "governed link returned false");
+      reviewWarnings.push("The private Marketplace review item was created, but its governed submission link could not be confirmed. Administrator review must use the cross-domain review queue.");
+    }
     await supabase.from("review_events").insert({ review_item_id: reviewItemId, actor_id: userId, event_type: "submitted", to_status: "pending_review", metadata: { visibility: "submitter_visible", source: "developer_forge" } });
   } else if (reviewError) {
     logDetail("Review item", reviewError.message);
   }
   await supabase.from("addon_drafts").update({ submission_status: "submitted", review_status: "pending", source_submission_id: submissionId, locked_at: new Date().toISOString(), locked_reason: "submitted_for_marketplace_review", submitted_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", draft.id).eq("owner_user_id", userId);
   await supabase.from("addon_audit_log").insert({ actor_user_id: userId, target_type: "addon_submission", target_id: submissionId, action: "submitted_for_review" });
-  return [...snapshotWarnings, ...(reviewError ? ["The private submission record was created, but the cross-domain review index was unavailable. The submission is not public-listed, and administrator review must use the add-on submissions queue."] : ["Submitted to the private Developer Forge review queue. An immutable review snapshot was created; edit a revision draft for changes."])];
+  return [...snapshotWarnings, ...reviewWarnings, ...(reviewError ? ["The private submission record was created, but the cross-domain review index was unavailable. The submission is not public-listed, and administrator review must use the add-on submissions queue."] : ["Submitted to the private Developer Forge review queue. An immutable review snapshot was created; edit a revision draft for changes."])];
 }
