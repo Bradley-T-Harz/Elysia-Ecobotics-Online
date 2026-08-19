@@ -104,6 +104,10 @@ function fileKind(path: string): AddonIntakeFile["kind"] {
   return isTextPath(path) ? "text" : "binary";
 }
 
+function isBehavioralSourcePath(path: string) {
+  return /\.(c|cc|cpp|cs|go|html?|java|js|jsx|kt|kts|mjs|cjs|php|py|rb|rs|ts|tsx)$/i.test(path);
+}
+
 function scanText(path: string, text: string, errors: BrowserArchiveIssue[], warnings: BrowserArchiveIssue[]) {
   if (/\b(sk-[A-Za-z0-9_-]{8,}|ghp_[A-Za-z0-9_]{8,}|github_pat_[A-Za-z0-9_]{8,}|AWS_ACCESS_KEY_ID|SUPABASE_SERVICE_ROLE|service_role)\b/i.test(text)) {
     errors.push({ code: "secret_api_key", message: "Secret-looking token or service-role text found.", path });
@@ -115,7 +119,9 @@ function scanText(path: string, text: string, errors: BrowserArchiveIssue[], war
   if (/\b(postinstall|preinstall|curl\s+[^\n|]*\|\s*(ba)?sh|wget\s+[^\n|]*\|\s*(ba)?sh|sudo\s|rm\s+-rf)\b/i.test(text)) {
     warnings.push({ code: "install_or_shell_indicator", message: "Install hook or dangerous shell-like text found. Nothing was executed.", path });
   }
-  if (/\b(fetch\s*\(|axios\.|https?:\/\/|WebSocket\s*\(|net\.connect|requests\.(get|post)|urllib\.)/i.test(text)) {
+  // Documentation and manifest metadata commonly contain URLs. Only executable
+  // source can establish behavioral evidence that must match network authority.
+  if (isBehavioralSourcePath(path) && /\b(fetch\s*\(|axios\.|https?:\/\/|WebSocket\s*\(|net\.connect|requests\.(get|post)|urllib\.)/i.test(text)) {
     warnings.push({ code: "network_behavior_indicator", message: "Possible network behavior found; the manifest must declare it for review.", path });
   }
 }

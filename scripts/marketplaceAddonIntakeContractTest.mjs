@@ -31,6 +31,7 @@ const [intake, intakePolicy, panel, repositoryTree, styles, workbench, localMani
 for (const required of ["inspectAddonArchive", "inspectAddonFiles", "maxFiles", "maxTotalBytes", "maxRenderedFiles", "missing_manifest", "duplicate_manifest", "nested_manifest_candidates", "private_absolute_path", "secret_api_key", "network_behavior_indicator", "selectedFileCount", "excludedFileCount", "deferredFileCount", "issueGroups", "needs_manifest", "blocked_from_transfer"]) {
   assert(intake.includes(required), `Browser intake contract is missing ${required}.`);
 }
+assert(intake.includes("isBehavioralSourcePath(path)") && intake.includes("Documentation and manifest metadata commonly contain URLs"), "Manifest/docs URL metadata must not be misclassified as undeclared executable network behavior.");
 for (const directory of ["node_modules", ".git", "dist", "build", ".next", "target", "venv", ".venv", "__pycache__", ".pytest_cache", ".cache", "coverage"]) assert(intakePolicy.includes(`"${directory}"`), `Generated/vendor exclusion policy is missing ${directory}.`);
 assert(intakePolicy.includes("containsPrivateAbsolutePath") && intakePolicy.includes("file:\\/\\/\\/") && intakePolicy.includes("[A-Za-z]:"), "Private absolute path policy lost Unix/file/Windows coverage.");
 for (const relativePath of ["node_modules/ignore/README.md", "src/index.ts", "docs/review-boundary.md"]) assert(!intakePolicy.includes(relativePath), `Relative path must not be hard-coded as private: ${relativePath}.`);

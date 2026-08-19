@@ -320,6 +320,7 @@ try {
     await packageInput.setInputFiles(firstExportPath);
     await page.getByText("6 files selected locally", { exact: false }).first().waitFor({ state: "visible" });
     assert.equal(await page.locator(".addon-intake-summary").getByText("needs manifest", { exact: true }).count(), 0, "Re-imported Forge package must retain its root manifest.");
+    assert(await page.locator("label.checkbox-line").filter({ hasText: "files I selected will leave my computer" }).locator('input[type="checkbox"]').isEnabled(), "A clean re-imported Forge export must remain eligible for explicit private transfer; manifest and documentation URLs are metadata, not undeclared runtime network behavior.");
     currentPhase = "refuse credential-bearing package";
     await packageInput.setInputFiles({ name: "blocked-browser-intake.elysia-addon", mimeType: "application/vnd.elysia-addon+zip", buffer: blockedIntakeBytes });
     await page.getByText("credential_path", { exact: true }).first().waitFor({ state: "visible" });
