@@ -47,7 +47,7 @@ assert(styles.includes(".site-nav-region *") && styles.includes("transition: non
 assert(styles.includes("min-height: 2.75rem"), "Mobile controls must target approximately 44 CSS pixels.");
 
 assert(header.includes('className="site-brand" to="/"'), "Brand/Home utility changed.");
-assert(!header.includes('to="/archive"') && !header.includes("Download Elysia"), "Unpublished download utility must stay hidden.");
+assert(header.includes('className="install-link" to="/archive"'), "Download utility changed.");
 assert(accountButton.includes('to="/commons-circle"'), "AccountButton target changed.");
 
 for (const forbidden of ["/admin", "/commons-circle/support-billing", "/commons-circle/signals", "/developer-forge/drafts", "/commune/moderation"]) {

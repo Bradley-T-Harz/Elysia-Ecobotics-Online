@@ -1,13 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url><loc>https://elysiaecobotics.com/</loc></url>
+  <url><loc>https://elysiaecobotics.com/archive</loc></url>
   <url><loc>https://elysiaecobotics.com/marketplace</loc></url>
   <url><loc>https://elysiaecobotics.com/marketplace/browse</loc></url>
   <url><loc>https://elysiaecobotics.com/marketplace/trust</loc></url>
   <url><loc>https://elysiaecobotics.com/marketplace/manifest-api</loc></url>
+  <url><loc>https://elysiaecobotics.com/products</loc></url>
+  <url><loc>https://elysiaecobotics.com/lab</loc></url>
   <url><loc>https://elysiaecobotics.com/developer-forge</loc></url>
   <url><loc>https://elysiaecobotics.com/developer-forge/docs</loc></url>
   <url><loc>https://elysiaecobotics.com/living-library</loc></url>
+  <url><loc>https://elysiaecobotics.com/commune</loc></url>
+  <url><loc>https://elysiaecobotics.com/commune/rooms</loc></url>
   <url><loc>https://elysiaecobotics.com/work-with-elysia-ecobotics</loc></url>
   <url><loc>https://elysiaecobotics.com/support</loc></url>
   <url><loc>https://elysiaecobotics.com/commons-circle</loc></url>

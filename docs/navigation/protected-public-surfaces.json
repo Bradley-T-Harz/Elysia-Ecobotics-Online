@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "policy": "repair-test-preserve-before-hide-redirect-delete",
+  "surfaces": [
+    { "name": "The Archive", "path": "/archive", "component": "ArchivePage", "publicNavigationLabel": "Archive & Release Status", "backendProof": null },
+    { "name": "Products", "path": "/products", "component": "ProductsPage", "publicNavigationLabel": "Products", "backendProof": null },
+    { "name": "Lab", "path": "/lab", "component": "LabPage", "publicNavigationLabel": "Lab", "backendProof": null },
+    { "name": "Commune", "path": "/commune", "component": "CommunePage", "publicNavigationLabel": "Commune", "backendProof": "test:commune" },
+    { "name": "Commune rooms", "path": "/commune/rooms", "component": "CommunePage", "publicNavigationLabel": null, "backendProof": "test:commune-feed-browser:built" },
+    { "name": "Commune realtime", "path": "/commune/realtime", "component": "CommunePage", "publicNavigationLabel": null, "backendProof": "test:commune-quick-access-browser:built" },
+    { "name": "Commune voting", "path": "/commune/rooms/community-vote", "routePattern": "/commune/rooms/:roomSlug", "component": "CommunePage", "publicNavigationLabel": null, "backendProof": "test:commune-links-browser:built" },
+    { "name": "Commune coding workbench", "path": "/commune/coding-cornucopia/review", "component": "CommunePage", "publicNavigationLabel": null, "backendProof": "test:coding-workbench-browser:built" },
+    { "name": "Marketplace", "path": "/marketplace", "component": "MarketplaceProvider", "publicNavigationLabel": "Marketplace", "backendProof": "test:marketplace-submission-boundary" },
+    { "name": "Developer Forge", "path": "/developer-forge", "component": "DeveloperForgePage", "publicNavigationLabel": "Developer Forge", "backendProof": "test:developer-forge-browser:built" },
+    { "name": "Living Library", "path": "/living-library", "component": "LivingLibraryPage", "publicNavigationLabel": "Living Library", "backendProof": "test:living-library-browser:built" },
+    { "name": "Commons Circle", "path": "/commons-circle", "component": "CommonsCirclePage", "publicNavigationLabel": "Commons Circle", "backendProof": "test:commons-circle-mutual" },
+    { "name": "Admin", "path": "/admin", "component": "AdminHomePage", "publicNavigationLabel": null, "backendProof": "role-gated" }
+  ]
+}

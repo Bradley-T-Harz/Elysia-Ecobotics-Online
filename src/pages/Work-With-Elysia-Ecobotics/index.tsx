@@ -322,6 +322,14 @@ export default function WorkWithPage() {
         <p className="boundary-note">This request does not guarantee a role, paid work, membership tier, or reviewer authority. Requests will require administrator review.</p>
       </section>
 
+      <section className="section-card work-job-post-bridge">
+        <p className="eyebrow">Public opportunities</p>
+        <h2>Job Posts are the public board; Work With is the private intake path.</h2>
+        <p>Browse public, admin-approved Job Posts in the Commune for open opportunities and public questions. Use this Work With page for private applications, resumes/CVs, and administrator-review requests.</p>
+        <p className="boundary-note">Do not post resumes, CVs, SSNs, identity documents, bank details, private addresses, private phone numbers, contracts, or private application packets in public Job Post comments.</p>
+        <div className="button-row"><Link className="button-link" to="/commune/rooms/job-post/posts">Browse public Job Posts</Link><Link className="button-link" to="/commune/rooms/job-post/new">Submit public Job Post for admin approval</Link></div>
+      </section>
+
       <section className="feature-grid feature-grid--three">
         {roles.map((role) => <FeatureCard key={role.title} title={role.title}><p>{role.text}</p><span className="trust-badge">{role.status}</span></FeatureCard>)}
       </section>

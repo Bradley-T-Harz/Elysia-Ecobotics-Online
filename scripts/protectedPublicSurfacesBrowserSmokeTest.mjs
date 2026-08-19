@@ -53,17 +53,17 @@ await new Promise((resolve, reject) => {
   server.listen(0, "127.0.0.1", resolve);
 });
 const address = server.address();
-assert(address && typeof address === "object", "hidden-surface test server did not start");
+assert(address && typeof address === "object", "protected-surface test server did not start");
 const origin = `http://127.0.0.1:${address.port}`;
 
-const hiddenPaths = [
-  "/products",
-  "/lab",
-  "/commune",
-  "/commune/rooms",
-  "/commune/rooms/coding-cornucopia",
-  "/commune/coding-cornucopia/review",
-  "/commune/posts/00000000-0000-4000-8000-000000000001",
+const protectedPages = [
+  ["/archive", "The Elysia Archive"],
+  ["/products", "Elysia Ecobotics Products"],
+  ["/lab", "The Elysia Ecobotics Lab"],
+  ["/commune", "The Elysia Commune"],
+  ["/commune/rooms", "The Elysia Commune"],
+  ["/commune/rooms/community-vote", "The Elysia Commune"],
+  ["/commune/coding-cornucopia/review", "The Elysia Commune"],
 ];
 
 const browser = await chromium.launch({ headless: true });
@@ -71,30 +71,22 @@ try {
   for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
     const context = await browser.newContext({ viewport });
     const page = await context.newPage();
-    const backendRequests = [];
     const pageErrors = [];
-    page.on("request", (request) => {
-      if (/\.supabase\.co\//.test(request.url())) backendRequests.push(request.url());
-    });
     page.on("pageerror", (error) => pageErrors.push(error.message));
 
-    for (const hiddenPath of hiddenPaths) {
-      const response = await page.goto(`${origin}${hiddenPath}`, {
-        waitUntil: "networkidle",
-        timeout: 45_000,
-      });
-      assert.equal(response?.status(), 200, `${hiddenPath}: document status`);
-      await page.waitForURL((url) => url.pathname === "/");
-      await page.locator("main h1").first().waitFor({ state: "visible" });
-      assert.equal(await page.locator('nav a[href="/products"], nav a[href="/lab"], nav a[href="/commune"]').count(), 0, `${hiddenPath}: hidden surface leaked into public navigation`);
-      assert.equal(await page.getByText("Coming soon", { exact: true }).count(), 0, `${hiddenPath}: release promise leaked into public UI`);
+    for (const [protectedPath, heading] of protectedPages) {
+      const response = await page.goto(`${origin}${protectedPath}`, { waitUntil: "domcontentloaded", timeout: 45_000 });
+      assert.equal(response?.status(), 200, `${protectedPath}: document status`);
+      await page.getByRole("heading", { name: heading, exact: true }).first().waitFor({ state: "visible" });
+      assert.equal(new URL(page.url()).pathname, protectedPath, `${protectedPath}: protected route redirected away`);
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 2);
+      assert.equal(overflow, false, `${protectedPath}: horizontal overflow at ${viewport.width}px`);
     }
 
-    assert.deepEqual(backendRequests, [], "hidden compatibility routes must not contact Supabase");
-    assert.deepEqual(pageErrors, [], "hidden compatibility routes raised browser errors");
+    assert.deepEqual(pageErrors, [], `Protected surface raised browser errors at ${viewport.width}px`);
     await context.close();
   }
-  console.log("Hidden release surfaces redirect safely without backend calls at desktop and mobile widths.");
+  console.log("Protected public surfaces render without redirects or horizontal overflow at desktop and mobile widths.");
 } finally {
   await browser.close();
   await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

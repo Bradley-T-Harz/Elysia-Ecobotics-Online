@@ -89,6 +89,11 @@ const circlePrivatePaths = [
   "supabase/migrations/20260810040000_circle_access_review.sql",
 ];
 
+const releaseBoundaryPaths = [
+  "supabase/migrations/20260818010000_legacy_marketplace_publication_boundary.sql",
+  "supabase/migrations/20260818020000_addon_submission_review_link_boundary.sql",
+];
+
 const activePaths = [
   ...baselinePaths,
   ...economicPaths,
@@ -98,6 +103,7 @@ const activePaths = [
   ...accountCommunicationPaths,
   ...opportunityPaths,
   ...circlePrivatePaths,
+  ...releaseBoundaryPaths,
 ];
 
 const legacyHashes = new Map(Object.entries({
@@ -194,6 +200,9 @@ const opportunityMigrations = await Promise.all(
 const circlePrivateMigrations = await Promise.all(
   circlePrivatePaths.map((file) => fs.readFile(file, "utf8"))
 );
+const releaseBoundaryMigrations = await Promise.all(
+  releaseBoundaryPaths.map((file) => fs.readFile(file, "utf8"))
+);
 const jobOpportunityBehaviorFixture = await fs.readFile("scripts/fixtures/jobOpportunityDatabaseBehavior.sql", "utf8");
 const circlePrivateBehaviorFixture = await fs.readFile("scripts/fixtures/communeCirclePrivateBehavior.sql", "utf8");
 const routeKillSwitchMigration = economicMigrations.at(-1);
@@ -247,6 +256,15 @@ for (const [index, migration] of circlePrivateMigrations.entries()) {
   assert(/commit;\s*$/i.test(migration), `${circlePrivatePaths[index]} must commit atomically.`);
   assert(!/postgres(?:ql)?:\/\//i.test(migration), `${circlePrivatePaths[index]} contains a connection string.`);
   assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${circlePrivatePaths[index]} contains a token-like value.`);
+}
+for (const [index, migration] of releaseBoundaryMigrations.entries()) {
+  assert(migration.startsWith("--"), `${releaseBoundaryPaths[index]} needs an explanatory header.`);
+  assert(!/postgres(?:ql)?:\/\//i.test(migration), `${releaseBoundaryPaths[index]} contains a connection string.`);
+  assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${releaseBoundaryPaths[index]} contains a token-like value.`);
+}
+assert(releaseBoundaryMigrations[0].includes('using (status = \'approved\')'), "Legacy Marketplace boundary must constrain public reads to approved rows.");
+for (const marker of ["link_own_addon_submission_review_item", "auth.uid()", "to authenticated"]) {
+  assert(releaseBoundaryMigrations[1].includes(marker), `Add-on review link boundary omits ${marker}.`);
 }
 const circlePrivateSource = circlePrivateMigrations.join("\n");
 for (const marker of [

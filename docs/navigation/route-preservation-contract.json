@@ -171,9 +171,13 @@
   "currentNavigationBaselines": {
     "globalHeader": [
       { "label": "Home", "path": "/", "routeId": "RT-0002" },
+      { "label": "Archive", "path": "/archive", "routeId": "RT-0003" },
       { "label": "Marketplace", "path": "/marketplace", "routeId": "RT-0005" },
+      { "label": "Products", "path": "/products", "routeId": "RT-0014" },
+      { "label": "Lab", "path": "/lab", "routeId": "RT-0015" },
       { "label": "Developer Forge", "path": "/developer-forge", "routeId": "RT-0016" },
       { "label": "Living Library", "path": "/living-library", "routeId": "RT-0037" },
+      { "label": "Commune", "path": "/commune", "routeId": "RT-0038" },
       { "label": "Work With", "path": "/work-with-elysia-ecobotics", "routeId": "RT-0061" },
       { "label": "Commons Circle", "path": "/commons-circle", "routeId": "RT-0068" },
       { "label": "Artisan Collective", "path": "/artisan-collective", "routeId": "RT-0099" },
@@ -185,17 +189,18 @@
     ],
     "headerUtilities": [
       { "label": "Home/brand", "path": "/", "routeId": "RT-0002", "source": "src/shared/components/SiteHeader.tsx" },
+      { "label": "Download Elysia", "path": "/archive", "routeId": "RT-0003", "source": "src/shared/components/SiteHeader.tsx" },
       { "label": "Account / Sign in", "path": "/commons-circle", "routeId": "RT-0068", "source": "src/shared/components/AccountButton.tsx" }
     ],
     "footer": [
       "/about", "/mission", "/marketplace/trust", "/commons-circle", "/artisan-collective", "/story", "/support", "/commons-circle/support-billing", "/legal", "/legal/privacy-policy", "/legal/terms-of-use", "/legal/support-and-billing-terms", "/legal/refund-and-cancellation-policy", "/legal/community-guidelines", "/legal/vulnerability-disclosure-policy", "/legal/trademark-notice"
     ],
     "homepage": [
-      "/commons-circle", "/developer-forge", "/living-library", "/marketplace", "/mission"
+      "/archive", "/commons-circle", "/commune", "/developer-forge", "/lab", "/living-library", "/marketplace", "/mission", "/products"
     ]
   },
   "sitemapBaseline": [
-    "/", "/marketplace", "/marketplace/browse", "/marketplace/trust", "/marketplace/manifest-api", "/developer-forge", "/developer-forge/docs", "/living-library", "/work-with-elysia-ecobotics", "/support", "/commons-circle", "/artisan-collective", "/story", "/about", "/mission", "/legal", "/legal/privacy-policy", "/legal/terms-of-use", "/legal/community-guidelines", "/legal/marketplace-developer-agreement", "/legal/add-on-submission-policy", "/legal/security-review-policy", "/legal/vulnerability-disclosure-policy", "/legal/dmca-copyright-policy", "/legal/acceptable-use-policy", "/legal/code-of-conduct", "/legal/volunteer-contributor-disclaimer", "/legal/donation-recognition-terms", "/legal/trademark-notice", "/legal/support-and-billing-terms", "/legal/refund-and-cancellation-policy", "/legal/sandbox-credit-terms", "/legal/job-post-fee-terms", "/legal/marketplace-commerce-terms", "/legal/organization-services-terms", "/legal/sponsorship-independence-policy", "/legal/account-closure-financial-retention", "/legal/living-library-third-party-resources"
+    "/", "/archive", "/marketplace", "/marketplace/browse", "/marketplace/trust", "/marketplace/manifest-api", "/products", "/lab", "/developer-forge", "/developer-forge/docs", "/living-library", "/commune", "/commune/rooms", "/work-with-elysia-ecobotics", "/support", "/commons-circle", "/artisan-collective", "/story", "/about", "/mission", "/legal", "/legal/privacy-policy", "/legal/terms-of-use", "/legal/community-guidelines", "/legal/marketplace-developer-agreement", "/legal/add-on-submission-policy", "/legal/security-review-policy", "/legal/vulnerability-disclosure-policy", "/legal/dmca-copyright-policy", "/legal/acceptable-use-policy", "/legal/code-of-conduct", "/legal/volunteer-contributor-disclaimer", "/legal/donation-recognition-terms", "/legal/trademark-notice", "/legal/support-and-billing-terms", "/legal/refund-and-cancellation-policy", "/legal/sandbox-credit-terms", "/legal/job-post-fee-terms", "/legal/marketplace-commerce-terms", "/legal/organization-services-terms", "/legal/sponsorship-independence-policy", "/legal/account-closure-financial-retention", "/legal/living-library-third-party-resources"
   ],
   "routes": [
     { "id": "RT-0001", "declaredPath": null, "resolvedPattern": null, "kind": "layout", "parentId": null, "owner": "SiteLayout", "redirectTarget": null, "stateProfile": "not-applicable", "dynamicSource": null, "accessProfile": "infrastructure", "statusProfile": "registered-route", "zone": "infrastructure", "reachability": ["nonnavigational-infrastructure"], "smokePaths": [] },

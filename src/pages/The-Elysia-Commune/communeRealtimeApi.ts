@@ -224,7 +224,7 @@ export async function sendRealtimeMessage(room: RealtimeRoom, body: string): Pro
   if (!["open_signed_in", "members_only"].includes(room.posting_mode)) return { ok: false, message: `This room is currently ${room.posting_mode.replace(/_/g, " ")}.` };
   const validation = validateChatMessageInput(body);
   if (!validation.ok) return { ok: false, message: validation.message ?? "Message blocked.", row: undefined };
-  const { data, error } = await supabase.from("commune_realtime_messages").insert({ room_id: room.id, room_slug: room.slug, author_user_id: account.userId, author_username: account.username, body: validation.sanitized, body_plain: validation.sanitized, visibility_state: "published" }).select("id,room_id,room_slug,body,body_plain,visibility_state,report_count,created_at,edited_at,flagged_at,hidden_at,removed_at").single();
+  const { data, error } = await supabase.from("commune_realtime_messages").insert({ room_id: room.id, room_slug: room.slug, author_user_id: account.userId, body: validation.sanitized, body_plain: validation.sanitized, visibility_state: "published" }).select("id,room_id,room_slug,body,body_plain,visibility_state,report_count,created_at,edited_at,flagged_at,hidden_at,removed_at").single();
   if (error) return { ok: false, message: formatSafeChatError(error) };
   await writeRealtimeEvent({ roomId: room.id, messageId: (data as RealtimeMessage).id, action: "message_created", metadata: { source: "commune_realtime_ui" } });
   return {
@@ -300,7 +300,7 @@ export async function listRealtimeReports(): Promise<{ reports: RealtimeReport[]
   const messageIds = reportRows.map((report) => report.message_id).filter(Boolean);
   let messages: RealtimeMessage[] = [];
   if (messageIds.length) {
-    const { data, error } = await supabase.from("commune_realtime_messages").select("id,room_id,room_slug,author_user_id,author_username,body,body_plain,visibility_state,report_count,created_at,edited_at,flagged_at,hidden_at,removed_at,moderation_reason").in("id", messageIds);
+    const { data, error } = await supabase.from("commune_realtime_messages").select("id,room_id,room_slug,author_user_id,body,body_plain,visibility_state,report_count,created_at,edited_at,flagged_at,hidden_at,removed_at,moderation_reason").in("id", messageIds);
     if (error) warnings.push(formatSafeChatError(error));
     messages = (data ?? []) as RealtimeMessage[];
   }

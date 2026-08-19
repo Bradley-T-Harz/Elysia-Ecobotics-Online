@@ -164,9 +164,9 @@ for (const item of contract.currentNavigationBaselines.globalHeader) {
 }
 
 const expectedUtilities = contract.currentNavigationBaselines.headerUtilities.map(({ path }) => path);
-arrayEqual(expectedUtilities, ["/", "/commons-circle"], "Header utility contract");
+arrayEqual(expectedUtilities, ["/", "/archive", "/commons-circle"], "Header utility contract");
 check(siteHeader.includes('className="site-brand" to="/"'), "Home/brand utility no longer targets /.");
-check(!siteHeader.includes('to="/archive"') && !siteHeader.includes("Download Elysia"), "Unpublished download utility must stay hidden.");
+check(siteHeader.includes('className="install-link" to="/archive"') && siteHeader.includes("Download Elysia"), "Archive download/status utility was removed.");
 check(accountButton.includes('to="/commons-circle"'), "Existing AccountButton no longer targets /commons-circle.");
 
 arrayEqual(literalLinks(siteFooter), contract.currentNavigationBaselines.footer, "Footer route baseline");

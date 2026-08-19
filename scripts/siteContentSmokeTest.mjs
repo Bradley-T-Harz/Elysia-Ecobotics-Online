@@ -125,7 +125,7 @@ const authPanel = await read("src/pages/The-Elysia-Marketplace/components/AuthPa
 const safeInternalActionPath = await read("src/shared/navigation/safeInternalActionPath.ts");
 const authProvider = await read("src/shared/auth/AuthProvider.tsx");
 
-const expectedNav = ["Explore", "Marketplace", "Living Library", "Build", "Developer Forge", "Community", "Work With Elysia Ecobotics", "Commons Circle", "Artisan Collective", "About & Trust", "Story", "About", "Mission", "Support", "Legal"];
+const expectedNav = ["Get Elysia", "Archive & Release Status", "Explore", "Marketplace", "Products", "Living Library", "Build", "Developer Forge", "Lab", "Community", "Commune", "Work With Elysia Ecobotics", "Commons Circle", "Artisan Collective", "About & Trust", "Story", "About", "Mission", "Support", "Legal"];
 let cursor = -1;
 for (const label of expectedNav) {
   const next = publicNavigation.indexOf(`label: "${label}"`, cursor + 1);
@@ -463,7 +463,7 @@ assert(reviewClient.includes("loadStewardshipReceiptEvidence") && reviewClient.i
 assert(reviewClient.includes('file.bucket !== "stewardship-receipts"') && reviewClient.includes("Private proof metadata failed its storage-boundary check"), "Private stewardship proof access must verify its exact storage boundary before signing.");
 assert(!reviewClient.includes('storage.from("stewardship-receipts").getPublicUrl'), "Private stewardship proof must never use a public storage URL.");
 assert(adminPage.includes("Private stewardship proof") && adminPage.includes("Open private proof (5-minute link)") && adminPage.includes("no storage path or public URL is rendered"), "Admin Stewardship Review must provide a short-lived reviewer-only proof path without rendering storage paths.");
-assert(workWithPage.includes("Sign in to submit for review") && workWithPage.includes("No request was submitted") && !workWithPage.includes('to="/commune/'), "Work With must keep local drafts separate from remote review and must not link to hidden Commune routes.");
+assert(workWithPage.includes("Sign in to submit for review") && workWithPage.includes("No request was submitted") && workWithPage.includes("Job Posts are the public board; Work With is the private intake path") && workWithPage.includes('to="/commune/rooms/job-post/posts"') && workWithPage.includes('to="/commune/rooms/job-post/new"'), "Work With must keep private intake boundaries and its established public Job Posts bridge.");
 assert(commonsSetup.includes("Confirm receipt/proof redaction") && commonsSetup.includes("administrator-review materials") && commonsSetup.includes('status: "pending_review"'), "Stewardship proof intake must require redaction acknowledgement and remain pending private review.");
 assert(!commons.includes("plannedBadges.map"), "Commons Circle appears to render planned/locked badge catalog.");
 assert(!publicProfile.includes("plannedBadges.map"), "Public profile appears to render planned/locked badge catalog.");
@@ -748,19 +748,20 @@ assert(
 assert(safeInternalActionPath.includes('value.startsWith("//")') && safeInternalActionPath.includes("parsed.origin"), "Database-backed notification actions must be constrained to safe internal paths.");
 assert(notificationsPage.includes("Marketplace & Economic") && notificationsPage.includes("safeInternalActionPath"), "Notifications must categorize economic notices and constrain their actions after the Signals split.");
 assert(commons.includes('to="/commons-circle/support-billing"') && commons.includes("Private economic account room"), "Commons Circle must expose the private Support & Billing room without changing membership.");
-assert(archive.includes("No public Elysia download is published") && archive.includes("intentionally exposes no download control"), "Archive must be an explicit release blocker without download controls.");
+assert(archive.includes("No public installer exists yet"), "Archive must not imply a public installer exists.");
 assert(archive.includes("unofficial mirror") || archive.includes("unofficial mirrors"), "Archive unofficial mirror warning missing.");
-assert(archive.includes("Checksums and signatures") && archive.includes("no public artifact is authorized"), "Archive checksum/signature honesty copy missing.");
+assert(archive.includes("Signatures") && archive.includes("after signing is actually in place"), "Archive signature honesty copy missing.");
+assert(archive.includes("Downloads remain independent of payment") && archive.includes("will not require a Website Account"), "Archive must preserve free local downloads independently of support.");
 assert(marketplaceHome.includes("Local candidate fallback") && marketplaceHome.includes("Candidate metadata is not approval"), "Marketplace candidate/demo catalog clarity missing.");
 assert(marketplaceCard.includes("Candidate · not installable") && marketplaceCard.includes("cannot create an install intent"), "Marketplace cards must keep candidates visibly non-installable.");
 assert(marketplaceCard.includes("Unsigned or unverified package"), "Marketplace cards must avoid fake signature claims.");
 assert(!marketplaceDetails.includes("Install intent unavailable") && !marketplaceDetails.includes(".elysia-addon package preview only"), "Marketplace details must hide unproven install-looking controls.");
 assert(marketplaceDetails.includes("This website does not install this add-on locally"), "Marketplace details local-install boundary copy missing.");
-assert(publicNavigation.includes('label: "Explore"') && !publicNavigation.includes('label: "Get Elysia"') && !publicNavigation.includes('to: "/archive"'), "Unpublished release navigation must remain hidden.");
+assert(publicNavigation.includes('label: "Get Elysia"') && publicNavigation.includes('to: "/archive"') && publicNavigation.includes('to: "/products"') && publicNavigation.includes('to: "/lab"') && publicNavigation.includes('to: "/commune"'), "Established public surfaces must remain in canonical navigation.");
 assert(listingTruth.includes("MARKETPLACE_LOCAL_INSTALL_ENABLED = false") && listingTruth.includes("if (!MARKETPLACE_LOCAL_INSTALL_ENABLED) return false"), "Website local-install intent must remain hard-gated until a registered protocol handler is proven.");
 assert(!marketplaceDetails.includes("disabled={!installAvailable}") && !marketplaceDetails.includes("package preview only"), "Marketplace details must not render fake disabled install/package controls.");
 assert(manifestApi.includes("Local Elysia separately performs final package validation") && !manifestApi.includes("Planned public endpoints") && !manifestApi.includes("Future local consumption"), "Manifest contract page must describe only active static and local-validation boundaries.");
-assert(app.includes('const ProductsPage = HiddenReleaseSurface') && app.includes('const LabPage = HiddenReleaseSurface') && app.includes('const CommunePage = HiddenReleaseSurface'), "Unfinished public product, team-directory, and Commune surfaces must remain hidden from the release UI.");
+assert(app.includes('import("./pages/Elysia-Ecobotics-Products")') && app.includes('import("./pages/The-Elysia-Ecobotics-Lab")') && app.includes('import("./pages/The-Elysia-Commune")') && !app.includes("HiddenReleaseSurface"), "Products, Lab, and Commune must resolve to their established components, not a homepage redirect.");
 assert(app.includes('path="admin" element={<Navigate replace to="/admin/addon-submissions" />}'), "Legacy Marketplace admin route must redirect to the real governed add-on review queue.");
 assert(webManifest.includes('"start_url": "/"') && webManifest.includes('"/favicon.svg"'), "Public web-app manifest must identify the canonical root and icon.");
 assert(securityTxt.includes("Contact: mailto:security@elysiaecobotics.com") && securityTxt.includes("Canonical: https://elysiaecobotics.com/.well-known/security.txt"), "Canonical security.txt is missing its safe contact or URL.");

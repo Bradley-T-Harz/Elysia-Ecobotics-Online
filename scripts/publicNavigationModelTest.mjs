@@ -9,11 +9,15 @@ const [model, contractText] = await Promise.all([
 ]);
 const contract = JSON.parse(contractText);
 
-const expectedTerritories = ["Explore", "Build", "Community", "About & Trust"];
+const expectedTerritories = ["Get Elysia", "Explore", "Build", "Community", "About & Trust"];
 const expectedDestinations = [
+  ["Archive & Release Status", "/archive"],
   ["Marketplace", "/marketplace"],
+  ["Products", "/products"],
   ["Living Library", "/living-library"],
   ["Developer Forge", "/developer-forge"],
+  ["Lab", "/lab"],
+  ["Commune", "/commune"],
   ["Work With Elysia Ecobotics", "/work-with-elysia-ecobotics"],
   ["Commons Circle", "/commons-circle"],
   ["Artisan Collective", "/artisan-collective"],
@@ -25,6 +29,7 @@ const expectedDestinations = [
 ];
 const expectedUtilities = [
   ["Home", "/"],
+  ["Download", "/archive"],
   ["Account / Sign In", "/commons-circle"]
 ];
 
@@ -42,7 +47,7 @@ for (const [label, path] of [...expectedUtilities, ...expectedDestinations]) {
 
 const destinationPaths = expectedDestinations.map(([, path]) => path);
 const preservedTopLevelPaths = contract.currentNavigationBaselines.globalHeader.map(({ path }) => path);
-for (const path of destinationPaths) assert(preservedTopLevelPaths.includes(path), `Released navigation target is absent from the preserved baseline: ${path}`);
+assert.deepEqual([...new Set(["/", ...destinationPaths])].sort(), [...preservedTopLevelPaths].sort(), "The model must preserve all sixteen former top-level destinations through Home or a territory.");
 
 for (const path of destinationPaths) {
   const route = contract.routes.find((candidate) => candidate.resolvedPattern === path && !["layout", "nested-layout"].includes(candidate.kind));
@@ -70,7 +75,6 @@ for (const forbidden of [
 }
 
 assert(!/status\s*:|badge\s*:|role\s*:|capabilit(?:y|ies)\s*:/i.test(model), "The public model must not encode status, badge, role, or capability authority.");
-for (const hiddenReleasePath of ["/archive", "/products", "/lab", "/commune"]) assert(!model.includes(`to: "${hiddenReleasePath}"`), `Unproven release surface remains in public navigation: ${hiddenReleasePath}`);
-assert.equal(expectedDestinations.length, 11, "The four released territories must expose exactly eleven working public destinations.");
+assert.equal(expectedDestinations.length, 15, "The five territories must expose exactly fifteen destinations; Home supplies the sixteenth former top-level route.");
 
-console.log("Public navigation model ok (4 territories, 2 utilities, 11 released destinations; unproven release surfaces hidden).");
+console.log("Public navigation model ok (5 territories, 3 utilities, 15 territory destinations, 16 preserved former top-level routes).");

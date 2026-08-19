@@ -249,7 +249,7 @@ assert(page.includes("Create Job Post") && !page.includes("Create Job Post Post"
 assert(page.includes("Ordinary-user submissions require governed review before publication"), "Job Post should explain mandatory governed review.");
 assert(page.includes("Open first-party Work With private intake"), "Job Post should preserve the explicit first-party private Work With route.");
 assert(!/Opportunity Commons/i.test(page) && !/Opportunity Commons/i.test(jobOpportunityFields) && !/Opportunity Commons/i.test(adminPage) && !/Opportunity Commons/i.test(legalPolicyPage), "Public Commune, Job Post, Admin Review, and Legal source must not expose the internal Opportunity Commons program name.");
-assert(!workWithPage.includes('to="/commune/') && workWithPage.includes("Local drafts remain only in this browser") && workWithPage.includes("Sign in to submit for review"), "Public Work With must not link to the hidden Commune surface or present a browser-local draft as submitted review work.");
+assert(workWithPage.includes("Job Posts are the public board; Work With is the private intake path") && workWithPage.includes('to="/commune/rooms/job-post/posts"') && workWithPage.includes('to="/commune/rooms/job-post/new"') && workWithPage.includes("Local drafts remain only in this browser") && workWithPage.includes("Sign in to submit for review"), "Work With must preserve its public Job Posts bridge without presenting browser-local drafts as submitted review work.");
 assert(accountApi.includes("export async function submitJobPost") && accountApi.includes("commune_job_posts") && accountApi.includes('post_type: "job_post"'), "Job Post API should create normal Commune posts plus structured sidecar metadata.");
 assert(accountApi.includes('status: "pending_review"') && accountApi.includes("mandatory admin approval") && accountApi.includes('reviewCommuneJobPost(jobPostId, "approve"'), "Job Post API should keep every new subject non-public until the governed review boundary resolves publication.");
 assert(accountApi.includes("updateJobPostApplicationStatus") && accountApi.includes("updateJobPostReviewStatus"), "Job Post API should support listing status and anti-scam review updates.");
@@ -784,6 +784,8 @@ for (const forbiddenField of ["user_id", "author_user_id", "reviewed_by", "priva
 }
 assert(accountApi.includes('.select("id,post_id,language,file_name,code_text,secret_scan_status,sandbox_warning_acknowledged,accepted_revision_id,accepted_version_number,accepted_revision_summary,accepted_at,created_at,updated_at")'), "Public code snippets must use an explicit projection without author/proposer account UUIDs.");
 assert(realtimeApi.includes("loadPublicCommuneAttributions") && realtimeApi.includes('.select("id,room_id,room_slug,body,body_plain,visibility_state,report_count,created_at,edited_at,flagged_at,hidden_at,removed_at")'), "Realtime public history must hydrate current canonical attribution without selecting account UUID or snapshot handle.");
+assert(!/from\("commune_realtime_messages"\)\.insert\(\{[^}]*author_username/.test(realtimeApi), "Realtime message writes must not depend on the removed hosted author_username snapshot column; attribution comes from the canonical profile resolver.");
+assert(!realtimeApi.includes('select("id,room_id,room_slug,author_user_id,author_username'), "Realtime moderation reads must not depend on the removed hosted author_username snapshot column.");
 for (const marker of [
   "private.community_safe_online_public_profile_cards",
   "public.resolve_public_commune_attributions",
