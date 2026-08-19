@@ -306,6 +306,18 @@ function publicationActionForSubmissionStatus(status: string) {
   return null;
 }
 
+function reviewItemStatusForAddonSubmission(status: string) {
+  if (status === "pending") return "pending_review";
+  if (status === "changes_requested") return "needs_information";
+  if (status === "security_hold") return "in_review";
+  if (status === "published") return "approved";
+  return status;
+}
+
+function addonDraftStatusForSubmission(status: string) {
+  return status === "pending" ? { submission_status: "submitted", review_status: "pending" } : { submission_status: status, review_status: status };
+}
+
 export async function loadAdminSummary(): Promise<{ counts: Record<string, number>; warnings: string[] }> {
   if (!hasSupabaseConfig || !supabase) return { counts: {}, warnings: [supabaseNotConfiguredMessage] };
   const counts: Record<string, number> = {};
@@ -461,13 +473,29 @@ export async function updateAddonSubmission(id: string, status: string, develope
   if (!hasSupabaseConfig || !supabase) return supabaseNotConfiguredMessage;
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return "Sign in with a reviewer account first.";
-  const { data: existing, error: existingError } = await supabase.from("addon_submissions").select("submitted_by,status,review_item_id").eq("id", id).maybeSingle();
+  const { data: existing, error: existingError } = await supabase.from("addon_submissions").select("addon_draft_id,submitted_by,status,review_item_id").eq("id", id).maybeSingle();
   if (existingError) return sanitize(existingError) ?? "Add-on submission lookup failed.";
   if ((existing as { submitted_by?: string } | null)?.submitted_by === auth.user.id) return "Reviewers cannot review, approve, reject, or hold their own add-on submissions.";
-  const reviewedAt = ["approved", "rejected", "security_hold", "published"].includes(status) ? new Date().toISOString() : null;
-  const { error } = await supabase.from("addon_submissions").update({ status, reviewer_feedback: developerFeedback || null, reviewed_by: auth.user.id, reviewed_at: reviewedAt, updated_at: new Date().toISOString() }).eq("id", id);
+  const now = new Date().toISOString();
+  const reviewedAt = ["approved", "rejected", "withdrawn", "published"].includes(status) ? now : null;
+  const { error } = await supabase.from("addon_submissions").update({ status, reviewer_feedback: developerFeedback || null, updated_at: now }).eq("id", id);
   if (error) return sanitize(error) ?? "Add-on submission update failed.";
-  const source = existing as { status?: string; review_item_id?: string | null } | null;
+  const source = existing as { addon_draft_id?: string; status?: string; review_item_id?: string | null } | null;
+  if (source?.review_item_id) {
+    const { error: reviewItemError } = await supabase.from("review_items").update({
+      status: reviewItemStatusForAddonSubmission(status),
+      reviewed_by: auth.user.id,
+      reviewed_at: reviewedAt,
+      updated_at: now
+    }).eq("id", source.review_item_id).eq("domain", "marketplace");
+    if (reviewItemError) return sanitize(reviewItemError) ?? "Marketplace review queue update failed.";
+  }
+  const draftId = source?.addon_draft_id;
+  if (draftId) {
+    const draftState = addonDraftStatusForSubmission(status);
+    const { error: draftError } = await supabase.from("addon_drafts").update({ ...draftState, updated_at: now, ...(status === "published" ? { published_at: now } : {}) }).eq("id", draftId);
+    if (draftError) return sanitize(draftError) ?? "Developer Forge draft review state update failed.";
+  }
   await writeReviewEvent(source?.review_item_id, "status_changed", source?.status ?? null, status, privateNote || null, { developer_feedback_present: Boolean(developerFeedback) });
   const publicationAction = publicationActionForSubmissionStatus(status);
   if (publicationAction) await writePublicationEvent({ action: publicationAction, note: privateNote || null, metadata: { addon_submission_id: id, developer_feedback_present: Boolean(developerFeedback) } });
@@ -548,7 +576,8 @@ export async function publishAddonSubmission(id: string, privateNote = "") {
   }, { onConflict: "listing_id,version" }).select("id").single();
   if (versionError || !versionRow) return sanitize(versionError) ?? "Marketplace version publication failed.";
   const versionId = (versionRow as { id: string }).id;
-  await supabase.from("addon_submissions").update({ status: "published", reviewed_by: auth.user.id, reviewed_at: now, published_at: now, updated_at: now }).eq("id", id);
+  await supabase.from("addon_submissions").update({ status: "published", updated_at: now }).eq("id", id);
+  if (submissionRow.review_item_id) await supabase.from("review_items").update({ status: "approved", reviewed_by: auth.user.id, reviewed_at: now, updated_at: now }).eq("id", submissionRow.review_item_id).eq("domain", "marketplace");
   await supabase.from("addon_drafts").update({ submission_status: "published", review_status: "published", published_at: now, updated_at: now }).eq("id", submissionRow.addon_draft_id);
   await writeReviewEvent(submissionRow.review_item_id, "marketplace_published", submissionRow.status, "approved", privateNote || null, { listing_id: listingId, addon_version_id: versionId });
   await writePublicationEvent({ listingId, versionId, action: "published", note: privateNote || null, metadata: { addon_submission_id: id, snapshot_id: snapshotRow?.id ?? null, package_sha256: snapshotRow?.package_sha256 ?? latestPackage?.sha256 ?? null, signature_status: snapshotRow?.signature_status ?? latestPackage?.signature_status ?? "unsigned" } });
