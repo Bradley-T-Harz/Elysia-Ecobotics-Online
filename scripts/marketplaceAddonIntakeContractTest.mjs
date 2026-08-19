@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 
 const read = (path) => fs.readFile(path, "utf8");
-const [intake, intakePolicy, panel, repositoryTree, styles, workbench, localManifestContract, submit, submissionReadiness, forge, forgeApi, catalogApi, seeds, card, details, listingTruth, installIntent, preview, privacy, submissionRules, cleanup, reviewLinkMigration] = await Promise.all([
+const [intake, intakePolicy, panel, repositoryTree, styles, workbench, localManifestContract, submit, submissionReadiness, forge, forgeTemplates, forgeApi, catalogApi, seeds, card, details, listingTruth, installIntent, preview, privacy, submissionRules, cleanup, reviewLinkMigration] = await Promise.all([
   read("src/shared/addons/browserAddonIntake.ts"),
   read("src/shared/addons/addonIntakePolicy.ts"),
   read("src/shared/addons/AddonIntakePanel.tsx"),
@@ -13,6 +13,7 @@ const [intake, intakePolicy, panel, repositoryTree, styles, workbench, localMani
   read("src/pages/The-Elysia-Marketplace/components/DeveloperSubmissionForm.tsx"),
   read("src/pages/The-Elysia-Marketplace/lib/submissionReadiness.ts"),
   read("src/pages/The-Developer-Forge/index.tsx"),
+  read("src/pages/The-Developer-Forge/developerForgeTemplates.ts"),
   read("src/pages/The-Developer-Forge/developerForgeApi.ts"),
   read("src/pages/The-Elysia-Marketplace/lib/marketplaceApi.ts"),
   read("src/pages/The-Elysia-Marketplace/data/seedAddons.ts"),
@@ -44,6 +45,8 @@ assert(submit.includes("Submit private pending review") && submit.includes("will
 assert(submit.includes("evaluateMarketplaceSubmissionReadiness") && submissionReadiness.includes("sign_in_required") && submissionReadiness.includes("developer_profile_required") && submissionReadiness.includes("upload_disclosure_required"), "Marketplace submission is not fail-closed on account/profile/disclosure requirements.");
 for (const path of ["Create from template", "Import .elysia-addon", "Import ZIP / source bundle", "Import folder / repository", "Import manifest.json", "Use Git URL metadata", "Export inert .elysia-addon", "Prepare Marketplace review"]) assert(forge.includes(path), `Developer Forge workflow map is missing ${path}.`);
 assert(forge.includes("Transfer selected package privately") && forge.includes("files selected locally") && forge.includes("No remote transfer occurred") && forge.includes("does not fetch, clone"), "Developer Forge lost its local-import/private-transfer/Git boundary.");
+assert(!forge.includes("reviewer_only_placeholder") && forge.includes('"not published"') && forge.includes('"not applicable"'), "Developer Forge review timeline must use truthful states rather than placeholders.");
+for (const deterministicMarker of ["packageEntryDate", 'platform: "UNIX"', 'compression: "DEFLATE"', "compressionOptions: { level: 9 }"]) assert(forgeTemplates.includes(deterministicMarker), `Developer Forge deterministic package export is missing ${deterministicMarker}.`);
 assert(forgeApi.includes("Blocking static/archive findings prevented private package transfer") && forgeApi.includes("unsupported_package_type"), "Private package transfer does not fail closed on static findings/type.");
 assert(forgeApi.includes('rpc("link_own_addon_submission_review_item"') && forgeApi.includes("p_submission_id") && forgeApi.includes("p_review_item_id"), "Marketplace submission must use the governed exact review-item link operation instead of broad submitter update authority.");
 for (const boundary of ["auth.uid()", "submission.submitted_by = v_actor", "submission.status = 'pending'", "item.domain = 'marketplace'", "item.source_table = 'addon_submissions'", "item.source_id = submission.id", "item.submitted_by = v_actor", "item.status = 'pending_review'", "revoke all", "grant execute"]) assert(reviewLinkMigration.toLowerCase().includes(boundary.toLowerCase()), `Governed Marketplace review-link migration is missing boundary: ${boundary}.`);

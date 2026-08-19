@@ -385,8 +385,8 @@ function DraftWorkspace({ draft, catalog, onChanged }: { draft: AddonDraft; cata
     ["Package prepared", working.package_status || "metadata_not_prepared"],
     ["Submitted", working.submission_status || "draft"],
     ["Review", working.review_status || "not_submitted"],
-    ["Publication", "reviewer_only_placeholder"],
-    ["Revocation", "none_known"]
+    ["Publication", working.review_status === "published" ? "published" : "not published"],
+    ["Revocation", working.review_status === "revoked" ? "revoked" : "not applicable"]
   ];
   function openWorkspaceTarget(targetId: string, filePath?: string) {
     if (filePath) setActiveFilePath(filePath);

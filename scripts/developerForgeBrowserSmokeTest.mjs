@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import fs from "node:fs/promises";
 import http from "node:http";
 import os from "node:os";
@@ -296,6 +297,29 @@ try {
     const transferButton = page.getByRole("button", { name: "Transfer selected package privately" });
     assert(await transferButton.isDisabled(), "Private package transfer must require explicit disclosure confirmation.");
     assert(await page.getByText("will leave my computer", { exact: false }).isVisible(), "Forge private transfer disclosure is missing.");
+    assert(await page.getByText("not published", { exact: true }).isVisible(), "The review timeline must show truthful publication state instead of a placeholder.");
+    assert.equal(await page.getByText("reviewer_only_placeholder", { exact: true }).count(), 0, "Developer Forge must not expose placeholder review-state copy.");
+    currentPhase = "export and re-import deterministic inert package";
+    const exportButton = page.getByRole("button", { name: "Export current inert .elysia-addon" });
+    const firstExportPath = path.join(folderFixtureRoot, `forge-export-${viewport.width}-1.elysia-addon`);
+    const secondExportPath = path.join(folderFixtureRoot, `forge-export-${viewport.width}-2.elysia-addon`);
+    const [firstDownload] = await Promise.all([page.waitForEvent("download"), exportButton.click()]);
+    await firstDownload.saveAs(firstExportPath);
+    const [secondDownload] = await Promise.all([page.waitForEvent("download"), exportButton.click()]);
+    await secondDownload.saveAs(secondExportPath);
+    const [firstExportBytes, secondExportBytes] = await Promise.all([fs.readFile(firstExportPath), fs.readFile(secondExportPath)]);
+    assert(firstExportBytes.equals(secondExportBytes), "Unchanged Forge drafts must export byte-identical inert packages with stable provenance.");
+    const exportedArchive = await JSZip.loadAsync(firstExportBytes);
+    const exportedManifest = JSON.parse(await exportedArchive.file("manifest.json").async("string"));
+    assert.equal(exportedManifest.addon_id, "developer.browser-intake", "Exported package must preserve the imported add-on manifest.");
+    const checksumManifest = JSON.parse(await exportedArchive.file("checksums.json").async("string"));
+    for (const [filePath, expectedHash] of Object.entries(checksumManifest.files)) {
+      const contents = await exportedArchive.file(filePath).async("nodebuffer");
+      assert.equal(createHash("sha256").update(contents).digest("hex"), expectedHash, `Exported checksum must match ${filePath}.`);
+    }
+    await packageInput.setInputFiles(firstExportPath);
+    await page.getByText("6 files selected locally", { exact: false }).first().waitFor({ state: "visible" });
+    assert.equal(await page.locator(".addon-intake-summary").getByText("needs manifest", { exact: true }).count(), 0, "Re-imported Forge package must retain its root manifest.");
     currentPhase = "refuse credential-bearing package";
     await packageInput.setInputFiles({ name: "blocked-browser-intake.elysia-addon", mimeType: "application/vnd.elysia-addon+zip", buffer: blockedIntakeBytes });
     await page.getByText("credential_path", { exact: true }).first().waitFor({ state: "visible" });

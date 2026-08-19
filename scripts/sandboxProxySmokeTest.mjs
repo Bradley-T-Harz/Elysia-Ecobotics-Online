@@ -349,6 +349,29 @@ assert(!JSON.stringify(actualRunnerResult).includes(env.SANDBOX_SERVICE_TOKEN) &
 assert(actualRunnerResult.diagnostics[0]?.category === "sandbox_internal_failure" && actualRunnerResult.diagnostics[0]?.source === "Coding Cornucopia sandbox", "Runner-chosen diagnostic metadata must be replaced by proxy allowlists.");
 assert(actualRunnerResult.usage.inputBytes === new TextEncoder().encode(source.code).byteLength && actualRunnerResult.usage.networkAccess === false, "Proxy must validate usage and refuse an upstream claim that network access occurred.");
 
+const governedPolicyRefusal = await executeRunner(env, startedReservation, source, async () => new Response(JSON.stringify({
+  ok: false,
+  status: "policy_blocked",
+  language: "javascript",
+  stdout: "",
+  stderr: "",
+  exitCode: null,
+  durationMs: null,
+  outputTruncated: false,
+  diagnostics: [{ severity: "error", phase: "security", category: "forbidden_operation", message: "Forbidden operation refused before execution." }],
+  message: "Sandbox request was blocked by policy."
+}), { status: 422, headers: { "content-type": "application/json" } }));
+assert(governedPolicyRefusal.status === "policy_blocked" && governedPolicyRefusal.ok === false, "A governed runner policy refusal must remain policy_blocked instead of becoming sandbox_unavailable.");
+assert(governedPolicyRefusal.diagnostics[0]?.category === "forbidden_operation", "The proxy must preserve an allowlisted governed-refusal category.");
+
+let malformedPolicyRefusalRejected = false;
+try {
+  await executeRunner(env, startedReservation, source, async () => new Response(JSON.stringify({ ok: false, status: "completed", diagnostics: [] }), { status: 422 }));
+} catch (error) {
+  malformedPolicyRefusalRejected = error instanceof PublicHttpError && error.code === "sandbox_upstream_invalid";
+}
+assert(malformedPolicyRefusalRejected, "An upstream 422 that is not a governed policy-blocked result must fail closed.");
+
 const utf8RunnerResult = await executeRunner(env, startedReservation, source, async () => new Response(JSON.stringify({
   ok: true,
   status: "completed",

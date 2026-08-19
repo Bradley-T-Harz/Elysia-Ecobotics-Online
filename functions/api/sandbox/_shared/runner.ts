@@ -208,10 +208,15 @@ export async function executeRunner(
   }, 15_000, fetcher);
 
   if (response.status === 429) throw new PublicHttpError(429, "sandbox_busy", 4);
-  if (!response.ok) throw new PublicHttpError(502, "sandbox_upstream_failed");
+  const governedPolicyRefusal = response.status === 422;
+  if (!response.ok && !governedPolicyRefusal) throw new PublicHttpError(502, "sandbox_upstream_failed");
   const payload = record(await readBoundedResponseJson(response, 110_000));
   if (!payload) throw new PublicHttpError(502, "sandbox_upstream_invalid");
-  return sanitizeRunnerResult(payload, source, env);
+  const result = sanitizeRunnerResult(payload, source, env);
+  if (governedPolicyRefusal && result.status !== "policy_blocked") {
+    throw new PublicHttpError(502, "sandbox_upstream_invalid");
+  }
+  return result;
 }
 
 export function sanitizeRunnerResult(value: unknown, source: AuthorizedSource, env?: Env): RunnerResult {

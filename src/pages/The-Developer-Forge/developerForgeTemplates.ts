@@ -17,6 +17,8 @@ export type ForgeTemplate = {
 
 export type ForgeTemplateFile = { path: string; contents: string };
 
+const packageEntryDate = new Date("1980-01-01T00:00:00.000Z");
+
 function template(id: string, name: string, summary: string, overrides: Partial<ForgeManifest>, fileList: string[], risk: "low" | "medium" | "high" = "low"): ForgeTemplate {
   const manifest = { ...defaultManifestForTemplate(`developer.${id}`, name), ...overrides };
   return {
@@ -75,11 +77,17 @@ export async function buildTemplatePackage(templateItem: ForgeTemplate): Promise
   const files = buildTemplateFiles(templateItem);
   const checksums: Record<string, string> = {};
   for (const file of files) {
-    zip.file(file.path, file.contents);
+    zip.file(file.path, file.contents, { date: packageEntryDate });
     checksums[file.path] = await sha256Text(file.contents);
   }
-  zip.file("checksums.json", JSON.stringify({ algorithm: "sha256", generated_by: "Developer Forge inert browser export", warning: "This archive is not reviewed, installed, or executed by the website. Local Elysia remains final authority.", files: checksums }, null, 2));
-  return zip.generateAsync({ type: "blob", mimeType: "application/vnd.elysia-addon+zip" });
+  zip.file("checksums.json", JSON.stringify({ algorithm: "sha256", generated_by: "Developer Forge inert browser export", warning: "This archive is not reviewed, installed, or executed by the website. Local Elysia remains final authority.", files: checksums }, null, 2), { date: packageEntryDate });
+  return zip.generateAsync({
+    type: "blob",
+    mimeType: "application/vnd.elysia-addon+zip",
+    platform: "UNIX",
+    compression: "DEFLATE",
+    compressionOptions: { level: 9 }
+  });
 }
 
 export async function buildManifestPackage(input: { id: string; name: string; manifest: ForgeManifest; readme?: string; license?: string; changelog?: string }): Promise<Blob> {
