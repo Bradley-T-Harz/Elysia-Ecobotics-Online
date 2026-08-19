@@ -104,7 +104,7 @@ if (!redirects.includes("/* /index.html 200")) {
   console.error("Missing Cloudflare Pages SPA redirect.");
   process.exit(1);
 }
-const assetMissBoundary = "/assets/* /asset-not-found.txt 404";
+const assetMissBoundary = "/assets/* /asset-not-found.txt 200";
 if (!redirects.includes(assetMissBoundary) || redirects.indexOf(assetMissBoundary) > redirects.indexOf("/* /index.html 200")) {
   console.error("Missing static-asset 404 boundary before the SPA fallback.");
   process.exit(1);

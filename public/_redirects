@@ -1,4 +1,4 @@
 /community-guidelines /legal/community-guidelines 301
 /work-with /work-with-elysia-ecobotics 301
-/assets/* /asset-not-found.txt 404
+/assets/* /asset-not-found.txt 200
 /* /index.html 200
