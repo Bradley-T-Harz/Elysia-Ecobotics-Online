@@ -104,6 +104,11 @@ if (!redirects.includes("/* /index.html 200")) {
   console.error("Missing Cloudflare Pages SPA redirect.");
   process.exit(1);
 }
+const assetMissBoundary = "/assets/* /asset-not-found.txt 404";
+if (!redirects.includes(assetMissBoundary) || redirects.indexOf(assetMissBoundary) > redirects.indexOf("/* /index.html 200")) {
+  console.error("Missing static-asset 404 boundary before the SPA fallback.");
+  process.exit(1);
+}
 for (const [legacy, canonical] of [
   ["/community-guidelines", "/legal/community-guidelines"],
   ["/work-with", "/work-with-elysia-ecobotics"],
