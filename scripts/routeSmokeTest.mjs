@@ -100,13 +100,30 @@ if (matchPath({ path: "commons-circle/@:username" }, "/commons-circle/@bradley-h
   process.exit(1);
 }
 const redirects = await import("node:fs/promises").then((fs) => fs.readFile(new URL("../public/_redirects", import.meta.url), "utf8"));
-if (!redirects.includes("/* /index.html 200")) {
-  console.error("Missing Cloudflare Pages SPA redirect.");
+const notFoundDocument = await import("node:fs/promises").then((fs) => fs.readFile(new URL("../public/404.html", import.meta.url), "utf8"));
+if (/^\/\* \/(?:index\.html)? 200$/m.test(redirects)) {
+  console.error("Global SPA fallback would return index.html for missing JavaScript and CSS assets.");
   process.exit(1);
 }
-const assetMissBoundary = "/assets/* /asset-not-found.txt 200";
-if (!redirects.includes(assetMissBoundary) || redirects.indexOf(assetMissBoundary) > redirects.indexOf("/* /index.html 200")) {
-  console.error("Missing static-asset 404 boundary before the SPA fallback.");
+if (/^\/assets\//m.test(redirects)) {
+  console.error("Asset paths must not be rewritten; Cloudflare Pages redirects run even when a real asset exists.");
+  process.exit(1);
+}
+if (!notFoundDocument.includes("This path has not taken root.") || notFoundDocument.includes('id="root"') || /<script\b/i.test(notFoundDocument)) {
+  console.error("The static 404 boundary must be visibly truthful and independent of the SPA runtime.");
+  process.exit(1);
+}
+const spaRewriteSources = redirects
+  .split(/\r?\n/)
+  .map((line) => line.trim().split(/\s+/))
+  .filter((parts) => parts.length === 3 && parts[1] === "/" && parts[2] === "200")
+  .map(([source]) => source);
+const uncoveredSpaRoutes = requiredRoutes.filter((route) => {
+  if (route === "/" || route === "/artisan-collective") return false;
+  return !spaRewriteSources.some((pattern) => matchPath({ path: pattern, end: true }, route));
+});
+if (uncoveredSpaRoutes.length) {
+  console.error(`Cloudflare Pages lacks explicit SPA rewrites for: ${uncoveredSpaRoutes.join(", ")}`);
   process.exit(1);
 }
 for (const [legacy, canonical] of [
@@ -114,8 +131,8 @@ for (const [legacy, canonical] of [
   ["/work-with", "/work-with-elysia-ecobotics"],
 ]) {
   const redirect = `${legacy} ${canonical} 301`;
-  if (!redirects.includes(redirect) || redirects.indexOf(redirect) > redirects.indexOf("/* /index.html 200")) {
-    console.error(`Missing canonical redirect before the SPA fallback: ${redirect}`);
+  if (!redirects.includes(redirect)) {
+    console.error(`Missing canonical redirect: ${redirect}`);
     process.exit(1);
   }
 }

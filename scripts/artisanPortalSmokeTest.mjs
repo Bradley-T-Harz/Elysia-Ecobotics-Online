@@ -124,7 +124,8 @@ assert(
 assert(viteConfig.includes('artisanCollective: new URL("./artisan-collective.html"'), "Vite must emit the direct portal metadata entry.");
 
 assert(!redirects.includes("/artisan-collective "), "Pages serves artisan-collective.html at its clean URL automatically; an explicit rewrite would create a redirect loop.");
-assert(redirects.includes("/* /index.html 200"), "The existing SPA fallback must remain available for all other client routes.");
+assert(!/^\/\* \/(?:index\.html)? 200$/m.test(redirects) && !/^\/assets\//m.test(redirects), "SPA routing must not intercept static assets or replace missing chunks with HTML.");
+assert(redirects.includes("/story / 200") && redirects.includes("/legal/:section / 200"), "Established SPA routes must retain explicit Pages rewrites.");
 
 const sitemapCommons = sitemap.indexOf("https://elysiaecobotics.com/commons-circle</loc>");
 const sitemapArtisan = sitemap.indexOf("https://elysiaecobotics.com/artisan-collective</loc>");

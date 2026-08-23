@@ -184,7 +184,11 @@ try {
     await page.getByRole("link", { name: "Learn about separate optional support", exact: true }).scrollIntoViewIfNeeded();
     await page.getByRole("link", { name: "Learn about separate optional support", exact: true }).click();
     await page.waitForURL((url) => url.pathname === "/support" && url.search === "?source=products" && !url.hash);
-    await settle(page);
+    // Under load, React may retain the previous route while the lazy Support
+    // chunk is still resolving. A generic visible h1 can therefore be the old
+    // Archive heading and is not evidence that the destination settled.
+    await page.getByRole("heading", { name: "Keep the commons alive", exact: true }).waitFor({ state: "visible", timeout: 30_000 });
+    await page.waitForTimeout(250);
     await assertTopEntry(page, `${viewportName} optional-support educational entry`);
 
     await page.goto(`${origin}/account/forgot-password`, { waitUntil: "domcontentloaded" });

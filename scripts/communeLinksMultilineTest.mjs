@@ -89,8 +89,9 @@ assert(api.includes("function splitList(value: string) { return parseCommuneLink
 assert(/links\s+text\[\]/i.test(schema), "commune_posts Links storage must remain a text array");
 assert(!api.includes("alter table") && !page.includes("alter table"), "application repair must not perform a schema mutation");
 assert(styles.includes('.commune-form-grid textarea[id$="-links"]') && styles.includes("resize: vertical"), "Links textarea must have responsive, user-resizable styling");
-assert(redirects.indexOf("/community-guidelines /legal/community-guidelines 301") < redirects.indexOf("/* /index.html 200"), "legacy Community Guidelines requests must redirect before the SPA fallback");
-assert(redirects.indexOf("/work-with /work-with-elysia-ecobotics 301") < redirects.indexOf("/* /index.html 200"), "legacy Work With requests must redirect before the SPA fallback");
+assert(redirects.includes("/community-guidelines /legal/community-guidelines 301"), "legacy Community Guidelines requests must retain their canonical redirect");
+assert(redirects.includes("/work-with /work-with-elysia-ecobotics 301"), "legacy Work With requests must retain their canonical redirect");
+assert(!/^\/\* \/(?:index\.html)? 200$/m.test(redirects) && !/^\/assets\//m.test(redirects), "Commune deep links must coexist with the safe static-asset boundary");
 assert(correctionMigration.includes("9af957a1-4164-498d-8dc0-6356c71d21a7"), "Post A correction migration must remain scoped to the intended record");
 for (const canonical of [
   "Community Guidelines | https://elysiaecobotics.com/legal/community-guidelines",
