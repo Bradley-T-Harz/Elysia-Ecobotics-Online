@@ -1,6 +1,11 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 
+// The first safe asset generation is deliberately namespaced away from the
+// historical Pages redirect bug, which cached 24-byte fallback bodies under
+// otherwise valid content-hashed JavaScript URLs with an immutable TTL.
+const browserAssetNamespace = "safe-assets-v1";
+
 export default defineConfig({
   plugins: [react()],
   build: {
@@ -10,6 +15,8 @@ export default defineConfig({
         artisanCollective: new URL("./artisan-collective.html", import.meta.url).pathname
       },
       output: {
+        entryFileNames: `assets/${browserAssetNamespace}-[name]-[hash].js`,
+        chunkFileNames: `assets/${browserAssetNamespace}-[name]-[hash].js`,
         manualChunks(id) {
           if (id.includes("node_modules/react") || id.includes("node_modules/react-dom") || id.includes("node_modules/react-router")) return "vendor-react";
           if (id.includes("node_modules/@supabase")) return "vendor-supabase";

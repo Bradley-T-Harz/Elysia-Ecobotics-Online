@@ -22,10 +22,10 @@ async function fixture(bundleSource, { secondBundle = false, extraJs = "" } = {}
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "elysia-auth-production-gate-"));
   await fs.mkdir(path.join(root, "assets"), { recursive: true });
   await fs.writeFile(path.join(root, "index.html"), "<!doctype html><title>fixture</title>\n");
-  await fs.writeFile(path.join(root, "assets", "commons-circle-fixture.js"), bundleSource);
+  await fs.writeFile(path.join(root, "assets", "safe-assets-v1-commons-circle-fixture.js"), bundleSource);
   await fs.writeFile(path.join(root, "assets", "main-fixture.js"), extraJs);
   if (secondBundle) {
-    await fs.writeFile(path.join(root, "assets", "commons-circle-second.js"), bundleSource);
+    await fs.writeFile(path.join(root, "assets", "safe-assets-v1-commons-circle-second.js"), bundleSource);
   }
   return root;
 }
@@ -39,7 +39,7 @@ const valid = await fixture(requiredBundle());
 const verified = await verifyProductionAuthArtifact(valid);
 assert.equal(verified.mode, "required");
 assert.equal(verified.publicSiteKeyMatched, true);
-assert.equal(verified.bundlePath, "assets/commons-circle-fixture.js");
+assert.equal(verified.bundlePath, "assets/safe-assets-v1-commons-circle-fixture.js");
 assert.match(verified.bundleSha256, /^[0-9a-f]{64}$/);
 assert.match(verified.artifactSha256, /^[0-9a-f]{64}$/);
 assert.equal(verified.fileCount, 3);

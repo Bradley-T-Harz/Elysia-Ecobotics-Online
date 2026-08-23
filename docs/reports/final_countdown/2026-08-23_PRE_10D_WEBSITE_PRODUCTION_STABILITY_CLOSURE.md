@@ -40,6 +40,8 @@ The starting rule was:
 
 Cloudflare Pages follows `_redirects` rules whether or not the source asset exists. The `/assets/*` rule therefore intercepted valid hashed assets, not just missing ones. The previous corrective commit had changed an unsupported 404 rewrite into a supported 200 rewrite, but that made the fallback syntactically accepted while still semantically destructive.
 
+The first repaired deployment exposed a second layer of the same production incident. Shared chunks whose content hashes had not changed retained their old URLs, and the earlier bad 24-byte fallback responses had been cached under those URLs with the site's one-year immutable asset policy. Canonical HTML and the newly changed main bundle were current, but seven unchanged preload chunks still returned the cached `text/plain` fallback. Local Pages could not reproduce an already-poisoned edge/browser cache generation. The repaired build therefore places every JavaScript entry and shared chunk in the explicit `safe-assets-v1` namespace. This is a permanent boundary from the historically poisoned URL generation; content hashes continue to govern changes inside the safe namespace.
+
 Primary platform references used during diagnosis:
 
 - <https://developers.cloudflare.com/pages/configuration/redirects/>
@@ -59,6 +61,7 @@ The repair preserves the existing Pages Functions security boundary and does not
 7. Pages Function invocation remains restricted to the established sandbox, identity, and safe public profile-media proxy namespaces. Billing continues to belong to its separate Worker boundary.
 8. Route, Artisan, and Commune regression tests now reject a global SPA catch-all or any `/assets/` redirect and verify explicit current-route coverage.
 9. Reusable Playwright and native WebDriver BiDi visual-audit harnesses now inspect hydration, visible geometry, overflow, console errors, failed requests, failed static resources, history navigation, and screenshots.
+10. Vite entry and shared-chunk filenames use the `safe-assets-v1` namespace, and the production Auth/profile artifact gates require that namespace.
 
 The real local Wrangler Pages runtime accepted all 44 redirect rules without warnings. Its serving-boundary proof was:
 
@@ -169,13 +172,16 @@ Live authenticated production execution remains a hard pre-verdict gate. It will
 - Vite stale-chunk recovery browser regression: PASS; one same-route automatic reload is followed by a visible, user-controlled recovery boundary rather than a reload loop or blank screen.
 - Production-profile build with required Turnstile mode: PASS.
 - Production Auth compiled-artifact gate: PASS.
-- Production-profile artifact: 93 files; SHA-256 `dbe87721f0641d48cd8d07b8b4c0db4e96762b62a72c339d851706eb9a0bb5bf`.
-- Production Commons/Auth bundle: `assets/commons-circle-BcGNvlLS.js`; SHA-256 `dc0001da670c8068d0ec64e8f82e6b019df688db2a6554eef0163fdd36220a78`.
+- First production-profile artifact: 93 files; SHA-256 `dbe87721f0641d48cd8d07b8b4c0db4e96762b62a72c339d851706eb9a0bb5bf`.
+- Safe-namespace production candidate: 93 files; SHA-256 `88223a8bc303738a0b9be000b5c617ccd8633d094386a4abff4315c051a8e333`.
+- Safe-namespace Commons/Auth bundle: `assets/safe-assets-v1-commons-circle-C8GjeVfD.js`; SHA-256 `31d9237f845bcd09ca899d309b95d1802cd525313520461d6afe6b52b909ccea`.
 
 The deployment, canonical cache-upgrade proof, authenticated sandbox gate, production browser matrix, cleanup, and final repository state are recorded below only after they run.
 
 ## 9. Deployment, live sandbox, cleanup, and final verdict
 
-Pending. This section must not be converted to completion until the private source commit is pushed, the verified artifact is deployed through the established Pages process, the canonical domain passes fresh and stale-cache browser matrices, live sandbox execution completes in every exposed room workflow, temporary identities/data are removed, and the repository is clean.
+Repair commit `82b733a657589f7385cf5564b6a6a32bfac7e530` was pushed to the established private remote and deployed as Pages production deployment `adc786df-c6ec-4aa3-b511-aad67452e3c7`. That deployment was intentionally rejected by the post-deployment canonical gate: seven reused shared-chunk URLs still served the historically cached 24-byte fallback. This finding is why a successful upload and a correct new main bundle were not accepted as closure.
+
+Final safe-namespace deployment and acceptance remain pending. This section must not be converted to completion until the private corrective source commit is pushed, the verified safe-namespace artifact is deployed through the established Pages process, the canonical domain passes fresh and stale-cache browser matrices, live sandbox execution completes in every exposed room workflow, temporary identities/data are removed, and the repository is clean.
 
 Pass 10D has not begun.

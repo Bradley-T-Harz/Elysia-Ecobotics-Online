@@ -11,7 +11,7 @@ export const productionAuthTurnstileSiteKey = "0x4AAAAAAECNSZYyGXT8LPJC";
 
 const authClientContract = "auth-turnstile-2026-07-30.1";
 const turnstileScriptSource = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
-const commonsBundlePattern = /^assets\/commons-circle-[A-Za-z0-9_-]+\.js$/;
+const commonsBundlePattern = /^assets\/safe-assets-v1-commons-circle-[A-Za-z0-9_-]+\.js$/;
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);

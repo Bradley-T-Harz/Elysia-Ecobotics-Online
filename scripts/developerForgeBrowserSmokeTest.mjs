@@ -457,7 +457,7 @@ try {
     assert(
       loadedScripts.some(
         (asset) =>
-          /\/assets\/developer-forge-[^/]+\.js$/.test(
+          /\/assets\/safe-assets-v1-developer-forge-[^/]+\.js$/.test(
             new URL(asset.url).pathname,
           ) &&
           asset.status === 200 &&

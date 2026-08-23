@@ -252,7 +252,7 @@ async function loadCase(viewport) {
     "historical snapshot handle remained visible",
   );
   assert(
-    loadedScripts.some((asset) => /\/assets\/commune-[^/]+\.js$/.test(asset)),
+    loadedScripts.some((asset) => /\/assets\/safe-assets-v1-commune-[^/]+\.js$/.test(asset)),
     "Commune route chunk did not load",
   );
   assert(

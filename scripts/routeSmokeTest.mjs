@@ -23,6 +23,7 @@ const requiredRoutes = [
 ];
 const app = await import("node:fs/promises").then((fs) => fs.readFile(new URL("../src/App.tsx", import.meta.url), "utf8"));
 const communePage = await import("node:fs/promises").then((fs) => fs.readFile(new URL("../src/pages/The-Elysia-Commune/index.tsx", import.meta.url), "utf8"));
+const viteConfig = await import("node:fs/promises").then((fs) => fs.readFile(new URL("../vite.config.ts", import.meta.url), "utf8"));
 const missing = requiredRoutes.filter((route) => {
   if (route === "/") return !app.includes("<Route index");
   const path = route.replace(/^\//, "");
@@ -107,6 +108,10 @@ if (/^\/\* \/(?:index\.html)? 200$/m.test(redirects)) {
 }
 if (/^\/assets\//m.test(redirects)) {
   console.error("Asset paths must not be rewritten; Cloudflare Pages redirects run even when a real asset exists.");
+  process.exit(1);
+}
+if (!viteConfig.includes('const browserAssetNamespace = "safe-assets-v1"') || !viteConfig.includes("entryFileNames:") || !viteConfig.includes("chunkFileNames:")) {
+  console.error("The safe asset namespace must keep entry and shared chunks outside the historically poisoned immutable-cache generation.");
   process.exit(1);
 }
 if (!notFoundDocument.includes("This path has not taken root.") || notFoundDocument.includes('id="root"') || /<script\b/i.test(notFoundDocument)) {
