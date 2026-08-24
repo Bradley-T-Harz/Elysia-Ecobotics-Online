@@ -63,10 +63,24 @@ function safeName(route) {
   return route === "/" ? "home" : route.replace(/^\//, "").replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "");
 }
 
-function isKnownNonBlockingConsole(message) {
+function isKnownNonBlockingConsole(message, { hasTurnstile, hasSupabaseRealtime }) {
   return (
     (origin.startsWith("http://127.0.0.1:") && message.includes("Content-Security-Policy") && message.includes("blocked an inline script"))
     || message.includes("Acquiring an exclusive Navigator LockManager lock")
+    // Cloudflare Turnstile's current production challenge frame emits this
+    // formatting probe through console.error in Chromium. A native source-
+    // location capture proves it originates under challenges.cloudflare.com;
+    // it is not emitted by the Website bundle and the widget remains usable.
+    || (hasTurnstile && message === "%c%d font-size:0;color:transparent NaN")
+    // Firefox reports the same Turnstile challenge-frame probes differently
+    // from Chromium. Scope them to pages where the real Cloudflare widget is
+    // present so an Elysia-bundle error cannot be accidentally excused.
+    || (hasTurnstile && message === "0")
+    || (hasTurnstile && message.includes("downloadable font:") && message.includes("DejaVu Sans") && message.includes("invalid URI"))
+    // Supabase Realtime is fronted by Cloudflare. Firefox/LibreWolf may reject
+    // Cloudflare's third-party bot-management cookie while the authenticated
+    // WebSocket and the Elysia application remain independent and usable.
+    || (hasSupabaseRealtime && message.includes("Cookie") && message.includes("__cf_bm") && message.includes("rejected"))
   );
 }
 
@@ -75,7 +89,7 @@ assert(auditPaths.length > 0, "The browser audit route inventory is empty.");
 assert(auditPaths.every((value) => value.startsWith("/") && !value.startsWith("//")), "Every audit path must be same-origin and root-relative.");
 
 const browserType = browserLabel === "firefox" ? firefox : chromium;
-const launchOptions = { headless: true };
+const launchOptions = { headless: process.env.ELYSIA_BROWSER_HEADLESS !== "0" };
 if (browserLabel === "brave") launchOptions.executablePath = "/usr/bin/brave-browser";
 const browser = await browserType.launch(launchOptions);
 await fs.mkdir(evidenceDir, { recursive: true });
@@ -130,6 +144,7 @@ try {
           scrollY: Math.round(window.scrollY),
           horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 2,
           loadingOnly: (document.body?.innerText || "").trim() === "Loading Elysia Ecobotics Online...",
+          scripts: Array.from(document.scripts).map((element) => element.src).filter(Boolean),
         };
       }).catch(() => ({
         title: "",
@@ -142,9 +157,13 @@ try {
         scrollY: 0,
         horizontalOverflow: false,
         loadingOnly: false,
+        scripts: [],
       }));
+      const hasTurnstile = visual.scripts.some((src) => src.includes("challenges.cloudflare.com/turnstile/"));
+      const hasSupabaseRealtime = visual.scripts.some((src) => src.includes("supabase"))
+        || route === "/commune/realtime";
       const nonBlockingConsole = consoleErrors.filter((message) => (
-        isKnownNonBlockingConsole(message)
+        isKnownNonBlockingConsole(message, { hasTurnstile, hasSupabaseRealtime })
         || (message.startsWith("Failed to load resource: the server responded with a status of") && httpErrors.length > 0 && failedAssets.length === 0)
       ));
       const fatalConsole = consoleErrors.filter((message) => !nonBlockingConsole.includes(message));
@@ -206,6 +225,7 @@ try {
     schemaVersion: 1,
     browserLabel,
     browserVersion: browser.version(),
+    headless: launchOptions.headless,
     origin,
     fullInventory,
     routeCount: auditPaths.length,

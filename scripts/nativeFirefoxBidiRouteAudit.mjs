@@ -7,10 +7,11 @@ const origin = new URL(process.env.ELYSIA_WEBSITE_ORIGIN ?? "https://elysiaecobo
 const evidenceDir = path.resolve(process.env.ELYSIA_BROWSER_EVIDENCE_DIR ?? "/tmp/elysia-native-firefox-evidence");
 const browserLabel = process.env.ELYSIA_BROWSER_LABEL ?? "native-firefox";
 const settleMs = Number.parseInt(process.env.ELYSIA_BROWSER_SETTLE_MS ?? "5000", 10);
+const fullInventory = process.env.ELYSIA_ROUTE_INVENTORY === "full";
 const viewportMatch = /^(\d+)x(\d+)$/.exec(process.env.ELYSIA_BROWSER_VIEWPORT ?? "1440x900");
 assert(viewportMatch, "ELYSIA_BROWSER_VIEWPORT must use WIDTHxHEIGHT.");
 const viewport = { width: Number(viewportMatch[1]), height: Number(viewportMatch[2]) };
-const auditPaths = (process.env.ELYSIA_BROWSER_AUDIT_PATHS ?? [
+const keyPaths = [
   "/",
   "/archive",
   "/legal",
@@ -20,10 +21,31 @@ const auditPaths = (process.env.ELYSIA_BROWSER_AUDIT_PATHS ?? [
   "/marketplace",
   "/living-library",
   "/admin",
-].join(","))
-  .split(",")
-  .map((value) => value.trim())
-  .filter(Boolean);
+];
+
+function materializePath(value) {
+  return value
+    .replaceAll(":roomSlug", "coding-cornucopia")
+    .replaceAll(":postId", "a1100000-0000-4000-8000-000000000001")
+    .replaceAll(":conversationId", "a1200000-0000-4000-8000-000000000001")
+    .replaceAll(":publicHandle", "@synthetic-route-audit")
+    .replaceAll(":categorySlug", "earth-environment")
+    .replaceAll(":sourceId", "nasa-earthdata")
+    .replaceAll(":step", "profile")
+    .replaceAll(":id", "synthetic-route-audit")
+    .replace(/:[A-Za-z][A-Za-z0-9_]*/g, "synthetic-route-audit");
+}
+
+async function inventoryPaths() {
+  const explicit = process.env.ELYSIA_BROWSER_AUDIT_PATHS;
+  if (explicit) return explicit.split(",").map((value) => value.trim()).filter(Boolean);
+  if (!fullInventory) return keyPaths;
+  const contract = JSON.parse(await fs.readFile("docs/navigation/route-preservation-contract.json", "utf8"));
+  const paths = contract.routes.flatMap((route) => route.smokePaths ?? []).map(materializePath);
+  return [...new Set(paths.filter((value) => value.startsWith("/") && !value.includes("*")))];
+}
+
+const auditPaths = await inventoryPaths();
 
 assert(Number.isFinite(settleMs) && settleMs >= 0 && settleMs <= 30_000, "ELYSIA_BROWSER_SETTLE_MS must be between 0 and 30000.");
 assert(viewport.width >= 320 && viewport.width <= 3840 && viewport.height >= 480 && viewport.height <= 2160, "Native browser viewport is outside the supported audit range.");
@@ -98,6 +120,17 @@ try {
 
   const results = [];
   for (const route of auditPaths) {
+    // Reusing one native tab is substantially faster than starting 154 browser
+    // processes, but a direct route-to-route navigation lets cancellation
+    // events from the outgoing document arrive inside the next route's event
+    // window. Cross through an inert document first so every captured error
+    // and network event belongs to the route being assessed.
+    await client.command("browsingContext.navigate", {
+      context,
+      url: "about:blank",
+      wait: "complete",
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
     const eventStart = client.events.length;
     const target = new URL(route, origin).href;
     const navigation = await client.command("browsingContext.navigate", {
@@ -121,7 +154,14 @@ try {
           scrollX: Math.round(window.scrollX),
           scrollY: Math.round(window.scrollY),
           horizontalOverflow: document.documentElement.scrollWidth > document.documentElement.clientWidth + 2,
-          loadingOnly: (document.body?.innerText || '').trim() === 'Loading Elysia Ecobotics Online...'
+          loadingOnly: (document.body?.innerText || '').trim() === 'Loading Elysia Ecobotics Online...',
+          scripts: Array.from(document.scripts).map((element) => ({
+            src: element.src,
+            type: element.type,
+            integrity: element.integrity,
+            dataCfBeacon: element.hasAttribute('data-cf-beacon'),
+            inlineLength: element.src ? 0 : (element.textContent || '').length
+          }))
         };
       })())`,
       target: { context },
@@ -134,9 +174,20 @@ try {
     const errorLogs = events
       .filter((event) => event.method === "log.entryAdded" && event.params?.level === "error")
       .map((event) => String(event.params?.text ?? event.params?.type ?? "browser error"));
+    const hasCloudflareAnalytics = visual.scripts.some((script) => script.dataCfBeacon && script.src.includes("static.cloudflareinsights.com/beacon.min.js"));
+    const hasTurnstile = visual.scripts.some((script) => script.src.includes("challenges.cloudflare.com/turnstile/"));
     const nonBlockingConsole = errorLogs.filter((message) => (
       (origin.startsWith("http://127.0.0.1:") && message.includes("Content-Security-Policy:") && message.includes("blocked an inline script"))
       || message.includes("Acquiring an exclusive Navigator LockManager lock")
+      // LibreWolf's tracking protection deliberately blocks Cloudflare's
+      // auto-injected analytics transform. Keep these events in the evidence,
+      // but do not confuse an optional edge beacon refusal with an application
+      // script failure after the root has hydrated and all app assets passed.
+      || (hasCloudflareAnalytics && message.includes("static.cloudflareinsights.com/beacon.min.js"))
+      || (hasCloudflareAnalytics && message.includes("Content-Security-Policy:") && message.includes("blocked an inline script"))
+      || (hasTurnstile && message === "0")
+      || (hasTurnstile && message.includes("downloadable font:") && message.includes("DejaVu Sans") && message.includes("invalid URI"))
+      || (route === "/commune/realtime" && message.includes("Cookie") && message.includes("__cf_bm") && message.includes("rejected"))
     ));
     const fatalLogs = errorLogs.filter((message) => !nonBlockingConsole.includes(message));
     const failedRequests = events
@@ -166,6 +217,57 @@ try {
     results.push({ route, target, finalUrl: navigation.url, visual, fatalLogs, nonBlockingConsole, failedRequests, failedAssets, screenshotFile, passed });
   }
 
+  const waitForSettledRoot = async (expectedPathname) => {
+    await new Promise((resolve) => setTimeout(resolve, settleMs));
+    const evaluated = await client.command("script.evaluate", {
+      expression: `JSON.stringify({
+        pathname: location.pathname,
+        bodyTextLength: (document.body?.innerText || '').trim().length,
+        rootChildCount: document.querySelector('#root')?.childElementCount || 0
+      })`,
+      target: { context },
+      awaitPromise: true,
+      resultOwnership: "none",
+    });
+    assert.equal(evaluated.type, "success", `${expectedPathname}: native history/reload evaluation failed`);
+    const state = JSON.parse(evaluated.result.value);
+    assert.equal(state.pathname, expectedPathname, `Native browser did not settle on ${expectedPathname}.`);
+    assert(state.bodyTextLength >= 40 && state.rootChildCount > 0, `${expectedPathname}: native browser did not remain hydrated.`);
+    return state;
+  };
+
+  await client.command("browsingContext.navigate", { context, url: `${origin}/archive`, wait: "complete" });
+  await waitForSettledRoot("/archive");
+  await client.command("browsingContext.navigate", { context, url: `${origin}/legal`, wait: "complete" });
+  await waitForSettledRoot("/legal");
+  await client.command("browsingContext.traverseHistory", { context, delta: -1 });
+  const backState = await waitForSettledRoot("/archive");
+  await client.command("browsingContext.traverseHistory", { context, delta: 1 });
+  const forwardState = await waitForSettledRoot("/legal");
+  await client.command("browsingContext.reload", { context, wait: "complete" });
+  const normalReloadState = await waitForSettledRoot("/legal");
+  // LibreWolf 154 does not yet implement BiDi's reload.ignoreCache argument.
+  // Exercise the real browser hard-reload gesture instead of silently
+  // downgrading this gate to a second ordinary reload.
+  await client.command("input.performActions", {
+    context,
+    actions: [{
+      type: "key",
+      id: "hard-reload-keyboard",
+      actions: [
+        { type: "keyDown", value: "\uE009" },
+        { type: "keyDown", value: "\uE008" },
+        { type: "keyDown", value: "r" },
+        { type: "keyUp", value: "r" },
+        { type: "keyUp", value: "\uE008" },
+        { type: "keyUp", value: "\uE009" },
+      ],
+    }],
+  });
+  await client.command("input.releaseActions", { context });
+  const hardReloadState = await waitForSettledRoot("/legal");
+  const historyAndReload = { backState, forwardState, normalReloadState, hardReloadState, passed: true };
+
   const report = {
     schemaVersion: 1,
     browserLabel,
@@ -174,7 +276,9 @@ try {
     userAgent: session.capabilities.userAgent,
     profile: "disposable-profile-path-redacted",
     origin,
+    fullInventory,
     viewport,
+    historyAndReload,
     results,
   };
   await fs.writeFile(path.join(evidenceDir, `${browserLabel}-audit.json`), `${JSON.stringify(report, null, 2)}\n`, { mode: 0o600 });

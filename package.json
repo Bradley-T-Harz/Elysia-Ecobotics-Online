@@ -19,6 +19,8 @@
     "test:stale-chunk-recovery": "npm run build && npm run test:stale-chunk-recovery:built",
     "audit:website-routes": "node scripts/websiteRouteVisualAudit.mjs",
     "audit:native-firefox": "node scripts/nativeFirefoxBidiRouteAudit.mjs",
+    "audit:production-cache-upgrade": "node scripts/productionCacheUpgradeBrowserAudit.mjs",
+    "audit:production-artifact-parity": "node scripts/productionArtifactParityAudit.mjs",
     "test:protected-surfaces": "node scripts/protectedPublicSurfacesTest.mjs",
     "test:protected-surfaces-browser:built": "node scripts/protectedPublicSurfacesBrowserSmokeTest.mjs",
     "test:protected-surfaces-browser": "npm run build && npm run test:protected-surfaces-browser:built",

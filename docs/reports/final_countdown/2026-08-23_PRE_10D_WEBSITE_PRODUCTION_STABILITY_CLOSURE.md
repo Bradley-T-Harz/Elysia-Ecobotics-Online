@@ -5,7 +5,7 @@ Date: 2026-08-23
 Repository: `Elysia-Ecobotics-Online` (private source authority)
 
 Scope: Website stability only; Pass 10D did not begin
-Status while this report was opened: source/local Pages repair green; canonical deployment and live sandbox acceptance pending
+Current status: canonical browser/route/cache repair green; live authenticated sandbox acceptance and governed synthetic-account cleanup remain mandatory before the completion verdict
 
 ## 1. Starting state
 
@@ -79,7 +79,7 @@ The established CSP, HSTS, `nosniff`, frame denial, referrer policy, permissions
 
 ## 4. Complete route inventory
 
-Executable router truth remains `src/App.tsx`. The preservation contract contains 133 router declarations and produces 154 unique smoke paths. The full local Pages/Chromium visual audit visited all 154 and classified all 154 as `PASS` after distinguishing expected anonymous API responses from static-resource failures.
+Executable router truth remains `src/App.tsx`. The preservation contract contains 133 router declarations and produces 154 unique smoke paths. The full local Pages and four-browser canonical visual audits visited all 154 and classified all 154 as `PASS` after distinguishing expected anonymous/auth-required states from static-resource failures. Thus every path in the grouped inventory below has the same final visual classification in Chromium, Brave, Firefox, and LibreWolf: `PASS`; restricted entry points rendered their truthful `AUTH-EXPECTED` state inside that visual pass rather than leaking or redirecting away the protected surface.
 
 Complete inventory, grouped without omitting aliases or restricted entry surfaces:
 
@@ -102,35 +102,40 @@ Complete inventory, grouped without omitting aliases or restricted entry surface
 
 Dynamic placeholders were materialized only with synthetic route-safe fixture values. Restricted and record-dependent routes were accepted when they rendered their truthful anonymous/auth-required/not-found state; no administrator or private content was assumed.
 
-## 5. Browser and visual proof before deployment
+## 5. Canonical browser and visual proof
 
 All browser sessions used fresh disposable profiles/contexts and synthetic or anonymous state.
 
-| Browser | Version | Routes/viewports | Result |
+| Browser | Version | Canonical production proof | Result |
 |---|---:|---|---|
-| Chromium | 149.0.7827.55 | 9 critical routes × 1440×900, 1280×800, 768×1024, 390×844 | PASS |
-| Chromium | 149.0.7827.55 | complete 154-path inventory × 1440×900 | PASS |
-| Brave (installed binary) | 151.0.7922.137 | 9 critical routes × all four viewports | PASS |
-| Playwright Firefox | 151.0 | 9 critical routes × all four viewports | PASS |
-| LibreWolf (installed binary, native WebDriver BiDi) | 154.0-2 | 9 critical routes × 1440×900 and 390×844 | PASS |
+| Chromium | 149.0.7827.55 | 154-route desktop inventory; 9 critical routes × 1440×900, 1280×800, 768×1024, 390×844; headed Xvfb critical set | PASS |
+| Brave (installed binary) | 151.0.7922.137 | 154-route desktop inventory; 9 critical routes × all four viewports; headed Xvfb critical set | PASS |
+| Playwright Firefox | 151.0 | 154-route desktop inventory; 9 critical routes × all four viewports; headed Xvfb critical set | PASS |
+| LibreWolf (installed binary, native WebDriver BiDi) | 154.0-2 | 154-route desktop inventory; 9 critical routes at desktop/mobile; headed Xvfb critical set; normal reload, native Ctrl+Shift+R, back/forward | PASS |
 
-The nine cross-browser critical routes were Home, Archive, Legal, Commune, Coding Workbench entry, Developer Forge, Marketplace, Living Library, and Admin. Each audit required hydrated non-loading content, a nonempty visible React root, no horizontal overflow, no page exception, no fatal console error, no failed static resource, and working Archive ↔ Legal back/forward navigation.
+The nine cross-browser critical routes were Home, Archive, Legal, Commune, Coding Workbench entry, Developer Forge, Marketplace, Living Library, and Admin. Each audit required hydrated non-loading content, a nonempty visible React root, no horizontal overflow, no page exception, no fatal application console error, no failed JavaScript/CSS asset, and working Archive ↔ Legal back/forward navigation. The complete production result was 154/154 routes in each of all four browser families, with zero failed JavaScript/CSS assets and zero remaining fatal application errors.
 
-Selected screenshot hashes:
+The host's `/usr/bin/firefox` is a launcher for a Firefox Snap that is not installed. No package was installed merely to manufacture a test result. The current Playwright Firefox engine therefore supplies the Firefox 151 matrix; installed LibreWolf 154.0-2 supplies the native installed Gecko-family proof through its real binary and a fresh disposable profile. This distinction is retained so the report does not falsely claim a host Firefox installation that does not exist.
 
-- LibreWolf Archive desktop: `f81a8b85e1c4862ee4a6b656fbe16707680f6645c1eb024e0e2355328342e5b8`
-- LibreWolf Legal desktop: `b8a9e119241aaa9a6f07414f23b86cacd7b40f5fc7f0f1bf79df77dc008ca592`
-- LibreWolf Coding Workbench mobile: `bc0f335b17f997e2d4542481c1dc17b50f7b5ff95867a3385e2ea4ee623419b7`
+Selected fresh headed canonical-production screenshot hashes:
 
-The initial native LibreWolf CLI screenshot was deliberately rejected because it captured the loading shell before React hydration. Native WebDriver BiDi was then used to wait for the complete load, inspect the DOM/console/network, and capture the hydrated page. This prevents a screenshot tool race from becoming false evidence.
+- Chromium Home desktop: `5492864f8d58bb33504172977aa003bffc2f8f9b0e41c9ee6caea607dc8bb4a4`
+- Brave Legal desktop: `b370005a8e6b16e16acc60f66f49b9ecbb3b9ae958f817b109b48a00588d3ca3`
+- Firefox Archive desktop: `e3bb9791c8e1310979aaaf8b7f69d1402aa1f6b9ccbc2a3c468f5254fbc36b0f`
+- LibreWolf Coding Workbench desktop: `631aeaf65bfc8a00828642f39f75899bb115d42e04feae734a687a8c518cc0f3`
+
+The initial native LibreWolf CLI screenshot was deliberately rejected because it captured the loading shell before React hydration. Native WebDriver BiDi was then used to wait for the complete load, inspect DOM/console/network state, and capture the hydrated page. The final native audit also crosses through an inert document between routes so canceled resources from an outgoing page cannot be misattributed to the next route. This prevents screenshot and navigation races from becoming false evidence.
 
 ## 6. Console and network findings
 
-- No source or local Pages audit encountered a failed JavaScript, CSS, image, font, media, or manifest resource after the repair.
-- Local Wrangler injects a development-only inline helper that the production CSP correctly blocks. This warning does not exist in the static application document and will be rechecked on canonical production.
-- LibreWolf logs Supabase Auth's non-blocking immediate `Navigator LockManager` acquisition miss while pages still hydrate and session-less Auth settles. This is an upstream background refresh contention message documented by Supabase; it is recorded, not hidden, and authenticated production proof remains required before it can be called non-blocking for this deployment.
-- Anonymous account/conversation routes truthfully produce expected Supabase 401 responses.
-- Local Support/Marketplace billing capability fetches produce expected 404 responses because the dedicated billing Worker does not run inside the local Pages project. Canonical production must re-prove the separate Worker route.
+- No canonical audit encountered a failed JavaScript or CSS asset after the repair. Every entry asset had correct MIME, `nosniff`, immutable caching, and byte identity with the verified production artifact.
+- Cloudflare automatically injects its optional Web Analytics beacon at the edge. Canonical `index.html` remains byte-identical to local `dist/index.html` and contains no beacon in source. LibreWolf privacy protection blocks that injected third-party beacon, producing four recorded analytics-only CSP/CORS/SRI messages per route. The application root still hydrates, all application assets pass, and Cloudflare's edge analytics are independent of the beacon. These warnings are retained as non-blocking third-party evidence, not hidden as application success.
+- Cloudflare Turnstile's challenge frame emits a formatting probe in Chromium/Brave and the equivalent `0` plus invalid-URI DejaVu-font sanitizer messages in Firefox/LibreWolf. Classification is permitted only when the real Turnstile script is present; Elysia-bundle errors are never accepted through that exception. Turnstile challenge HTTP behavior remains recorded separately.
+- LibreWolf records Supabase Auth's immediate `Navigator LockManager` acquisition miss while anonymous pages remain hydrated and Auth settles. The authenticated production sandbox/UI gate remains required before final closure, so this message is not being used to waive authenticated proof.
+- `/commune/realtime` records Firefox/LibreWolf rejecting Cloudflare's third-party `__cf_bm` bot-management cookie on the Supabase origin. The rendered Commune page, application assets, and session-less client initialization remain intact.
+- Anonymous account/conversation routes truthfully produce expected Supabase 401 responses. Marketplace Account can also record the absent same-origin billing-capability route while rendering a truthful non-commerce account surface; the separately governed billing Worker is not being folded into the Pages project during this pass.
+
+The final full-inventory warning totals were 57 Chromium, 53 Brave, 121 Firefox, and 729 LibreWolf events. All were retained in the JSON evidence and fell into the exact third-party/anonymous categories above; there were zero accepted fatal application errors and zero failed JavaScript/CSS assets.
 
 ## 7. Commune and sandbox inventory
 
@@ -153,6 +158,10 @@ The proxy still distinguishes accepted completion, `policy_blocked` 422, malform
 
 Live authenticated production execution remains a hard pre-verdict gate. It will use distinct short-lived synthetic ordinary accounts through normal Auth/profile controls; no operator account, private content, magic role, or bypass is permitted.
 
+The production control-plane inventory is otherwise correct: the canonical Pages deployment is an exact clean `main` deployment, production sandbox execution is enabled, the runner origin is Access-protected, required production values/secrets/service binding exist with the expected types, and preview does not receive the production sandbox secrets. Anonymous canonical health returns the sanitized `authentication_required` response; direct unauthenticated access to the runner origin is denied by Cloudflare Access.
+
+No prior owner-only profile-less or eligible acceptance-token files exist in the disposable test area. Creating new production accounts without an immediate governed deletion authority would violate this pass's cleanup requirement. The final acceptance therefore awaits two distinct short-lived synthetic access tokens supplied only through owner-only files, plus a governed way to remove the synthetic accounts after proof. Credential contents must never enter shell arguments, chat, logs, or this report.
+
 ## 8. Automated verification so far
 
 - Starting `npm run test:all`: PASS while canonical production was blank (important negative evidence).
@@ -167,7 +176,7 @@ Live authenticated production execution remains a hard pre-verdict gate. It will
 - Local real Wrangler Pages serving boundary: PASS after repair.
 - Complete 154-path visual inventory: PASS after repair.
 - `git diff --check`: PASS.
-- Final post-repair `npm run test:all`: PASS after one harness race was repaired and the complete matrix reran from the beginning.
+- Final post-repair `npm run test:all`: PASS after the audit-harness refinements and complete matrix reran from the beginning. This includes all source/security/identity/Marketplace/Developer Forge/Commune/sandbox contracts, TypeScript application and Functions checks, Vite production build, the complete established browser suite, and a 93-file public-bundle scan with no source maps, runtime environment files, secrets, or private-machine paths.
 - The race was in the route-entry test, not the application: under load, a generic `main h1` wait could still match the retained Archive heading before the lazy Support destination rendered. The assertion now waits for the actual Support heading and still requires exact top entry, page-context focus, POP restoration, target framing, and absence of a delayed second jump.
 - Vite stale-chunk recovery browser regression: PASS; one same-route automatic reload is followed by a visible, user-controlled recovery boundary rather than a reload loop or blank screen.
 - Production-profile build with required Turnstile mode: PASS.
@@ -175,13 +184,23 @@ Live authenticated production execution remains a hard pre-verdict gate. It will
 - First production-profile artifact: 93 files; SHA-256 `dbe87721f0641d48cd8d07b8b4c0db4e96762b62a72c339d851706eb9a0bb5bf`.
 - Safe-namespace production candidate: 93 files; SHA-256 `88223a8bc303738a0b9be000b5c617ccd8633d094386a4abff4315c051a8e333`.
 - Safe-namespace Commons/Auth bundle: `assets/safe-assets-v1-commons-circle-C8GjeVfD.js`; SHA-256 `31d9237f845bcd09ca899d309b95d1802cd525313520461d6afe6b52b909ccea`.
+- Explicit live rootless Podman local-isolation suite: PASS against disposable hardened Python/Node candidates built from already-present digest-pinned bases. Candidate image IDs were `b885877a60f7acb49ca1590f8c41697c434df8546a316051f81d0d6a4f14e339` and `185525d8b664cbbcc6dec453cd42f7fa4154be99bbc5cc0cf08ab48b2cb2fb26`; neither was published and both were removed after proof. The suite proved Python/JavaScript/TypeScript execution, zero effective capabilities, exact ulimits/cgroup limits, private PID namespace, no bind mounts, bounded tmpfs, timeout, immediate concurrent refusal, cancellation, hard output limit, memory/PID/network denial, shell removal, read-only root, removed package tooling, no private host path, secret-policy refusal, file-size enforcement, Node child-process denial, and no orphan containers.
+- The first live local probe inherited the development defaults, which point at mutable upstream bases, and failed the shell-removal test. It was not accepted. The repository's reviewed hardened Containerfiles removed shells/BusyBox/package tooling; exported filesystem inspection passed, the full suite then passed, and both disposable image candidates plus failed synthetic runtime state were removed without publication.
 
-The deployment, canonical cache-upgrade proof, authenticated sandbox gate, production browser matrix, cleanup, and final repository state are recorded below only after they run.
+The authenticated production sandbox gate is still recorded only after it actually runs through normal Auth/profile/eligibility and cleanup controls.
 
-## 9. Deployment, live sandbox, cleanup, and final verdict
+## 9. Deployment, cache upgrade, live sandbox, cleanup, and final verdict
 
 Repair commit `82b733a657589f7385cf5564b6a6a32bfac7e530` was pushed to the established private remote and deployed as Pages production deployment `adc786df-c6ec-4aa3-b511-aad67452e3c7`. That deployment was intentionally rejected by the post-deployment canonical gate: seven reused shared-chunk URLs still served the historically cached 24-byte fallback. This finding is why a successful upload and a correct new main bundle were not accepted as closure.
 
-Final safe-namespace deployment and acceptance remain pending. This section must not be converted to completion until the private corrective source commit is pushed, the verified safe-namespace artifact is deployed through the established Pages process, the canonical domain passes fresh and stale-cache browser matrices, live sandbox execution completes in every exposed room workflow, temporary identities/data are removed, and the repository is clean.
+Corrective commit `118a0549178b4dae9dde4481a7d161082cb57c40` (`Isolate Website assets from poisoned cache generation`) was then pushed only to the established private remote and deployed as canonical production deployment `4c2ed447-4420-4c5d-a3b3-f1f07eab4067`. The verified production artifact contained 93 files and had aggregate SHA-256 `88223a8bc303738a0b9be000b5c617ccd8633d094386a4abff4315c051a8e333`.
+
+Canonical artifact parity passed for `index.html` plus all eight directly referenced JavaScript/CSS assets. Canonical index SHA-256 was `ebf6724c4803da04f3d21674fa482f60bcafbaacd02014d02750bfb4a6531667`; every asset was byte-identical to the qualified artifact. A deliberately missing JavaScript path returned `404 text/html`, `no-store`, a script-free document, and never the SPA shell.
+
+The cache-upgrade harness served the exact shell from the rejected first deployment into a canonical browsing context. Chromium, Brave, and Firefox each proved that the old pre-safe-generation assets were actually attempted, a normal reload obtained only `safe-assets-v1` modules, a second reload remained hydrated, and Archive → Legal → back → forward worked without an automatic reload loop. Installed LibreWolf separately passed native normal reload, Ctrl+Shift+R hard reload, and the same back/forward sequence.
+
+No synthetic production identities, Commune posts, Marketplace records, Forge records, or sandbox jobs were created during the anonymous/browser phase, so there is currently no temporary public data to remove. Disposable LibreWolf profiles were removed; no LibreWolf/Xvfb process or WebDriver listener on the two test ports remained. The rootless integration left no labeled sandbox container, and its disposable runtime/image candidates were removed.
+
+The final completion verdict remains pending only on gates that have not yet been proven: authenticated production execution through every Workbench-exposing room workflow, cross-account job/cancellation isolation, governed removal of the synthetic acceptance accounts/data, the final post-proof regression/build, final evidence commit/deployment alignment, and a clean repository. No completion commit is created while any mandatory gate remains blocked.
 
 Pass 10D has not begun.
