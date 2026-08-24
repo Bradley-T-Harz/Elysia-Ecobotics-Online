@@ -1,0 +1,5 @@
+EcoSyneva Private Source License Reference
+
+Copyright 2026 EcoSyneva Commons LLC. All rights reserved.
+
+No permission is granted to copy, modify, distribute, publish, sublicense, or make this private source public except under an explicit written agreement from EcoSyneva Commons LLC. Public deployment does not publish the source. Separately identified third-party components retain their own licenses.

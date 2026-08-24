@@ -111,6 +111,9 @@ const runnerRoot = join(bundleRoot, "services", "sandbox-runner");
 const runnerPackage = JSON.parse(await fs.readFile(join(runnerRoot, "package.json"), "utf8"));
 const yamlPackage = JSON.parse(await fs.readFile(join(runnerRoot, "node_modules", "yaml", "package.json"), "utf8"));
 if (runnerPackage.dependencies.yaml !== "2.9.0" || yamlPackage.version !== "2.9.0") throw new Error("release_dependency_invalid");
+for (const notice of ["LICENSE", "LICENSING.md", "THIRD_PARTY_NOTICES.txt", "LICENSES/ISC.txt", "LICENSES/LicenseRef-EcoSyneva-Proprietary.txt"]) {
+  if (!manifestFiles.has(`services/sandbox-runner/${notice}`)) throw new Error("release_license_payload_missing");
+}
 for (const file of ["server.mjs", "runner.mjs", "dockerRunner.mjs", "serviceConfig.mjs", "jobStore.mjs", "cleanup.mjs", "accessValidator.mjs"]) {
   await run(process.execPath, ["--check", join(runnerRoot, file)], bundleRoot);
 }

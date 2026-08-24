@@ -1,0 +1,20 @@
+THIRD-PARTY SOFTWARE NOTICES
+============================
+
+Dependency universe: WEBSITE_SANDBOX_RUNNER
+Generated from the exact npm package-lock.json used by this source tree.
+This inventory does not modify or supersede any upstream license.
+For runtime/bundled components, locally installed upstream license or
+notice files are reproduced below when supplied by the package. Generic
+canonical license texts are also shipped in the adjacent LICENSES directory.
+
+Dual-license choices used by this distribution:
+- jszip: MIT (not GPL-3.0-or-later)
+- packages declaring Apache-2.0 OR MIT: Apache-2.0 or MIT as applicable
+- packages declaring MIT OR another permissive license: MIT
+
+yaml 2.9.0
+  License: ISC
+  Relationship: production_runtime_or_build_output
+  Package-lock path: node_modules/yaml
+  Resolved source: https://registry.npmjs.org/yaml/-/yaml-2.9.0.tgz

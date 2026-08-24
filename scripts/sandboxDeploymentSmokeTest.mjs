@@ -26,18 +26,18 @@ const lock = JSON.parse(await read("package-lock.json"));
 const gitignore = await read(".gitignore");
 assert(gitignore.includes(".dev.vars") && gitignore.includes("runner.env") && gitignore.includes("**/cloudflared/*.json") && gitignore.includes("containers/auth.json"), "Local Pages, runner, registry, and Tunnel credential files must be ignored by git.");
 for (const [name, version] of Object.entries({
-  "@supabase/supabase-js": "2.106.2",
-  "@vitejs/plugin-react": "6.0.2",
+  "@supabase/supabase-js": "2.112.3",
+  "@vitejs/plugin-react": "6.1.0",
   "lucide-react": "1.17.0",
-  "react": "19.2.7",
-  "react-dom": "19.2.7",
+  "react": "19.2.8",
+  "react-dom": "19.2.8",
   "typescript": "6.0.3",
-  "vite": "8.0.16"
+  "vite": "8.2.2"
 })) {
   assert(packageJson.dependencies[name] === version, `${name} must be pinned to its existing lockfile version.`);
   assert(lock.packages[`node_modules/${name}`]?.version === version, `${name} lockfile resolution drifted.`);
 }
-assert(packageJson.devDependencies["@cloudflare/workers-types"] === "4.20260623.1", "Cloudflare runtime types must be pinned.");
+assert(packageJson.devDependencies["@cloudflare/workers-types"] === "5.20260823.1", "Cloudflare runtime types must be pinned.");
 for (const requiredScript of ["test:sandbox-access", "test:sandbox-finalizer", "test:sandbox-eligibility", "test:sandbox-production-gate", "sandbox:finalizer:check", "sandbox:production-gate"]) {
   assert(typeof packageJson.scripts[requiredScript] === "string", `Missing ${requiredScript} repository verification command.`);
 }

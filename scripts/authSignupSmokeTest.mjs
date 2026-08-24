@@ -119,6 +119,28 @@ function clientReturning(result) {
 }
 
 {
+  const fixture = clientReturning({
+    data: { session: null, user: null },
+    // Supabase JS 2.112+ wraps retryable 5xx responses without preserving the
+    // GoTrue code. The bounded public diagnostic must remain stable.
+    error: { message: "Email address is not authorized.", status: 500 },
+  });
+  const result = await requestWebsiteAccountSignup({
+    client: fixture.client,
+    email: submittedEmail,
+    password: submittedPassword,
+    emailRedirectTo,
+  });
+  assert.deepEqual(result, {
+    status: "provider_error",
+    message: "Email address is not authorized.",
+    code: "email_address_not_authorized",
+    providerStatus: 500,
+  });
+  assert.equal(fixture.calls.length, 1);
+}
+
+{
   const result = await requestWebsiteAccountSignup({
     client: null,
     email: submittedEmail,

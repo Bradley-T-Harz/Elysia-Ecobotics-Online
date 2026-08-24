@@ -26,6 +26,23 @@ export type WebsiteAccountSignupResult =
   | { status: "confirmation_or_existing" }
   | { status: "signed_in"; session: Session };
 
+function normalizedProviderErrorCode(error: { message: string; code?: string }): string | undefined {
+  if (error.code?.trim()) return error.code;
+
+  // Newer GoTrue clients intentionally wrap retryable 5xx responses and may
+  // omit the structured response code. Preserve only the small, non-sensitive
+  // diagnostic vocabulary already exposed by the Website contract; never
+  // persist an arbitrary provider message as a code.
+  const message = error.message.toLowerCase();
+  if (/email address.*(?:not )?authorized|smtp|email.*provider/.test(message)) {
+    return "email_address_not_authorized";
+  }
+  if (/captcha/.test(message)) return "captcha_failed";
+  if (/email.*rate|rate limit|too many/.test(message)) return "over_email_send_rate_limit";
+  if (/weak password|password.*(?:weak|characters|stronger)/.test(message)) return "weak_password";
+  return undefined;
+}
+
 export async function requestWebsiteAccountSignup(input: {
   client: WebsiteAccountSignupClient | null;
   email: string;
@@ -51,7 +68,7 @@ export async function requestWebsiteAccountSignup(input: {
       return {
         status: "provider_error",
         message: error.message,
-        code: error.code,
+        code: normalizedProviderErrorCode(error),
         providerStatus: error.status
       };
     }
