@@ -316,8 +316,8 @@ async function loadCase({ handle, viewport, expected, canonicalAfterLoad, signed
     await page.screenshot({ path: path.join(evidenceDir, screenshotName), fullPage: false });
   }
   assert(
-    loadedScripts.some((asset) => /\/assets\/safe-assets-v1-commons-circle-[^/]+\.js$/.test(asset)),
-    "Commons Circle route chunk must load",
+    loadedScripts.some((asset) => /\/assets\/safe-assets-v1-commons-profile-[^/]+\.js$/.test(asset)),
+    "Public Commons Profile route chunk must load",
   );
   assert.deepEqual(unknownSupabaseRequests, [], "unexpected Supabase request");
   assert.deepEqual(sameOriginFailures, [], "same-origin request failed");

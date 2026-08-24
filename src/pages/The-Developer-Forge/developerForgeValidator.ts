@@ -1,6 +1,7 @@
 
 import semver from "semver";
 import generatedManifestShapeValidator from "./developerForgeManifestValidator.generated";
+import { assessLocalElysiaManifest } from "../../shared/addons/localElysiaManifestContract";
 
 export type ValidationSeverity = "blocked" | "error" | "warning" | "needs_reviewer" | "info";
 
@@ -33,12 +34,15 @@ export type ForgeManifest = {
   version?: string;
   description?: string;
   author?: { name?: string; url?: string };
+  publisher?: { name?: string; identity?: string };
   license?: string;
-  entrypoints?: unknown[];
+  entrypoints?: unknown[] | Record<string, string>;
   permissions?: string[];
   compatibility?: {
     elysia_min_version?: string;
     elysia_max_version?: string | null;
+    min_elysia_version?: string;
+    max_elysia_version?: string | null;
     addon_api_version?: string;
   };
   runtime?: {
@@ -73,6 +77,19 @@ export const supportedAddonApi = "0.1";
 export const allowedRuntimeKinds = ["static", "local_worker", "connector", "theme", "skill_pack"];
 export const blockedPermissionKeys = ["vault_access", "credential_access", "private_memory_access", "silent_shell_execution", "read_all_files", "write_arbitrary_files", "silent_network_access", "silent_install"];
 export const forbiddenManifestFields = ["service_role_key", "private_key", "env", "local_elysia_memory", "hidden_reviewer_note", "install_command", "postinstall", "preinstall", "shell_command"];
+const canonicalPermissionKeys = new Set(["network.fetch", "filesystem.read_project", "filesystem.write_project", "memory.read_scoped", "memory.write_scoped", "model.invoke.local", "tool.run_sandboxed", "shell.run", "external_api.call"]);
+const canonicalBlockedPermissionKeys = new Set(["memory.read_scoped", "memory.write_scoped", "shell.run"]);
+const canonicalHighRiskPermissionKeys = new Set(["filesystem.write_project", "model.invoke.local", "tool.run_sandboxed", "external_api.call"]);
+
+export function manifestPermissionKeys(manifest: ForgeManifest | null | undefined): string[] {
+  const permissions = (manifest as Record<string, unknown> | null | undefined)?.permissions;
+  return (Array.isArray(permissions) ? permissions : []).map((permission) => typeof permission === "string" ? permission : permission && typeof permission === "object" && "key" in permission ? String(permission.key ?? "") : "").filter(Boolean);
+}
+
+export function manifestLicenseSpdx(manifest: ForgeManifest | null | undefined): string {
+  const license = (manifest as Record<string, unknown> | null | undefined)?.license;
+  return typeof license === "string" ? license : license && typeof license === "object" && "spdx" in license ? String(license.spdx ?? "") : "";
+}
 
 export const defaultPermissionCatalog: PermissionDefinition[] = [
   { permission_key: "theme_assets_read", title: "Theme assets read", description: "Read public theme or visual assets bundled with the add-on.", risk_level: "low", requires_user_approval: false },
@@ -147,6 +164,24 @@ export function validateManifest(input: string | ForgeManifest, catalog: Permiss
   if (!manifest) return { manifest: null, results };
   const permissions = new Map(catalog.map((item) => [item.permission_key, item]));
 
+  if (manifest.schema_version === "1.1") {
+    const assessment = assessLocalElysiaManifest(manifest);
+    for (const issue of assessment.issues) add(results, "error", `canonical_${issue}`, `Canonical Local Elysia manifest issue: ${issue}.`, issue.replace(/^invalid_|^missing_/, ""));
+    for (const permission of manifestPermissionKeys(manifest)) {
+      if (!canonicalPermissionKeys.has(permission)) add(results, "error", "unknown_permission", `Unknown canonical Local Elysia permission: ${permission}.`, "permissions");
+      else if (canonicalBlockedPermissionKeys.has(permission)) add(results, "blocked", "blocked_permission", `Blocked permission selected: ${permission}.`, "permissions");
+      else if (canonicalHighRiskPermissionKeys.has(permission)) add(results, "needs_reviewer", "high_risk_permission", `High-risk permission requires reviewer and Local Elysia approval: ${permission}.`, "permissions");
+    }
+    const text = JSON.stringify(manifest);
+    for (const secret of secretPatterns) if (secret.pattern.test(text)) add(results, "blocked", secret.code, `Manifest appears to include ${secret.label}.`, undefined, "Remove secrets and private material from the manifest.");
+    if (localPathPattern.test(text)) add(results, "blocked", "local_path", "Manifest appears to include an absolute local file path.");
+    if (localhostPattern.test(text)) add(results, "warning", "localhost_url", "Manifest includes a localhost/private URL that is not suitable for a public listing.");
+    if (broadFilesystemPattern.test(text)) add(results, "blocked", "broad_filesystem_claim", "Manifest language suggests broad filesystem access, which is not allowed for public Forge submissions.");
+    if (!manifest.source_url) add(results, "info", "source_url_missing", "Consider adding a source URL for reviewer context.", "source_url");
+    if (!manifest.support_url) add(results, "info", "support_url_missing", "Consider adding a support URL for users.", "support_url");
+    return { manifest, results };
+  }
+
   if (!validateManifestShape(manifest)) {
     for (const error of validateManifestShape.errors ?? []) {
       add(results, "error", "schema_shape_error", error.message ? `Manifest schema shape issue: ${error.message}.` : "Manifest schema shape issue.", pathFromAjv(error.instancePath));
@@ -175,7 +210,7 @@ export function validateManifest(input: string | ForgeManifest, catalog: Permiss
   if (manifest.runtime?.requires_network && !manifest.security?.network_domains?.length) add(results, "warning", "network_domains_missing", "Runtime requires network but no security.network_domains are declared.", "security.network_domains");
   if (manifest.runtime?.requires_filesystem && !manifest.security?.file_access?.length) add(results, "warning", "file_access_missing", "Runtime requires filesystem but no security.file_access scopes are declared.", "security.file_access");
   if (manifest.security?.sandbox_required !== true && manifest.runtime?.kind !== "theme" && manifest.runtime?.kind !== "static") add(results, "warning", "sandbox_not_required", "Non-static runtimes should require a sandbox.", "security.sandbox_required");
-  for (const entrypoint of manifest.entrypoints ?? []) {
+  for (const entrypoint of Array.isArray(manifest.entrypoints) ? manifest.entrypoints : []) {
     if (typeof entrypoint !== "object" || entrypoint === null || Array.isArray(entrypoint)) {
       add(results, "error", "invalid_entrypoint", "Each entrypoint must be a structured object.", "entrypoints");
       continue;
@@ -188,7 +223,7 @@ export function validateManifest(input: string | ForgeManifest, catalog: Permiss
     if (Object.prototype.hasOwnProperty.call(manifest, field)) add(results, "blocked", "forbidden_manifest_field", `Forbidden manifest field present: ${field}.`, field, "Remove private, executable, or reviewer-only fields from the public add-on manifest.");
   }
 
-  for (const permission of manifest.permissions ?? []) {
+  for (const permission of manifestPermissionKeys(manifest)) {
     const definition = permissions.get(permission);
     if (!definition) add(results, "error", "unknown_permission", `Unknown permission: ${permission}.`, "permissions", "Choose from the controlled permission catalog.");
     else if (definition.risk_level === "blocked" || blockedPermissionKeys.includes(permission)) add(results, "blocked", "blocked_permission", `Blocked permission selected: ${permission}.`, "permissions", "Remove blocked permissions; local Elysia will not grant them.");
@@ -228,11 +263,18 @@ export function checkCompatibility(manifest: ForgeManifest | null): Compatibilit
   if (!manifest) return { status: "unknown", warnings: ["No manifest available."], errors: [] };
   const warnings: string[] = [];
   const errors: string[] = [];
+  if (manifest.schema_version === "1.1") {
+    const assessment = assessLocalElysiaManifest(manifest);
+    if (assessment.status !== "canonical_candidate") errors.push(...assessment.issues.map((issue) => `Canonical manifest issue: ${issue}.`));
+    if (manifest.compatibility?.addon_api_version !== "1") errors.push(`Add-on API ${manifest.compatibility?.addon_api_version || "missing"} is incompatible with canonical API 1.`);
+    for (const permission of manifestPermissionKeys(manifest)) if (canonicalBlockedPermissionKeys.has(permission)) errors.push(`Blocked permission ${permission} cannot be compatible.`);
+    return { status: errors.length ? "incompatible" : warnings.length ? "warning" : "compatible", warnings, errors };
+  }
   if (manifest.schema_version !== supportedManifestSchema) errors.push(`Manifest schema ${manifest.schema_version || "missing"} is unsupported.`);
   if (manifest.compatibility?.addon_api_version !== supportedAddonApi) warnings.push(`Add-on API ${manifest.compatibility?.addon_api_version || "missing"} needs reviewer confirmation for API ${supportedAddonApi}.`);
   if (!manifest.compatibility?.elysia_min_version) errors.push("Missing minimum Elysia version.");
   if (manifest.runtime?.kind && !allowedRuntimeKinds.includes(manifest.runtime.kind)) errors.push(`Runtime ${manifest.runtime.kind} is unsupported.`);
-  for (const permission of manifest.permissions ?? []) if (blockedPermissionKeys.includes(permission)) errors.push(`Blocked permission ${permission} cannot be compatible.`);
+  for (const permission of manifestPermissionKeys(manifest)) if (blockedPermissionKeys.includes(permission)) errors.push(`Blocked permission ${permission} cannot be compatible.`);
   if (manifest.runtime?.requires_network && !manifest.security?.network_domains?.length) warnings.push("Network runtime needs declared domains.");
   if (manifest.runtime?.requires_filesystem && !manifest.security?.file_access?.length) warnings.push("Filesystem runtime needs declared file scopes.");
   return { status: errors.length ? "incompatible" : warnings.length ? "warning" : "compatible", warnings, errors };

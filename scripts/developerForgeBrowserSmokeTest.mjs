@@ -312,10 +312,22 @@ try {
     const exportedArchive = await JSZip.loadAsync(firstExportBytes);
     const exportedManifest = JSON.parse(await exportedArchive.file("manifest.json").async("string"));
     assert.equal(exportedManifest.addon_id, "developer.browser-intake", "Exported package must preserve the imported add-on manifest.");
+    assert.equal(exportedManifest.schema_version, "1.1", "New browser exports must use Local Elysia's canonical manifest schema.");
+    assert.equal(exportedManifest.compatibility.addon_api_version, "1", "New browser exports must use the canonical add-on API contract.");
+    assert(Object.keys(exportedManifest.entrypoints).length > 0, "New browser exports must contain a named package entrypoint.");
+    assert.equal(exportedManifest.bridge.execution_enabled, false, "A browser export must never self-enable execution.");
+    assert.equal(exportedManifest.network_policy.default, "deny", "A browser export must retain deny-by-default network authority.");
+    assert.equal(exportedManifest.memory_policy.default, "deny", "A browser export must retain deny-by-default memory authority.");
+    assert.equal(exportedManifest.execution.requested, false, "Legacy drafts must normalize to inert packages, not execution requests.");
     const checksumManifest = JSON.parse(await exportedArchive.file("checksums.json").async("string"));
     for (const [filePath, expectedHash] of Object.entries(checksumManifest.files)) {
       const contents = await exportedArchive.file(filePath).async("nodebuffer");
       assert.equal(createHash("sha256").update(contents).digest("hex"), expectedHash, `Exported checksum must match ${filePath}.`);
+    }
+    for (const filePath of Object.keys(exportedArchive.files).filter((filePath) => !exportedArchive.files[filePath].dir && filePath !== "manifest.json")) {
+      assert(exportedManifest.checksums.files[filePath], `Canonical manifest must checksum ${filePath}.`);
+      const contents = await exportedArchive.file(filePath).async("nodebuffer");
+      assert.equal(createHash("sha256").update(contents).digest("hex"), exportedManifest.checksums.files[filePath], `Canonical manifest checksum must match ${filePath}.`);
     }
     await packageInput.setInputFiles(firstExportPath);
     await page.getByText("6 files selected locally", { exact: false }).first().waitFor({ state: "visible" });

@@ -1,17 +1,13 @@
-import { useMemo, useState } from "react";
-import Editor from "@monaco-editor/react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import { Command } from "cmdk";
-import prettier from "prettier/standalone";
-import parserBabel from "prettier/plugins/babel";
-import parserEstree from "prettier/plugins/estree";
-import parserMarkdown from "prettier/plugins/markdown";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import remarkGfm from "remark-gfm";
 import type { AddonDraft } from "./developerForgeApi";
 import type { ForgeValidationResult } from "./developerForgeValidator";
 import RepositoryTreeExplorer from "../../shared/addons/RepositoryTreeExplorer";
-import "../../shared/editor/localMonaco";
+
+const LazyForgeMonacoEditor = lazy(() => import("./ForgeMonacoEditor"));
 
 export type ForgeWorkspaceFile = {
   path: string;
@@ -42,25 +38,20 @@ export function draftWorkspaceFiles(draft: AddonDraft, manifestText: string): Fo
 }
 
 export async function formatForgeJson(value: string) {
+  const [{ default: prettier }, { default: parserBabel }, { default: parserEstree }] = await Promise.all([
+    import("prettier/standalone"),
+    import("prettier/plugins/babel"),
+    import("prettier/plugins/estree"),
+  ]);
   return prettier.format(value, { parser: "json", plugins: [parserBabel, parserEstree] });
 }
 
 export async function formatForgeMarkdown(value: string) {
+  const [{ default: prettier }, { default: parserMarkdown }] = await Promise.all([
+    import("prettier/standalone"),
+    import("prettier/plugins/markdown"),
+  ]);
   return prettier.format(value, { parser: "markdown", plugins: [parserMarkdown] });
-}
-
-function languageForMonaco(language: ForgeWorkspaceFile["language"]) {
-  if (language === "json") return "json";
-  if (language === "markdown") return "markdown";
-  if (language === "typescript") return "typescript";
-  if (language === "javascript") return "javascript";
-  if (language === "css") return "css";
-  if (language === "html") return "html";
-  if (language === "python") return "python";
-  if (language === "rust") return "rust";
-  if (language === "yaml") return "yaml";
-  if (language === "toml") return "toml";
-  return "plaintext";
 }
 
 function ForgeEditorFallback({ file, readOnly, onChange }: { file: ForgeWorkspaceFile; readOnly?: boolean; onChange: (value: string) => void }) {
@@ -69,27 +60,9 @@ function ForgeEditorFallback({ file, readOnly, onChange }: { file: ForgeWorkspac
 
 export function ForgeWorkspaceEditor({ file, readOnly, onChange }: { file: ForgeWorkspaceFile; readOnly?: boolean; onChange: (value: string) => void }) {
   return <div className="forge-monaco-shell">
-    <Editor
-      height="380px"
-      language={languageForMonaco(file.language)}
-      theme="vs-dark"
-      value={file.value}
-      loading={<ForgeEditorFallback file={file} readOnly={readOnly} onChange={onChange} />}
-      options={{
-        automaticLayout: true,
-        fontSize: 14,
-        minimap: { enabled: false },
-        readOnly: readOnly || file.locked,
-        scrollBeyondLastLine: false,
-        wordWrap: "on"
-      }}
-      onChange={(value) => onChange(value ?? "")}
-      onMount={(editor, monaco) => {
-        monaco.editor.setTheme("vs-dark");
-        editor.updateOptions({ renderWhitespace: "selection" });
-      }}
-      onValidate={() => undefined}
-    />
+    <Suspense fallback={<ForgeEditorFallback file={file} readOnly={readOnly} onChange={onChange} />}>
+      <LazyForgeMonacoEditor file={file} readOnly={readOnly} onChange={onChange} />
+    </Suspense>
   </div>;
 }
 

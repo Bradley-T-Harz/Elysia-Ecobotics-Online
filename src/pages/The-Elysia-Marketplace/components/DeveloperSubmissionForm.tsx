@@ -15,6 +15,7 @@ import type { ForgeState } from "../../The-Developer-Forge/developerForgeApi";
 import {
   defaultManifestForTemplate,
   defaultPermissionCatalog,
+  manifestPermissionKeys,
   validateManifest,
   validationStatus
 } from "../../The-Developer-Forge/developerForgeValidator";
@@ -48,7 +49,7 @@ export default function DeveloperSubmissionForm({ onMessage }: DeveloperSubmissi
 
   const validation = useMemo(() => validateManifest(manifestText, forgeState?.permissionCatalog.length ? forgeState.permissionCatalog : defaultPermissionCatalog), [manifestText, forgeState?.permissionCatalog]);
   const blocking = validation.results.some((result) => result.severity === "blocked" || result.severity === "error");
-  const permissions = validation.manifest?.permissions ?? [];
+  const permissions = manifestPermissionKeys(validation.manifest);
   const reasonsComplete = permissions.every((permission) => Boolean(permissionReasons[permission]?.trim()));
   const catalog = forgeState?.permissionCatalog.length ? forgeState.permissionCatalog : defaultPermissionCatalog;
   const hasElevatedPermission = permissions.some((permission) => catalog.find((item) => item.permission_key === permission)?.risk_level !== "low");
@@ -131,7 +132,7 @@ export default function DeveloperSubmissionForm({ onMessage }: DeveloperSubmissi
     <div className="form-grid">
       <label><span>Add-on name</span><input value={validation.manifest?.name ?? ""} onChange={(event) => updateManifest({ name: event.target.value })} /></label>
       <label><span>Add-on ID</span><input value={validation.manifest?.addon_id ?? ""} onChange={(event) => updateManifest({ addon_id: event.target.value })} /></label>
-      <label><span>Publisher name</span><input value={validation.manifest?.author?.name ?? ""} onChange={(event) => updateManifest({ author: { ...validation.manifest?.author, name: event.target.value } })} /></label>
+      <label><span>Publisher name</span><input value={validation.manifest?.publisher?.name ?? validation.manifest?.author?.name ?? ""} onChange={(event) => validation.manifest?.schema_version === "1.1" ? updateManifest({ publisher: { ...validation.manifest?.publisher, name: event.target.value } }) : updateManifest({ author: { ...validation.manifest?.author, name: event.target.value } })} /></label>
     </div>
     <section className="submission-source-metadata" aria-labelledby="git-metadata-heading">
       <div><p className="eyebrow">Optional source reference</p><h3 id="git-metadata-heading">Add Git repository URL as review metadata</h3><p>This records a reference only. The website does not clone, fetch, authenticate to, or inspect the repository.</p></div>

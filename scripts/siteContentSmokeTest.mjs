@@ -66,6 +66,7 @@ const forgeGeneratedValidator = await read("src/pages/The-Developer-Forge/develo
 const forgeTemplates = await read("src/pages/The-Developer-Forge/developerForgeTemplates.ts");
 const forgeApi = await read("src/pages/The-Developer-Forge/developerForgeApi.ts");
 const forgeWorkbench = await read("src/pages/The-Developer-Forge/ForgeWorkbench.tsx");
+const forgeMonacoEditor = await read("src/pages/The-Developer-Forge/ForgeMonacoEditor.tsx");
 const adminModerationClient = await read("src/shared/review/adminModerationClient.ts");
 const forgeSnapshotMigration = await read("supabase/legacy-migrations/2026_06_27_developer_forge_submission_snapshots.sql");
 const forgeSubmissionDocs = await read("docs/developer-forge/submission-review-process.md");
@@ -619,7 +620,7 @@ assert(forgeValidatorGenerator.includes('from "ajv"') && forgeValidatorGenerator
 assert(forgeValidator.includes("generatedManifestShapeValidator") && forgeValidator.includes("semver.valid"), "Developer Forge should use its standalone manifest-shape validator and semantic version validation.");
 assert(!forgeGeneratedValidator.includes("new Function") && !forgeGeneratedValidator.includes("eval(") && !forgeGeneratedValidator.includes("require("), "Generated Developer Forge validation must remain CSP-safe and browser-native.");
 assert(forgeValidator.includes('"blocked"') && forgeValidator.includes('"needs_reviewer"'), "Developer Forge validation should classify blocked and reviewer-needed findings.");
-assert(forgeWorkbench.includes("@monaco-editor/react") && forgeWorkbench.includes("react-markdown") && forgeWorkbench.includes("remark-gfm") && forgeWorkbench.includes("rehype-sanitize"), "Developer Forge workbench should wire Monaco and sanitized Markdown preview.");
+assert(forgeWorkbench.includes("LazyForgeMonacoEditor") && forgeMonacoEditor.includes("@monaco-editor/react") && forgeWorkbench.includes("react-markdown") && forgeWorkbench.includes("remark-gfm") && forgeWorkbench.includes("rehype-sanitize"), "Developer Forge workbench should demand-load Monaco and wire sanitized Markdown preview.");
 assert(forgeWorkbench.includes("prettier/standalone") && forgeWorkbench.includes("cmdk") && forgeWorkbench.includes("ForgeCommandPalette"), "Developer Forge workbench should wire Prettier formatting and a safe command palette.");
 assert(!forgeWorkbench.includes("npm install") && !forgeWorkbench.includes("run-shell") && !forgeWorkbench.includes("raw shell"), "Developer Forge command palette must not expose package install or shell actions.");
 assert(forgePage.includes("ForgeWorkbenchSurface") && forgePage.includes("Submit immutable snapshot for review") && forgePage.includes("Duplicate draft for revision"), "Developer Forge page should expose the workbench, immutable submission, and revision draft flow.");

@@ -50,6 +50,61 @@ async function sha256Text(text: string) {
   return Array.from(new Uint8Array(buffer)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
+const legacyPermissionMap: Record<string, string | null> = {
+  theme_assets_read: null,
+  marketplace_metadata_read: null,
+  living_library_metadata_read: null,
+  public_docs_read: null,
+  network_declared_domains: "network.fetch",
+  user_selected_file_read: "filesystem.read_project",
+  user_selected_file_write: "filesystem.write_project",
+  project_folder_read: "filesystem.read_project",
+  project_folder_write: "filesystem.write_project",
+  local_model_request: "model.invoke.local",
+  sandboxed_worker: "tool.run_sandboxed"
+};
+
+function canonicalManifestForPackage(manifest: ForgeManifest, filePaths: string[], checksums: Record<string, string>): Record<string, unknown> {
+  const raw = manifest as Record<string, any>;
+  const domains = raw.declared_domains ?? raw.security?.network_domains ?? [];
+  const permissions = (raw.permissions ?? []).map((permission: unknown) => {
+    if (permission && typeof permission === "object" && !Array.isArray(permission)) return permission;
+    const legacy = String(permission);
+    const mapped = legacyPermissionMap[legacy];
+    return mapped ? { key: mapped, required: false, reason: `Migrated from the legacy ${legacy} declaration; Local Elysia remains final authority.` } : null;
+  }).filter(Boolean);
+  const legacyEntrypoints = Array.isArray(raw.entrypoints)
+    ? Object.fromEntries(raw.entrypoints.map((entry: any, index: number) => [entry?.name ?? `entry_${index + 1}`, typeof entry === "string" ? entry : entry?.path]).filter((entry: unknown[]) => Boolean(entry[1])))
+    : {};
+  const fallbackEntrypoint = filePaths.find((path) => path.startsWith("src/"))
+    ?? filePaths.find((path) => !["README.md", "LICENSE", "CHANGELOG.md", "PERMISSIONS.md", "checksums.json"].includes(path))
+    ?? "README.md";
+  return {
+    ...raw,
+    schema_version: "1.1",
+    publisher: { name: raw.publisher?.name ?? raw.author?.name ?? "Self-declared publisher", identity: raw.publisher?.identity ?? "self-declared" },
+    compatibility: { min_elysia_version: raw.compatibility?.min_elysia_version ?? raw.compatibility?.elysia_min_version ?? "0.1.0", max_elysia_version: raw.compatibility?.max_elysia_version ?? raw.compatibility?.elysia_max_version ?? "1.0.0", addon_api_version: "1" },
+    required_profiles: Array.isArray(raw.required_profiles) ? raw.required_profiles : [],
+    entrypoints: raw.entrypoints && !Array.isArray(raw.entrypoints) && Object.keys(raw.entrypoints).length ? raw.entrypoints : Object.keys(legacyEntrypoints).length ? legacyEntrypoints : { content: fallbackEntrypoint },
+    bridge: { protocol: raw.bridge?.protocol ?? "none", contract_version: raw.bridge?.contract_version ?? "1", execution_enabled: false },
+    permissions,
+    network_policy: raw.network_policy ?? { default: "deny", declared_hosts: domains.map((host: string) => host.replace(/^https?:\/\//, "").split("/")[0]) },
+    filesystem_policy: raw.filesystem_policy ?? { default: "deny", mounts: [] },
+    memory_policy: raw.memory_policy ?? { default: "deny", classes: [] },
+    model_provider_policy: raw.model_provider_policy ?? { default: "deny", providers: [] },
+    tool_worker_policy: raw.tool_worker_policy ?? { default: "deny", workers: [] },
+    execution: { requested: false },
+    sandbox: raw.sandbox ?? { required: true, network: domains.length ? "deny_by_default" : "disabled", filesystem: "temporary_only" },
+    external_services: raw.external_services ?? (domains.length && permissions.some((permission: any) => ["network.fetch", "external_api.call"].includes(permission.key)) ? domains.map((host: string) => ({ id: host.replace(/[^A-Za-z0-9._-]/g, "-"), name: host, hosts: [host.replace(/^https?:\/\//, "").split("/")[0]] })) : []),
+    license: { spdx: typeof raw.license === "string" ? raw.license : raw.license?.spdx ?? "NOASSERTION" },
+    provenance: raw.provenance ?? { status: "self_declared", source: "website_developer_forge" },
+    signing: raw.signing ?? { publisher_key_id: null, signature: null },
+    dependencies: Array.isArray(raw.dependencies) ? raw.dependencies : [],
+    checksums: { files: checksums },
+    binaries: Array.isArray(raw.binaries) ? raw.binaries : []
+  };
+}
+
 function placeholderFor(path: string, templateItem: ForgeTemplate) {
   if (path === "manifest.json") return JSON.stringify(templateItem.manifest, null, 2);
   if (path === "README.md") return templateItem.readme;
@@ -75,12 +130,15 @@ export function buildTemplateFiles(templateItem: ForgeTemplate): ForgeTemplateFi
 export async function buildTemplatePackage(templateItem: ForgeTemplate): Promise<Blob> {
   const zip = new JSZip();
   const files = buildTemplateFiles(templateItem);
-  const checksums: Record<string, string> = {};
-  for (const file of files) {
-    zip.file(file.path, file.contents, { date: packageEntryDate });
-    checksums[file.path] = await sha256Text(file.contents);
-  }
-  zip.file("checksums.json", JSON.stringify({ algorithm: "sha256", generated_by: "Developer Forge inert browser export", warning: "This archive is not reviewed, installed, or executed by the website. Local Elysia remains final authority.", files: checksums }, null, 2), { date: packageEntryDate });
+  const payloadFiles = files.filter((file) => file.path !== "manifest.json");
+  const payloadChecksums: Record<string, string> = {};
+  for (const file of payloadFiles) payloadChecksums[file.path] = await sha256Text(file.contents);
+  const checksumsText = JSON.stringify({ algorithm: "sha256", generated_by: "Developer Forge inert browser export", warning: "This archive is not reviewed, installed, or executed by the website. Local Elysia remains final authority.", files: payloadChecksums }, null, 2);
+  const manifestChecksums = { ...payloadChecksums, "checksums.json": await sha256Text(checksumsText) };
+  const canonicalManifest = canonicalManifestForPackage(templateItem.manifest, payloadFiles.map((file) => file.path), manifestChecksums);
+  zip.file("manifest.json", JSON.stringify(canonicalManifest, null, 2), { date: packageEntryDate });
+  for (const file of payloadFiles) zip.file(file.path, file.contents, { date: packageEntryDate });
+  zip.file("checksums.json", checksumsText, { date: packageEntryDate });
   return zip.generateAsync({
     type: "blob",
     mimeType: "application/vnd.elysia-addon+zip",

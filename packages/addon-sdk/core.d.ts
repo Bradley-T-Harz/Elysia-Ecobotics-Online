@@ -14,7 +14,7 @@ export type AddonManifest = Record<string, unknown> & {
   addon_id?: string;
   name?: string;
   version?: string;
-  permissions?: string[];
+  permissions?: Array<string | { key: string; required: boolean; reason: string }>;
   runtime?: { kind?: string; requires_network?: boolean; requires_filesystem?: boolean };
   runtime_kind?: string;
   compatibility?: { elysia_min_version?: string; addon_api_version?: string };
@@ -37,6 +37,7 @@ export type ArchiveInspectionResult = {
 };
 export const supportedManifestSchema: string;
 export const supportedAddonApi: string;
+export const legacyManifestSchema: string;
 export const packageFormatVersion: string;
 export const allowedRuntimeKinds: string[];
 export const blockedPermissionKeys: string[];
@@ -47,6 +48,7 @@ export function parseManifestText(text: string): { manifest: AddonManifest | nul
 export function validateManifest(input: string | AddonManifest, options?: Record<string, unknown>): { manifest: AddonManifest | null; results: AddonIssue[] };
 export function staticScanText(input?: { path?: string; fileName?: string; text?: string; manifestText?: string; extraText?: string; declaredDomains?: string[] }): AddonIssue[];
 export function createDefaultManifest(addonId?: string, name?: string, overrides?: Record<string, unknown>): AddonManifest;
+export function canonicalizeManifestForPackage(manifest: AddonManifest, filePaths?: string[]): AddonManifest;
 export function buildTemplateFiles(name?: string, template?: string): Array<{ path: string; contents: string }>;
 export function sha256Bytes(bytes: Uint8Array | Buffer): string;
 export function sha256Text(text: string): string;

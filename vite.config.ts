@@ -9,6 +9,11 @@ const browserAssetNamespace = "safe-assets-v1";
 export default defineConfig({
   plugins: [react()],
   build: {
+    // Vite exposes one warning threshold, while the local Monaco core has a
+    // separately enforced raw/gzip budget and must remain demand-loaded.
+    // scripts/bundleBudgetAudit.mjs retains the tighter 500 KiB limit for all
+    // ordinary application chunks and explicit budgets for every worker.
+    chunkSizeWarningLimit: 2560,
     rollupOptions: {
       input: {
         main: new URL("./index.html", import.meta.url).pathname,
@@ -16,19 +21,19 @@ export default defineConfig({
       },
       output: {
         entryFileNames: `assets/${browserAssetNamespace}-[name]-[hash].js`,
-        chunkFileNames: `assets/${browserAssetNamespace}-[name]-[hash].js`,
+        chunkFileNames: (chunkInfo) => {
+          const facade = chunkInfo.facadeModuleId ?? "";
+          if (facade.endsWith("/src/pages/The-Developer-Forge/index.tsx")) return `assets/${browserAssetNamespace}-developer-forge-[hash].js`;
+          if (facade.endsWith("/src/pages/The-Elysia-Commune/index.tsx")) return `assets/${browserAssetNamespace}-commune-[hash].js`;
+          if (facade.endsWith("/src/pages/Public-Commons-Profile/index.tsx")) return `assets/${browserAssetNamespace}-commons-profile-[hash].js`;
+          if (facade.includes("/src/shared/auth/AuthTurnstile.tsx") || chunkInfo.name === "AuthTurnstile") return `assets/${browserAssetNamespace}-commons-circle-[hash].js`;
+          return `assets/${browserAssetNamespace}-[name]-[hash].js`;
+        },
         manualChunks(id) {
+          if (id.endsWith("/src/pages/The-Elysia-Commune/communeAccountApi.ts")) return "commune-account-api";
           if (id.includes("node_modules/react") || id.includes("node_modules/react-dom") || id.includes("node_modules/react-router")) return "vendor-react";
           if (id.includes("node_modules/@supabase")) return "vendor-supabase";
           if (id.includes("node_modules/lucide-react")) return "vendor-icons-ui";
-          if (id.includes("/src/pages/The-Elysia-Marketplace/")) return "marketplace";
-          if (id.includes("/src/pages/The-Developer-Forge/")) return "developer-forge";
-          if (id.includes("/src/pages/Admin/")) return "admin-ui";
-          if (id.includes("/src/pages/The-Elysia-Commune/")) return "commune";
-          if (id.includes("/src/pages/The-Living-Library/")) return "living-library";
-          if (id.includes("/src/pages/The-Commons-Circle/") || id.includes("/src/pages/Public-Commons-Profile/")) return "commons-circle";
-          if (id.includes("/src/pages/Elysia-Artisan-Collective/")) return "artisan-collective";
-          if (id.includes("/src/pages/Legal/")) return "legal";
         }
       }
     }

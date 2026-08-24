@@ -17,7 +17,7 @@ import {
   validateAndSaveDraft
 } from "./developerForgeApi";
 import type { AddonDraft, DeveloperProfile, DraftPermission, ForgeState } from "./developerForgeApi";
-import { blockedPermissionKeys, checkCompatibility, defaultPermissionCatalog, defaultManifestForTemplate, staticSafetyScan, validateManifest, validationStatus } from "./developerForgeValidator";
+import { blockedPermissionKeys, checkCompatibility, defaultPermissionCatalog, defaultManifestForTemplate, manifestPermissionKeys, staticSafetyScan, validateManifest, validationStatus } from "./developerForgeValidator";
 import type { ForgeManifest, ForgeValidationResult, PermissionDefinition } from "./developerForgeValidator";
 import { buildManifestPackage, buildTemplatePackage, forgeTemplates, templateStarterText } from "./developerForgeTemplates";
 import type { ForgeTemplate } from "./developerForgeTemplates";
@@ -249,7 +249,8 @@ function DraftWorkspace({ draft, catalog, onChanged }: { draft: AddonDraft; cata
   }, [activeFilePath, pendingNavigationTarget]);
   const parsed = useMemo(() => validateManifest(manifestText, catalog), [manifestText, catalog]);
   const compatibility = useMemo(() => checkCompatibility(parsed.manifest), [parsed.manifest]);
-  const selectedPermissions = new Set(parsed.manifest?.permissions ?? []);
+  const selectedPermissions = new Set(manifestPermissionKeys(parsed.manifest));
+  if (parsed.manifest?.schema_version === "1.1") parsed.manifest.permissions = [...selectedPermissions];
   const readOnly = isDraftLockedForEditing(working);
 
   function syncWorkspaceFile(path: string, value: string) {
@@ -269,7 +270,7 @@ function DraftWorkspace({ draft, catalog, onChanged }: { draft: AddonDraft; cata
   function togglePermission(key: string) {
     if (readOnly) return onChanged(["This submitted draft is locked. Duplicate it for a revision before editing permissions."]);
     const current = parsed.manifest ?? working.manifest_json;
-    const permissions = new Set(current.permissions ?? []);
+    const permissions = new Set(manifestPermissionKeys(current));
     permissions.has(key) ? permissions.delete(key) : permissions.add(key);
     const nextManifest = { ...current, permissions: [...permissions] };
     setWorking({ ...working, manifest_json: nextManifest, permission_summary: [...permissions].join(", ") });
@@ -357,7 +358,8 @@ function DraftWorkspace({ draft, catalog, onChanged }: { draft: AddonDraft; cata
     onChanged(result.warnings.length ? result.warnings : ["Selected files transferred to private review storage. No public URL or public listing was created."]);
   }
   async function exportCurrentDraftPackage() {
-    const manifest = parsed.manifest ?? working.manifest_json;
+    let manifest = parsed.manifest ?? working.manifest_json;
+    try { manifest = JSON.parse(manifestText) as ForgeManifest; } catch { /* validation already reports malformed JSON */ }
     const readme = workspaceFiles.find((file) => file.path === "README.md")?.value ?? `# ${working.addon_name}\n\n${working.long_description || working.short_summary}\n\nThis is an inert Developer Forge export. The public website did not execute, install, build, or approve this add-on.`;
     const blob = await buildManifestPackage({ id: working.addon_slug || "developer-forge-draft", name: working.addon_name || "Developer Forge Draft", manifest, readme, license: working.license, changelog: "# Changelog\n\n## Draft\n- Exported from Developer Forge as inert package materials." });
     const url = URL.createObjectURL(blob);

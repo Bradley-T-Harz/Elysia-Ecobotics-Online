@@ -1,6 +1,6 @@
 
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
-import { checkCompatibility, defaultPermissionCatalog, staticSafetyScan, validateManifest, validationStatus } from "./developerForgeValidator";
+import { checkCompatibility, defaultPermissionCatalog, manifestLicenseSpdx, manifestPermissionKeys, staticSafetyScan, validateManifest, validationStatus } from "./developerForgeValidator";
 import type { ForgeManifest, ForgeValidationResult, PermissionDefinition } from "./developerForgeValidator";
 import { inspectArchiveFile, type BrowserArchiveInspectionResult } from "../../shared/addons/browserArchiveInspector";
 
@@ -170,7 +170,7 @@ function localDraftFromManifest(manifest: ForgeManifest): AddonDraft {
     short_summary: manifest.description || "Local Developer Forge draft.",
     long_description: manifest.description || "",
     version: manifest.version || "0.1.0",
-    license: manifest.license || "MIT",
+    license: manifestLicenseSpdx(manifest) || "MIT",
     category: manifest.runtime?.kind || "static",
     tags: [],
     manifest_json: manifest,
@@ -193,7 +193,7 @@ function draftPayloadFromManifest(userId: string, manifest: ForgeManifest, profi
     short_summary: manifest.description || "Developer Forge draft.",
     long_description: manifest.description || "",
     version: manifest.version || "0.1.0",
-    license: manifest.license || "MIT",
+    license: manifestLicenseSpdx(manifest) || "MIT",
     homepage_url: (manifest.homepage_url as string | undefined) ?? null,
     source_url: (manifest.source_url as string | undefined) ?? null,
     support_url: (manifest.support_url as string | undefined) ?? null,
@@ -201,7 +201,7 @@ function draftPayloadFromManifest(userId: string, manifest: ForgeManifest, profi
     tags: [],
     manifest_json: manifest,
     compatibility_targets: manifest.compatibility ?? {},
-    permission_summary: (manifest.permissions ?? []).join(", "),
+    permission_summary: manifestPermissionKeys(manifest).join(", "),
     updated_at: new Date().toISOString()
   };
 }
@@ -319,7 +319,7 @@ export async function updateDraft(draft: AddonDraft): Promise<string[]> {
     tags: draft.tags ?? [],
     manifest_json: draft.manifest_json,
     compatibility_targets: draft.manifest_json.compatibility ?? {},
-    permission_summary: (draft.manifest_json.permissions ?? []).join(", "),
+    permission_summary: manifestPermissionKeys(draft.manifest_json).join(", "),
     updated_at: new Date().toISOString()
   };
   const { error } = await supabase.from("addon_drafts").update(payload).eq("id", draft.id).eq("owner_user_id", userId);
@@ -509,7 +509,7 @@ export async function submitDraftForReview(draft: AddonDraft, termsAccepted: boo
   const profileStatus = (profile as { status?: string } | null)?.status;
   if (!profileStatus) return ["Create or request a Developer Forge profile before submitting add-ons for review."];
   if (["suspended", "revoked"].includes(profileStatus)) return ["This developer profile cannot submit add-ons while suspended or revoked."];
-  const requiredPermissions = manifest.permissions ?? [];
+  const requiredPermissions = manifestPermissionKeys(manifest);
   if (requiredPermissions.length) {
     const { data: permissionRows, error: permissionError } = await supabase.from("addon_draft_permissions").select("permission_key,reason,risk_acknowledged").eq("addon_draft_id", draft.id);
     if (permissionError) return [friendly("Draft permissions", permissionError.message)];

@@ -1,18 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import CodeMirror from "@uiw/react-codemirror";
-import { cpp } from "@codemirror/lang-cpp";
-import { css } from "@codemirror/lang-css";
-import { go } from "@codemirror/lang-go";
-import { html } from "@codemirror/lang-html";
-import { java } from "@codemirror/lang-java";
-import { javascript } from "@codemirror/lang-javascript";
-import { json } from "@codemirror/lang-json";
-import { markdown } from "@codemirror/lang-markdown";
-import { python } from "@codemirror/lang-python";
-import { rust } from "@codemirror/lang-rust";
-import { yaml } from "@codemirror/lang-yaml";
-import { EditorView } from "@codemirror/view";
-import type { Extension } from "@codemirror/state";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
@@ -113,6 +99,7 @@ import {
   createDocumentVersion,
   decideCodeRevisionProposal,
   detectSecretLikeCodeText,
+  getCodeSession,
   hideAnnotation,
   hideCodeDocument,
   listAnnotations,
@@ -203,6 +190,7 @@ import {
 import { communeLinkPresentation, parseCommuneLinksInput, safeCommuneLinkHref } from "../../shared/communeLinks";
 import { groupCommuneFeedPosts, type CommuneFeedRoomDefinition } from "./communeFeedGrouping";
 import JobOpportunityFields from "./JobOpportunityFields";
+import type { CodeWorkspaceEditorProps } from "./CodeWorkspaceEditor";
 import {
   JOB_OPPORTUNITY_MODEL_VERSION,
   deterministicV2FromLegacy,
@@ -521,68 +509,12 @@ function sectionBlock(title: string, value?: string | null) {
   return text ? `## ${title}\n${text}` : "";
 }
 
-const codeEditorBaseTheme = EditorView.theme({
-  "&": {
-    backgroundColor: "rgba(2, 8, 14, 0.9)",
-    color: "#e7f7f6",
-    border: "1px solid rgba(142, 232, 220, 0.26)",
-    borderRadius: "14px",
-    overflow: "hidden"
-  },
-  ".cm-gutters": {
-    backgroundColor: "rgba(0, 0, 0, 0.28)",
-    color: "rgba(232, 248, 247, 0.52)",
-    borderRight: "1px solid rgba(142, 232, 220, 0.16)"
-  },
-  ".cm-content": {
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-    fontSize: "0.9rem"
-  }
-});
+const LazyCodeWorkspaceEditor = lazy(() => import("./CodeWorkspaceEditor"));
 
-function codeMirrorLanguageExtensions(language?: string | null): Extension[] {
-  switch (normalizeCodingLanguage(language)) {
-    case "javascript":
-    case "typescript":
-      return [javascript({ jsx: true, typescript: normalizeCodingLanguage(language) === "typescript" })];
-    case "python":
-      return [python()];
-    case "json":
-      return [json()];
-    case "markdown":
-      return [markdown()];
-    case "html":
-      return [html()];
-    case "css":
-      return [css()];
-    case "yaml":
-      return [yaml()];
-    case "java":
-      return [java()];
-    case "cpp":
-      return [cpp()];
-    case "rust":
-      return [rust()];
-    case "go":
-      return [go()];
-    default:
-      return [];
-  }
-}
-
-function CodeWorkspaceEditor({ value, language, onChange, readOnly = false, minHeight = "320px" }: { value: string; language?: string | null; onChange?: (value: string) => void; readOnly?: boolean; minHeight?: string }) {
-  return <div className="coding-cornucopia-editor">
-    <CodeMirror
-      value={value}
-      height={minHeight}
-      theme="dark"
-      basicSetup={{ lineNumbers: true, foldGutter: true, highlightActiveLine: !readOnly, autocompletion: !readOnly, searchKeymap: true }}
-      extensions={[codeEditorBaseTheme, ...codeMirrorLanguageExtensions(language), EditorView.lineWrapping]}
-      editable={!readOnly}
-      readOnly={readOnly}
-      onChange={(next) => onChange?.(next)}
-    />
-  </div>;
+function CodeWorkspaceEditor(props: CodeWorkspaceEditorProps) {
+  return <Suspense fallback={<textarea aria-label="Code editor loading" className="coding-cornucopia-editor" readOnly={props.readOnly} style={{ minHeight: props.minHeight }} value={props.value} onChange={(event) => props.onChange?.(event.currentTarget.value)} />}>
+    <LazyCodeWorkspaceEditor {...props} />
+  </Suspense>;
 }
 
 function DiagnosticsList({ diagnostics }: { diagnostics: CodingDiagnostic[] }) {
@@ -5308,7 +5240,7 @@ function CollaborativeCodeReviewPanel() {
   }, [proposalContextActive]);
 
   const refreshSelected = useCallback(async (documentId: string) => {
-    const [versionResult, annotationResult, sessionResult] = await Promise.all([listDocumentVersions(documentId), listAnnotations(documentId), import("./communeCodeReviewApi").then((api) => api.getCodeSession(documentId))]);
+    const [versionResult, annotationResult, sessionResult] = await Promise.all([listDocumentVersions(documentId), listAnnotations(documentId), getCodeSession(documentId)]);
     logCommuneDiagnostics("code-review-detail", [...versionResult.warnings, ...annotationResult.warnings, ...sessionResult.warnings]);
     setVersions(versionResult.versions);
     setAnnotations(annotationResult.annotations);

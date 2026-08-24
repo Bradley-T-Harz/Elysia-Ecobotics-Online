@@ -1,26 +1,39 @@
 import JSZip from "jszip";
 import { createHash } from "node:crypto";
 
-export const supportedManifestSchema = "1.0";
-export const supportedAddonApi = "0.1";
+export const supportedManifestSchema = "1.1";
+export const supportedAddonApi = "1";
+export const legacyManifestSchema = "1.0";
 export const packageFormatVersion = "0.1";
 export const allowedRuntimeKinds = ["static", "local_worker", "connector", "theme", "skill_pack"];
 export const blockedPermissionKeys = ["vault_access", "credential_access", "private_memory_access", "silent_shell_execution", "read_all_files", "write_arbitrary_files", "silent_network_access", "silent_install"];
 
 export const permissionCatalog = [
-  { id: "theme_assets_read", label: "Theme assets read", description: "Read public theme or visual assets bundled with the add-on.", risk: "low", requires_user_approval: false, requires_reviewer_approval: false, local_runtime_gate: true, scope_format: "bundled asset paths only" },
-  { id: "marketplace_metadata_read", label: "Marketplace metadata read", description: "Read public Marketplace catalog metadata.", risk: "low", requires_user_approval: false, requires_reviewer_approval: false, local_runtime_gate: true, scope_format: "public catalog records" },
-  { id: "living_library_metadata_read", label: "Living Library metadata read", description: "Read public Living Library source metadata.", risk: "low", requires_user_approval: false, requires_reviewer_approval: false, local_runtime_gate: true, scope_format: "public source metadata" },
-  { id: "public_docs_read", label: "Public docs read", description: "Read public Elysia Ecobotics documentation.", risk: "low", requires_user_approval: false, requires_reviewer_approval: false, local_runtime_gate: true, scope_format: "public documentation" },
-  { id: "network_declared_domains", label: "Network to declared domains", description: "Request network access only to explicitly declared domains.", risk: "medium", requires_user_approval: true, requires_reviewer_approval: true, local_runtime_gate: true, scope_format: "explicit domain allowlist" },
-  { id: "user_selected_file_read", label: "Read user-selected file", description: "Read only a file the user explicitly selects in Local Elysia.", risk: "medium", requires_user_approval: true, requires_reviewer_approval: false, local_runtime_gate: true, scope_format: "user-picked file" },
-  { id: "user_selected_file_write", label: "Write user-selected file", description: "Write only to a file or location the user explicitly selects in Local Elysia.", risk: "medium", requires_user_approval: true, requires_reviewer_approval: false, local_runtime_gate: true, scope_format: "user-picked file" },
-  { id: "project_folder_read", label: "Read approved project folder", description: "Read a project folder after explicit local approval.", risk: "high", requires_user_approval: true, requires_reviewer_approval: true, local_runtime_gate: true, scope_format: "project-scoped path" },
-  { id: "project_folder_write", label: "Write approved project folder", description: "Write inside a project folder after explicit local approval.", risk: "high", requires_user_approval: true, requires_reviewer_approval: true, local_runtime_gate: true, scope_format: "project-scoped path" },
-  { id: "local_model_request", label: "Local model request", description: "Request local model inference through an approved local router.", risk: "high", requires_user_approval: true, requires_reviewer_approval: true, local_runtime_gate: true, scope_format: "approved local model route" },
-  { id: "sandboxed_worker", label: "Sandboxed worker", description: "Run bounded work only inside a future reviewed local sandbox.", risk: "high", requires_user_approval: true, requires_reviewer_approval: true, local_runtime_gate: true, scope_format: "future sandbox policy" },
+  { id: "network.fetch", label: "Fetch public network resources", description: "Request public network resources only through a future approved local bridge.", risk: "medium", requires_user_approval: true, requires_reviewer_approval: true, local_runtime_gate: true, scope_format: "explicit host allowlist" },
+  { id: "filesystem.read_project", label: "Read approved project files", description: "Read only user-selected project files after explicit local approval.", risk: "medium", requires_user_approval: true, requires_reviewer_approval: true, local_runtime_gate: true, scope_format: "project-scoped path" },
+  { id: "filesystem.write_project", label: "Write approved project files", description: "Write only inside an approved project after explicit local approval and rollback planning.", risk: "high", requires_user_approval: true, requires_reviewer_approval: true, local_runtime_gate: true, scope_format: "project-scoped path" },
+  { id: "memory.read_scoped", label: "Read scoped memory", description: "Future account- and class-scoped memory read authority; currently hard-blocked locally.", risk: "blocked", requires_user_approval: true, requires_reviewer_approval: true, local_runtime_gate: true, scope_format: "future scoped memory contract" },
+  { id: "memory.write_scoped", label: "Write scoped memory", description: "Future account-scoped candidate proposal authority; currently hard-blocked locally.", risk: "blocked", requires_user_approval: true, requires_reviewer_approval: true, local_runtime_gate: true, scope_format: "future candidate contract" },
+  { id: "model.invoke.local", label: "Invoke a local model", description: "Request inference only through an approved local model route.", risk: "high", requires_user_approval: true, requires_reviewer_approval: true, local_runtime_gate: true, scope_format: "approved local model route" },
+  { id: "tool.run_sandboxed", label: "Run a sandboxed tool", description: "Request bounded tool execution through a future proven sandbox bridge.", risk: "high", requires_user_approval: true, requires_reviewer_approval: true, local_runtime_gate: true, scope_format: "future sandbox policy" },
+  { id: "shell.run", label: "Run shell commands", description: "Direct shell authority is hard-blocked.", risk: "blocked", requires_user_approval: true, requires_reviewer_approval: true, local_runtime_gate: true, scope_format: "blocked" },
+  { id: "external_api.call", label: "Call an external API", description: "Request an explicitly declared external service through a future approved bridge.", risk: "high", requires_user_approval: true, requires_reviewer_approval: true, local_runtime_gate: true, scope_format: "explicit service and host" },
   ...blockedPermissionKeys.map((id) => ({ id, label: id.replaceAll("_", " "), description: "Blocked permission. It is listed for clarity and must not be selected.", risk: "blocked", requires_user_approval: true, requires_reviewer_approval: true, local_runtime_gate: true, scope_format: "blocked" }))
 ];
+
+const legacyPermissionMap = {
+  theme_assets_read: null,
+  marketplace_metadata_read: null,
+  living_library_metadata_read: null,
+  public_docs_read: null,
+  network_declared_domains: "network.fetch",
+  user_selected_file_read: "filesystem.read_project",
+  user_selected_file_write: "filesystem.write_project",
+  project_folder_read: "filesystem.read_project",
+  project_folder_write: "filesystem.write_project",
+  local_model_request: "model.invoke.local",
+  sandboxed_worker: "tool.run_sandboxed"
+};
 
 export const inspectionLimits = {
   maxArchiveBytes: 50 * 1024 * 1024,
@@ -105,24 +118,42 @@ export function validateManifest(input, options = {}) {
   const manifest = parsed.manifest;
   if (!manifest) return { manifest: null, results };
   const catalog = permissionIds(options.permissionCatalog ?? permissionCatalog);
-  for (const field of ["schema_version", "addon_id", "name", "version", "author", "license", "permissions", "compatibility", "runtime"]) {
+  const canonical = manifest.schema_version === supportedManifestSchema;
+  const legacy = manifest.schema_version === legacyManifestSchema;
+  const requiredFields = canonical
+    ? ["schema_version", "addon_id", "name", "version", "publisher", "license", "permissions", "compatibility", "entrypoints", "bridge", "sandbox", "checksums"]
+    : ["schema_version", "addon_id", "name", "version", "author", "license", "permissions", "compatibility", "runtime"];
+  for (const field of requiredFields) {
     if (manifest[field] === undefined || manifest[field] === null || manifest[field] === "") results.push(result("error", `missing_${field}`, `Missing required field: ${field}.`, field));
   }
-  if (manifest.schema_version && manifest.schema_version !== supportedManifestSchema) results.push(result("error", "unsupported_schema", `Unsupported schema_version ${manifest.schema_version}.`, "schema_version"));
+  if (manifest.schema_version && !canonical && !legacy) results.push(result("error", "unsupported_schema", `Unsupported schema_version ${manifest.schema_version}.`, "schema_version"));
   if (manifest.addon_id && !addonIdPattern.test(manifest.addon_id)) results.push(result("error", "invalid_addon_id", "addon_id must look like developer.addon-name and use lowercase letters, numbers, dots, hyphens, or underscores.", "addon_id"));
   if (manifest.version && !semverPattern.test(manifest.version)) results.push(result("error", "invalid_version", "version must be semantic version format such as 0.1.0.", "version"));
-  if (!manifest.author?.name && typeof manifest.author !== "string") results.push(result("error", "missing_author_name", "author.name is required, or author must be a non-empty string.", "author"));
+  if (canonical && !manifest.publisher?.name) results.push(result("error", "missing_publisher_name", "publisher.name is required.", "publisher.name"));
+  if (legacy && !manifest.author?.name && typeof manifest.author !== "string") results.push(result("error", "missing_author_name", "author.name is required, or author must be a non-empty string.", "author"));
   if (!Array.isArray(manifest.permissions)) results.push(result("error", "permissions_not_array", "permissions must be an array.", "permissions"));
-  if (!manifest.compatibility?.elysia_min_version) results.push(result("error", "missing_elysia_min", "compatibility.elysia_min_version is required.", "compatibility.elysia_min_version"));
+  const minimumVersion = canonical ? manifest.compatibility?.min_elysia_version : manifest.compatibility?.elysia_min_version;
+  if (!minimumVersion) results.push(result("error", "missing_elysia_min", `compatibility.${canonical ? "min_elysia_version" : "elysia_min_version"} is required.`, `compatibility.${canonical ? "min_elysia_version" : "elysia_min_version"}`));
   if (!manifest.compatibility?.addon_api_version) results.push(result("error", "missing_addon_api", "compatibility.addon_api_version is required.", "compatibility.addon_api_version"));
   const runtimeKind = manifest.runtime_kind ?? manifest.runtime?.kind;
-  if (!runtimeKind) results.push(result("error", "missing_runtime_kind", "runtime.kind or runtime_kind is required.", "runtime.kind"));
+  if (legacy && !runtimeKind) results.push(result("error", "missing_runtime_kind", "runtime.kind or runtime_kind is required.", "runtime.kind"));
   if (runtimeKind && !allowedRuntimeKinds.includes(runtimeKind)) results.push(result("error", "unsupported_runtime", `Unsupported runtime kind: ${runtimeKind}.`, "runtime.kind"));
-  for (const permission of manifest.permissions ?? []) {
+  for (const permissionValue of manifest.permissions ?? []) {
+    const permission = canonical && isPlainObject(permissionValue) ? permissionValue.key : permissionValue;
+    if (canonical && (!isPlainObject(permissionValue) || !String(permissionValue.reason ?? "").trim())) results.push(result("error", "invalid_permission_object", "Canonical permissions require key, required, and a human-readable reason.", "permissions"));
     const definition = catalog.get(permission);
+    if (!definition && legacy && Object.prototype.hasOwnProperty.call(legacyPermissionMap, permission)) continue;
     if (!definition) results.push(result("error", "unknown_permission", `Unknown permission: ${permission}.`, "permissions"));
     else if (blockedPermissionKeys.includes(permission) || definition.risk === "blocked" || definition.risk_level === "blocked") results.push(result("error", "blocked_permission", `Blocked permission selected: ${permission}.`, "permissions"));
     else if ((definition.risk ?? definition.risk_level) === "high") results.push(result("warning", "high_risk_permission", `High-risk permission requires reviewer and local approval: ${permission}.`, "permissions"));
+  }
+  if (canonical) {
+    if (!isPlainObject(manifest.entrypoints) || !Object.keys(manifest.entrypoints).length) results.push(result("error", "invalid_entrypoints", "Canonical entrypoints must be a non-empty named object.", "entrypoints"));
+    if (!isPlainObject(manifest.license) || !String(manifest.license.spdx ?? "").trim()) results.push(result("error", "invalid_license", "Canonical license.spdx is required.", "license.spdx"));
+    if (manifest.bridge?.execution_enabled === true) results.push(result("error", "self_enabled_execution", "A manifest cannot enable its own execution.", "bridge.execution_enabled"));
+    for (const [field, allowed] of [["network_policy", ["deny", "deny_by_default", "disabled"]], ["filesystem_policy", ["deny", "project_scoped"]], ["memory_policy", ["deny"]], ["model_provider_policy", ["deny"]], ["tool_worker_policy", ["deny"]]]) {
+      if (!isPlainObject(manifest[field]) || !allowed.includes(manifest[field].default)) results.push(result("error", `invalid_${field}`, `${field} must declare a supported deny-by-default posture.`, field));
+    }
   }
   const text = JSON.stringify(manifest);
   for (const secret of secretPatterns) if (secret.pattern.test(text)) results.push(result("error", secret.code, `Manifest appears to include ${secret.label}.`, undefined, "Remove secrets and private material."));
@@ -156,6 +187,64 @@ export function staticScanText(input = {}) {
   return results;
 }
 
+function canonicalPermission(permission) {
+  if (isPlainObject(permission)) return { key: String(permission.key ?? ""), required: Boolean(permission.required), reason: String(permission.reason ?? "") };
+  if (blockedPermissionKeys.includes(permission)) return { key: permission, required: true, reason: "Legacy blocked permission retained for explicit rejection." };
+  const mapped = legacyPermissionMap[permission];
+  return mapped ? { key: mapped, required: false, reason: `Migrated from the legacy ${permission} declaration; Local Elysia remains final authority.` } : null;
+}
+
+function inferredEntrypoints(manifest, filePaths) {
+  if (isPlainObject(manifest.entrypoints) && Object.keys(manifest.entrypoints).length) return manifest.entrypoints;
+  if (Array.isArray(manifest.entrypoints)) {
+    const migrated = Object.fromEntries(manifest.entrypoints.map((entry, index) => {
+      const value = typeof entry === "string" ? entry : entry?.path;
+      return value ? [`entry_${index + 1}`, value] : null;
+    }).filter(Boolean));
+    if (Object.keys(migrated).length) return migrated;
+  }
+  const fallback = filePaths.find((path) => path.startsWith("src/")) ?? filePaths.find((path) => path !== "README.md" && path !== "LICENSE" && path !== "CHANGELOG.md" && path !== "PERMISSIONS.md") ?? "README.md";
+  return { content: fallback };
+}
+
+export function canonicalizeManifestForPackage(manifest, filePaths = []) {
+  const domains = manifest.declared_domains ?? manifest.security?.network_domains ?? manifest.network_policy?.declared_hosts ?? [];
+  const permissions = (manifest.permissions ?? []).map(canonicalPermission).filter(Boolean);
+  const publisherName = manifest.publisher?.name ?? manifest.author?.name ?? (typeof manifest.author === "string" ? manifest.author : "Self-declared publisher");
+  const licenseSpdx = typeof manifest.license === "string" ? manifest.license : manifest.license?.spdx ?? "NOASSERTION";
+  const externalServices = manifest.external_services ?? (domains.length && permissions.some((item) => ["network.fetch", "external_api.call"].includes(item.key))
+    ? domains.map((host) => ({ id: String(host).replace(/[^A-Za-z0-9._-]/g, "-"), name: String(host), hosts: [String(host).replace(/^https?:\/\//, "").split("/")[0]] }))
+    : []);
+  return {
+    ...manifest,
+    schema_version: supportedManifestSchema,
+    publisher: { name: publisherName, identity: manifest.publisher?.identity ?? "self-declared" },
+    compatibility: {
+      min_elysia_version: manifest.compatibility?.min_elysia_version ?? manifest.compatibility?.elysia_min_version ?? "0.1.0",
+      max_elysia_version: manifest.compatibility?.max_elysia_version ?? manifest.compatibility?.elysia_max_version ?? "1.0.0",
+      addon_api_version: supportedAddonApi
+    },
+    required_profiles: Array.isArray(manifest.required_profiles) ? manifest.required_profiles : [],
+    entrypoints: inferredEntrypoints(manifest, filePaths),
+    bridge: { protocol: manifest.bridge?.protocol ?? "none", contract_version: manifest.bridge?.contract_version ?? "1", execution_enabled: false },
+    permissions,
+    network_policy: manifest.network_policy ?? { default: "deny", declared_hosts: domains.map((host) => String(host).replace(/^https?:\/\//, "").split("/")[0]) },
+    filesystem_policy: manifest.filesystem_policy ?? { default: "deny", mounts: [] },
+    memory_policy: manifest.memory_policy ?? { default: "deny", classes: [] },
+    model_provider_policy: manifest.model_provider_policy ?? { default: "deny", providers: [] },
+    tool_worker_policy: manifest.tool_worker_policy ?? { default: "deny", workers: [] },
+    execution: { requested: false },
+    sandbox: manifest.sandbox ?? { required: true, network: domains.length ? "deny_by_default" : "disabled", filesystem: "temporary_only" },
+    external_services: externalServices,
+    license: { spdx: licenseSpdx },
+    provenance: manifest.provenance ?? { status: "self_declared", source: "website_developer_forge" },
+    signing: manifest.signing ?? { publisher_key_id: null, signature: null },
+    dependencies: Array.isArray(manifest.dependencies) ? manifest.dependencies : [],
+    checksums: { files: {} },
+    binaries: Array.isArray(manifest.binaries) ? manifest.binaries : []
+  };
+}
+
 export function createDefaultManifest(addonId = "developer.example-addon", name = "Example Add-on", overrides = {}) {
   return {
     schema_version: supportedManifestSchema,
@@ -164,15 +253,30 @@ export function createDefaultManifest(addonId = "developer.example-addon", name 
     version: "0.1.0",
     summary: "Short, honest summary of this add-on.",
     description: "Describe what this add-on does without claiming official trust or safety.",
-    author: { name: "Developer Name", url: "https://example.com" },
-    license: "MIT",
+    publisher: { name: "Developer Name", identity: "self-declared" },
+    license: { spdx: "MIT" },
     runtime: { kind: "static", requires_network: false, requires_filesystem: false },
     runtime_kind: "static",
-    permissions: ["public_docs_read"],
-    compatibility: { elysia_min_version: "0.1.0", elysia_max_version: null, addon_api_version: supportedAddonApi },
+    permissions: [],
+    compatibility: { min_elysia_version: "0.1.0", max_elysia_version: "1.0.0", addon_api_version: supportedAddonApi },
+    required_profiles: [],
     declared_domains: [],
     declared_file_scopes: [],
-    entrypoints: [],
+    entrypoints: { content: "src/README.md" },
+    bridge: { protocol: "none", contract_version: "1", execution_enabled: false },
+    network_policy: { default: "deny", declared_hosts: [] },
+    filesystem_policy: { default: "deny", mounts: [] },
+    memory_policy: { default: "deny", classes: [] },
+    model_provider_policy: { default: "deny", providers: [] },
+    tool_worker_policy: { default: "deny", workers: [] },
+    execution: { requested: false },
+    sandbox: { required: true, network: "disabled", filesystem: "temporary_only" },
+    external_services: [],
+    provenance: { status: "self_declared", source: "website_developer_forge" },
+    signing: { publisher_key_id: null, signature: null },
+    dependencies: [],
+    checksums: { files: {} },
+    binaries: [],
     package_format_version: packageFormatVersion,
     security: { sandbox_required: true, network_domains: [], file_access: [] },
     ...overrides
@@ -180,13 +284,13 @@ export function createDefaultManifest(addonId = "developer.example-addon", name 
 }
 
 const templateOverrides = {
-  "theme-pack": { runtime: { kind: "theme", requires_network: false, requires_filesystem: false }, runtime_kind: "theme", permissions: ["theme_assets_read"] },
-  "living-library-source-pack": { permissions: ["living_library_metadata_read"] },
-  "documentation-helper": { permissions: ["public_docs_read"] },
-  "static-skill-manifest": { runtime: { kind: "skill_pack", requires_network: false, requires_filesystem: false }, runtime_kind: "skill_pack", permissions: ["public_docs_read"] },
-  "marketplace-metadata-add-on": { permissions: ["marketplace_metadata_read"] },
-  "local-worker-skeleton": { runtime: { kind: "local_worker", requires_network: false, requires_filesystem: false }, runtime_kind: "local_worker", permissions: ["sandboxed_worker"], security: { sandbox_required: true, network_domains: [], file_access: [] } },
-  "connector-stub-no-secrets": { runtime: { kind: "connector", requires_network: true, requires_filesystem: false }, runtime_kind: "connector", permissions: ["network_declared_domains"], declared_domains: ["api.example.com"], security: { sandbox_required: true, network_domains: ["api.example.com"], file_access: [] } }
+  "theme-pack": { runtime: { kind: "theme", requires_network: false, requires_filesystem: false }, runtime_kind: "theme", entrypoints: { theme: "assets/README.md" } },
+  "living-library-source-pack": { entrypoints: { sources: "src/README.md" } },
+  "documentation-helper": { entrypoints: { documentation: "src/README.md" } },
+  "static-skill-manifest": { runtime: { kind: "skill_pack", requires_network: false, requires_filesystem: false }, runtime_kind: "skill_pack", entrypoints: { skill: "src/README.md" } },
+  "marketplace-metadata-add-on": { entrypoints: { metadata: "src/README.md" } },
+  "local-worker-skeleton": { runtime: { kind: "local_worker", requires_network: false, requires_filesystem: false }, runtime_kind: "local_worker", entrypoints: { worker: "src/README.md" }, permissions: [{ key: "tool.run_sandboxed", required: false, reason: "Request future bounded execution only after Local Elysia proves and grants a sandbox bridge." }], security: { sandbox_required: true, network_domains: [], file_access: [] } },
+  "connector-stub-no-secrets": { runtime: { kind: "connector", requires_network: true, requires_filesystem: false }, runtime_kind: "connector", entrypoints: { connector: "src/README.md" }, permissions: [{ key: "network.fetch", required: false, reason: "Request only the explicitly declared public service after Local Elysia approval." }], declared_domains: ["api.example.com"], network_policy: { default: "deny", declared_hosts: ["api.example.com"] }, external_services: [{ id: "example-api", name: "Example API", hosts: ["api.example.com"] }], sandbox: { required: true, network: "deny_by_default", filesystem: "temporary_only" }, security: { sandbox_required: true, network_domains: ["api.example.com"], file_access: [] } }
 };
 
 export const templateNames = Object.keys(templateOverrides);
@@ -200,7 +304,7 @@ export function buildTemplateFiles(name = "my-addon", template = "theme-pack") {
     { path: "README.md", contents: `# ${safeName}\n\nStarter add-on generated by elysia-addon. Do not include secrets, private local Elysia data, credentials, vault data, logs, or private files.\n` },
     { path: "LICENSE", contents: "MIT placeholder. Replace with the license you actually intend to use.\n" },
     { path: "CHANGELOG.md", contents: "# Changelog\n\n## 0.1.0\n- Initial inert add-on starter.\n" },
-    { path: "PERMISSIONS.md", contents: `# Permissions\n\nPermissions are declarations, not grants. Local Elysia can deny them.\n\n${manifest.permissions.map((permission) => `- ${permission}: explain scope and why this is needed.`).join("\n")}\n` },
+    { path: "PERMISSIONS.md", contents: `# Permissions\n\nPermissions are declarations, not grants. Local Elysia can deny them.\n\n${manifest.permissions.map((permission) => `- ${permission.key}: ${permission.reason}`).join("\n") || "- No runtime permissions requested."}\n` },
     { path: "src/README.md", contents: "Source placeholder. The website and CLI do not execute this code.\n" },
     { path: "assets/README.md", contents: "Assets placeholder. Include only public, intentional assets.\n" }
   ];
@@ -216,17 +320,31 @@ export function sha256Text(text) {
 
 export async function buildPackageArchive(files, options = {}) {
   const zip = new JSZip();
-  const checksums = {};
+  const normalizedFiles = new Map();
   for (const file of files) {
     const unsafe = isUnsafePackagePath(file.path);
     if (unsafe) throw new Error(`Refusing unsafe package path ${file.path}: ${unsafe}`);
     const contents = typeof file.contents === "string" || file.contents instanceof Uint8Array || Buffer.isBuffer(file.contents) ? file.contents : String(file.contents ?? "");
-    zip.file(file.path, contents);
-    checksums[file.path] = typeof contents === "string" ? sha256Text(contents) : sha256Bytes(contents);
+    if (normalizedFiles.has(file.path) || file.path === "checksums.json") throw new Error(`Refusing duplicate or reserved package path: ${file.path}`);
+    normalizedFiles.set(file.path, contents);
   }
-  zip.file("checksums.json", JSON.stringify({ algorithm: "sha256", package_format_version: packageFormatVersion, generated_by: "elysia-addon inert packager", warning: "Static/archive inspection does not prove safety. Local Elysia remains final authority.", files: checksums }, null, 2));
+  const manifestSource = normalizedFiles.get("manifest.json");
+  if (manifestSource === undefined) throw new Error("Refusing to package without manifest.json.");
+  const manifest = JSON.parse(typeof manifestSource === "string" ? manifestSource : Buffer.from(manifestSource).toString("utf8"));
+  const payloadChecksums = {};
+  for (const [path, contents] of normalizedFiles) {
+    if (path === "manifest.json") continue;
+    payloadChecksums[path] = typeof contents === "string" ? sha256Text(contents) : sha256Bytes(contents);
+  }
+  const checksumsText = JSON.stringify({ algorithm: "sha256", package_format_version: packageFormatVersion, generated_by: "elysia-addon inert packager", warning: "Static/archive inspection does not prove safety. Local Elysia remains final authority.", files: payloadChecksums }, null, 2);
+  const canonicalManifest = canonicalizeManifestForPackage(manifest, [...normalizedFiles.keys()].filter((path) => path !== "manifest.json"));
+  canonicalManifest.checksums = { files: { ...payloadChecksums, "checksums.json": sha256Text(checksumsText) } };
+  const manifestText = JSON.stringify(canonicalManifest, null, 2);
+  zip.file("manifest.json", manifestText);
+  for (const [path, contents] of normalizedFiles) if (path !== "manifest.json") zip.file(path, contents);
+  zip.file("checksums.json", checksumsText);
   const nodebuffer = await zip.generateAsync({ type: "nodebuffer", compression: "DEFLATE", compressionOptions: { level: 6 }, comment: options.comment ?? "Elysia add-on inert package. Do not execute during inspection." });
-  return { buffer: nodebuffer, sha256: sha256Bytes(nodebuffer), checksums };
+  return { buffer: nodebuffer, sha256: sha256Bytes(nodebuffer), checksums: canonicalManifest.checksums.files };
 }
 
 export async function inspectArchiveBuffer(buffer, options = {}) {
@@ -283,7 +401,7 @@ export async function inspectArchiveBuffer(buffer, options = {}) {
         const validation = validateManifest(text, options);
         manifest = validation.manifest;
         for (const item of validation.results) (item.level === "error" ? errors : item.level === "warning" ? warnings : info).push(item);
-        declaredDomains.push(...(manifest?.declared_domains ?? manifest?.security?.network_domains ?? []));
+        declaredDomains.push(...(manifest?.declared_domains ?? manifest?.security?.network_domains ?? manifest?.network_policy?.declared_hosts ?? []));
       }
       if (path === "checksums.json") {
         try { checksums = JSON.parse(text); } catch { errors.push(result("error", "invalid_checksums_json", "checksums.json is not valid JSON.", path)); }
@@ -306,14 +424,15 @@ export async function inspectArchiveBuffer(buffer, options = {}) {
     if (!paths.has(required)) (required === "manifest.json" ? errors : warnings).push(result(required === "manifest.json" ? "error" : "warning", `missing_${required.replace(/[^a-z0-9]/gi, "_").toLowerCase()}`, `Archive is missing ${required}.`));
   }
   if (checksums?.files) {
-    for (const file of file_inventory.filter((item) => item.kind === "file" && item.path !== "checksums.json")) {
+    for (const file of file_inventory.filter((item) => item.kind === "file" && !["manifest.json", "checksums.json"].includes(item.path))) {
       const expected = checksums.files[file.path];
       if (!expected) warnings.push(result("warning", "checksum_missing_for_file", `${file.path}: no checksum entry.`, file.path));
       else if (expected !== file.sha256) errors.push(result("error", "checksum_mismatch", `${file.path}: checksum mismatch.`, file.path));
     }
   }
   if (manifest) {
-    for (const entrypoint of manifest.entrypoints ?? []) {
+    const entrypoints = isPlainObject(manifest.entrypoints) ? Object.values(manifest.entrypoints) : manifest.entrypoints ?? [];
+    for (const entrypoint of entrypoints) {
       const value = typeof entrypoint === "string" ? entrypoint : entrypoint?.path;
       if (value && !paths.has(value)) warnings.push(result("warning", "entrypoint_missing", `Manifest references missing entrypoint: ${value}.`, "entrypoints"));
     }
@@ -321,7 +440,7 @@ export async function inspectArchiveBuffer(buffer, options = {}) {
   const status = errors.length ? "fail" : warnings.length ? "warning" : "pass";
   const risk_level = errors.length ? "blocked" : warnings.length > 8 ? "high" : warnings.length ? "medium" : "low";
   const summary = status === "pass" ? "No blocking issues found by static/archive inspection. This does not prove safety." : status === "warning" ? "Archive inspection found warnings. No archive code was executed." : "Archive inspection found blocking issues. No archive code was executed.";
-  return { status, risk_level, summary, errors, warnings, info, file_inventory, manifest_summary: manifest ? { addon_id: manifest.addon_id, name: manifest.name, version: manifest.version, runtime_kind: manifest.runtime_kind ?? manifest.runtime?.kind, permissions: manifest.permissions ?? [], declared_domains: manifest.declared_domains ?? manifest.security?.network_domains ?? [] } : null, checksums_summary: checksums ? { algorithm: checksums.algorithm, file_count: Object.keys(checksums.files ?? {}).length, package_format_version: checksums.package_format_version } : null, total_uncompressed_size: totalUncompressed, archive_size: archiveBytes, sha256: sha256Bytes(buffer), limits };
+  return { status, risk_level, summary, errors, warnings, info, file_inventory, manifest_summary: manifest ? { addon_id: manifest.addon_id, name: manifest.name, version: manifest.version, runtime_kind: manifest.runtime_kind ?? manifest.runtime?.kind, permissions: (manifest.permissions ?? []).map((item) => typeof item === "string" ? item : item?.key).filter(Boolean), declared_domains: manifest.declared_domains ?? manifest.security?.network_domains ?? manifest.network_policy?.declared_hosts ?? [] } : null, checksums_summary: checksums ? { algorithm: checksums.algorithm, file_count: Object.keys(checksums.files ?? {}).length, package_format_version: checksums.package_format_version } : null, total_uncompressed_size: totalUncompressed, archive_size: archiveBytes, sha256: sha256Bytes(buffer), limits };
 }
 
 export async function inspectArchiveFile(file, options = {}) {
