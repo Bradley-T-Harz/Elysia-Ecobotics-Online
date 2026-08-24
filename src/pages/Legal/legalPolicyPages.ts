@@ -537,6 +537,40 @@ Elysia Ecobotics may correct, qualify, archive, or remove a listing when evidenc
 `
 });
 
+legalPolicyPages.push({
+  slug: "third-party-media-credits",
+  route: "/legal/third-party-media-credits",
+  title: "Third-Party Media Credits",
+  status: "Public attribution record",
+  lastUpdated: "2026-08-24",
+  body: `## 1. Purpose
+
+This page identifies third-party media incorporated into the public Website and records the current source and rights posture without overstating legal clearance.
+
+Credit and provenance do not themselves grant permission or a license. A source can be identified and credited while its exact use still requires separate license or permission evidence.
+
+## 2. Flower of Life visual
+
+**Website asset:** \`flower-of-life-pattern.png\`
+
+**Original animation:** [Flower Of Life Pattern Animated Symbol Of Sacred Geometry](https://www.pond5.com/stock-footage/item/168538192-flower-life-pattern-animated-symbol-sacred-geometry)
+
+**Contributor / public artist identity:** U8
+
+**Source:** Pond5, Item 168538192
+
+**Asset SHA-256:** \`a787f33e58163dbb02447e4ebad5c4c711fbcbed23b70ca0228bb382e5cb8bc2\`
+
+**Relationship:** The Website PNG corresponds to a still/frame from the identified animation.
+
+**Current clearance state:** LICENSE / STILL-IMAGE PERMISSION EVIDENCE PENDING BRADLEY. This credit does not state or imply that the Website use is already licensed, authorized, purchased, royalty-free, or otherwise cleared.
+
+## 3. Corrections and rights evidence
+
+Source corrections, required credit wording, purchase records, license evidence, or direct permission may be sent to legal@elysiaecobotics.com. Do not send payment credentials or private account secrets.
+`
+});
+
 const governedSandboxLegalNotices: Record<string, string> = {
   "privacy-policy": "## Governed code sandbox processing\n\nWhen a signed-in user deliberately requests a Coding Cornucopia sandbox run, the submitted code is transmitted through Cloudflare Pages Functions and Cloudflare Access to an isolated runner hosted on a Hetzner server. The code is used only for the requested execution or static diagnostics. The browser does not receive the private runner credential, and the runner does not receive the user's Supabase token, email, roles, private notes, secrets, or private Elysia context.\n\nSupabase may retain bounded metadata such as the requesting account identifier, idempotency key, source reference, code hash, language, status, timing, limited output previews, and diagnostics. Raw runner input and output are deleted promptly after processing; short-lived failure cleanup and bounded security audit records may remain for operational recovery and abuse prevention. Do not submit secrets, personal data, confidential code, or material you do not have authority to process.",
   "terms-of-use": "## Governed code sandbox\n\nCoding Cornucopia sandbox execution is optional, authenticated, rate-limited, resource-limited, and intended only as evidence about one submitted snapshot. Submitted code crosses Cloudflare and an isolated Hetzner-hosted runner, and bounded run metadata may be recorded privately in Supabase. Network access, package installation, shell access, host repositories, private paths, credentials, and private Elysia context are not provided to the execution container.\n\nA successful execution is not security review, trust, compatibility, licensing clearance, Marketplace approval, moderation approval, or a promise that the code is safe in another environment. You are responsible for the code you submit and must not attempt to escape limits, access secrets or private systems, overload the service, or use the sandbox to facilitate prohibited conduct."
@@ -686,6 +720,10 @@ export const legalPolicyMetadata: Record<string, LegalPolicyMetadata> = {
   "living-library-third-party-resources": {
     category: "Research, Reference, and External Resources",
     description: "How The Living Library independently describes and links to third-party research resources without implying ownership, affiliation, endorsement, or blanket reuse rights."
+  },
+  "third-party-media-credits": {
+    category: "Stewardship and Brand",
+    description: "Public source credit and truthful pending-rights status for third-party media incorporated into the Website."
   }
 };
 
@@ -717,8 +755,8 @@ export const legalPolicyGroups: LegalPolicyGroup[] = [
   },
   {
     category: "Stewardship and Brand",
-    description: "Donation recognition boundaries and public brand/trademark notice.",
-    slugs: ["donation-recognition-terms", "trademark-notice"]
+    description: "Donation recognition boundaries, public brand/trademark notice, and third-party media credit.",
+    slugs: ["donation-recognition-terms", "trademark-notice", "third-party-media-credits"]
   },
   {
     category: "Organizations and Sponsorship",

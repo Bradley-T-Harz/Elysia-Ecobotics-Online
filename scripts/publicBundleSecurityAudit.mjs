@@ -4,7 +4,8 @@ import path from "node:path";
 
 const root = path.resolve("dist");
 const allowedExtensions = new Set(["", ".css", ".html", ".ico", ".jpg", ".jpeg", ".js", ".json", ".png", ".svg", ".txt", ".webmanifest", ".webp", ".xml"]);
-const textExtensions = new Set(["", ".css", ".html", ".js", ".json", ".svg", ".txt", ".xml"]);
+const allowedMarkdownArtifacts = new Set(["legal/ASSET_NOTICES.md"]);
+const textExtensions = new Set(["", ".css", ".html", ".js", ".json", ".md", ".svg", ".txt", ".xml"]);
 const forbiddenMaterial = [
   /-----BEGIN [A-Z ]*PRIVATE KEY-----/u,
   /\bsb_secret_[A-Za-z0-9_-]{16,}\b/u,
@@ -33,7 +34,7 @@ for (const absolute of files) {
   const relative = path.relative(root, absolute).replaceAll(path.sep, "/");
   const extension = path.extname(relative).toLowerCase();
   assert.equal(relative.endsWith(".map"), false, `Source maps must not enter the public bundle: ${relative}`);
-  assert.equal(allowedExtensions.has(extension), true, `Unexpected public bundle artifact: ${relative}`);
+  assert.equal(allowedExtensions.has(extension) || allowedMarkdownArtifacts.has(relative), true, `Unexpected public bundle artifact: ${relative}`);
   assert.equal(/(?:^|\/)(?:\.env|\.dev\.vars)(?:\.|$)/u.test(relative), false, `Runtime environment file entered the public bundle: ${relative}`);
   if (!textExtensions.has(extension)) continue;
   const text = await readFile(absolute, "utf8");

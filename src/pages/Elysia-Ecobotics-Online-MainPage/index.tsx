@@ -19,6 +19,7 @@ export default function OnlineMainPage() {
       <section className="home-hero page-hero-block" aria-labelledby="home-title">
         <img className="home-hero__vine home-hero__vine--left" src="/images/home/home-left-vine.png" alt="" aria-hidden="true" />
         <img className="home-hero__vine home-hero__vine--right" src="/images/home/home-right-vine.png" alt="" aria-hidden="true" />
+        {/* Provenance and current rights status: /legal/third-party-media-credits and /legal/ASSET_NOTICES.md. */}
         <img className="home-hero__geometry" src="/images/home/flower-of-life-pattern.png" alt="" aria-hidden="true" />
         <div className="home-hero__mist" aria-hidden="true" />
         <PageBrandMark variant="home-floating" />

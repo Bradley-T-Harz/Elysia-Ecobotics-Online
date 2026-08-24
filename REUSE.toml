@@ -10,7 +10,13 @@ SPDX-FileCopyrightText = "2026 EcoSyneva Commons LLC"
 SPDX-License-Identifier = "LicenseRef-EcoSyneva-Proprietary"
 
 [[annotations]]
-path = ["public/images/**", "public/favicon.svg"]
+path = ["public/images/badges/**", "public/images/home/Left_Vine.png", "public/images/home/Right_Vine.png", "public/images/home/home-left-vine.png", "public/images/home/home-right-vine.png", "public/images/social/**", "public/favicon.svg"]
 precedence = "override"
 SPDX-FileCopyrightText = "2026 EcoSyneva Commons LLC"
 SPDX-License-Identifier = "LicenseRef-EcoSyneva-Branding"
+
+[[annotations]]
+path = ["public/images/home/flower-of-life-pattern.png"]
+precedence = "override"
+SPDX-FileCopyrightText = "Contributor U8; source identified as Pond5 item 168538192"
+SPDX-License-Identifier = "LicenseRef-Pending-Permission-Pond5-168538192"

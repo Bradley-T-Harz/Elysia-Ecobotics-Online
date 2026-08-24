@@ -98,6 +98,7 @@ function PolicyQuickLinks() {
       <Link to="/legal/community-guidelines">Community Guidelines</Link>
       <Link to="/legal/vulnerability-disclosure-policy">Security</Link>
       <Link to="/legal/trademark-notice">Trademark Notice</Link>
+      <Link to="/legal/third-party-media-credits">Media Credits</Link>
       <Link to="/legal/living-library-third-party-resources">Living Library Resources</Link>
     </nav>
   );
