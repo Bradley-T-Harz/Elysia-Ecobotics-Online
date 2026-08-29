@@ -20,7 +20,7 @@ export default function MarketplaceBrowser({ addons, totalCount, selectedAddonId
           <p className="eyebrow">Browse Add-ons</p>
           <h2>{addons.length} visible / {totalCount} total</h2>
         </div>
-        <p>Reviewed public listings come from the governed Marketplace catalog. Local fallback content is limited to clearly labeled, non-installable official candidates.</p>
+        <p>Reviewed public listings come from the governed Marketplace catalog. Static fallback content is limited to the exact official Codev release and never grants local install or execution authority.</p>
       </div>
       {addons.length === 0 ? (
         <div className="empty-state">No reviewed public add-ons match this view. An honest empty catalog is shown instead of core dependencies or nonfunctional examples.</div>

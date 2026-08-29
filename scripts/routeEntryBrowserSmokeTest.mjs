@@ -176,9 +176,9 @@ try {
 
     await page.goto(`${origin}/archive`, { waitUntil: "domcontentloaded" });
     await settle(page);
-    await page.getByRole("link", { name: "Check $0 release availability", exact: true }).click();
-    await settle(page, "#release-availability");
-    await assertVisibleTarget(page, "#release-availability", "release-availability", `${viewportName} Archive release target`);
+    await page.getByRole("link", { name: "Go to free downloads", exact: true }).click();
+    await settle(page, "#release-downloads-title");
+    await assertVisibleTarget(page, "#release-downloads-title", "release-downloads-title", `${viewportName} Archive release target`);
     await capture(page, `archive-release-${viewportName}.png`);
 
     await page.getByRole("link", { name: "Learn about separate optional support", exact: true }).scrollIntoViewIfNeeded();

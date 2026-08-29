@@ -25,7 +25,7 @@ export default function BrowsePage() {
         <p className="eyebrow">Marketplace Catalog</p>
         <h1>Browse Elysia add-ons</h1>
         <p>
-          Browse reviewed public add-ons and clearly labeled official candidates. Core dependencies are not add-ons,
+          Browse reviewed public add-ons and clearly labeled official releases. Core dependencies are not add-ons,
           candidates are not installable, and admin review reduces risk but does not guarantee safety.
         </p>
         <div className="page-header__actions">

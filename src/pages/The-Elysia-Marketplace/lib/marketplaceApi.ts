@@ -286,7 +286,7 @@ async function ensureMarketplaceProfileForUser(user: { id: string; email?: strin
 
 
 export async function loadPublishedAddons(): Promise<MarketplaceApiResult<AddonManifest[]>> {
-  if (!hasSupabaseConfig || !supabase) return demo(visibleCatalog(seedAddons), ["Only truthful local candidate metadata is shown; it is not installable."]);
+  if (!hasSupabaseConfig || !supabase) return demo(visibleCatalog(seedAddons), ["The static fallback exposes only the exact official Codev release record; the Website does not install it locally."]);
 
   const { data: liveData, error: liveError } = await supabase
     .from("marketplace_listings")
@@ -303,7 +303,7 @@ export async function loadPublishedAddons(): Promise<MarketplaceApiResult<AddonM
       sourceState: "supabase_connected",
       statusMessage: `Supabase is connected and returned ${liveAddons.length} reviewed Marketplace listing${liveAddons.length === 1 ? "" : "s"}.`,
       seedFallbackActive: candidates.length > 0,
-      warnings: candidates.length ? ["Live reviewed listings are shown first. Codev is separately labeled as a non-installable official candidate."] : []
+      warnings: candidates.length ? ["Live reviewed listings are shown first. The exact official Codev release is supplied by the static release record when no duplicate live listing exists."] : []
     });
   }
 
@@ -315,7 +315,7 @@ export async function loadPublishedAddons(): Promise<MarketplaceApiResult<AddonM
 
   if (error) {
     const liveMessage = liveError ? ` Live reviewed listing query also failed: ${liveError.message}.` : "";
-    const message = `Supabase is configured, but the approved add-on query failed: ${error.message}.${liveMessage} Showing only non-installable local candidate metadata.`;
+    const message = `Supabase is configured, but the approved add-on query failed: ${error.message}.${liveMessage} Showing only the exact static official Codev release record.`;
     return configuredResult(visibleCatalog(seedAddons), {
       sourceState: "supabase_query_failed",
       statusMessage: message,
@@ -326,7 +326,7 @@ export async function loadPublishedAddons(): Promise<MarketplaceApiResult<AddonM
 
   const rows = (data ?? []) as AddonRow[];
   if (!rows.length) {
-    const message = "Supabase is connected, but no approved remote add-ons were returned. Showing only non-installable official candidate metadata.";
+    const message = "Supabase is connected, but no approved remote add-ons were returned. Showing only the exact static official Codev release record.";
     return configuredResult(visibleCatalog(seedAddons), {
       sourceState: "supabase_empty_seed_fallback",
       statusMessage: message,

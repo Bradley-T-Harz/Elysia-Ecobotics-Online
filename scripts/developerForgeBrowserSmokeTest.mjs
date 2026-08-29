@@ -448,8 +448,11 @@ try {
     currentPhase = "open Marketplace Browse";
     await page.goto(`${origin}/marketplace/browse`, { waitUntil: "networkidle" });
     await page.getByRole("heading", { name: "Browse Elysia add-ons" }).waitFor({ state: "visible" });
-    assert(await page.getByRole("heading", { name: "Codev" }).isVisible(), "Codev official candidate must appear in the local fallback catalog.");
-    assert(await page.getByRole("button", { name: "Candidate · not installable" }).isDisabled(), "Codev candidate must not expose a working install action.");
+    assert(await page.getByRole("heading", { name: "Codev" }).isVisible(), "Codev official release must appear in the static fallback catalog.");
+    const codevDownload = page.getByRole("link", { name: "Download Codev VSIX" });
+    assert(await codevDownload.isVisible(), "Codev official release must expose its canonical VSIX download.");
+    assert.equal(await codevDownload.getAttribute("href"), "https://github.com/Bradley-T-Harz/elysia-codev/releases/download/v1.0.0/elysia-codev-1.0.0.vsix");
+    assert.equal(await page.getByRole("button", { name: "Prepare Install Review" }).count(), 0, "Codev download must not become a Website install-intent control.");
     for (const staleListing of ["Advanced PDF Parser", "Ollama Local Models", "SearXNG Research"]) {
       assert.equal(await page.getByText(staleListing, { exact: true }).count(), 0, `${staleListing} must not appear in the v1 Marketplace catalog.`);
     }

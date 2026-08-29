@@ -40,7 +40,7 @@ export default function MarketplaceHomePage() {
             <ShieldCheck size={38} />
             <h2>{supabaseConfigured ? "Supabase status" : "Candidate catalog ready"}</h2>
             <p>{catalogStatusMessage}</p>
-            {seedFallbackActive && <p className="boundary-note">Local candidate fallback is active. Candidate metadata is not approval, public listing, download, or local installation state.</p>}
+            {seedFallbackActive && <p className="boundary-note">Static official-release fallback is active. The Codev record binds the canonical public download and checksum, but the Website does not install, enable, or grant local authority.</p>}
             <dl className="mini-facts">
               <div><dt>Catalog entries</dt><dd>{sortedAddons.length}</dd></div>
               <div><dt>Local machine data</dt><dd>Unselected data not collected</dd></div>

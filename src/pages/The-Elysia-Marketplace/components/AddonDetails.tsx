@@ -2,7 +2,7 @@ import type { AddonManifest } from "../types";
 import { permissionLabels, toneForRisk, toneForTrustTier, trustTierDescription, trustTierLabel } from "../lib/securityLabels";
 import TrustBadge from "./TrustBadge";
 import MarketplaceCommercePanel from "./MarketplaceCommercePanel";
-import { canPrepareMarketplaceInstall, marketplaceListingLabel } from "../lib/listingTruth";
+import { canPrepareMarketplaceInstall, marketplaceListingLabel, marketplaceSignatureLabel } from "../lib/listingTruth";
 
 type AddonDetailsProps = {
   addon: AddonManifest | null;
@@ -16,6 +16,7 @@ export default function AddonDetails({ addon, onPrepareInstall, onOpenLocalInsta
   }
   const installAvailable = canPrepareMarketplaceInstall(addon);
   const liveReviewed = Boolean(addon.marketplace_listing_id);
+  const officialDownload = addon.listing_stage === "official_release" ? addon.package_url : undefined;
 
   return (
     <section className="details-panel details-panel--full">
@@ -31,8 +32,8 @@ export default function AddonDetails({ addon, onPrepareInstall, onOpenLocalInsta
         </div>
       </div>
       <div className="tag-row">
-        <TrustBadge label={marketplaceListingLabel(addon)} tone={liveReviewed ? "safe" : addon.listing_stage === "official_candidate" ? "warning" : "neutral"} />
-        <TrustBadge label={addon.signature_status === "signed" ? "Signed package" : "Unsigned or unverified package"} tone={addon.signature_status === "signed" ? "safe" : "warning"} />
+        <TrustBadge label={marketplaceListingLabel(addon)} tone={liveReviewed || addon.listing_stage === "official_release" ? "safe" : addon.listing_stage === "official_candidate" ? "warning" : "neutral"} />
+        <TrustBadge label={marketplaceSignatureLabel(addon)} tone={addon.signature_status === "signed" || addon.signature_status === "release_manifest_signed" ? "safe" : "warning"} />
         <TrustBadge label={addon.category} tone="neutral" />
         <TrustBadge label={addon.network_access ? "Network access declared" : "No network declared"} tone={addon.network_access ? "warning" : "safe"} />
         <TrustBadge label={addon.local_only ? "Local-only plan" : "External boundary"} tone={addon.local_only ? "safe" : "warning"} />
@@ -40,7 +41,7 @@ export default function AddonDetails({ addon, onPrepareInstall, onOpenLocalInsta
       </div>
       <p className="boundary-note">This website does not install this add-on locally. A package imported into Local Elysia is revalidated there before install-disabled staging or enablement, and this catalog record grants no local authority.</p>
       {addon.status === "revoked" && <p className="boundary-note">This listing or version is revoked, so Marketplace install intent is blocked. Revocation preserves evidence and does not delete private review history.</p>}
-      {!installAvailable && <p className="boundary-note">This candidate/review record is not a public install listing. No install, package download, enablement, or authority is available from this page.</p>}
+      {officialDownload ? <p className="boundary-note">The exact VSIX is publicly downloadable, but this Website does not install or enable it. Local Elysia and VS Code independently enforce profile, workspace-trust, repository-approval, and execution boundaries.</p> : !installAvailable && <p className="boundary-note">This candidate/review record is not a public install listing. No install, package download, enablement, or authority is available from this page.</p>}
       <div className="details-grid details-grid--wide">
         <div><h3>Manifest summary</h3><p>ID: <code>{addon.id}</code></p><p>Version: {addon.version}</p><p>Publisher: {addon.publisher}</p></div>
         <div><h3>Source and license</h3><p>{addon.source_url ?? "Source not surfaced"}</p><p>{addon.homepage_url ?? "Homepage not surfaced"}</p><p>{addon.license ?? "License review required"}</p></div>
@@ -56,7 +57,7 @@ export default function AddonDetails({ addon, onPrepareInstall, onOpenLocalInsta
         <pre>{JSON.stringify(addon, null, 2)}</pre>
       </details>
       <MarketplaceCommercePanel addon={addon} />
-      <div className="button-row">{installAvailable && <button type="button" className="button-primary" onClick={() => onPrepareInstall(addon.id)}>Review permissions</button>}{installAvailable && <button type="button" onClick={() => onOpenLocalInstall(addon.id)}>Prepare Local Install</button>}<a className="button-link" href="/catalog-preview.json" target="_blank" rel="noreferrer">View catalog preview JSON</a></div>
+      <div className="button-row">{officialDownload && <a className="button-link button-link--primary" href={officialDownload}>Download Codev 1.0 VSIX</a>}{installAvailable && <button type="button" className="button-primary" onClick={() => onPrepareInstall(addon.id)}>Review permissions</button>}{installAvailable && <button type="button" onClick={() => onOpenLocalInstall(addon.id)}>Prepare Local Install</button>}<a className="button-link" href="/catalog-preview.json" target="_blank" rel="noreferrer">View catalog JSON</a></div>
     </section>
   );
 }

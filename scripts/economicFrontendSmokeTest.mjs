@@ -62,18 +62,18 @@ assert(
 assert(
   archive.includes("$0 — Local Elysia release")
     && archive.includes("No Website Account, email, Stripe checkout")
-    && archive.includes("no public artifact exists yet")
-    && archive.includes('href="#release-availability"')
+    && archive.includes("Go to free downloads")
+    && archive.includes('href="#release-downloads-title"')
     && archive.includes('to="/support?source=products#support-checkout"')
     && archive.includes('to="/support?source=products">Learn about separate optional support</Link>')
-    && archive.includes('id="release-availability">Release availability</h2>')
+    && archive.includes('id="release-availability">Elysia {releaseManifest.version}</h2>')
     && support.includes('searchParams.get("source") === "products"')
     && support.includes('supportSourceRoute = fromLocalRelease ? "/products"')
     && support.includes('useState<string>(fromLocalRelease ? "" : "500")')
     && support.includes("The optional pay-what-you-can release context offers one-time support only")
     && support.includes("Nothing is being unlocked")
     && support.includes("Return to $0 release path"),
-  "Pay-what-you-can Local Elysia UX must keep the $0 no-account path first-class, report absent artifacts honestly, and isolate optional `/products` support checkout."
+  "Pay-what-you-can Local Elysia UX must keep the $0 no-account release path first-class and isolate optional `/products` support checkout."
 );
 assert(
   support.includes('useState<RecurringSupportPriceCode | "">("")')

@@ -14,8 +14,15 @@ export function canPrepareMarketplaceInstall(addon: AddonManifest) {
 }
 
 export function marketplaceListingLabel(addon: AddonManifest) {
+  if (addon.listing_stage === "official_release") return "Official v1.0 release";
   if (addon.listing_stage === "official_candidate") return "Official candidate · not installable";
   if (addon.marketplace_listing_id) return "Live reviewed listing";
   if (addon.status === "approved") return "Legacy reviewed listing";
   return "Not publicly installable";
+}
+
+export function marketplaceSignatureLabel(addon: AddonManifest) {
+  if (addon.signature_status === "signed") return "Signed package";
+  if (addon.signature_status === "release_manifest_signed") return "Signed release manifest";
+  return "Unsigned or unverified package";
 }

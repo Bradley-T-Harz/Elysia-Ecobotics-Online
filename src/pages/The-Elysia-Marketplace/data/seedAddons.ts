@@ -1,18 +1,18 @@
 import type { AddonManifest } from "../types";
 
 /**
- * Static catalog content is intentionally limited to truthful product candidates.
+ * Static catalog content is intentionally limited to truthful official releases.
  * Core/profile dependencies are not Marketplace add-ons and must not reappear here.
  */
-export const codevOfficialCandidate: AddonManifest = {
+export const codevOfficialRelease: AddonManifest = {
   schema_version: "1.0",
   id: "elysia-codev",
   name: "Codev",
   publisher: "EcoSyneva Commons LLC / Elysia Ecobotics",
-  version: "0.1.0",
+  version: "1.0.0",
   category: "Developer Tools",
-  summary: "Official v1-finalization candidate for Elysia's governed local coding companion.",
-  description: "Codev is the Developer-profile VS Code companion for approved repository context, patch proposals, exact approved mutations, and bounded command/test checks. This candidate listing is review metadata only and is not publicly installable from the website.",
+  summary: "Official v1.0 VS Code extension for Elysia's governed local developer workflows.",
+  description: "Codev is the official Developer-profile VS Code companion for approved repository context, patch proposals, exact approved mutations, and bounded command/test checks. The Website provides the exact release download; Local Elysia and VS Code retain installation, workspace-trust, repository-approval, and execution authority.",
   trust_tier: "official",
   local_only: true,
   network_access: false,
@@ -43,11 +43,15 @@ export const codevOfficialCandidate: AddonManifest = {
     local_file_access: "project_scope",
     outward_sharing_risk: "No cloud upload is declared. Repository context remains subject to explicit local approval."
   },
-  tags: ["official-candidate", "developer-profile", "vscode", "codev", "v1-finalization"],
+  tags: ["official-release", "developer-profile", "vscode", "codev", "v1.0"],
+  homepage_url: "https://elysiaecobotics.com/marketplace/browse",
+  source_url: "https://github.com/Bradley-T-Harz/elysia-codev",
   license: "Apache-2.0",
-  status: "pending_review",
-  signature_status: "unsigned",
-  listing_stage: "official_candidate"
+  status: "available",
+  signature_status: "release_manifest_signed",
+  package_sha256: "5cbb9298e0d9f56797b95854e4cf07db84fe2d7fc00deb7bc3364d503451f6ff",
+  package_url: "https://github.com/Bradley-T-Harz/elysia-codev/releases/download/v1.0.0/elysia-codev-1.0.0.vsix",
+  listing_stage: "official_release"
 };
 
-export const seedAddons: AddonManifest[] = [codevOfficialCandidate];
+export const seedAddons: AddonManifest[] = [codevOfficialRelease];

@@ -100,8 +100,9 @@ export type AddonManifest = {
   marketplace_addon_version_id?: string;
   signature_status?: "unsigned" | "pending" | "signed" | "signature_failed" | string;
   package_sha256?: string;
+  package_url?: string;
   revocation_reason?: string;
-  listing_stage?: "reviewed_public" | "official_candidate" | "legacy_reviewed";
+  listing_stage?: "reviewed_public" | "official_release" | "official_candidate" | "legacy_reviewed";
 };
 
 export type CatalogFilters = {

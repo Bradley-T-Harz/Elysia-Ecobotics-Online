@@ -55,16 +55,20 @@ assert(forgeApi.includes('rpc("link_own_addon_submission_review_item"') && forge
 for (const boundary of ["auth.uid()", "submission.submitted_by = v_actor", "submission.status = 'pending'", "item.domain = 'marketplace'", "item.source_table = 'addon_submissions'", "item.source_id = submission.id", "item.submitted_by = v_actor", "item.status = 'pending_review'", "revoke all", "grant execute"]) assert(reviewLinkMigration.toLowerCase().includes(boundary.toLowerCase()), `Governed Marketplace review-link migration is missing boundary: ${boundary}.`);
 for (const stale of ["Advanced PDF Parser", "Ollama Local Models", "SearXNG Research"]) assert(!seeds.includes(stale) && !preview.includes(stale), `Stale static listing remains: ${stale}.`);
 for (const staleId of ["advanced-pdf-parser", "ollama-local-models", "searxng-research"]) assert(catalogApi.includes(staleId), `Source-side remote suppression missing ${staleId}.`);
-assert(seeds.includes("Codev") && seeds.includes('status: "pending_review"') && seeds.includes('listing_stage: "official_candidate"'), "Codev is not represented as a pending, non-installable official candidate.");
-assert(card.includes("Candidate · not installable") && !details.includes("Install intent unavailable") && !details.includes("disabled={!installAvailable}"), "Candidate UI still looks installable.");
+assert(seeds.includes("Codev") && seeds.includes('version: "1.0.0"') && seeds.includes('status: "available"') && seeds.includes('listing_stage: "official_release"'), "Codev is not represented as the exact official v1.0 release.");
+assert(seeds.includes('package_sha256: "5cbb9298e0d9f56797b95854e4cf07db84fe2d7fc00deb7bc3364d503451f6ff"') && seeds.includes("elysia-codev/releases/download/v1.0.0/elysia-codev-1.0.0.vsix"), "Codev release metadata is missing its exact VSIX identity or canonical download.");
+assert(card.includes("Download Codev VSIX") && card.includes("does not install it") && !details.includes("Install intent unavailable") && !details.includes("disabled={!installAvailable}"), "Official Codev release UI lost its download/local-authority boundary.");
 assert(listingTruth.includes("MARKETPLACE_LOCAL_INSTALL_ENABLED = false"), "Website install intent must remain hard-gated until the OS protocol handler is proven.");
 assert(installIntent.includes("canPrepareMarketplaceInstall"), "Install-intent service does not enforce shared listing eligibility.");
 assert(privacy.includes("explicitly selects") && privacy.includes("leave") && submissionRules.includes("Admin review reduces risk but does not guarantee safety"), "Privacy/developer submission docs lack the remote transfer/review disclaimer.");
 assert(cleanup.includes("reversibly retired") && cleanup.includes("not hard-deleted") && cleanup.includes("no unrelated Marketplace rows") && cleanup.includes("explicit authorization"), "Catalog cleanup record lost its exact, reversible, authorized hosted-cleanup evidence.");
 
 const parsedPreview = JSON.parse(preview);
-assert.equal(parsedPreview.addons.length, 1, "Static catalog preview must contain only the truthful Codev candidate.");
+assert.equal(parsedPreview.addons.length, 1, "Static catalog preview must contain only the truthful Codev release.");
 assert.equal(parsedPreview.addons[0].id, "elysia-codev");
-assert.equal(parsedPreview.addons[0].status, "pending_review");
+assert.equal(parsedPreview.addons[0].version, "1.0.0");
+assert.equal(parsedPreview.addons[0].status, "available");
+assert.equal(parsedPreview.addons[0].listing_stage, "official_release");
+assert.equal(parsedPreview.addons[0].package_sha256, "5cbb9298e0d9f56797b95854e4cf07db84fe2d7fc00deb7bc3364d503451f6ff");
 
 console.log("Marketplace/Developer Forge add-on intake contract passed.");
