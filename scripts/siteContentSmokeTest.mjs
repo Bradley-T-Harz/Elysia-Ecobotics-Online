@@ -756,7 +756,26 @@ assert(!archive.includes("No public installer exists yet") && !archive.includes(
 assert(archiveReleaseManifest === publicReleaseManifest, "Rendered and machine-readable Archive release manifests must remain byte-identical.");
 const exactArchiveRelease = JSON.parse(archiveReleaseManifest);
 assert(exactArchiveRelease.version === "1.0.0" && exactArchiveRelease.artifacts.length === 14 && exactArchiveRelease.artifacts.filter((item) => item.archive_visible).length === 7, "Archive release manifest has the wrong stable identity or payload count.");
-assert(exactArchiveRelease.artifacts.some((item) => item.filename === "elysia-codev-1.0.0.vsix" && item.sha256 === "5cbb9298e0d9f56797b95854e4cf07db84fe2d7fc00deb7bc3364d503451f6ff"), "Archive is missing the exact Codev v1.0 VSIX binding.");
+const exactArchiveArtifacts = {
+  "elysia-setup-1.0.0-linux-x86_64.sh": [9303, "d937d7c3398494195d6110a4183bcc34abc76665077f7473005b0c0a9ee2a39c"],
+  "elysia-1.0.0-linux-x86_64.AppImage": [147655160, "0f4518edbff4b7f21721272e1e7ec776168d7ddef6a5f2504897ce53aeb335b2"],
+  "elysia-1.0.0-linux-amd64.deb": [72202702, "8a1e99a037f235df166a5f1a75e81e91155479b28e33f4f2b859ef4fd2771e43"],
+  "elysia-core-1.0.0-linux-x86_64": [60318296, "cbd4389cf27773a3913f83b19911ae2295ce93313c7ebb16ca9144126f6b2e87"],
+  "elysia-1.0.0-source.tar.gz": [12295261, "8076bfe89faa88f3e28df6853c1027537362b958b052d63e8d39ddff3e22d0bb"],
+  "elysia-codev-1.0.0.vsix": [162207, "5cbb9298e0d9f56797b95854e4cf07db84fe2d7fc00deb7bc3364d503451f6ff"],
+  "elysia-codev-1.0.0-source.tar.gz": [149581, "d89c9c163799e2be6e8fe4f299d7e9995f9bf1bd6870fa22411303e36d69d0ad"],
+  "elysia-1.0.0-acquisition-manifests.yaml": [9262, "781b00de4e512ef6d8b8a8dea8afcc3f2c65d26150a485130d0990362577ebd0"],
+  "elysia-1.0.0-component-graph.yaml": [14920, "cce0c77b36043e52e3b8adcff94729ac1dc548b953bdf9bc9dc5818afe8e1e3a"],
+  "elysia-1.0.0-install-profiles.yaml": [8780, "8d50de95392d2e52cfb36ee40ae63ef8102acf023a4f785800d4079e922cc7ee"],
+  "elysia-1.0.0-model-acquisitions.yaml": [8278, "39306ea3b30ba784653a91ced4894ce7a1a926e952368d15ee323b8a8d17c3ec"],
+  "elysia-1.0.0-release-identity.json": [1331, "5ea278b2bfdb5fb9eef7840c1333d335ee1bafd50554aea0ea649e278dec886c"],
+  "elysia-1.0.0-update-trust.yaml": [823, "dfb1b28021feba1fea06069f1122b55e5e7901c4ea070e4e2986bc3609744cc4"],
+  "elysia-codev-1.0.0-compatibility-manifest.json": [1196, "c1c0b518c20b0a211f07cf8ced7ae848b9a41cd421fae2eb036e47f5c9e9f11e"],
+};
+for (const item of exactArchiveRelease.artifacts) {
+  const exact = exactArchiveArtifacts[item.filename];
+  assert(exact && item.size_bytes === exact[0] && item.sha256 === exact[1], `Archive exact RC15 binding is stale for ${item.filename}.`);
+}
 assert(archive.includes("unofficial mirror") || archive.includes("unofficial mirrors"), "Archive unofficial mirror warning missing.");
 assert(archive.includes("Signatures") && archive.includes("detached Ed25519 signature"), "Archive signature verification copy missing.");
 assert(archive.includes("Downloads remain independent of payment") && archive.includes("require no Website Account"), "Archive must preserve free local downloads independently of support.");
