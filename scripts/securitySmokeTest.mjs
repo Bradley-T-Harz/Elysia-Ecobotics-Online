@@ -103,7 +103,8 @@ const reviewedArtisanServiceRoleMigrations = new Set([
   "supabase/migrations/20260722010000_public_commons_profile_legacy_compatibility.sql",
   "supabase/migrations/20260723010000_public_commons_profile_cutover_marker_correction.sql",
   "supabase/migrations/20260724010000_commune_canonical_author_attribution.sql",
-  "supabase/migrations/20260829010000_self_service_account_activation.sql"
+  "supabase/migrations/20260829010000_self_service_account_activation.sql",
+  "supabase/migrations/20260830060000_user_sovereign_account_lifecycle.sql"
 ]);
 const reviewedAccountCommunicationRoleMigrations = new Set([
   "supabase/migrations/20260802010000_code_proposal_integrity_and_idempotency.sql",
@@ -173,6 +174,10 @@ function allowHit(file, line, checkName) {
     ) return true;
     if (
       normalized === "scripts/fixtures/accountActivationBehavior.sql"
+      && /set_config\(\s*['"]request\.jwt\.claim\.role['"]\s*,\s*['"]service_role['"]\s*,\s*true\s*\)/i.test(line)
+    ) return true;
+    if (
+      normalized === "scripts/fixtures/userSovereignLifecycleBehavior.sql"
       && /set_config\(\s*['"]request\.jwt\.claim\.role['"]\s*,\s*['"]service_role['"]\s*,\s*true\s*\)/i.test(line)
     ) return true;
     if (

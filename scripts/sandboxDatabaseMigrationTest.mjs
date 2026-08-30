@@ -98,6 +98,10 @@ const accountActivationPaths = [
   "supabase/migrations/20260829010000_self_service_account_activation.sql",
 ];
 
+const userSovereignLifecyclePaths = [
+  "supabase/migrations/20260830060000_user_sovereign_account_lifecycle.sql",
+];
+
 const activePaths = [
   ...baselinePaths,
   ...economicPaths,
@@ -109,6 +113,7 @@ const activePaths = [
   ...circlePrivatePaths,
   ...releaseBoundaryPaths,
   ...accountActivationPaths,
+  ...userSovereignLifecyclePaths,
 ];
 
 const legacyHashes = new Map(Object.entries({
@@ -771,6 +776,7 @@ try {
     "scripts/fixtures/commonsCircleMutualBehavior.sql",
     "scripts/fixtures/communeCirclePrivateBehavior.sql",
     "scripts/fixtures/accountActivationBehavior.sql",
+    "scripts/fixtures/userSovereignLifecycleBehavior.sql",
     "scripts/sql/supabase_read_only_inventory.sql",
   ]) {
     await run(containerRuntime, ["cp", file, `${container}:/tmp/${path.basename(file)}`]);
@@ -874,6 +880,20 @@ try {
       created_at timestamptz not null default now(),
       unique (bucket_id, name)
     );
+    create or replace function storage.foldername(name text)
+    returns text[]
+    language sql
+    immutable
+    strict
+    as \$\$
+      select case
+        when pg_catalog.strpos(name, '/') = 0 then array[]::text[]
+        else pg_catalog.string_to_array(
+          pg_catalog.regexp_replace(name, '/[^/]*$', ''),
+          '/'
+        )
+      end;
+    \$\$;
     alter table storage.objects enable row level security;
     create or replace function auth.jwt()
     returns jsonb
@@ -910,6 +930,9 @@ try {
     await psql(["-f", `/tmp/${path.basename(file)}`]);
   }
   for (const file of accountActivationPaths) {
+    await psql(["-f", `/tmp/${path.basename(file)}`]);
+  }
+  for (const file of userSovereignLifecyclePaths) {
     await psql(["-f", `/tmp/${path.basename(file)}`]);
   }
   const artisanBehavior = await psql(["-f", "/tmp/artisanDatabaseBehavior.sql"]);
@@ -1098,6 +1121,11 @@ try {
   assert(
     accountActivationBehavior.stdout.includes("account_activation_behavior_ok"),
     "Account activation behavior marker missing."
+  );
+  const userSovereignLifecycleBehavior = await psql(["-f", "/tmp/userSovereignLifecycleBehavior.sql"]);
+  assert(
+    userSovereignLifecycleBehavior.stdout.includes("user_sovereign_lifecycle_behavior_ok"),
+    "User-sovereign lifecycle behavior marker missing."
   );
   // Hosted Supabase owns this ledger. The database-only image omits it, so
   // provide the catalog shape required by the read-only inventory rehearsal.
