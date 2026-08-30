@@ -10,7 +10,7 @@ const now = "2026-08-29T00:00:00.000Z";
 const userId = "11111111-1111-4111-8111-111111111111";
 const originalFetch = globalThis.fetch;
 
-function legacyBootstrap() {
+function currentProductionBootstrap() {
   return {
     communityAccess: {
       userId,
@@ -67,8 +67,8 @@ afterEach(() => {
   globalThis.fetch = originalFetch;
 });
 
-test("legacy bootstrap without accountActivation preserves the exact current behavior", async () => {
-  const payload = legacyBootstrap();
+test("current production bootstrap without accountActivation preserves exact behavior", async () => {
+  const payload = currentProductionBootstrap();
   respondWith(payload);
 
   const decoded = await loadIdentityBootstrap("synthetic-access-token");
@@ -79,7 +79,7 @@ test("legacy bootstrap without accountActivation preserves the exact current beh
 
 test("bootstrap accepts the exact optional accountActivation contract", async () => {
   const payload = {
-    ...legacyBootstrap(),
+    ...currentProductionBootstrap(),
     accountActivation: {
       state: "temporarily_deactivated",
       temporarilyDeactivatedAt: now,
@@ -95,9 +95,51 @@ test("bootstrap accepts the exact optional accountActivation contract", async ()
   assert.equal(decoded.communityAccess.participationState, "read_only");
 });
 
+test("existing projection facts do not replace participation or server capabilities", async () => {
+  const current = currentProductionBootstrap();
+  const payload = {
+    ...current,
+    communityAccess: {
+      ...current.communityAccess,
+      participationState: "restricted",
+      publicProfileEnabled: true,
+      publicProfilePublished: true,
+      canPublishPublicProfile: true,
+      canAppreciateArtisan: true,
+    },
+  };
+  respondWith(payload);
+
+  const decoded = await loadIdentityBootstrap("synthetic-access-token");
+
+  assert.equal(decoded.communityAccess.participationState, "restricted");
+  assert.equal(decoded.communityAccess.canPostArtisan, false);
+  assert.equal(decoded.communityAccess.canUploadImage, false);
+  assert.equal(decoded.communityAccess.canSubmitChallenge, false);
+});
+
+for (const field of [
+  "publicProfilePublished",
+  "canPublishPublicProfile",
+  "canAppreciateArtisan",
+] as const) {
+  test(`invalid ${field} type fails the strict bootstrap contract`, async () => {
+    const current = currentProductionBootstrap();
+    respondWith({
+      ...current,
+      communityAccess: { ...current.communityAccess, [field]: "false" },
+    });
+
+    await assert.rejects(
+      loadIdentityBootstrap("synthetic-access-token"),
+      (error) => error instanceof IdentityApiError && error.code === "identity_response_invalid",
+    );
+  });
+}
+
 test("invalid accountActivation fails the strict bootstrap contract", async () => {
   respondWith({
-    ...legacyBootstrap(),
+    ...currentProductionBootstrap(),
     accountActivation: {
       state: "paused",
       temporarilyDeactivatedAt: now,
@@ -113,7 +155,7 @@ test("invalid accountActivation fails the strict bootstrap contract", async () =
 });
 
 test("unrelated unknown bootstrap fields remain rejected", async () => {
-  respondWith({ ...legacyBootstrap(), unexpectedAuthority: true });
+  respondWith({ ...currentProductionBootstrap(), unexpectedAuthority: true });
 
   await assert.rejects(
     loadIdentityBootstrap("synthetic-access-token"),
