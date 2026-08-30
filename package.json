@@ -58,6 +58,7 @@
     "test:identity": "node scripts/identityWorkerSmokeTest.mjs",
     "test:identity-export-storage": "node scripts/identityExportStorageSmokeTest.mjs",
     "test:identity-auth-deletion": "node scripts/identityAuthDeletionSmokeTest.mjs",
+    "test:identity-deletion-finalizer": "node scripts/identityAutomaticDeletionFinalizerSmokeTest.mjs",
     "test:identity-notification-delivery": "node scripts/identityNotificationDeliverySmokeTest.mjs",
     "test:online-identity": "node scripts/onlineIdentityUiSmokeTest.mjs",
     "test:account-profile-lifecycle": "node scripts/accountProfileLifecycleSmokeTest.mjs",

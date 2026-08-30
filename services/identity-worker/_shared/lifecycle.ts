@@ -37,6 +37,14 @@ export type AuthDeletionProvider = Readonly<{
   irreversible: true;
 }>;
 
+export type AutomaticDeletionFinalizerProvider = Readonly<{
+  name: "automatic-owner-deletion-v1";
+  ownerDecisionIsAuthoritative: true;
+  coolingPeriodRequired: true;
+  durableDatabaseLeaseRequired: true;
+  operatorReviewIsExceptionOnly: true;
+}>;
+
 export type NotificationDeliveryProvider = Readonly<{
   name: "database-in-app-v1" | "cloudflare-email-service-v1";
   sendsExternalEmail: boolean;
@@ -75,6 +83,14 @@ const AUTH_DELETION_PROVIDER: AuthDeletionProvider = Object.freeze({
   softDeleteRequired: true,
   providerReceiptRequired: true,
   irreversible: true
+});
+
+const AUTOMATIC_DELETION_FINALIZER_PROVIDER: AutomaticDeletionFinalizerProvider = Object.freeze({
+  name: "automatic-owner-deletion-v1",
+  ownerDecisionIsAuthoritative: true,
+  coolingPeriodRequired: true,
+  durableDatabaseLeaseRequired: true,
+  operatorReviewIsExceptionOnly: true
 });
 
 const NOTIFICATION_DELIVERY_PROVIDER: NotificationDeliveryProvider = Object.freeze({
@@ -163,6 +179,43 @@ export function authDeletionProvider(env: IdentityEnv): AuthDeletionProvider {
     "auth_deletion_disabled"
   );
   return AUTH_DELETION_PROVIDER;
+}
+
+export function automaticDeletionFinalizerProvider(env: IdentityEnv): AutomaticDeletionFinalizerProvider {
+  requireProvider(
+    env.IDENTITY_DELETION_FINALIZER_ENABLED,
+    env.IDENTITY_DELETION_FINALIZER_PROVIDER,
+    AUTOMATIC_DELETION_FINALIZER_PROVIDER.name,
+    "deletion_finalizer_disabled"
+  );
+  return AUTOMATIC_DELETION_FINALIZER_PROVIDER;
+}
+
+function boundedFinalizerSetting(
+  value: string | undefined,
+  fallback: number,
+  minimum: number,
+  maximum: number
+): number {
+  if (value === undefined || value === "") return fallback;
+  if (!/^\d{1,6}$/.test(value)) throw new IdentityHttpError(503, "deletion_finalizer_misconfigured");
+  const parsed = Number(value);
+  if (!Number.isInteger(parsed) || parsed < minimum || parsed > maximum) {
+    throw new IdentityHttpError(503, "deletion_finalizer_misconfigured");
+  }
+  return parsed;
+}
+
+export function automaticDeletionFinalizerSettings(env: IdentityEnv): Readonly<{
+  batchLimit: number;
+  leaseSeconds: number;
+  retrySeconds: number;
+}> {
+  return Object.freeze({
+    batchLimit: boundedFinalizerSetting(env.IDENTITY_DELETION_FINALIZER_BATCH_LIMIT, 2, 1, 10),
+    leaseSeconds: boundedFinalizerSetting(env.IDENTITY_DELETION_FINALIZER_LEASE_SECONDS, 600, 60, 900),
+    retrySeconds: boundedFinalizerSetting(env.IDENTITY_DELETION_FINALIZER_RETRY_SECONDS, 300, 30, 86_400)
+  });
 }
 
 export function notificationDeliveryProvider(env: IdentityEnv): NotificationDeliveryProvider {

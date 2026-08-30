@@ -11,20 +11,28 @@ import {
 import { assertIdentityEnabled, assertYouthFlagsSafe, identityFeatureState } from "./_shared/config.ts";
 import {
   acceptCurrentUserDocuments,
+  advanceCommunityDeletionFinalizerToAuth,
+  beginCommunityDeletionFinalizerAuth,
   cancelCurrentUserCommunityDeletion,
+  claimCommunityDeletionFinalizerJobs,
   claimAccountNotificationDeliveryJobs,
   claimCommunityLifecycleWork,
   claimCommunityExportRetentionJobs,
   claimNotificationDeliveryJobs,
   claimGuardianSponsoredAccount,
   completeCommunityExportRetention,
+  completeCommunityDeletionFinalizerAuth,
+  completeCommunityDeletionFinalizerStorage,
   completeAccountNotificationDelivery,
   completeNotificationDelivery,
   consumeCommunityProviderTransaction,
   consumeGuardianSponsoredAccountProviderResult,
   decideGuardianContentApproval,
+  deferCommunityDeletionFinalizerJob,
   enqueueArtisanAccountCleanup,
+  enqueueCommunityDeletionFinalizerArtisanCleanup,
   failCommunityExportRetention,
+  failCommunityDeletionFinalizerJob,
   failAccountNotificationDelivery,
   failNotificationDelivery,
   imposeRestriction,
@@ -33,6 +41,7 @@ import {
   loadCommunityExportDownloadAsset,
   loadCommunityExportRetentionAsset,
   loadCommunityExportSnapshot,
+  loadCommunityDeletionFinalizerStoragePage,
   registerCommunityLegalDocumentVersion,
   liftRestriction,
   loadCommunityProviderTransaction,
@@ -54,6 +63,7 @@ import {
   requestGuardianContentApproval,
   requestGuardianDependentLifecycle,
   recordCommunityDeletionHandoff,
+  recordCommunityDeletionFinalizerInventory,
   recordCommunityExportArtifact,
   revokeCurrentUserGuardianConsent,
   revokeCurrentUserGuardianRelationship,
@@ -71,6 +81,8 @@ import {
   accountNotificationDeliveryProvider,
   accountExportProvider,
   accountExportTtlDays,
+  automaticDeletionFinalizerProvider,
+  automaticDeletionFinalizerSettings,
   assertLifecycleOperatorEnabled,
   authDeletionProvider,
   exportRetentionProvider,
@@ -85,7 +97,16 @@ import {
   accountExportObjectKey,
   type StoredAccountExport
 } from "./_shared/exportStorage.ts";
-import { SupabaseAuthSoftDeleteAdapter, authDeletionRequestEvidence } from "./_shared/authDeletion.ts";
+import {
+  SupabaseAuthSoftDeleteAdapter,
+  authDeletionRequestEvidence,
+  observedAuthDeletionConfirmation,
+  type AuthDeletionAdapter
+} from "./_shared/authDeletion.ts";
+import {
+  SupabaseOwnedStorageCleanupAdapter,
+  type OwnedStorageObject
+} from "./_shared/storageCleanup.ts";
 import { CloudflareEmailNotificationAdapter, DatabaseInAppNotificationAdapter } from "./_shared/notificationDelivery.ts";
 import {
   allowedOrigins,
@@ -172,6 +193,7 @@ const PRIVATE_EXPORT_BINDING = "COMMUNITY_EXPORTS";
 const PRIVATE_EXPORT_PROVIDER = "cloudflare_r2";
 const NOTIFICATION_WORKER_ID = "identity-notification-v1";
 const EXPORT_RETENTION_WORKER_ID = "identity-export-retention-v1";
+const DELETION_FINALIZER_WORKER_ID = "identity-owner-deletion-finalizer-v1";
 const LIFECYCLE_ACTIONS = ["data_export", "account_deletion", "account_deactivation", "account_reactivation"] as const;
 
 function requestId(request: Request): string {
@@ -1651,8 +1673,270 @@ async function processExportRetention(env: IdentityEnv): Promise<{ claimed: numb
   return { claimed: claimed.items.length, completed, failed };
 }
 
+type DeletionFinalizerPhase =
+  | "storage_inventory"
+  | "storage_cleanup"
+  | "artisan_cleanup"
+  | "auth_deletion";
+
+function deletionFinalizerPhase(value: unknown): DeletionFinalizerPhase {
+  const phase = upstreamString(value, 3, 40);
+  if (!["storage_inventory", "storage_cleanup", "artisan_cleanup", "auth_deletion"].includes(phase)) {
+    throw new IdentityHttpError(502, "deletion_finalizer_job_invalid");
+  }
+  return phase as DeletionFinalizerPhase;
+}
+
+async function loadDeletionStorageInventory(
+  client: ReturnType<typeof createIdentityServerClient>,
+  requestId: string,
+  leaseToken: string
+): Promise<readonly OwnedStorageObject[]> {
+  const objects: OwnedStorageObject[] = [];
+  const seen = new Set<string>();
+  let afterBucket: string | null = null;
+  let afterName: string | null = null;
+  let expectedTotal: number | null = null;
+  for (let pageNumber = 0; pageNumber < 100; pageNumber += 1) {
+    const page = upstreamRecord(await loadCommunityDeletionFinalizerStoragePage(client, {
+      workerId: DELETION_FINALIZER_WORKER_ID,
+      requestId,
+      leaseToken,
+      limit: 100,
+      afterBucket,
+      afterName
+    }), ["requestId", "totalCount", "inventoryEvidenceSha256", "items", "nextBucket", "nextName"]);
+    if (upstreamUuid(page.requestId) !== requestId || !Array.isArray(page.items)) {
+      throw new IdentityHttpError(502, "deletion_storage_inventory_invalid");
+    }
+    const total = upstreamInteger(page.totalCount, 0, 10_000);
+    upstreamSha256(page.inventoryEvidenceSha256);
+    if (expectedTotal === null) expectedTotal = total;
+    if (expectedTotal !== total || page.items.length > 100) {
+      throw new IdentityHttpError(502, "deletion_storage_inventory_changed");
+    }
+    for (const rawItem of page.items) {
+      const item = upstreamRecord(rawItem, ["objectId", "bucket", "name"]);
+      const parsed = Object.freeze({
+        objectId: upstreamUuid(item.objectId),
+        bucket: upstreamString(item.bucket, 1, 100),
+        name: upstreamString(item.name, 1, 500)
+      });
+      const identity = `${parsed.bucket}\u0000${parsed.name}`;
+      if (seen.has(identity)) throw new IdentityHttpError(502, "deletion_storage_inventory_invalid");
+      seen.add(identity);
+      objects.push(parsed);
+    }
+    const nextBucket = page.nextBucket === null ? null : upstreamString(page.nextBucket, 1, 100);
+    const nextName = page.nextName === null ? null : upstreamString(page.nextName, 1, 500);
+    if ((nextBucket === null) !== (nextName === null)) {
+      throw new IdentityHttpError(502, "deletion_storage_inventory_invalid");
+    }
+    if (nextBucket === null) break;
+    if (nextBucket === afterBucket && nextName === afterName) {
+      throw new IdentityHttpError(502, "deletion_storage_inventory_invalid");
+    }
+    afterBucket = nextBucket;
+    afterName = nextName;
+  }
+  if (expectedTotal === null || objects.length !== expectedTotal) {
+    throw new IdentityHttpError(502, "deletion_storage_inventory_incomplete");
+  }
+  return Object.freeze(objects);
+}
+
+async function deterministicFinalizerRequestId(label: string, requestId: string, claimCount: number): Promise<string> {
+  return uuidFromSha256(await sha256Text(
+    `community-owner-deletion-finalizer-v1:${label}:${requestId}:${claimCount}`
+  ));
+}
+
+export async function processAutomaticDeletionFinalization(
+  env: IdentityEnv,
+  dependencies: Readonly<{
+    client?: ReturnType<typeof createIdentityServerClient>;
+    storage?: Pick<SupabaseOwnedStorageCleanupAdapter, "remove">;
+    auth?: AuthDeletionAdapter;
+  }> = {}
+): Promise<{ claimed: number; completed: number; deferred: number; failed: number }> {
+  automaticDeletionFinalizerProvider(env);
+  storageCleanupProvider(env);
+  authDeletionProvider(env);
+  const settings = automaticDeletionFinalizerSettings(env);
+  const serverClient = dependencies.client ?? createIdentityServerClient(env);
+  const storageAdapter = dependencies.storage ?? new SupabaseOwnedStorageCleanupAdapter(serverClient);
+  const authAdapter = dependencies.auth ?? new SupabaseAuthSoftDeleteAdapter(serverClient);
+  const claimed = upstreamRecord(await claimCommunityDeletionFinalizerJobs(serverClient, {
+    workerId: DELETION_FINALIZER_WORKER_ID,
+    limit: settings.batchLimit,
+    leaseSeconds: settings.leaseSeconds
+  }), ["workerId", "items"]);
+  if (
+    claimed.workerId !== DELETION_FINALIZER_WORKER_ID
+    || !Array.isArray(claimed.items)
+    || claimed.items.length > settings.batchLimit
+  ) throw new IdentityHttpError(502, "deletion_finalizer_claim_response_invalid");
+
+  let completed = 0;
+  let deferred = 0;
+  let failed = 0;
+  for (const rawJob of claimed.items) {
+    let requestId = "";
+    let leaseToken = "";
+    let claimCount = 1;
+    try {
+      const job = upstreamRecord(rawJob, [
+        "requestId", "leaseToken", "phase", "claimCount", "leaseExpiresAt"
+      ]);
+      requestId = upstreamUuid(job.requestId);
+      leaseToken = upstreamUuid(job.leaseToken);
+      let phase = deletionFinalizerPhase(job.phase);
+      claimCount = upstreamInteger(job.claimCount, 1, 1_000_000);
+      upstreamTimestamp(job.leaseExpiresAt);
+
+      if (phase === "storage_inventory") {
+        const inventory = await loadDeletionStorageInventory(serverClient, requestId, leaseToken);
+        await recordCommunityDeletionFinalizerInventory(serverClient, {
+          workerId: DELETION_FINALIZER_WORKER_ID,
+          requestId,
+          leaseToken,
+          clientRequestId: await deterministicFinalizerRequestId("inventory", requestId, claimCount)
+        });
+        phase = "storage_cleanup";
+        await storageAdapter.remove(inventory, requestId);
+      }
+
+      if (phase === "storage_cleanup") {
+        const remaining = await loadDeletionStorageInventory(serverClient, requestId, leaseToken);
+        if (remaining.length > 0) {
+          await storageAdapter.remove(remaining, requestId);
+        }
+        await completeCommunityDeletionFinalizerStorage(serverClient, {
+          workerId: DELETION_FINALIZER_WORKER_ID,
+          requestId,
+          leaseToken,
+          clientRequestId: await deterministicFinalizerRequestId("storage-complete", requestId, claimCount)
+        });
+        phase = "artisan_cleanup";
+      }
+
+      if (phase === "artisan_cleanup") {
+        const rawReadiness = await enqueueCommunityDeletionFinalizerArtisanCleanup(serverClient, {
+          workerId: DELETION_FINALIZER_WORKER_ID,
+          requestId,
+          leaseToken,
+          clientRequestId: await deterministicFinalizerRequestId("artisan", requestId, claimCount)
+        });
+        const readiness = upstreamRecord(rawReadiness, [
+          "requestId", "status", "expectedAssetCount", "completedAssetCount",
+          "completionEvidenceSha256", "ready"
+        ]);
+        if (upstreamUuid(readiness.requestId) !== requestId || typeof readiness.ready !== "boolean") {
+          throw new IdentityHttpError(502, "deletion_artisan_cleanup_invalid");
+        }
+        const expected = upstreamInteger(readiness.expectedAssetCount, 0, 2_147_483_647);
+        const done = upstreamInteger(readiness.completedAssetCount, 0, expected);
+        const status = upstreamString(readiness.status, 3, 60);
+        if (readiness.completionEvidenceSha256 !== null) upstreamSha256(readiness.completionEvidenceSha256);
+        if (!readiness.ready) {
+          if (!["blocked_by_legal_hold", "economic_closure_required"].includes(status)) {
+            await deferCommunityDeletionFinalizerJob(serverClient, {
+              workerId: DELETION_FINALIZER_WORKER_ID,
+              requestId,
+              leaseToken,
+              retryAfterSeconds: settings.retrySeconds
+            });
+          }
+          deferred += 1;
+          continue;
+        }
+        if (done !== expected || readiness.completionEvidenceSha256 === null) {
+          throw new IdentityHttpError(502, "deletion_artisan_cleanup_invalid");
+        }
+        const advancement = upstreamRecord(await advanceCommunityDeletionFinalizerToAuth(serverClient, {
+          workerId: DELETION_FINALIZER_WORKER_ID,
+          requestId,
+          leaseToken,
+          clientRequestId: await deterministicFinalizerRequestId("auth-ready", requestId, claimCount)
+        }), ["requestId", "phase", "ready", "status"]);
+        if (upstreamUuid(advancement.requestId) !== requestId || typeof advancement.ready !== "boolean") {
+          throw new IdentityHttpError(502, "deletion_auth_readiness_invalid");
+        }
+        if (!advancement.ready) {
+          const advancementStatus = upstreamString(advancement.status, 3, 60);
+          if (!["blocked_by_legal_hold", "economic_closure_required"].includes(advancementStatus)) {
+            await deferCommunityDeletionFinalizerJob(serverClient, {
+              workerId: DELETION_FINALIZER_WORKER_ID,
+              requestId,
+              leaseToken,
+              retryAfterSeconds: settings.retrySeconds
+            });
+          }
+          deferred += 1;
+          continue;
+        }
+        phase = "auth_deletion";
+      }
+
+      if (phase === "auth_deletion") {
+        const authStart = upstreamRecord(await beginCommunityDeletionFinalizerAuth(serverClient, {
+          workerId: DELETION_FINALIZER_WORKER_ID,
+          requestId,
+          leaseToken,
+          clientRequestId: await deterministicFinalizerRequestId("auth-request", requestId, claimCount)
+        }), ["requestId", "userId", "authDeleted", "requestEvidenceSha256"]);
+        if (upstreamUuid(authStart.requestId) !== requestId || typeof authStart.authDeleted !== "boolean") {
+          throw new IdentityHttpError(502, "deletion_auth_target_invalid");
+        }
+        const userId = upstreamUuid(authStart.userId);
+        upstreamSha256(authStart.requestEvidenceSha256);
+        const confirmation = authStart.authDeleted
+          ? await observedAuthDeletionConfirmation(requestId, userId)
+          : await authAdapter.softDelete(userId, requestId);
+        const final = upstreamRecord(await completeCommunityDeletionFinalizerAuth(serverClient, {
+          workerId: DELETION_FINALIZER_WORKER_ID,
+          requestId,
+          leaseToken,
+          clientRequestId: await deterministicFinalizerRequestId("complete", requestId, claimCount),
+          confirmationEvidenceSha256: confirmation.confirmationEvidenceSha256,
+          authProviderReceiptSha256: confirmation.providerReceiptSha256
+        }), ["requestId", "status", "completedAt"]);
+        if (upstreamUuid(final.requestId) !== requestId || final.status !== "completed") {
+          throw new IdentityHttpError(502, "deletion_completion_invalid");
+        }
+        upstreamTimestamp(final.completedAt);
+        completed += 1;
+      }
+    } catch (error) {
+      failed += 1;
+      if (requestId && leaseToken) {
+        const code = stableWorkerFailureCode(error, "deletion_finalizer_failed");
+        const evidence = await sha256Text(
+          `community-owner-deletion-finalizer-failed-v1:${requestId}:${claimCount}:${code}`
+        );
+        await failCommunityDeletionFinalizerJob(serverClient, {
+          workerId: DELETION_FINALIZER_WORKER_ID,
+          requestId,
+          leaseToken,
+          clientRequestId: await deterministicFinalizerRequestId("failure", requestId, claimCount),
+          errorCode: code,
+          evidenceSha256: evidence,
+          retryAfterSeconds: Math.min(86_400, settings.retrySeconds * 2 ** Math.min(claimCount - 1, 8))
+        }).catch(() => undefined);
+      }
+    }
+  }
+  return { claimed: claimed.items.length, completed, deferred, failed };
+}
+
 /** Scheduled planes are isolated: disabled providers and one outage never starve the other plane. */
 export async function handleIdentityScheduledMaintenance(env: IdentityEnv): Promise<void> {
+  try {
+    const result = await processAutomaticDeletionFinalization(env);
+    console.info(JSON.stringify({ event: "identity.owner_deletion_finalizer", outcome: "completed", ...result }));
+  } catch {
+    console.info(JSON.stringify({ event: "identity.owner_deletion_finalizer", outcome: "disabled_or_failed" }));
+  }
   try {
     const result = await processNotificationDelivery(env);
     console.info(JSON.stringify({ event: "identity.notification_delivery", outcome: "completed", ...result }));

@@ -66,3 +66,22 @@ export async function authDeletionRequestEvidence(
     `community-auth-deletion-requested-v1:${uuid(lifecycleRequestId)}:${uuid(targetUserId)}:supabase-auth-soft-delete-v1`
   );
 }
+
+export async function observedAuthDeletionConfirmation(
+  lifecycleRequestId: string,
+  targetUserId: string
+): Promise<AuthDeletionConfirmation> {
+  const requestId = uuid(lifecycleRequestId);
+  const userId = uuid(targetUserId);
+  const providerReceiptSha256 = await sha256Text(
+    `supabase-auth-soft-delete-v1:${requestId}:${userId}:soft-delete-confirmed`
+  );
+  return Object.freeze({
+    provider: "supabase-auth-soft-delete-v1",
+    targetUserId: userId,
+    providerReceiptSha256,
+    confirmationEvidenceSha256: await sha256Text(
+      `community-auth-deletion-confirmed-v1:${requestId}:${providerReceiptSha256}`
+    )
+  });
+}

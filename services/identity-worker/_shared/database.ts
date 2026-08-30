@@ -343,6 +343,141 @@ export function recordCommunityDeletionHandoff(
   });
 }
 
+export function claimCommunityDeletionFinalizerJobs(
+  client: SupabaseClient,
+  input: { workerId: string; limit: number; leaseSeconds: number }
+): Promise<unknown> {
+  return rpc(client, "claim_community_deletion_finalizer_jobs", {
+    p_worker_id: input.workerId,
+    p_limit: input.limit,
+    p_lease_seconds: input.leaseSeconds
+  });
+}
+
+export function loadCommunityDeletionFinalizerStoragePage(
+  client: SupabaseClient,
+  input: {
+    workerId: string; requestId: string; leaseToken: string; limit: number;
+    afterBucket: string | null; afterName: string | null;
+  }
+): Promise<unknown> {
+  return rpc(client, "get_community_deletion_finalizer_storage_page", {
+    p_worker_id: input.workerId,
+    p_request_id: input.requestId,
+    p_lease_token: input.leaseToken,
+    p_limit: input.limit,
+    p_after_bucket: input.afterBucket,
+    p_after_name: input.afterName
+  });
+}
+
+export function recordCommunityDeletionFinalizerInventory(
+  client: SupabaseClient,
+  input: { workerId: string; requestId: string; leaseToken: string; clientRequestId: string }
+): Promise<unknown> {
+  return rpc(client, "record_community_deletion_finalizer_inventory", {
+    p_worker_id: input.workerId,
+    p_request_id: input.requestId,
+    p_lease_token: input.leaseToken,
+    p_client_request_id: input.clientRequestId
+  });
+}
+
+export function completeCommunityDeletionFinalizerStorage(
+  client: SupabaseClient,
+  input: { workerId: string; requestId: string; leaseToken: string; clientRequestId: string }
+): Promise<unknown> {
+  return rpc(client, "complete_community_deletion_finalizer_storage", {
+    p_worker_id: input.workerId,
+    p_request_id: input.requestId,
+    p_lease_token: input.leaseToken,
+    p_client_request_id: input.clientRequestId
+  });
+}
+
+export function enqueueCommunityDeletionFinalizerArtisanCleanup(
+  client: SupabaseClient,
+  input: { workerId: string; requestId: string; leaseToken: string; clientRequestId: string }
+): Promise<unknown> {
+  return rpc(client, "enqueue_community_deletion_finalizer_artisan_cleanup", {
+    p_worker_id: input.workerId,
+    p_request_id: input.requestId,
+    p_lease_token: input.leaseToken,
+    p_client_request_id: input.clientRequestId
+  });
+}
+
+export function advanceCommunityDeletionFinalizerToAuth(
+  client: SupabaseClient,
+  input: { workerId: string; requestId: string; leaseToken: string; clientRequestId: string }
+): Promise<unknown> {
+  return rpc(client, "advance_community_deletion_finalizer_to_auth", {
+    p_worker_id: input.workerId,
+    p_request_id: input.requestId,
+    p_lease_token: input.leaseToken,
+    p_client_request_id: input.clientRequestId
+  });
+}
+
+export function beginCommunityDeletionFinalizerAuth(
+  client: SupabaseClient,
+  input: { workerId: string; requestId: string; leaseToken: string; clientRequestId: string }
+): Promise<unknown> {
+  return rpc(client, "begin_community_deletion_finalizer_auth", {
+    p_worker_id: input.workerId,
+    p_request_id: input.requestId,
+    p_lease_token: input.leaseToken,
+    p_client_request_id: input.clientRequestId
+  });
+}
+
+export function completeCommunityDeletionFinalizerAuth(
+  client: SupabaseClient,
+  input: {
+    workerId: string; requestId: string; leaseToken: string; clientRequestId: string;
+    confirmationEvidenceSha256: string; authProviderReceiptSha256: string;
+  }
+): Promise<unknown> {
+  return rpc(client, "complete_community_deletion_finalizer_auth", {
+    p_worker_id: input.workerId,
+    p_request_id: input.requestId,
+    p_lease_token: input.leaseToken,
+    p_client_request_id: input.clientRequestId,
+    p_confirmation_evidence_sha256: input.confirmationEvidenceSha256,
+    p_auth_provider_receipt_sha256: input.authProviderReceiptSha256
+  });
+}
+
+export function deferCommunityDeletionFinalizerJob(
+  client: SupabaseClient,
+  input: { workerId: string; requestId: string; leaseToken: string; retryAfterSeconds: number }
+): Promise<unknown> {
+  return rpc(client, "defer_community_deletion_finalizer_job", {
+    p_worker_id: input.workerId,
+    p_request_id: input.requestId,
+    p_lease_token: input.leaseToken,
+    p_retry_after_seconds: input.retryAfterSeconds
+  });
+}
+
+export function failCommunityDeletionFinalizerJob(
+  client: SupabaseClient,
+  input: {
+    workerId: string; requestId: string; leaseToken: string; clientRequestId: string;
+    errorCode: string; evidenceSha256: string; retryAfterSeconds: number;
+  }
+): Promise<unknown> {
+  return rpc(client, "fail_community_deletion_finalizer_job", {
+    p_worker_id: input.workerId,
+    p_request_id: input.requestId,
+    p_lease_token: input.leaseToken,
+    p_client_request_id: input.clientRequestId,
+    p_error_code: input.errorCode,
+    p_failure_evidence_sha256: input.evidenceSha256,
+    p_retry_after_seconds: input.retryAfterSeconds
+  });
+}
+
 export function claimNotificationDeliveryJobs(
   client: SupabaseClient,
   input: { workerId: string; limit: number; leaseSeconds: number }
