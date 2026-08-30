@@ -60,6 +60,7 @@
     "test:identity-auth-deletion": "node scripts/identityAuthDeletionSmokeTest.mjs",
     "test:identity-notification-delivery": "node scripts/identityNotificationDeliverySmokeTest.mjs",
     "test:online-identity": "node scripts/onlineIdentityUiSmokeTest.mjs",
+    "test:account-activation-compatibility": "node --experimental-strip-types --no-warnings scripts/accountActivationCompatibilityTest.mts",
     "test:auth-signup": "node scripts/authSignupSmokeTest.mjs",
     "test:auth-signup-browser:built": "node scripts/authSignupBrowserSmokeTest.mjs",
     "test:auth-signup-browser": "npm run build && npm run test:auth-signup-browser:built",

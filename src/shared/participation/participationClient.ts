@@ -136,6 +136,13 @@ const notificationPreferencesSchema = z.object({
   updatedAt: z.iso.datetime({ offset: true }),
 }).strict();
 
+const accountActivationSchema = z.object({
+  state: z.enum(["active", "temporarily_deactivated"]),
+  temporarilyDeactivatedAt: z.iso.datetime({ offset: true }).nullable(),
+  reactivatedAt: z.iso.datetime({ offset: true }).nullable(),
+  updatedAt: z.iso.datetime({ offset: true }),
+}).strict();
+
 const guardianConsentSummarySchema = z.object({
   consentId: z.uuid(),
   scope: z.string().min(1).max(64),
@@ -176,6 +183,7 @@ const legalManifestSchema = z.object({
 }).strict();
 
 const bootstrapSchema = z.object({
+  accountActivation: accountActivationSchema.optional(),
   communityAccess: communityAccessSchema,
   membership: membershipSchema.nullable(),
   profileCard: publicProfileCardSchema.nullable(),
