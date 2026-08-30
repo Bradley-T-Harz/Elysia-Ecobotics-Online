@@ -105,7 +105,7 @@ export default function PublicProfilePublicationPanel() {
             <button className="button-primary" type="submit" disabled={busy || !dirty}>{busy ? "Saving safely…" : "Save public-card publication"}</button>
             {bootstrap.profileCard.canonicalProfileUrl && enabled && <a className="button-link" href={bootstrap.profileCard.canonicalProfileUrl}>View canonical public profile</a>}
             <Link className="button-link" to="/account/export">Request data export</Link>
-            <Link className="button-link" to="/account/delete">Account deletion</Link>
+            <Link className="button-link" to="/account/delete">Permanently delete account</Link>
           </div>
         </form>
       )}

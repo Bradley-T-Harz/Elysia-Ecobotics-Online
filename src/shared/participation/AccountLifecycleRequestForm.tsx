@@ -20,9 +20,9 @@ const actionCopy = Object.freeze({
     button: "Request data export",
   },
   deletion: {
-    heading: "Request account deletion",
-    description: "Submit a governed deletion and deactivation request. This begins a review and cooling-period workflow; it does not immediately erase the Auth identity or bypass legal holds, safety evidence, licenses, or attribution obligations.",
-    button: "Request account deletion review",
+    heading: "Request permanent account deletion",
+    description: "Submit a governed permanent-deletion request. This begins a review and cooling-period workflow; it does not immediately erase the Auth identity or bypass legal holds, safety evidence, economic readiness, licenses, or attribution obligations.",
+    button: "Request permanent deletion review",
   },
 });
 
@@ -31,6 +31,7 @@ export default function AccountLifecycleRequestForm({ action }: { action: Lifecy
   const { refresh } = useParticipation();
   const [userNote, setUserNote] = useState("");
   const [confirmed, setConfirmed] = useState(false);
+  const [confirmationPhrase, setConfirmationPhrase] = useState("");
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileResetKey, setTurnstileResetKey] = useState(0);
   const [busy, setBusy] = useState(false);
@@ -48,7 +49,9 @@ export default function AccountLifecycleRequestForm({ action }: { action: Lifecy
     if (!accessToken) {
       setError("Sign in to the existing Website Account before submitting this request.");
     } else if (action === "deletion" && !confirmed) {
-      setError("Confirm that you understand this begins a governed deletion and deactivation workflow.");
+      setError("Confirm that you understand this begins a governed permanent-deletion workflow.");
+    } else if (action === "deletion" && confirmationPhrase !== "DELETE") {
+      setError("Type DELETE exactly to confirm the permanent account-deletion request.");
     } else if (!turnstileToken) {
       setError("Complete the human-verification check before submitting this account request.");
     } else if (userNote.length > 2_000) {
@@ -67,6 +70,7 @@ export default function AccountLifecycleRequestForm({ action }: { action: Lifecy
         setHistoryVersion((current) => current + 1);
         setUserNote("");
         setConfirmed(false);
+        setConfirmationPhrase("");
         refresh();
       } catch (reason) {
         setError(friendlyIdentityError(reason));
@@ -104,16 +108,19 @@ export default function AccountLifecycleRequestForm({ action }: { action: Lifecy
         </label>
 
         {action === "deletion" && (
-          <label className="checkbox-row" htmlFor="confirm-account-deletion-request">
-            <input
-              id="confirm-account-deletion-request"
-              type="checkbox"
-              checked={confirmed}
-              onChange={(event) => setConfirmed(event.target.checked)}
-              disabled={busy || Boolean(result)}
-            />
-            <span>I understand this starts a reviewed account-deletion workflow with a cooling period and documented retention exceptions; it is not an instant browser-side erase.</span>
-          </label>
+          <>
+            <label className="checkbox-row" htmlFor="confirm-account-deletion-request">
+              <input
+                id="confirm-account-deletion-request"
+                type="checkbox"
+                checked={confirmed}
+                onChange={(event) => setConfirmed(event.target.checked)}
+                disabled={busy || Boolean(result)}
+              />
+              <span>I understand this starts a reviewed permanent account-deletion workflow with a cooling period and documented retention exceptions; it is not an instant browser-side erase.</span>
+            </label>
+            <label htmlFor="account-deletion-confirmation-phrase"><span>Type DELETE to continue</span><input id="account-deletion-confirmation-phrase" value={confirmationPhrase} onChange={(event) => setConfirmationPhrase(event.target.value)} autoComplete="off" spellCheck={false} disabled={busy || Boolean(result)} /></label>
+          </>
         )}
 
         {!result && <TurnstileWidget action="identity_lifecycle_request" onTokenChange={handleTurnstileToken} resetKey={turnstileResetKey} />}
@@ -125,8 +132,8 @@ export default function AccountLifecycleRequestForm({ action }: { action: Lifecy
           </div>
         )}
         <div className="button-row">
-          {!result && <button className="button-primary" type="submit" disabled={busy || !turnstileToken || (action === "deletion" && !confirmed)}>{busy ? "Submitting securely…" : copy.button}</button>}
-          <Link className="button-link" to="/commons-circle">Return to Commons Circle</Link>
+          {!result && <button className="button-primary" type="submit" disabled={busy || !turnstileToken || (action === "deletion" && (!confirmed || confirmationPhrase !== "DELETE"))}>{busy ? "Submitting securely…" : copy.button}</button>}
+          <Link className="button-link" to="/commons-circle/settings">Account &amp; Profile Settings</Link>
           {action === "export" ? <Link className="button-link" to="/account/delete">Account deletion</Link> : <Link className="button-link" to="/account/export">Data export</Link>}
         </div>
         <p className="inline-status">Notice version: {notice.version}</p>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
@@ -6,14 +6,11 @@ import { structurallyEqual, useCoordinatedRefresh } from "../../shared/hooks/use
 import { safeInternalActionPath } from "../../shared/navigation/safeInternalActionPath";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
 import {
-  loadAccountEventPreferences,
   loadNotifications,
   markAllAccountNotificationsRead,
   setNotificationArchived,
   setNotificationRead,
-  updateAccountEventPreference,
   type AccountActorCard,
-  type AccountEventPreference,
   type NotificationFilter,
   type NotificationsResult,
 } from "./accountCommunicationsApi";
@@ -30,7 +27,6 @@ const filters: Array<{ key: NotificationFilter; label: string }> = [
 ];
 
 const filterKeys = new Set(filters.map((filter) => filter.key));
-const mandatoryCategories = new Set(["account_security", "moderation"]);
 const categoryLabels: Record<string, string> = {
   account_security: "Account & security",
   announcements: "Announcements",
@@ -58,10 +54,6 @@ function formatTime(value: string) {
   return Number.isNaN(date.getTime()) ? "Time unavailable" : date.toLocaleString();
 }
 
-function preferenceCategoryLabel(category: string) {
-  return categoryLabels[category] ?? humanize(category);
-}
-
 export default function NotificationsPage() {
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -69,11 +61,8 @@ export default function NotificationsPage() {
   const activeFilter: NotificationFilter = filterKeys.has(requestedFilter as NotificationFilter)
     ? requestedFilter as NotificationFilter
     : "all";
-  const [preferences, setPreferences] = useState<AccountEventPreference[]>([]);
-  const [taxonomyVersion, setTaxonomyVersion] = useState(0);
   const [loadingMore, setLoadingMore] = useState(false);
   const [workingItem, setWorkingItem] = useState<string | null>(null);
-  const [workingPreference, setWorkingPreference] = useState<string | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
 
   const loadCurrentFilter = useCallback(() => loadNotifications(activeFilter, null), [activeFilter]);
@@ -95,17 +84,6 @@ export default function NotificationsPage() {
     classify: (next) => !next?.signedIn ? "blocked" : next.warnings.length ? "degraded" : "settled",
     isEqual: structurallyEqual,
   });
-
-  const refreshPreferences = useCallback(async () => {
-    const next = await loadAccountEventPreferences();
-    if (next.warning) setMessages((current) => [next.warning as string, ...current].slice(0, 6));
-    if (next.result) {
-      setPreferences(next.result.preferences);
-      setTaxonomyVersion(next.result.taxonomyVersion);
-    }
-  }, []);
-
-  useEffect(() => { if (result?.signedIn) void refreshPreferences(); }, [refreshPreferences, result?.signedIn]);
 
   const filterLabel = useMemo(() => filters.find((filter) => filter.key === activeFilter)?.label ?? "All", [activeFilter]);
 
@@ -130,19 +108,6 @@ export default function NotificationsPage() {
     const outcome = await markAllAccountNotificationsRead(category);
     setMessages([outcome.warning ?? `${outcome.count} notification${outcome.count === 1 ? "" : "s"} marked read.`]);
     await refresh("mutation");
-  }
-
-  function patchPreference(category: string, patch: Partial<AccountEventPreference>) {
-    setPreferences((current) => current.map((preference) => preference.category === category ? { ...preference, ...patch } : preference));
-  }
-
-  async function savePreference(preference: AccountEventPreference) {
-    setWorkingPreference(preference.category);
-    const outcome = await updateAccountEventPreference(preference);
-    setMessages([outcome.warning ?? `${preferenceCategoryLabel(preference.category)} preferences saved.`]);
-    if (outcome.preference) patchPreference(preference.category, outcome.preference);
-    else await refreshPreferences();
-    setWorkingPreference(null);
   }
 
   const refreshAfterAuth = useCallback(async () => { await refresh("auth"); }, [refresh]);
@@ -238,22 +203,7 @@ export default function NotificationsPage() {
         {result.cursor && <button type="button" disabled={loadingMore || busy} onClick={() => void loadMore()}>{loadingMore ? "Loading…" : "Load more"}</button>}
       </section>
 
-      <section className="section-card account-notification-preferences">
-        <div className="section-heading"><p className="eyebrow">Delivery preferences · taxonomy v{taxonomyVersion || 1}</p><h2>Choose optional in-app and email delivery</h2><p>Read state, archive state, source authorization, and private-message consent are separate controls. Quiet hours delay optional email in UTC; they do not hide in-app events.</p></div>
-        <div className="account-notification-preference-list">
-          {preferences.map((preference) => <article key={preference.category}>
-            <div><h3>{preferenceCategoryLabel(preference.category)}</h3>{mandatoryCategories.has(preference.category) && <p className="boundary-note">Mandatory events in this category remain visible and may still be delivered.</p>}</div>
-            <label className="checkbox-line"><input type="checkbox" checked={preference.inAppEnabled} onChange={(event) => patchPreference(preference.category, { inAppEnabled: event.target.checked })} /><span>Optional in-app events</span></label>
-            <label className="checkbox-line"><input type="checkbox" checked={preference.emailEnabled} onChange={(event) => patchPreference(preference.category, { emailEnabled: event.target.checked })} /><span>Optional email delivery</span></label>
-            <div className="account-notification-quiet-hours">
-              <label><span>Quiet hours start (UTC)</span><input type="time" value={preference.quietHoursStart?.slice(0, 5) ?? ""} onChange={(event) => patchPreference(preference.category, { quietHoursStart: event.target.value || null, quietHoursEnd: event.target.value ? preference.quietHoursEnd ?? "08:00" : null })} /></label>
-              <label><span>Quiet hours end (UTC)</span><input type="time" value={preference.quietHoursEnd?.slice(0, 5) ?? ""} onChange={(event) => patchPreference(preference.category, { quietHoursEnd: event.target.value || null, quietHoursStart: event.target.value ? preference.quietHoursStart ?? "22:00" : null })} /></label>
-            </div>
-            <button type="button" disabled={workingPreference === preference.category} onClick={() => void savePreference(preference)}>{workingPreference === preference.category ? "Saving…" : "Save preference"}</button>
-          </article>)}
-        </div>
-        {!preferences.length && <p className="commons-empty-state">Notification preferences are unavailable until the account-event migration is active. No source workflow or mandatory notice was changed.</p>}
-      </section>
+      <section className="section-card account-notification-preferences"><p className="eyebrow">Account destination</p><h2>Notification Preferences moved to Settings</h2><p>Optional in-app, email, quiet-hours, and preserved legacy signal choices now live in the dedicated Account &amp; Profile Settings destination.</p><Link className="button-link button-link--primary" to="/commons-circle/settings/notifications">Open Notification Preferences</Link></section>
     </>}
 
     {result?.warnings.length ? <WarningCallout title="Temporary account-data limitation"><p>{result.warnings.join(" ")}</p></WarningCallout> : null}

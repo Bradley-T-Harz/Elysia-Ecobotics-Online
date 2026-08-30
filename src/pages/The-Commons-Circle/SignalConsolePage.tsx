@@ -158,7 +158,14 @@ export default function SignalConsolePage() {
             <h3>Notifications</h3>
             <dl className="mini-facts"><MiniFact label="Unread" value={counts.events.notificationsUnread} /></dl>
             <p>See recipient-scoped updates, outcomes, mandatory notices, preferences, and safe links back to authoritative sources.</p>
-            <Link className="button-link button-link--primary" to="/commons-circle/signals/notifications">Open Notifications</Link>
+            <div className="button-row"><Link className="button-link button-link--primary" to="/commons-circle/signals/notifications">Open Notifications</Link><Link className="button-link" to="/commons-circle/settings/notifications">Notification Preferences</Link></div>
+          </article>
+
+          <article className="section-card commons-account-room-card signals-primary-card">
+            <p className="eyebrow">Account destinations</p>
+            <h3>Account &amp; Profile Settings</h3>
+            <p>Manage profile appearance, Privacy Lanterns, notification preferences, account security, data, lifecycle, support, and billing destinations.</p>
+            <Link className="button-link button-link--primary" to="/commons-circle/settings">Open Account &amp; Profile Settings</Link>
           </article>
 
           <article className="section-card commons-account-room-card signals-primary-card">

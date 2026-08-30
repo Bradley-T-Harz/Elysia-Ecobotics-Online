@@ -6877,6 +6877,91 @@ button.repository-tree-row {
 }
 
 /* Voluntary support, private billing, and account recovery */
+.account-settings-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.account-settings-section,
+.account-settings-links,
+.account-lifecycle-links {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.account-settings-section h2,
+.account-settings-section p {
+  margin: 0;
+}
+
+.account-settings-section p {
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.account-settings-links .button-link,
+.account-settings-links .account-security-control,
+.account-security-control,
+.commons-settings-entry {
+  min-height: 44px;
+  justify-content: center;
+  text-align: center;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.account-security-control {
+  border: 2px solid #ffc17c;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #ffb35f, #f27a18);
+  box-shadow: 0 10px 26px rgba(242, 122, 24, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.46);
+  color: #170b02;
+  padding: 0.72rem 0.9rem;
+  font-weight: 950;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.account-security-control:hover {
+  border-color: #ffe1b8;
+  background: linear-gradient(180deg, #ffc47f, #ff8d2f);
+  color: #170b02;
+  transform: translateY(-1px);
+}
+
+.account-security-control:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+}
+
+.commons-settings-entry {
+  border-color: color-mix(in srgb, var(--commons-accent, var(--teal)) 55%, white);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--commons-accent, var(--teal)) 24%, rgba(18, 25, 37, 0.9)), rgba(8, 11, 16, 0.9));
+  color: var(--commons-text, var(--text));
+}
+
+.account-lifecycle-links {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: stretch;
+  margin-top: 0.5rem;
+}
+
+.account-lifecycle-links > * {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .account-settings-grid,
+  .account-lifecycle-links {
+    grid-template-columns: 1fr;
+  }
+}
+
 .support-checkout-card,
 .account-recovery-card,
 .economic-room-card,

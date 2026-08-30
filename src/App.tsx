@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation, useParams } from "
 import SiteLayout from "./layouts/SiteLayout";
 import { AuthProvider } from "./shared/auth/AuthProvider";
 import { ParticipationProvider } from "./shared/participation/ParticipationProvider";
+import AccountActivationBoundary from "./shared/auth/AccountActivationBoundary";
 
 const MarketplaceProvider = lazy(() => import("./pages/The-Elysia-Marketplace/MarketplaceProvider"));
 const OnlineMainPage = lazy(() => import("./pages/Elysia-Ecobotics-Online-MainPage"));
@@ -27,6 +28,9 @@ const AccountForgotPasswordPage = lazy(() => import("./pages/Account/AccountForg
 const AccountRecoveryPage = lazy(() => import("./pages/Account/AccountRecoveryPage"));
 const AccountDataExportPage = lazy(() => import("./pages/Account/AccountDataExportPage"));
 const AccountDeletionPage = lazy(() => import("./pages/Account/AccountDeletionPage"));
+const AccountChangePasswordPage = lazy(() => import("./pages/Account/AccountChangePasswordPage"));
+const AccountDeactivationPage = lazy(() => import("./pages/Account/AccountDeactivationPage"));
+const AccountReactivationPage = lazy(() => import("./pages/Account/AccountReactivationPage"));
 const CommonsCirclePage = lazy(() => import("./pages/The-Commons-Circle"));
 const ElysiaArtisanCollectivePage = lazy(() => import("./pages/Elysia-Artisan-Collective"));
 const CommonsCircleAdminConsolePage = lazy(() => import("./pages/The-Commons-Circle/CommonsCircleAdminConsolePage"));
@@ -44,6 +48,10 @@ const InboxConversationPage = lazy(() => import("./pages/The-Commons-Circle/Inbo
 const NotificationsPage = lazy(() => import("./pages/The-Commons-Circle/NotificationsPage"));
 const RequestsReviewsPage = lazy(() => import("./pages/The-Commons-Circle/RequestsReviewsPage"));
 const SupportBillingPage = lazy(() => import("./pages/The-Commons-Circle/SupportBillingPage"));
+const AccountSettingsPage = lazy(() => import("./pages/The-Commons-Circle/AccountSettingsPage"));
+const AccountPrivacySettingsPage = lazy(() => import("./pages/The-Commons-Circle/AccountPrivacySettingsPage"));
+const AccountNotificationPreferencesPage = lazy(() => import("./pages/The-Commons-Circle/AccountNotificationPreferencesPage"));
+const ProfileAppearanceSettingsPage = lazy(() => import("./pages/The-Commons-Circle/ProfileAppearanceSettingsPage"));
 const PublicCommonsProfilePage = lazy(() => import("./pages/Public-Commons-Profile"));
 const StoryPage = lazy(() => import("./pages/The-Story-of-Elysia"));
 const AboutPage = lazy(() => import("./pages/About-Elysia-Ecobotics"));
@@ -105,12 +113,21 @@ function CanonicalInboxEntry() {
   return <InboxPage />;
 }
 
+function CommonsCircleEntry() {
+  const location = useLocation();
+  if (location.hash === "#privacy-lanterns") {
+    return <Navigate replace state={location.state} to={{ pathname: "/commons-circle/settings/privacy", search: location.search }} />;
+  }
+  return <CommonsCirclePage />;
+}
+
 export default function App() {
   return (
     <AuthProvider>
       <ParticipationProvider>
         <BrowserRouter>
           <Suspense fallback={<PageLoading />}>
+            <AccountActivationBoundary>
             <Routes>
             <Route element={<SiteLayout />}>
             <Route index element={<OnlineMainPage />} />
@@ -180,7 +197,7 @@ export default function App() {
             <Route path="account/recovery" element={<AccountRecoveryPage />} />
             <Route path="account/export" element={<AccountDataExportPage />} />
             <Route path="account/delete" element={<AccountDeletionPage />} />
-            <Route path="commons-circle" element={<CommonsCirclePage />} />
+            <Route path="commons-circle" element={<CommonsCircleEntry />} />
             <Route path="commons-circle/admin-console" element={<CommonsCircleAdminConsolePage />} />
             <Route path="commons-circle/admin-communications" element={<AdminCommunicationsPage />} />
             <Route path="commons-circle/admin/messaging-access" element={<MessagingAccessAdminPage />} />
@@ -246,8 +263,16 @@ export default function App() {
             <Route path="living-library/source/:sourceId" element={<LivingLibraryPage />} />
             <Route path="commons-circle/signals/circle" element={<CirclePage />} />
             <Route path="admin/badges" element={<AdminBadgesPage />} />
+            <Route path="commons-circle/settings" element={<AccountSettingsPage />} />
+            <Route path="commons-circle/settings/privacy" element={<AccountPrivacySettingsPage />} />
+            <Route path="commons-circle/settings/notifications" element={<AccountNotificationPreferencesPage />} />
+            <Route path="commons-circle/settings/appearance" element={<ProfileAppearanceSettingsPage />} />
+            <Route path="account/change-password" element={<AccountChangePasswordPage />} />
+            <Route path="account/deactivate" element={<AccountDeactivationPage />} />
+            <Route path="account/reactivate" element={<AccountReactivationPage />} />
             </Route>
             </Routes>
+            </AccountActivationBoundary>
           </Suspense>
         </BrowserRouter>
       </ParticipationProvider>

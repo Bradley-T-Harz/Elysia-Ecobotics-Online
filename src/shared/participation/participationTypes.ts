@@ -31,13 +31,23 @@ export type CommunityAccess = Readonly<{
   assuranceExpiresAt: string | null;
   jurisdictionCode: string | null;
   publicProfileEnabled: boolean;
+  publicProfilePublished: boolean;
+  canPublishPublicProfile: boolean;
   profileComplete: boolean;
   canJoinArtisan: boolean;
   canPostArtisan: boolean;
   canCommentArtisan: boolean;
+  canAppreciateArtisan: boolean;
   canUploadImage: boolean;
   canSubmitChallenge: boolean;
   evaluatedAt: string;
+}>;
+
+export type AccountActivation = Readonly<{
+  state: "active" | "temporarily_deactivated";
+  temporarilyDeactivatedAt: string | null;
+  reactivatedAt: string | null;
+  updatedAt: string;
 }>;
 
 export type PublicProfileCard = Readonly<{
@@ -150,6 +160,7 @@ export type CommunityLegalManifest = Readonly<{
 }>;
 
 export type IdentityBootstrap = Readonly<{
+  accountActivation?: AccountActivation;
   communityAccess: CommunityAccess;
   membership: ArtisanMembership | null;
   profileCard: PublicProfileCard | null;

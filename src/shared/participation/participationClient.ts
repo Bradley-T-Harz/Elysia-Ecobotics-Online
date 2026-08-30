@@ -2,6 +2,7 @@ import { z } from "zod";
 import type {
   AccountMessagingAdminStatus,
   AccountMessagingEnrollmentResult,
+  AccountActivation,
   IdentityBootstrap,
   LegalDocumentAcceptance,
   LifecycleAction,
@@ -59,10 +60,13 @@ const communityAccessSchema = z.object({
   assuranceExpiresAt: z.iso.datetime({ offset: true }).nullable(),
   jurisdictionCode: z.string().max(16).nullable(),
   publicProfileEnabled: z.boolean(),
+  publicProfilePublished: z.boolean(),
+  canPublishPublicProfile: z.boolean(),
   profileComplete: z.boolean(),
   canJoinArtisan: z.boolean(),
   canPostArtisan: z.boolean(),
   canCommentArtisan: z.boolean(),
+  canAppreciateArtisan: z.boolean(),
   canUploadImage: z.boolean(),
   canSubmitChallenge: z.boolean(),
   evaluatedAt: z.iso.datetime({ offset: true }),
@@ -136,6 +140,13 @@ const notificationPreferencesSchema = z.object({
   updatedAt: z.iso.datetime({ offset: true }),
 }).strict();
 
+const accountActivationSchema = z.object({
+  state: z.enum(["active", "temporarily_deactivated"]),
+  temporarilyDeactivatedAt: z.iso.datetime({ offset: true }).nullable(),
+  reactivatedAt: z.iso.datetime({ offset: true }).nullable(),
+  updatedAt: z.iso.datetime({ offset: true }),
+}).strict();
+
 const guardianConsentSummarySchema = z.object({
   consentId: z.uuid(),
   scope: z.string().min(1).max(64),
@@ -176,6 +187,7 @@ const legalManifestSchema = z.object({
 }).strict();
 
 const bootstrapSchema = z.object({
+  accountActivation: accountActivationSchema.optional(),
   communityAccess: communityAccessSchema,
   membership: membershipSchema.nullable(),
   profileCard: publicProfileCardSchema.nullable(),
@@ -357,6 +369,30 @@ export function createIdentityClientRequestId(): string {
 
 export function loadIdentityBootstrap(accessToken: string, signal?: AbortSignal): Promise<IdentityBootstrap> {
   return identityRequest(accessToken, "/bootstrap", bootstrapSchema, { signal });
+}
+
+export function deactivateCurrentAccount(
+  accessToken: string,
+  input: { clientRequestId: string; confirmation: "DEACTIVATE"; turnstileToken: string },
+  signal?: AbortSignal,
+): Promise<AccountActivation> {
+  return identityRequest(accessToken, "/account/deactivate", accountActivationSchema, {
+    method: "POST",
+    body: input,
+    signal,
+  });
+}
+
+export function reactivateCurrentAccount(
+  accessToken: string,
+  input: { clientRequestId: string; confirmation: "REACTIVATE"; turnstileToken: string },
+  signal?: AbortSignal,
+): Promise<AccountActivation> {
+  return identityRequest(accessToken, "/account/reactivate", accountActivationSchema, {
+    method: "POST",
+    body: input,
+    signal,
+  });
 }
 
 export function searchMessagingPublicProfiles(
@@ -576,6 +612,8 @@ const FRIENDLY_IDENTITY_ERRORS: Readonly<Record<string, string>> = Object.freeze
   turnstile_required: "Complete the human-verification check before continuing.",
   turnstile_failed: "The human-verification check was not accepted. Please try it again.",
   rate_limited: "Too many requests were attempted. Wait before trying again.",
+  deactivation_confirmation_invalid: "Type DEACTIVATE exactly before pausing your account.",
+  reactivation_confirmation_invalid: "Type REACTIVATE exactly before restoring account access.",
   messaging_profile_search_invalid: "Type at least three characters to search published Commons Profiles.",
 });
 
