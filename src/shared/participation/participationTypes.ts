@@ -159,6 +159,13 @@ export type CommunityLegalManifest = Readonly<{
   complete: boolean;
 }>;
 
+export type AccountActivation = Readonly<{
+  state: "active" | "temporarily_deactivated";
+  temporarilyDeactivatedAt: string | null;
+  reactivatedAt: string | null;
+  updatedAt: string;
+}>;
+
 export type IdentityBootstrap = Readonly<{
   accountActivation?: AccountActivation;
   communityAccess: CommunityAccess;
