@@ -12,6 +12,8 @@ export const productionAuthTurnstileSiteKey = "0x4AAAAAAECNSZYyGXT8LPJC";
 const authClientContract = "auth-turnstile-2026-07-30.1";
 const turnstileScriptSource = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 const commonsBundlePattern = /^assets\/safe-assets-v1-commons-circle-[A-Za-z0-9_-]+\.js$/;
+const lifecycleBundlePattern = /^assets\/safe-assets-v1-TurnstileWidget-[A-Za-z0-9_-]+\.js$/;
+const officialAlwaysPassesSiteKey = "1x00000000000000000000AA";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -23,6 +25,14 @@ function sha256(value) {
 
 function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+export function requireProductionLifecycleTurnstileSiteKey(environment = process.env) {
+  const siteKey = environment.VITE_TURNSTILE_SITE_KEY?.trim() ?? "";
+  assert(/^0x[0-9A-Za-z_-]{20,}$/.test(siteKey), "lifecycle_turnstile_site_key_missing_or_invalid");
+  assert(siteKey !== productionAuthTurnstileSiteKey, "lifecycle_turnstile_must_not_reuse_auth_widget");
+  assert(siteKey !== officialAlwaysPassesSiteKey, "lifecycle_turnstile_test_key_forbidden");
+  return siteKey;
 }
 
 async function collectArtifactFiles(root, current = root) {
@@ -44,7 +54,10 @@ async function collectArtifactFiles(root, current = root) {
   return files;
 }
 
-export async function verifyProductionAuthArtifact(distDirectory = defaultDistDirectory) {
+export async function verifyProductionAuthArtifact(
+  distDirectory = defaultDistDirectory,
+  lifecycleSiteKey = requireProductionLifecycleTurnstileSiteKey(),
+) {
   const dist = path.resolve(distDirectory);
   const stat = await fs.lstat(dist);
   assert(stat.isDirectory() && !stat.isSymbolicLink(), "production_dist_directory_invalid");
@@ -53,9 +66,14 @@ export async function verifyProductionAuthArtifact(distDirectory = defaultDistDi
 
   const commonsBundles = files.filter((file) => commonsBundlePattern.test(file.relative));
   assert(commonsBundles.length === 1, "production_commons_auth_bundle_count_invalid");
+  const lifecycleBundles = files.filter((file) => lifecycleBundlePattern.test(file.relative));
+  assert(lifecycleBundles.length === 1, "production_lifecycle_turnstile_bundle_count_invalid");
   const bundle = commonsBundles[0];
   const bundleBytes = await fs.readFile(bundle.absolute);
   const bundleSource = bundleBytes.toString("utf8");
+  const lifecycleBundle = lifecycleBundles[0];
+  const lifecycleBundleBytes = await fs.readFile(lifecycleBundle.absolute);
+  const lifecycleBundleSource = lifecycleBundleBytes.toString("utf8");
 
   const quotedRequired = "(?:`required`|\\\"required\\\"|'required')";
   const quotedSiteKey = `(?:\`${escapeRegExp(productionAuthTurnstileSiteKey)}\`|\\\"${escapeRegExp(productionAuthTurnstileSiteKey)}\\\"|'${escapeRegExp(productionAuthTurnstileSiteKey)}')`;
@@ -70,13 +88,18 @@ export async function verifyProductionAuthArtifact(distDirectory = defaultDistDi
   }
   assert(bundleSource.includes(turnstileScriptSource), "production_auth_turnstile_script_contract_missing");
   assert(bundleSource.includes(authClientContract), "production_auth_client_contract_missing");
+  assert(lifecycleBundleSource.includes(turnstileScriptSource), "production_lifecycle_turnstile_script_contract_missing");
+  assert(lifecycleBundleSource.includes(lifecycleSiteKey), "production_lifecycle_turnstile_site_key_missing");
 
   let siteKeyOccurrences = 0;
+  let lifecycleSiteKeyOccurrences = 0;
   const artifactDigest = createHash("sha256");
   for (const file of files) {
     const bytes = await fs.readFile(file.absolute);
     if (file.relative.endsWith(".js")) {
-      siteKeyOccurrences += bytes.toString("utf8").split(productionAuthTurnstileSiteKey).length - 1;
+      const source = bytes.toString("utf8");
+      siteKeyOccurrences += source.split(productionAuthTurnstileSiteKey).length - 1;
+      lifecycleSiteKeyOccurrences += source.split(lifecycleSiteKey).length - 1;
     }
     const fileDigest = sha256(bytes);
     artifactDigest.update(file.relative);
@@ -87,12 +110,16 @@ export async function verifyProductionAuthArtifact(distDirectory = defaultDistDi
     artifactDigest.update("\n");
   }
   assert(siteKeyOccurrences === 1, "production_auth_public_site_key_occurrence_invalid");
+  assert(lifecycleSiteKeyOccurrences === 1, "production_lifecycle_public_site_key_occurrence_invalid");
 
   return Object.freeze({
     mode: productionAuthCaptchaMode,
     publicSiteKeyMatched: true,
     bundlePath: bundle.relative,
     bundleSha256: sha256(bundleBytes),
+    lifecyclePublicSiteKeyMatched: true,
+    lifecycleBundlePath: lifecycleBundle.relative,
+    lifecycleBundleSha256: sha256(lifecycleBundleBytes),
     artifactSha256: artifactDigest.digest("hex"),
     fileCount: files.length,
   });
@@ -104,6 +131,9 @@ function printVerification(result) {
   console.log("Public Turnstile site key: exact match");
   console.log(`Commons/Auth bundle: ${result.bundlePath}`);
   console.log(`Commons/Auth bundle SHA-256: ${result.bundleSha256}`);
+  console.log("Lifecycle Turnstile public site key: exact match");
+  console.log(`Lifecycle Turnstile bundle: ${result.lifecycleBundlePath}`);
+  console.log(`Lifecycle Turnstile bundle SHA-256: ${result.lifecycleBundleSha256}`);
   console.log(`Complete artifact SHA-256: ${result.artifactSha256}`);
   console.log(`Artifact file count: ${result.fileCount}`);
 }

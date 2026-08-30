@@ -33,10 +33,26 @@ if [[ "$allow_dirty" == false ]]; then
   }
 fi
 
+lifecycle_turnstile_site_key="${VITE_TURNSTILE_SITE_KEY:-}"
+[[ "$lifecycle_turnstile_site_key" =~ ^0x[0-9A-Za-z_-]{20,}$ ]] || {
+  echo "Production Pages build failed: lifecycle_turnstile_site_key_missing_or_invalid" >&2
+  exit 1
+}
+[[ "$lifecycle_turnstile_site_key" != "0x4AAAAAAECNSZYyGXT8LPJC" ]] || {
+  echo "Production Pages build failed: lifecycle_turnstile_must_not_reuse_auth_widget" >&2
+  exit 1
+}
+[[ "$lifecycle_turnstile_site_key" != "1x00000000000000000000AA" ]] || {
+  echo "Production Pages build failed: lifecycle_turnstile_test_key_forbidden" >&2
+  exit 1
+}
+
 VITE_AUTH_CAPTCHA_MODE=required \
 VITE_AUTH_TURNSTILE_SITE_KEY=0x4AAAAAAECNSZYyGXT8LPJC \
+VITE_TURNSTILE_SITE_KEY="$lifecycle_turnstile_site_key" \
   npm run build
-node scripts/authProductionRelease.mjs verify
+VITE_TURNSTILE_SITE_KEY="$lifecycle_turnstile_site_key" \
+  node scripts/authProductionRelease.mjs verify
 
 if [[ "$allow_dirty" == true ]]; then
   echo "Local dirty-tree verification only; this artifact is not authorized for production upload."

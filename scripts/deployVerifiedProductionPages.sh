@@ -28,6 +28,12 @@ head_commit="$(git rev-parse HEAD)"
   exit 1
 }
 
+lifecycle_turnstile_site_key="${VITE_TURNSTILE_SITE_KEY:-}"
+[[ "$lifecycle_turnstile_site_key" =~ ^0x[0-9A-Za-z_-]{20,}$ ]] || {
+  echo "Production Pages deploy failed: lifecycle_turnstile_site_key_missing_or_invalid" >&2
+  exit 1
+}
+
 node scripts/authProductionRelease.mjs verify
 wrangler_bin="$repository_root/node_modules/.bin/wrangler"
 [[ -x "$wrangler_bin" ]] || {
