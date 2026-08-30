@@ -20,9 +20,9 @@ const actionCopy = Object.freeze({
     button: "Request data export",
   },
   deletion: {
-    heading: "Request permanent account deletion",
-    description: "Submit a governed permanent-deletion request. This begins a review and cooling-period workflow; it does not immediately erase the Auth identity or bypass legal holds, safety evidence, economic readiness, licenses, or attribution obligations.",
-    button: "Request permanent deletion review",
+    heading: "Permanent Account Deletion",
+    description: "You are directing Elysia Ecobotics to permanently delete this Website Account. A cooling period begins first, and you may cancel during that period. After it expires, the system automatically completes deletion unless a specific legal, security, economic, or technical hold prevents finalization.",
+    button: "Start Permanent Deletion",
   },
 });
 
@@ -49,7 +49,7 @@ export default function AccountLifecycleRequestForm({ action }: { action: Lifecy
     if (!accessToken) {
       setError("Sign in to the existing Website Account before submitting this request.");
     } else if (action === "deletion" && !confirmed) {
-      setError("Confirm that you understand this begins a governed permanent-deletion workflow.");
+      setError("Confirm that you understand this begins the governed permanent-deletion lifecycle.");
     } else if (action === "deletion" && confirmationPhrase !== "DELETE") {
       setError("Type DELETE exactly to confirm the permanent account-deletion request.");
     } else if (!turnstileToken) {
@@ -95,7 +95,7 @@ export default function AccountLifecycleRequestForm({ action }: { action: Lifecy
         <p className="boundary-note">This request covers the shared public Website Account and connected public-community systems. It does not access, export, or delete private local Elysia memory, conversations, files, logs, credentials, prompts, runtime state, or machine data.</p>
 
         <label htmlFor={`${action}-lifecycle-note`}>
-          <span>Optional context for the account team</span>
+          <span>{action === "deletion" ? "Optional note about your deletion request" : "Optional context for the account team"}</span>
           <textarea
             id={`${action}-lifecycle-note`}
             value={userNote}
@@ -117,7 +117,7 @@ export default function AccountLifecycleRequestForm({ action }: { action: Lifecy
                 onChange={(event) => setConfirmed(event.target.checked)}
                 disabled={busy || Boolean(result)}
               />
-              <span>I understand this starts a reviewed permanent account-deletion workflow with a cooling period and documented retention exceptions; it is not an instant browser-side erase.</span>
+              <span>I understand I am directing permanent account deletion. A cooling period comes first, and documented legal, security, economic, or technical exceptions may pause finalization; this is not an instant browser-side erase.</span>
             </label>
             <label htmlFor="account-deletion-confirmation-phrase"><span>Type DELETE to continue</span><input id="account-deletion-confirmation-phrase" value={confirmationPhrase} onChange={(event) => setConfirmationPhrase(event.target.value)} autoComplete="off" spellCheck={false} disabled={busy || Boolean(result)} /></label>
           </>

@@ -320,9 +320,9 @@ try {
         assert.equal(await page.getByRole("button", { name: "Reactivate Account", exact: true }).isDisabled(), true, "Reactivation must be explicit and verified.");
         assert.equal(await page.getByRole("link", { name: "Permanently delete account", exact: true }).getAttribute("href"), "/account/delete");
       } else if (scenario.kind === "delete") {
-        await page.getByRole("heading", { name: "Request permanent account deletion", exact: true }).waitFor();
-        assert.equal(await page.getByLabel(/reviewed permanent account-deletion workflow/).isChecked(), false);
-        assert.equal(await page.getByRole("button", { name: "Request permanent deletion review", exact: true }).isDisabled(), true, "Deletion must require its governed confirmations.");
+        await page.getByRole("heading", { name: "Permanent Account Deletion", exact: true }).waitFor();
+        assert.equal(await page.getByLabel(/directing permanent account deletion/).isChecked(), false);
+        assert.equal(await page.getByRole("button", { name: "Start Permanent Deletion", exact: true }).isDisabled(), true, "Deletion must require its governed confirmations.");
         await page.getByText("No lifecycle requests are recorded for this account.", { exact: true }).waitFor();
       }
 
