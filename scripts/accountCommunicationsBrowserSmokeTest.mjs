@@ -498,7 +498,9 @@ try {
       await page.getByRole("tab", { name: "Unread (2)" }).waitFor();
       await page.getByText("Your revision proposal was accepted", { exact: true }).waitFor();
       await page.getByText("Fixture Author", { exact: false }).waitFor();
-      await page.getByText("Choose optional in-app and email delivery", { exact: true }).waitFor();
+      await page.getByRole("heading", { name: "Notification Preferences moved to Settings", exact: true }).waitFor();
+      assert.equal(await page.getByRole("link", { name: "Open Notification Preferences", exact: true }).getAttribute("href"), "/commons-circle/settings/notifications", "The Notifications feed must preserve a direct canonical path to the relocated general preferences.");
+      assert.equal(await page.getByText("Choose optional in-app and email delivery", { exact: true }).count(), 0, "The Notifications feed must not duplicate the relocated general preference controls.");
       assert.equal(await page.getByText(notificationId, { exact: false }).count(), 0, "Raw notification identifiers must not render as ordinary UI text.");
       if (scenario.width === 1280 && !scenario.canonical) {
         await page.evaluate(() => scrollTo(0, Math.min(400, document.documentElement.scrollHeight - innerHeight)));

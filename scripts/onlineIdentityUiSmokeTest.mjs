@@ -17,12 +17,12 @@ for (const state of ["read_only", "adult_eligible", "teen_pending", "teen_eligib
 for (const permission of ["canJoinArtisan", "canPostArtisan", "canCommentArtisan", "canUploadImage", "canSubmitChallenge"]) {
   assert.ok(types.includes(permission), `bounded access must include ${permission}`);
 }
-for (const bootstrapContract of ["guardianSummary", "legalManifest", "notificationPreferences", "featureFlags"]) {
+for (const bootstrapContract of ["accountActivation", "guardianSummary", "legalManifest", "notificationPreferences", "featureFlags"]) {
   assert.ok(types.includes(bootstrapContract), `identity bootstrap types must include ${bootstrapContract}`);
 }
 
 const client = read("src/shared/participation/participationClient.ts");
-for (const endpoint of ["/bootstrap", "/profile/publication", "/legal/accept", "/lifecycle/request", "/lifecycle/requests", "/account/exports/"]) {
+for (const endpoint of ["/bootstrap", "/profile/publication", "/legal/accept", "/account/deactivate", "/account/reactivate", "/lifecycle/request", "/lifecycle/requests", "/account/exports/"]) {
   assert.ok(client.includes(endpoint), `identity client must use ${endpoint}`);
 }
 assert.match(client, /authorization: `Bearer \$\{accessToken\}`/, "identity calls must use the current bearer session");
@@ -45,7 +45,11 @@ assert.match(publicationPanel, /updatePublicProfilePublication/, "Commons accoun
 assert.match(publicationPanel, /handle, display name, avatar, short public bio, and canonical profile URL/i, "profile publication UI must explain the bounded identity contract");
 assert.match(publicationPanel, /cannot override an account restriction/i, "profile publication UI must not imply a frontend authorization bypass");
 const commonsPage = read("src/pages/The-Commons-Circle/index.tsx");
-assert.match(commonsPage, /<PublicProfilePublicationPanel\s*\/>/, "Commons Circle must expose the explicit public-card publication control");
+const privacySettingsPage = read("src/pages/The-Commons-Circle/AccountPrivacySettingsPage.tsx");
+assert.match(privacySettingsPage, /<PublicProfilePublicationPanel\s*\/>/, "Privacy & Public Profile must expose the explicit public-card publication control");
+assert.doesNotMatch(commonsPage, /<PublicProfilePublicationPanel\s*\/>/, "Commons Circle root must not duplicate the relocated publication control");
+assert.match(commonsPage, /to="\/commons-circle\/settings">Account &amp; Profile Settings/, "Commons Circle private homebase must expose Account & Profile Settings");
+assert.match(app, /location\.hash === "#privacy-lanterns"[\s\S]*?\/commons-circle\/settings\/privacy/, "the legacy Privacy Lantern deep link must redirect to its canonical settings destination");
 
 const lifecycleForm = read("src/shared/participation/AccountLifecycleRequestForm.tsx");
 assert.match(lifecycleForm, /identity_lifecycle_request/, "lifecycle requests must bind Turnstile to the expected action");

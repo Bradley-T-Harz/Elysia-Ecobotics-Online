@@ -4,7 +4,7 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
-const [app, authPanel, refreshController, homebase, api, commonsApi, inbox, inboxNavigation, notifications, messaging, messagingSettings, newConversation, conversationPage, publicProfile, participationClient, identityWorker, identityDatabase, identityProxy, adminCommunications, adminConsole, messagingAccessAdmin, requests, signals, signalDetails, migration, messagingMigration, destinationMigration, usabilityMigration, functionalLaunchMigration, messagingFixture, styles] = await Promise.all([
+const [app, authPanel, refreshController, homebase, api, commonsApi, inbox, inboxNavigation, notifications, notificationPreferences, accountEventPreferences, messaging, messagingSettings, newConversation, conversationPage, publicProfile, participationClient, identityWorker, identityDatabase, identityProxy, adminCommunications, adminConsole, messagingAccessAdmin, requests, signals, signalDetails, migration, messagingMigration, destinationMigration, usabilityMigration, functionalLaunchMigration, messagingFixture, styles] = await Promise.all([
   fs.readFile("src/App.tsx", "utf8"),
   fs.readFile("src/pages/The-Elysia-Marketplace/components/AuthPanel.tsx", "utf8"),
   fs.readFile("src/shared/hooks/useCoordinatedRefresh.ts", "utf8"),
@@ -14,6 +14,8 @@ const [app, authPanel, refreshController, homebase, api, commonsApi, inbox, inbo
   fs.readFile("src/pages/The-Commons-Circle/InboxPage.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/InboxSectionNavigation.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/NotificationsPage.tsx", "utf8"),
+  fs.readFile("src/pages/The-Commons-Circle/AccountNotificationPreferencesPage.tsx", "utf8"),
+  fs.readFile("src/pages/The-Commons-Circle/AccountEventPreferencesPanel.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/InboxMessagingPanel.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/MessagingSettingsPage.tsx", "utf8"),
   fs.readFile("src/pages/The-Commons-Circle/NewConversationPage.tsx", "utf8"),
@@ -38,7 +40,7 @@ const [app, authPanel, refreshController, homebase, api, commonsApi, inbox, inbo
   fs.readFile("src/styles.css", "utf8"),
 ]);
 
-for (const route of ["commons-circle/inbox", "commons-circle/notifications", "commons-circle/requests-reviews", "commons-circle/admin-communications", "commons-circle/admin/messaging-access", "commons-circle/signals", "commons-circle/signals/inbox", "commons-circle/signals/inbox/new", "commons-circle/signals/inbox/settings", "commons-circle/signals/inbox/conversations/:conversationId", "commons-circle/signals/notifications", "commons-circle/signals/requests-reviews", "commons-circle/signals/coding-proposals", "commons-circle/signals/troubleshooting", "commons-circle/signals/research-notes", "commons-circle/signals/repository-showcases", "commons-circle/signals/iteration-showcases", "commons-circle/signals/job-posts", "commons-circle/signals/voting-room", "commons-circle/signals/official-updates", "commons-circle/signals/sandbox-reviews", "commons-circle/signals/work-with", "commons-circle/signals/marketplace-forge"]) {
+for (const route of ["commons-circle/inbox", "commons-circle/notifications", "commons-circle/requests-reviews", "commons-circle/admin-communications", "commons-circle/admin/messaging-access", "commons-circle/settings/notifications", "commons-circle/signals", "commons-circle/signals/inbox", "commons-circle/signals/inbox/new", "commons-circle/signals/inbox/settings", "commons-circle/signals/inbox/conversations/:conversationId", "commons-circle/signals/notifications", "commons-circle/signals/requests-reviews", "commons-circle/signals/coding-proposals", "commons-circle/signals/troubleshooting", "commons-circle/signals/research-notes", "commons-circle/signals/repository-showcases", "commons-circle/signals/iteration-showcases", "commons-circle/signals/job-posts", "commons-circle/signals/voting-room", "commons-circle/signals/official-updates", "commons-circle/signals/sandbox-reviews", "commons-circle/signals/work-with", "commons-circle/signals/marketplace-forge"]) {
   assert(app.includes(`path="${route}"`), `Missing account communications route: ${route}`);
 }
 assert(app.includes("function LegacyCommunicationAlias") && app.includes("state={location.state}") && app.includes("search: location.search") && app.includes("hash: location.hash"), "Legacy communication aliases must preserve safe state, query strings, and hash fragments.");
@@ -97,7 +99,8 @@ assert(inbox.includes("useCoordinatedRefresh") && inbox.includes("45_000") && in
 assert(notifications.includes("Account & Security") && notifications.includes("Marketplace & Economic") && notifications.includes("Archived"), "Notification filters are incomplete.");
 assert(notifications.includes("useCoordinatedRefresh") && notifications.includes("45_000"), "Notifications must use the shared bounded refresh controller.");
 assert(notifications.includes("safeInternalActionPath") && notifications.includes("sourceAvailable"), "Notifications must validate deep links and render unavailable sources safely.");
-assert(notifications.includes("Mandatory events in this category remain visible") && notifications.toLowerCase().includes("quiet hours"), "Notification preference and mandatory-delivery truth is incomplete.");
+assert(notificationPreferences.includes("Mandatory notices remain") && notificationPreferences.includes("AccountEventPreferencesPanel") && accountEventPreferences.includes("Mandatory events in this category remain visible") && accountEventPreferences.toLowerCase().includes("quiet hours"), "Dedicated Notification Preferences mandatory-delivery truth is incomplete.");
+assert(notifications.includes('to="/commons-circle/settings/notifications"') && !notifications.includes("AccountEventPreferencesPanel"), "Notifications must link to, not duplicate, the dedicated preference destination.");
 assert(messaging.includes("stored in Supabase") && messaging.includes("not end-to-end encrypted"), "Messaging privacy limitations must be explicit.");
 assert(messaging.includes("Attachments, HTML, embeds, and anonymous messages are not supported"), "Messaging content boundaries are not explained.");
 assert(messaging.includes("Accept request") && messaging.includes("Block account") && messaging.includes("Submit report"), "Participant messaging safety controls are incomplete.");
