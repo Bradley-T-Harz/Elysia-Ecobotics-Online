@@ -4,7 +4,7 @@ import { IdentityHttpError } from "./http.ts";
 async function rpc(client: SupabaseClient, name: string, parameters: Record<string, unknown> = {}): Promise<unknown> {
   const { data, error } = await client.rpc(name, parameters);
   if (error) {
-    const status = error.code === "42501" ? 403 : error.code === "23505" ? 409 : error.code === "P0001" ? 409 : 502;
+    const status = error.code === "42501" ? 403 : error.code === "23505" || error.code === "55000" || error.code === "P0001" ? 409 : 502;
     throw new IdentityHttpError(status, status === 403 ? "permission_denied" : status === 409 ? "state_conflict" : "identity_database_failed");
   }
   return data;
@@ -91,6 +91,26 @@ export function setAccountMessagingLaunchMode(
 
 export function loadCurrentUserBootstrap(client: SupabaseClient): Promise<unknown> {
   return rpc(client, "current_user_artisan_bootstrap");
+}
+
+export function selfDeactivateCurrentAccount(
+  client: SupabaseClient,
+  input: { actorUserId: string; clientRequestId: string }
+): Promise<unknown> {
+  return rpc(client, "community_self_deactivate_actor", {
+    p_actor_user_id: input.actorUserId,
+    p_client_request_id: input.clientRequestId
+  });
+}
+
+export function selfReactivateCurrentAccount(
+  client: SupabaseClient,
+  input: { actorUserId: string; clientRequestId: string }
+): Promise<unknown> {
+  return rpc(client, "community_self_reactivate_actor", {
+    p_actor_user_id: input.actorUserId,
+    p_client_request_id: input.clientRequestId
+  });
 }
 
 export function setCurrentUserPublicProfile(

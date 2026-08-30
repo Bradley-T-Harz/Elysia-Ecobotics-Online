@@ -48,6 +48,8 @@ import {
   loadPublicProfileBannerAsset,
   loadAccountMessagingAdminStatus,
   searchPublicCommonsMessageProfiles,
+  selfDeactivateCurrentAccount,
+  selfReactivateCurrentAccount,
   requestCurrentUserLifecycleAction,
   requestGuardianContentApproval,
   requestGuardianDependentLifecycle,
@@ -1001,6 +1003,46 @@ const lifecycleRequest: IdentityHandler = async (request, env) => {
     noticeVersion: requiredString(body.noticeVersion, 1, 64),
     userNote: optionalString(body.userNote, 2_000)
   }), 202);
+};
+
+const accountDeactivate: IdentityHandler = async (request, env) => {
+  const { auth, body } = await authenticatedMutation(request, env);
+  exactKeys(body, ["clientRequestId", "confirmation", "turnstileToken"]);
+  const clientRequestId = uuidValue(body.clientRequestId);
+  if (requiredString(body.confirmation, 10, 10) !== "DEACTIVATE") {
+    throw new IdentityHttpError(400, "deactivation_confirmation_invalid");
+  }
+  await requireRateLimit(env, auth.userId, "lifecycle");
+  await verifyTurnstile(env, {
+    token: requiredString(body.turnstileToken, 1, 2_048),
+    action: "identity_lifecycle_request",
+    idempotencyKey: clientRequestId,
+    remoteIp: remoteIp(request)
+  });
+  return success(await selfDeactivateCurrentAccount(createIdentityServerClient(env), {
+    actorUserId: auth.userId,
+    clientRequestId
+  }));
+};
+
+const accountReactivate: IdentityHandler = async (request, env) => {
+  const { auth, body } = await authenticatedMutation(request, env);
+  exactKeys(body, ["clientRequestId", "confirmation", "turnstileToken"]);
+  const clientRequestId = uuidValue(body.clientRequestId);
+  if (requiredString(body.confirmation, 10, 10) !== "REACTIVATE") {
+    throw new IdentityHttpError(400, "reactivation_confirmation_invalid");
+  }
+  await requireRateLimit(env, auth.userId, "lifecycle");
+  await verifyTurnstile(env, {
+    token: requiredString(body.turnstileToken, 1, 2_048),
+    action: "identity_lifecycle_request",
+    idempotencyKey: clientRequestId,
+    remoteIp: remoteIp(request)
+  });
+  return success(await selfReactivateCurrentAccount(createIdentityServerClient(env), {
+    actorUserId: auth.userId,
+    clientRequestId
+  }));
 };
 
 const lifecycleRequests: IdentityHandler = async (request, env) => {
@@ -2239,6 +2281,8 @@ const ROUTES: Readonly<Record<string, IdentityHandler>> = Object.freeze({
   "/v1/bootstrap": bootstrap,
   "/v1/profile/publication": profilePublication,
   "/v1/legal/accept": legalAccept,
+  "/v1/account/deactivate": accountDeactivate,
+  "/v1/account/reactivate": accountReactivate,
   "/v1/lifecycle/request": lifecycleRequest,
   "/v1/lifecycle/requests": lifecycleRequests,
   "/v1/staff/lifecycle/claim": lifecycleWorkClaim,

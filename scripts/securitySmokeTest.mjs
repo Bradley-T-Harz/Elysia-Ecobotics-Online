@@ -102,7 +102,8 @@ const reviewedArtisanServiceRoleMigrations = new Set([
   "supabase/migrations/20260718030000_artisan_authorization_rpcs_and_storage.sql",
   "supabase/migrations/20260722010000_public_commons_profile_legacy_compatibility.sql",
   "supabase/migrations/20260723010000_public_commons_profile_cutover_marker_correction.sql",
-  "supabase/migrations/20260724010000_commune_canonical_author_attribution.sql"
+  "supabase/migrations/20260724010000_commune_canonical_author_attribution.sql",
+  "supabase/migrations/20260829010000_self_service_account_activation.sql"
 ]);
 const reviewedAccountCommunicationRoleMigrations = new Set([
   "supabase/migrations/20260802010000_code_proposal_integrity_and_idempotency.sql",
@@ -171,6 +172,10 @@ function allowHit(file, line, checkName) {
       )
     ) return true;
     if (
+      normalized === "scripts/fixtures/accountActivationBehavior.sql"
+      && /set_config\(\s*['"]request\.jwt\.claim\.role['"]\s*,\s*['"]service_role['"]\s*,\s*true\s*\)/i.test(line)
+    ) return true;
+    if (
       reviewedBillingServerBindingFiles.has(normalized)
       && /\bSUPABASE_SERVICE_ROLE_KEY\b|\bservice_role\b/.test(line)
     ) return true;
@@ -222,6 +227,11 @@ function allowHit(file, line, checkName) {
     if (
       normalized === "scripts/accountCommunicationsSmokeTest.mjs"
       && /assert|service_role|grant|revoke|privilege|search_public_commons_message_profiles_for_actor/i.test(line)
+    ) return true;
+    if (
+      normalized === "scripts/accountProfileLifecycleSmokeTest.mjs"
+      && /assert|service_role|grant execute|revoke all/i.test(line)
+      && !/SUPABASE_SERVICE_ROLE_KEY\s*=|SERVICE_ROLE_KEY\s*=/.test(line)
     ) return true;
     if (
       normalized === "scripts/publicCommonsProfileSmokeTest.mjs"

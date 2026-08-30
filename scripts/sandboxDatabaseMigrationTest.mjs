@@ -94,6 +94,10 @@ const releaseBoundaryPaths = [
   "supabase/migrations/20260818020000_addon_submission_review_link_boundary.sql",
 ];
 
+const accountActivationPaths = [
+  "supabase/migrations/20260829010000_self_service_account_activation.sql",
+];
+
 const activePaths = [
   ...baselinePaths,
   ...economicPaths,
@@ -104,6 +108,7 @@ const activePaths = [
   ...opportunityPaths,
   ...circlePrivatePaths,
   ...releaseBoundaryPaths,
+  ...accountActivationPaths,
 ];
 
 const legacyHashes = new Map(Object.entries({
@@ -203,6 +208,9 @@ const circlePrivateMigrations = await Promise.all(
 const releaseBoundaryMigrations = await Promise.all(
   releaseBoundaryPaths.map((file) => fs.readFile(file, "utf8"))
 );
+const accountActivationMigrations = await Promise.all(
+  accountActivationPaths.map((file) => fs.readFile(file, "utf8"))
+);
 const jobOpportunityBehaviorFixture = await fs.readFile("scripts/fixtures/jobOpportunityDatabaseBehavior.sql", "utf8");
 const circlePrivateBehaviorFixture = await fs.readFile("scripts/fixtures/communeCirclePrivateBehavior.sql", "utf8");
 const routeKillSwitchMigration = economicMigrations.at(-1);
@@ -262,6 +270,35 @@ for (const [index, migration] of releaseBoundaryMigrations.entries()) {
   assert(!/postgres(?:ql)?:\/\//i.test(migration), `${releaseBoundaryPaths[index]} contains a connection string.`);
   assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${releaseBoundaryPaths[index]} contains a token-like value.`);
 }
+for (const [index, migration] of accountActivationMigrations.entries()) {
+  assert(migration.startsWith("--"), `${accountActivationPaths[index]} needs an explanatory header.`);
+  assert(/^begin;/im.test(migration), `${accountActivationPaths[index]} must start a transaction.`);
+  assert(/commit;\s*$/i.test(migration), `${accountActivationPaths[index]} must commit atomically.`);
+  assert(!/postgres(?:ql)?:\/\//i.test(migration), `${accountActivationPaths[index]} contains a connection string.`);
+  assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${accountActivationPaths[index]} contains a token-like value.`);
+}
+const accountActivationSource = accountActivationMigrations.join("\n");
+for (const marker of [
+  "private.account_activation_state",
+  "temporarily_deactivated",
+  "public.current_user_account_activation",
+  "public.community_self_deactivate_actor",
+  "public.community_self_reactivate_actor",
+  "private.community_account_is_active",
+  "private.community_legacy_online_profile_is_public",
+  "self_deactivation_requested",
+  "self_deactivation_completed",
+  "self_reactivation_completed",
+  "participationStatePreserved",
+]) assert(accountActivationSource.includes(marker), `Account activation migration omits ${marker}.`);
+assert(
+  /revoke all privileges on function public\.community_self_deactivate_actor\(uuid, uuid\)[\s\S]*?from public, anon, authenticated, service_role;[\s\S]*?grant execute on function public\.community_self_deactivate_actor\(uuid, uuid\) to service_role;/i.test(accountActivationSource),
+  "Self-deactivation RPC must remain server-only."
+);
+assert(
+  /revoke all privileges on function public\.community_self_reactivate_actor\(uuid, uuid\)[\s\S]*?from public, anon, authenticated, service_role;[\s\S]*?grant execute on function public\.community_self_reactivate_actor\(uuid, uuid\) to service_role;/i.test(accountActivationSource),
+  "Self-reactivation RPC must remain server-only."
+);
 assert(releaseBoundaryMigrations[0].includes('using (status = \'approved\')'), "Legacy Marketplace boundary must constrain public reads to approved rows.");
 for (const marker of ["link_own_addon_submission_review_item", "auth.uid()", "to authenticated"]) {
   assert(releaseBoundaryMigrations[1].includes(marker), `Add-on review link boundary omits ${marker}.`);
@@ -733,6 +770,7 @@ try {
     "scripts/fixtures/jobOpportunityDatabaseBehavior.sql",
     "scripts/fixtures/commonsCircleMutualBehavior.sql",
     "scripts/fixtures/communeCirclePrivateBehavior.sql",
+    "scripts/fixtures/accountActivationBehavior.sql",
     "scripts/sql/supabase_read_only_inventory.sql",
   ]) {
     await run(containerRuntime, ["cp", file, `${container}:/tmp/${path.basename(file)}`]);
@@ -869,6 +907,9 @@ try {
     await psql(["-f", `/tmp/${path.basename(file)}`]);
   }
   for (const file of circlePrivatePaths) {
+    await psql(["-f", `/tmp/${path.basename(file)}`]);
+  }
+  for (const file of accountActivationPaths) {
     await psql(["-f", `/tmp/${path.basename(file)}`]);
   }
   const artisanBehavior = await psql(["-f", "/tmp/artisanDatabaseBehavior.sql"]);
@@ -1053,6 +1094,11 @@ try {
     circlePrivateBehavior.stdout.includes("commune_circle_private_behavior_ok"),
     "Circle/private Commune database behavior marker missing."
   );
+  const accountActivationBehavior = await psql(["-f", "/tmp/accountActivationBehavior.sql"]);
+  assert(
+    accountActivationBehavior.stdout.includes("account_activation_behavior_ok"),
+    "Account activation behavior marker missing."
+  );
   // Hosted Supabase owns this ledger. The database-only image omits it, so
   // provide the catalog shape required by the read-only inventory rehearsal.
   await psql(["-c", `
@@ -1158,7 +1204,7 @@ try {
   } else {
     console.log("plpgsql_check is not available in the disposable Supabase Postgres image; catalog integrity checks still passed.");
   }
-  console.log("Sandbox, economic, Artisan, Online profile, and account communications database disposable migration and behavior checks ok.");
+  console.log("Sandbox, economic, Artisan, Online profile, account communications, and account activation database disposable migration and behavior checks ok.");
 } finally {
   if (started) await run(containerRuntime, ["rm", "-f", container], { allowFailure: true });
 }
