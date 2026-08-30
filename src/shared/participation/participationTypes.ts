@@ -31,10 +31,13 @@ export type CommunityAccess = Readonly<{
   assuranceExpiresAt: string | null;
   jurisdictionCode: string | null;
   publicProfileEnabled: boolean;
+  publicProfilePublished: boolean;
+  canPublishPublicProfile: boolean;
   profileComplete: boolean;
   canJoinArtisan: boolean;
   canPostArtisan: boolean;
   canCommentArtisan: boolean;
+  canAppreciateArtisan: boolean;
   canUploadImage: boolean;
   canSubmitChallenge: boolean;
   evaluatedAt: string;
