@@ -104,7 +104,8 @@ const reviewedArtisanServiceRoleMigrations = new Set([
   "supabase/migrations/20260723010000_public_commons_profile_cutover_marker_correction.sql",
   "supabase/migrations/20260724010000_commune_canonical_author_attribution.sql",
   "supabase/migrations/20260829010000_self_service_account_activation.sql",
-  "supabase/migrations/20260830060000_user_sovereign_account_lifecycle.sql"
+  "supabase/migrations/20260830060000_user_sovereign_account_lifecycle.sql",
+  "supabase/migrations/20260830070000_account_deletion_artisan_retention_claim.sql"
 ]);
 const reviewedAccountCommunicationRoleMigrations = new Set([
   "supabase/migrations/20260802010000_code_proposal_integrity_and_idempotency.sql",

@@ -100,6 +100,7 @@ const accountActivationPaths = [
 
 const userSovereignLifecyclePaths = [
   "supabase/migrations/20260830060000_user_sovereign_account_lifecycle.sql",
+  "supabase/migrations/20260830070000_account_deletion_artisan_retention_claim.sql",
 ];
 
 const activePaths = [

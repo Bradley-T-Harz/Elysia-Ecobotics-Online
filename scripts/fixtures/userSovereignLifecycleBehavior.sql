@@ -268,12 +268,23 @@ begin
      or v_artisan ->> 'expectedAssetCount' <> '1' then
     raise exception 'non-empty Artisan cleanup did not enter retention processing: %', v_artisan;
   end if;
-  v_retention_claim := public.artisan_claim_retention_tasks(
+  insert into artisan.retention_tasks(
+    id, target_type, target_id, action, due_at
+  ) values (
+    'c7000000-0000-4000-8000-000000000001',
+    'notification', 'c7000000-0000-4000-8000-000000000002',
+    'expire_notification', pg_catalog.now() - interval '1 minute'
+  );
+  v_retention_claim := public.artisan_claim_account_deletion_retention_tasks(
     'fixture-artisan-retention-v1', 10, 600
   );
   if pg_catalog.jsonb_array_length(v_retention_claim -> 'items') <> 1
      or v_retention_claim #>> '{items,0,action}' <> 'delete_account_media' then
     raise exception 'Artisan retention worker did not claim account media cleanup: %', v_retention_claim;
+  end if;
+  if (select status from artisan.retention_tasks
+      where id = 'c7000000-0000-4000-8000-000000000001') <> 'pending' then
+    raise exception 'account-deletion retention claim touched unrelated retention work';
   end if;
   v_retention_task_id := (v_retention_claim #>> '{items,0,taskId}')::uuid;
   v_retention_asset := public.artisan_get_retention_task_asset(
