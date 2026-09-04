@@ -12,6 +12,7 @@ function assert(condition, message) {
 }
 
 const app = await read("src/App.tsx");
+const indexHtml = await read("index.html");
 const support = await read("src/pages/Support/index.tsx");
 const archive = await read("src/pages/The-Elysia-Archive/index.tsx");
 const thankYou = await read("src/pages/Support/SupportThankYouPage.tsx");
@@ -34,6 +35,14 @@ const communeApi = await read("src/pages/The-Elysia-Commune/communeAccountApi.ts
 const marketplaceCommerceMigration = await read("supabase/migrations/20260716050000_marketplace_commerce_licenses_and_seller_accounting.sql");
 const stripeCatalog = await read("scripts/billingStripeTestCatalog.mjs");
 const styles = await read("src/styles.css");
+
+assert(
+  indexHtml.includes('<meta name="elysia-billing-api-publication" content="disabled" />')
+    && billingClient.includes('meta[name="elysia-billing-api-publication"]')
+    && billingClient.includes('currentBillingApiPublication() === "disabled"')
+    && billingClient.includes('new BillingRequestError(genericUnavailableMessage, 503, "billing_disabled")'),
+  "The unpublished billing Worker must fail closed in the browser before any /api/billing request."
+);
 
 for (const [value, expected] of [["0.29", 29], ["0.58", 58], ["1", 100], ["1.2", 120], ["100000.00", 10_000_000]]) {
   assert(exactUsdDecimalToMinor(value) === expected, `Exact USD parser changed a legitimate decimal amount: ${value}.`);

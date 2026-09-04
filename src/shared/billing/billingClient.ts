@@ -952,7 +952,20 @@ function errorMessageForStatus(status: number, errorCode: string) {
   return "The billing request could not be completed safely. No new payment should be assumed. Please try again or contact support@elysiaecobotics.com.";
 }
 
+function currentBillingApiPublication() {
+  // This Website is a browser-only application. Node-based contract tests do
+  // not have a document and exercise the response parser with a mocked Worker;
+  // a real rendered document must explicitly publish the separately deployed
+  // test Worker before any /api/billing request is allowed to leave the client.
+  if (typeof document === "undefined") return "contract-test" as const;
+  const marker = document.head.querySelector<HTMLMetaElement>('meta[name="elysia-billing-api-publication"]');
+  return marker?.content === "test" ? "test" as const : "disabled" as const;
+}
+
 async function billingFetch(path: string, init: RequestInit = {}, accessToken?: string | null) {
+  if (currentBillingApiPublication() === "disabled") {
+    throw new BillingRequestError(genericUnavailableMessage, 503, "billing_disabled");
+  }
   const headers = new Headers(init.headers);
   headers.set("accept", "application/json");
   if (init.body) headers.set("content-type", "application/json");
