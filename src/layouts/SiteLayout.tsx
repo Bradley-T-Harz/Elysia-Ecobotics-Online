@@ -2,12 +2,14 @@ import { Outlet } from "react-router-dom";
 import SiteFooter from "../shared/components/SiteFooter";
 import SiteHeader from "../shared/components/SiteHeader";
 import RouteEntryManager from "../shared/navigation/RouteEntryManager";
+import RouteMetadata from "../shared/navigation/RouteMetadata";
 
 export default function SiteLayout() {
   return (
     <div className="site-shell">
       <SiteHeader />
       <RouteEntryManager />
+      <RouteMetadata />
       <main className="site-main">
         <Outlet />
       </main>
