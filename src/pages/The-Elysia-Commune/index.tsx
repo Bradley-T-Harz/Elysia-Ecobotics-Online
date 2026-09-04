@@ -1805,7 +1805,7 @@ function CommuneSearchPanel({ filters, setFilters }: { filters: CommuneFilters; 
       </div>
       <button type="button" onClick={() => setFilters({ search: "", category: "All", status: "All", safety: "All" })}>Clear filters</button>
     </div>
-    <label><span>Search keyword</span><input value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="troubleshooting, repo, research, sandbox..." /></label>
+    <label><span>Search keyword</span><input value={filters.search} maxLength={160} onChange={(event) => setFilters({ ...filters, search: event.target.value })} placeholder="troubleshooting, repo, research, sandbox..." /></label>
     <div className="commune-filter-group">
       <p>Category</p>
       <div className="commune-filter-chips">{["All", ...postTypes.map((type) => type.name)].map((category) => <button className={filters.category === category ? "button-primary" : ""} type="button" key={category} onClick={() => setFilters({ ...filters, category })}>{category}</button>)}</div>
@@ -2093,7 +2093,7 @@ function CommuneAudienceSelector({ value, onChange, idPrefix }: { value: Commune
       {loading && <p className="boundary-note" role="status">Loading accepted Circle members…</p>}
       {warnings.map((warning) => <p className="message" key={warning}>{warning}</p>)}
       {!loading && loaded && accepted.length === 0 && <div className="commune-circle-empty-state"><p>You do not have accepted Circle members available yet. Pending invitations cannot receive private posts.</p><Link className="button-link" to="/commons-circle/signals/circle">Open Your Circle</Link></div>}
-      {accepted.length > 4 && <label className="commune-circle-search"><span>Find a Circle member</span><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search accepted members" /></label>}
+      {accepted.length > 4 && <label className="commune-circle-search"><span>Find a Circle member</span><input value={query} maxLength={80} onChange={(event) => setQuery(event.target.value)} placeholder="Search accepted members" /></label>}
       {filtered.length > 0 && <div className="commune-circle-member-options" aria-label="Accepted Circle members">
         {filtered.map((item) => <label className={selected.has(item.relationshipId) ? "commune-circle-member-option is-selected" : "commune-circle-member-option"} key={item.relationshipId}>
           <input type="checkbox" checked={selected.has(item.relationshipId)} onChange={() => toggleRelationship(item.relationshipId)} />

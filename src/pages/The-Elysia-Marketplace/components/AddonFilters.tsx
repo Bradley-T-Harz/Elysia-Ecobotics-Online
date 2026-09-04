@@ -14,6 +14,7 @@ export default function AddonFilters({ filters, categories, trustTiers, onChange
         <span>Search</span>
         <input
           value={filters.search}
+          maxLength={160}
           onChange={(event) => onChange({ ...filters, search: event.target.value })}
           placeholder="Search name, tag, dependency, publisher"
         />

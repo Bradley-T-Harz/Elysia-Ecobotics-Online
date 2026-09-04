@@ -424,7 +424,7 @@ export default function LivingLibraryPage() {
         }} role="search">
           <label htmlFor="living-library-search-input">Search scientific resources</label>
           <div>
-            <input id="living-library-search-input" value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder="Try atmospheric, peer reviewed, genomics, materials, or API" autoComplete="off" />
+            <input id="living-library-search-input" value={searchDraft} maxLength={160} onChange={(event) => setSearchDraft(event.target.value)} placeholder="Try atmospheric, peer reviewed, genomics, materials, or API" autoComplete="off" />
             <button type="submit">Search the library</button>
           </div>
         </form>
