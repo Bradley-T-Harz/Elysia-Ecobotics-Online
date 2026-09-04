@@ -1,0 +1,224 @@
+{
+  "manifestId": "elysia-online-bounded-domain-ownership-v1",
+  "schemaVersion": 1,
+  "status": "current-state-documentation-and-test-contract",
+  "updatedAt": "2026-09-04",
+  "purpose": "Record current primary ownership, dependencies, and prohibited authority couplings without becoming runtime authority or removing any route or capability.",
+  "authoritativeSources": {
+    "routes": "src/App.tsx",
+    "routePreservation": "docs/navigation/route-preservation-contract.json",
+    "database": "supabase/migrations plus verified production catalog",
+    "cloudflare": "versioned Worker and Pages configuration plus verified provider state",
+    "authorization": "server-side Workers, RPCs, RLS policies, storage policies, and sandbox access validation",
+    "navigation": "src/shared/navigation/publicNavigation.ts"
+  },
+  "invariants": [
+    "This manifest is documentation and test input only and must never be imported by runtime application code.",
+    "Every registered destination route has exactly one primary presentation owner even when it consumes shared services.",
+    "Frontend visibility and route guards are user-experience controls, never authorization.",
+    "Public Commons Profile remains canonical public profile authority; Artisan is a consumer and must not create a second identity authority.",
+    "Badge recognition is not a role, permission, moderation power, governance authority, trust score, payment status, or social rank.",
+    "Payment, voluntary support, hosted-execution allowance, and community participation remain separate concepts.",
+    "Stripe is a provider behind the economic boundary and is never called directly by a sandbox runner or browser as authority.",
+    "Hosted-execution credits are non-transferable service-use units with no cash value and never weaken sandbox security.",
+    "Local Elysia, local computation, and community participation are not metered by EcoSyneva.",
+    "Shared infrastructure may be reused, but source-domain state and mutation authority remain with the named owner.",
+    "No route, deep link, domain world, workflow, or authority is removed by this manifest."
+  ],
+  "routeSelectionSemantics": {
+    "exact": "Matches the complete resolved route pattern.",
+    "prefix": "Matches the prefix itself or a slash-delimited descendant.",
+    "prefixLiteral": "Matches any route pattern beginning with the literal value.",
+    "excludeExact": "Removes an exact route from a broader selector because another bounded domain owns it.",
+    "wildcard": "Matches only the registered wildcard pattern."
+  },
+  "domains": [
+    {
+      "domainId": "public-shell",
+      "name": "Public shell and institutional story",
+      "routeSelectors": { "exact": ["/", "/story", "/about", "/mission"], "wildcard": true },
+      "uiOwners": ["src/shared/components", "src/pages/Elysia-Ecobotics-Online-MainPage", "src/pages/Story", "src/pages/About", "src/pages/Mission"],
+      "authoritativeStorage": ["versioned repository content and public release/deployment artifacts"],
+      "dependsOn": ["navigation", "legal-trust", "observability"],
+      "mustNotOwn": ["account authorization", "economic fulfillment", "community source records"]
+    },
+    {
+      "domainId": "archive-releases",
+      "name": "Archive and downloads",
+      "routeSelectors": { "exact": ["/archive"] },
+      "uiOwners": ["src/pages/The-Elysia-Archive"],
+      "authoritativeStorage": ["versioned release manifest", "immutable public release artifacts"],
+      "dependsOn": ["public-shell"],
+      "mustNotOwn": ["mutable local Elysia runtime state", "rewrites of published v1.0.0 bytes"]
+    },
+    {
+      "domainId": "marketplace",
+      "name": "Marketplace catalog, submissions, review, trust, and licenses",
+      "routeSelectors": {
+        "prefix": ["/marketplace"],
+        "prefixLiteral": ["/addons/"],
+        "exact": ["/browse", "/action-preview", "/submit", "/trust", "/manifest-api"]
+      },
+      "uiOwners": ["src/pages/Elysia-Marketplace"],
+      "authoritativeStorage": ["Marketplace and add-on submission records", "published listing state", "license and fulfillment source records"],
+      "dependsOn": ["identity-accounts", "developer-forge", "support-economics", "moderation-admin", "media-uploads", "notifications"],
+      "mustNotOwn": ["Stripe secrets", "seller payout provider state", "developer source drafts", "badges as authority"]
+    },
+    {
+      "domainId": "products-lab",
+      "name": "Products and Lab",
+      "routeSelectors": { "exact": ["/products", "/lab"] },
+      "uiOwners": ["src/pages/Products", "src/pages/Lab"],
+      "authoritativeStorage": ["versioned repository content"],
+      "dependsOn": ["public-shell", "archive-releases"],
+      "mustNotOwn": ["Marketplace publication state", "local private runtime state"]
+    },
+    {
+      "domainId": "developer-forge",
+      "name": "Developer Forge",
+      "routeSelectors": { "prefix": ["/developer-forge"] },
+      "uiOwners": ["src/pages/Developer-Forge"],
+      "authoritativeStorage": ["account-owned drafts", "submission and validation records", "reviewed package artifacts"],
+      "dependsOn": ["identity-accounts", "marketplace", "sandbox-execution", "media-uploads", "moderation-admin", "notifications"],
+      "mustNotOwn": ["local Elysia installation authority", "Marketplace publication decisions", "payment provider state"]
+    },
+    {
+      "domainId": "living-library-research",
+      "name": "Living Library and Research Commons",
+      "routeSelectors": { "prefix": ["/living-library"] },
+      "uiOwners": ["src/pages/The-Living-Library"],
+      "authoritativeStorage": ["curated source catalog", "source review and link-status records", "Research Notes source records"],
+      "dependsOn": ["identity-accounts", "commune", "moderation-admin", "notifications"],
+      "mustNotOwn": ["third-party source content", "identity profiles", "notification authority"]
+    },
+    {
+      "domainId": "commune",
+      "name": "Elysia Commune",
+      "routeSelectors": { "prefix": ["/commune"] },
+      "uiOwners": ["src/pages/The-Elysia-Commune"],
+      "authoritativeStorage": ["rooms", "posts and structured sidecars", "comments", "reactions", "polls and votes", "moderation and report source state"],
+      "dependsOn": ["identity-accounts", "commons-circle-signals", "sandbox-execution", "recognition-badges", "moderation-admin", "notifications"],
+      "mustNotOwn": ["public identity projection", "credit balance", "badge qualification inferred from UI behavior"]
+    },
+    {
+      "domainId": "work-participation",
+      "name": "Work, employment, and participation intake",
+      "routeSelectors": { "exact": ["/work-with-elysia-ecobotics"] },
+      "uiOwners": ["src/pages/Work-With-Elysia-Ecobotics"],
+      "authoritativeStorage": ["work-with requests", "Job Post opportunity state", "review and fulfillment source state"],
+      "dependsOn": ["identity-accounts", "support-economics", "moderation-admin", "notifications"],
+      "mustNotOwn": ["economic settlement sidecars", "employee classification by UI copy", "payment provider state"]
+    },
+    {
+      "domainId": "support-economics",
+      "name": "Voluntary support, hosted-compute economics, and economic operations",
+      "routeSelectors": { "exact": ["/support", "/support/thank-you", "/commons-circle/support-billing", "/admin/economic-operations"] },
+      "apiSelectors": ["/api/billing/*", "/api/sandbox/credits"],
+      "workerOwners": ["services/billing-worker", "functions/api/billing", "functions/api/sandbox/credits.ts"],
+      "authoritativeStorage": ["private economic ledgers", "orders and transactions", "consents and audit", "sandbox allowance lots, reservations, settlements, releases, and compensation"],
+      "dependsOn": ["identity-accounts", "sandbox-execution", "notifications", "observability", "external Stripe state only when separately authorized and enabled"],
+      "mustNotOwn": ["badge qualification", "roles", "governance", "moderation", "trust", "Marketplace social currency", "local computation"]
+    },
+    {
+      "domainId": "identity-accounts",
+      "name": "Shared identity, public Commons Profile, and account lifecycle",
+      "routeSelectors": { "prefix": ["/account"] },
+      "apiSelectors": ["/api/identity/*"],
+      "workerOwners": ["services/identity-worker", "functions/api/identity"],
+      "uiOwners": ["src/pages/Account"],
+      "authoritativeStorage": ["Supabase auth.users", "canonical private profile", "profile_public_cards safe projection", "legal acceptance", "lifecycle requests and cleanup receipts"],
+      "dependsOn": ["notifications", "moderation-admin", "media-uploads", "observability"],
+      "mustNotOwn": ["Artisan participation state", "economic fulfillment", "community content source state"]
+    },
+    {
+      "domainId": "commons-circle-signals",
+      "name": "Commons Circle homebase, settings, private communication, and cross-domain signals",
+      "routeSelectors": { "prefix": ["/commons-circle", "/commons"], "excludeExact": ["/commons-circle/support-billing"] },
+      "uiOwners": ["src/pages/The-Commons-Circle"],
+      "authoritativeStorage": ["account communication and preference records", "cross-domain event projections", "saved shelves", "Circle relationship state"],
+      "dependsOn": ["identity-accounts", "notifications", "recognition-badges", "commune", "developer-forge", "marketplace", "work-participation", "living-library-research"],
+      "mustNotOwn": ["source-domain mutation authority", "duplicated public profiles", "economic or role authority inferred from signals"]
+    },
+    {
+      "domainId": "artisan-bridge",
+      "name": "Website boundary to the distinct Artisan Collective product",
+      "routeSelectors": { "exact": ["/artisan-collective"] },
+      "uiOwners": ["src/pages/Elysia-Artisan-Collective"],
+      "authoritativeStorage": ["approved external destination configuration; Artisan content remains owned by the separate product"],
+      "dependsOn": ["identity-accounts", "legal-trust"],
+      "mustNotOwn": ["a second identity profile", "Artisan participation authority", "cross-origin session transfer"]
+    },
+    {
+      "domainId": "legal-trust",
+      "name": "Legal and trust surfaces",
+      "routeSelectors": { "prefix": ["/legal"] },
+      "uiOwners": ["src/pages/Legal"],
+      "authoritativeStorage": ["versioned legal documents and hashes", "current acceptance versions"],
+      "dependsOn": ["identity-accounts", "marketplace", "support-economics"],
+      "mustNotOwn": ["authorization by copy alone", "provider activation", "silent retroactive consent"]
+    },
+    {
+      "domainId": "moderation-admin",
+      "name": "Moderation and Admin Console presentation",
+      "routeSelectors": { "prefix": ["/admin"], "excludeExact": ["/admin/economic-operations"] },
+      "uiOwners": ["src/pages/Admin"],
+      "authoritativeStorage": ["capability-scoped role and audit records", "source-domain review decisions through bounded RPCs"],
+      "dependsOn": ["identity-accounts", "recognition-badges", "commune", "developer-forge", "marketplace", "living-library-research", "work-participation", "observability"],
+      "mustNotOwn": ["unscoped service-role access", "payment-derived authority", "frontend-only permission checks"]
+    }
+  ],
+  "sharedServices": [
+    {
+      "serviceId": "navigation",
+      "owner": "public-shell",
+      "sources": ["src/shared/navigation/publicNavigation.ts", "src/shared/components/SiteNav.tsx"],
+      "rule": "Group discovery without deleting, redirecting, or hiding established destinations."
+    },
+    {
+      "serviceId": "notifications",
+      "owner": "commons-circle-signals",
+      "sources": ["account event producers", "notification projection RPCs", "Identity delivery worker"],
+      "rule": "Notifications project authoritative source events and never grant source-domain authority."
+    },
+    {
+      "serviceId": "recognition-badges",
+      "owner": "recognition-badges",
+      "sources": ["canonical badge definitions and rules", "authoritative database producer triggers", "Admin badge management RPCs"],
+      "rule": "Awards require server-side source evidence, idempotency, durable history, revocation semantics, and separation from all authority and payment."
+    },
+    {
+      "serviceId": "sandbox-execution",
+      "owner": "sandbox-execution",
+      "apiSelectors": ["/api/sandbox/health", "/api/sandbox/run"],
+      "sources": ["functions/api/sandbox", "services/sandbox-runner", "sandbox database RPCs"],
+      "rule": "Identity, access, reservation, execution isolation, measurement, settlement/release, cancellation, receipts, and cleanup each remain independently enforced."
+    },
+    {
+      "serviceId": "media-uploads",
+      "owner": "source-domain-plus-storage-policy",
+      "sources": ["Supabase storage policies", "source-domain upload validators", "Artisan media pipeline"],
+      "rule": "Every upload is owner-scoped, size/type bounded, quarantine-aware where applicable, and cleaned through the source lifecycle."
+    },
+    {
+      "serviceId": "observability",
+      "owner": "operations",
+      "sources": ["Cloudflare analytics and logs", "bounded audit/receipt records", "sandbox diagnostics"],
+      "rule": "Record outcomes and correlation identifiers without secrets, credentials, message bodies, private profile data, or provider payloads."
+    }
+  ],
+  "forbiddenCouplings": [
+    { "from": "support-economics", "to": "recognition-badges", "prohibition": "No purchase, support, allowance, or payment state grants or improves a badge." },
+    { "from": "support-economics", "to": "moderation-admin", "prohibition": "No payment state grants a role, moderation power, governance authority, or trust." },
+    { "from": "support-economics", "to": "marketplace", "prohibition": "Hosted-execution allowances are not a wallet, transferable value, seller payment, commission balance, or Marketplace currency." },
+    { "from": "sandbox-execution", "to": "support-economics", "prohibition": "The runner cannot call Stripe or decide price, grant type, entitlement, or economic policy." },
+    { "from": "artisan-bridge", "to": "identity-accounts", "prohibition": "Artisan cannot create another account, profile authority, user directory, or cross-origin session bridge." },
+    { "from": "public-shell", "to": "all-authority", "prohibition": "Navigation state, hidden controls, route guards, copy, and badges never substitute for server authorization." },
+    { "from": "local-elysia", "to": "support-economics", "prohibition": "Local Elysia and local computation are not metered by EcoSyneva." }
+  ],
+  "externalBoundaries": [
+    { "boundaryId": "stripe", "state": "live-financial-flows-disabled-pending-separate-review", "owner": "support-economics" },
+    { "boundaryId": "artisan-product", "state": "separate-deployment-and-visual-domain", "owner": "Artisan repository" },
+    { "boundaryId": "sandbox-host", "state": "private-tunnel-origin-with-separate-host-authority", "owner": "sandbox-execution" },
+    { "boundaryId": "local-elysia", "state": "private-local-product-with-immutable-v1.0.0-release-boundary", "owner": "Elysia repository" }
+  ]
+}
