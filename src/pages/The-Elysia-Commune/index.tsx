@@ -4840,7 +4840,7 @@ function PostDetail({ postId }: { postId: string }) {
       {replies.length > 0 && <div className="commune-reply-thread">{replies.map((reply) => renderComment(reply, true))}</div>}
     </article>;
   }
-  if (!post) return <section className="section-card"><h2>Post not found</h2><p>This post is not public, does not exist, or is still awaiting moderation.</p><p className="boundary-note">Account-backed posts may also be unavailable while Commune backend tables are being prepared.</p><Link className="button-link" to="/commune">Back to Commune</Link></section>;
+  if (!post) return <section className="section-card"><h1>Post not found</h1><p>This post is not public, does not exist, or is still awaiting moderation.</p><p className="boundary-note">Account-backed posts may also be unavailable while Commune backend tables are being prepared.</p><Link className="button-link" to="/commune">Back to Commune</Link></section>;
   const parsedBody = splitPostSections(post.body);
   const troubleshooting = state.troubleshootingPosts.find((item) => item.post_id === post.id) ?? null;
   const researchNote = state.researchNotes.find((item) => item.post_id === post.id) ?? null;

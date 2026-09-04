@@ -7301,6 +7301,27 @@ textarea:focus-visible {
   outline-offset: 3px;
 }
 
+.skip-link {
+  position: fixed;
+  top: 0.75rem;
+  left: 0.75rem;
+  z-index: 10000;
+  max-width: calc(100vw - 1.5rem);
+  padding: 0.7rem 1rem;
+  border: 1px solid rgba(126, 215, 209, 0.78);
+  border-radius: 0.7rem;
+  background: #071419;
+  color: #efffff;
+  box-shadow: 0 0.8rem 2rem rgba(0, 0, 0, 0.48);
+  font-weight: 700;
+  transform: translateY(calc(-100% - 1.5rem));
+}
+
+.skip-link:focus,
+.skip-link:focus-visible {
+  transform: translateY(0);
+}
+
 @media (max-width: 820px) {
   .support-choice-grid,
   .support-choice-grid--plans,

@@ -7,10 +7,11 @@ import RouteMetadata from "../shared/navigation/RouteMetadata";
 export default function SiteLayout() {
   return (
     <div className="site-shell">
+      <a className="skip-link" href="#main-content">Skip to main content</a>
       <SiteHeader />
       <RouteEntryManager />
       <RouteMetadata />
-      <main className="site-main">
+      <main id="main-content" className="site-main" tabIndex={-1}>
         <Outlet />
       </main>
       <section className="site-trust-strip">

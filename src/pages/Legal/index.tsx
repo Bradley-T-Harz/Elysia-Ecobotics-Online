@@ -62,17 +62,17 @@ function MarkdownPolicyBody({ body }: { body: string }) {
     }
     if (line.startsWith("### ")) {
       flushList();
-      elements.push(<h3 key={index}>{renderInline(line.slice(4))}</h3>);
+      elements.push(<h4 key={index}>{renderInline(line.slice(4))}</h4>);
       return;
     }
     if (line.startsWith("## ")) {
       flushList();
-      elements.push(<h2 key={index}>{renderInline(line.slice(3))}</h2>);
+      elements.push(<h3 key={index}>{renderInline(line.slice(3))}</h3>);
       return;
     }
     if (line.startsWith("# ")) {
       flushList();
-      elements.push(<h1 key={index}>{renderInline(line.slice(2))}</h1>);
+      elements.push(<h2 key={index}>{renderInline(line.slice(2))}</h2>);
       return;
     }
     if (line.startsWith("- ")) {
