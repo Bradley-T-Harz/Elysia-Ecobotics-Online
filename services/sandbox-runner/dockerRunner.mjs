@@ -1,10 +1,15 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs/promises";
+import { resolve, sep } from "node:path";
 import { writeAuditEvent } from "./auditLog.mjs";
 import { readJob, stderrPath, stdoutPath, writeJob, writeOutputFile } from "./jobStore.mjs";
 import { decodeUtf8Prefix, hardOutputBytes, maxOutputBytes, sanitizeOutput } from "./policy.mjs";
 import { loadRunnerConfig } from "./serviceConfig.mjs";
 
 const activeContainers = new Map();
+const CGROUP_ROOT = "/sys/fs/cgroup";
+const RESOURCE_SAMPLE_INTERVAL_MS = 20;
+const RESOURCE_DISCOVERY_ATTEMPTS = 40;
 
 export function runProcess(bin, args, options = {}) {
   const spawnImpl = options.spawnImpl || spawn;
@@ -83,6 +88,87 @@ export async function verifyRootlessEngine(config = loadRunnerConfig(), options 
     const info = JSON.parse(result.stdout);
     return engineInfoSupportsIsolation("docker", info);
   } catch { return false; }
+}
+
+function boundedMetric(value, maximum) {
+  if (typeof value !== "string" || !/^\d+$/.test(value)) return null;
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 0 && parsed <= maximum ? parsed : null;
+}
+
+export function parseCgroupV2Metrics(cpuStat, memoryPeak, pidsPeak, memoryEvents = "") {
+  const usageUsec = String(cpuStat ?? "").match(/^usage_usec\s+(\d+)$/m)?.[1] ?? null;
+  const memoryBytes = String(memoryPeak ?? "").trim();
+  const pidCount = String(pidsPeak ?? "").trim();
+  const boundedUsageUsec = boundedMetric(usageUsec, 600_000_000);
+  const oomKillCount = boundedMetric(String(memoryEvents).match(/^oom_kill\s+(\d+)$/m)?.[1] ?? null, 1_000_000);
+  return {
+    actualCpuTimeMs: boundedUsageUsec === null ? null : Math.ceil(boundedUsageUsec / 1_000),
+    peakMemoryBytes: boundedMetric(memoryBytes, 17_179_869_184),
+    peakPids: boundedMetric(pidCount, 1_000_000),
+    oomKilled: oomKillCount !== null && oomKillCount > 0
+  };
+}
+
+function mergeResourceMeasurement(current, sample) {
+  for (const key of ["actualCpuTimeMs", "peakMemoryBytes", "peakPids"]) {
+    if (sample?.[key] !== null && sample?.[key] !== undefined) {
+      current[key] = current[key] === null ? sample[key] : Math.max(current[key], sample[key]);
+    }
+  }
+  if (sample?.oomKilled === true) current.oomKilled = true;
+  return current;
+}
+
+async function discoverContainerCgroup(config, containerName, options = {}) {
+  const inspected = await runProcess(config.engine, ["inspect", "--format", "{{.State.Pid}}", containerName], {
+    ...options,
+    env: config.engineEnv,
+    timeoutMs: 1_000,
+    maximumBytes: 100
+  });
+  const pid = inspected.ok && /^\d+$/.test(inspected.stdout.trim()) ? Number(inspected.stdout.trim()) : 0;
+  if (!Number.isSafeInteger(pid) || pid < 2) return null;
+
+  const membership = await fs.readFile(`/proc/${pid}/cgroup`, "utf8").catch(() => "");
+  const unifiedPath = membership.split(/\r?\n/).find((line) => line.startsWith("0::/"))?.slice(3) ?? "";
+  if (!unifiedPath.startsWith("/") || unifiedPath.length > 4_096 || unifiedPath.split("/").includes("..")) return null;
+  const directory = resolve(CGROUP_ROOT, `.${unifiedPath}`);
+  if (directory === CGROUP_ROOT || !directory.startsWith(`${CGROUP_ROOT}${sep}`)) return null;
+  const canonical = await fs.realpath(directory).catch(() => "");
+  return canonical === directory && canonical.startsWith(`${CGROUP_ROOT}${sep}`) ? canonical : null;
+}
+
+async function readCgroupMeasurement(directory) {
+  const [cpuStat, memoryPeak, pidsPeak, memoryEvents] = await Promise.all([
+    fs.readFile(resolve(directory, "cpu.stat"), "utf8"),
+    fs.readFile(resolve(directory, "memory.peak"), "utf8"),
+    fs.readFile(resolve(directory, "pids.peak"), "utf8"),
+    fs.readFile(resolve(directory, "memory.events"), "utf8")
+  ]).catch(() => []);
+  return cpuStat === undefined ? null : parseCgroupV2Metrics(cpuStat, memoryPeak, pidsPeak, memoryEvents);
+}
+
+function delay(milliseconds) {
+  return new Promise((resolveDelay) => setTimeout(resolveDelay, milliseconds));
+}
+
+async function monitorContainerResources(config, containerName, isRunning, options = {}) {
+  const measurement = { actualCpuTimeMs: null, peakMemoryBytes: null, peakPids: null, oomKilled: false };
+  let directory = null;
+  for (let attempt = 0; attempt < RESOURCE_DISCOVERY_ATTEMPTS && isRunning(); attempt += 1) {
+    directory = await discoverContainerCgroup(config, containerName, options).catch(() => null);
+    if (directory) break;
+    await delay(RESOURCE_SAMPLE_INTERVAL_MS);
+  }
+  if (!directory) return measurement;
+
+  while (isRunning()) {
+    mergeResourceMeasurement(measurement, await readCgroupMeasurement(directory));
+    await delay(RESOURCE_SAMPLE_INTERVAL_MS);
+  }
+  mergeResourceMeasurement(measurement, await readCgroupMeasurement(directory));
+  return measurement;
 }
 
 export function buildContainerArgs({ job, runtime, config = loadRunnerConfig() }) {
@@ -222,6 +308,9 @@ export async function runContainerJob(job, runtime, sourceCode, options = {}) {
     shell: false,
     env: config.engineEnv
   });
+  let containerRunning = true;
+  const resourceMeasurementPromise = monitorContainerResources(config, containerName, () => containerRunning, processOptions)
+    .catch(() => ({ actualCpuTimeMs: null, peakMemoryBytes: null, peakPids: null, oomKilled: false }));
   const output = { stdout: [], stderr: [], stdoutBytes: 0, stderrBytes: 0, totalBytes: 0, outputTruncated: false, outputOverflow: false };
   let timedOut = false;
   let cancelled = false;
@@ -254,7 +343,9 @@ export async function runContainerJob(job, runtime, sourceCode, options = {}) {
     child.once("error", () => finish(1));
     child.once("close", (code) => finish(code ?? 1));
   });
+  containerRunning = false;
   clearTimeout(timer);
+  const resourceMeasurement = await resourceMeasurementPromise;
   const cleanupOk = terminationPromise ? await terminationPromise : await forceRemoveContainer(config, containerName, processOptions);
   options.signal?.removeEventListener("abort", cancelRun);
   activeContainers.delete(job.job_id);
@@ -289,6 +380,10 @@ export async function runContainerJob(job, runtime, sourceCode, options = {}) {
     output_bytes: Math.min(output.totalBytes, 1_048_576),
     output_truncated: output.outputTruncated,
     output_overflow: output.outputOverflow,
+    actual_cpu_time_ms: resourceMeasurement.actualCpuTimeMs,
+    peak_memory_bytes: resourceMeasurement.peakMemoryBytes,
+    peak_pids: resourceMeasurement.peakPids,
+    oom_killed: resourceMeasurement.oomKilled,
     cleanup_ok: cleanupOk
   };
   await writeJob(finalJob, config);
@@ -297,6 +392,10 @@ export async function runContainerJob(job, runtime, sourceCode, options = {}) {
     exit_code: exitCode,
     timed_out: timedOut,
     output_overflow: output.outputOverflow,
+    actual_cpu_time_ms: resourceMeasurement.actualCpuTimeMs,
+    peak_memory_bytes: resourceMeasurement.peakMemoryBytes,
+    peak_pids: resourceMeasurement.peakPids,
+    oom_killed: resourceMeasurement.oomKilled,
     cleanup_ok: cleanupOk
   }, config);
   return finalJob;

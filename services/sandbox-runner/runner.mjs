@@ -216,6 +216,7 @@ function failureClass(job) {
   if (job.timed_out || job.status === "timed_out") return "timeout";
   if (job.output_overflow || job.status === "output_overflow") return "output_overflow";
   if (job.status === "cancelled") return "cancelled";
+  if (job.oom_killed === true) return "memory_exceeded";
   if (job.status === "cleanup_failed") return "cleanup_failed";
   if (job.status === "validation_failed") return "runner_unavailable";
   return "runtime_error";
@@ -333,6 +334,8 @@ export async function createAndRunSnapshotRun(payload, { confirmLocalExecution =
         outputBytes: Number.isInteger(finalJob.output_bytes) ? finalJob.output_bytes : Buffer.byteLength(`${stdout}${stderr}`, "utf8"),
         configuredCpuMillis: configuredCpuMillis(finalJob.resource_limits),
         configuredMemoryBytes: configuredMemoryBytes(finalJob.resource_limits),
+        actualCpuTimeMs: Number.isInteger(finalJob.actual_cpu_time_ms) ? finalJob.actual_cpu_time_ms : null,
+        peakMemoryBytes: Number.isInteger(finalJob.peak_memory_bytes) ? finalJob.peak_memory_bytes : null,
         failureClass: failureClass(finalJob)
       }),
       diagnostics,

@@ -1,7 +1,7 @@
 import { PublicHttpError, fetchWithTimeout, safeErrorResponse } from "../functions/api/sandbox/_shared/http.ts";
 import { authenticateRequest, sandboxAccessDeniedError } from "../functions/api/sandbox/_shared/auth.ts";
 import { finalizeRun, startRun } from "../functions/api/sandbox/_shared/database.ts";
-import { executeRunner } from "../functions/api/sandbox/_shared/runner.ts";
+import { executeRunner, sanitizeRunnerResult } from "../functions/api/sandbox/_shared/runner.ts";
 import { parseSandboxRunRequest } from "../functions/api/sandbox/_shared/schema.ts";
 import { resolveAuthorizedSource } from "../functions/api/sandbox/_shared/source.ts";
 import { handleSandboxCreditSummary } from "../functions/api/sandbox/credits.ts";
@@ -348,6 +348,27 @@ assert(!("engine" in actualRunnerResult) && !JSON.stringify(actualRunnerResult).
 assert(!JSON.stringify(actualRunnerResult).includes(env.SANDBOX_SERVICE_TOKEN) && !JSON.stringify(actualRunnerResult).includes(env.CLOUDFLARE_ACCESS_CLIENT_SECRET) && !JSON.stringify(actualRunnerResult).includes(env.SANDBOX_DB_FINALIZER_TOKEN), "Configured credentials must be redacted even if a compromised upstream reflects them.");
 assert(actualRunnerResult.diagnostics[0]?.category === "sandbox_internal_failure" && actualRunnerResult.diagnostics[0]?.source === "Coding Cornucopia sandbox", "Runner-chosen diagnostic metadata must be replaced by proxy allowlists.");
 assert(actualRunnerResult.usage.inputBytes === new TextEncoder().encode(source.code).byteLength && actualRunnerResult.usage.networkAccess === false, "Proxy must validate usage and refuse an upstream claim that network access occurred.");
+
+const measuredOomResult = sanitizeRunnerResult({
+  ok: false,
+  status: "failed",
+  usage: {
+    inputBytes: new TextEncoder().encode(source.code).byteLength,
+    outputBytes: 0,
+    configuredCpuMillis: 500,
+    configuredMemoryBytes: 268_435_456,
+    actualCpuTimeMs: 37,
+    peakMemoryBytes: 268_435_456,
+    networkAccess: false,
+    failureClass: "memory_exceeded"
+  }
+}, source, env);
+assert(
+  measuredOomResult.usage.actualCpuTimeMs === 37
+  && measuredOomResult.usage.peakMemoryBytes === 268_435_456
+  && measuredOomResult.usage.failureClass === "memory_exceeded",
+  "The proxy must preserve bounded measured CPU/memory values and the governed OOM failure class."
+);
 
 const governedPolicyRefusal = await executeRunner(env, startedReservation, source, async () => new Response(JSON.stringify({
   ok: false,

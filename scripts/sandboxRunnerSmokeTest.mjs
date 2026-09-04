@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { Readable } from "node:stream";
 import { EventEmitter } from "node:events";
 import { createHash } from "node:crypto";
-import { buildContainerArgs, engineInfoSupportsIsolation } from "../services/sandbox-runner/dockerRunner.mjs";
+import { buildContainerArgs, engineInfoSupportsIsolation, parseCgroupV2Metrics } from "../services/sandbox-runner/dockerRunner.mjs";
 import { assertJobId, ensureRuntime, jobDir } from "../services/sandbox-runner/jobStore.mjs";
 import { decodeUtf8Prefix, defaultLimits, runtimeForLanguage, sanitizeOutput } from "../services/sandbox-runner/policy.mjs";
 import {
@@ -67,6 +67,23 @@ assert(!engineInfoSupportsIsolation("podman", { host: { security: { rootless: tr
 assert(engineInfoSupportsIsolation("docker", { SecurityOptions: ["name=rootless"], CgroupVersion: "2" }), "Rootless Docker standby with cgroup v2 should satisfy the resource-control prerequisite.");
 assert(!("FORBIDDEN_SECRET" in safeEngineEnvironment("podman", { FORBIDDEN_SECRET: "x", HOME: "/home/service" })), "Engine environment must be allowlisted.");
 assert(!("DOCKER_HOST" in safeEngineEnvironment("podman", { DOCKER_HOST: "secret-socket", HOME: "/home/service" })), "Podman must not receive a Docker socket environment variable.");
+
+const parsedCgroupMetrics = parseCgroupV2Metrics("usage_usec 50259\nuser_usec 33847\nsystem_usec 16411\n", "7307264\n", "6\n", "oom 1\noom_kill 1\n");
+assert(
+  parsedCgroupMetrics.actualCpuTimeMs === 51
+  && parsedCgroupMetrics.peakMemoryBytes === 7_307_264
+  && parsedCgroupMetrics.peakPids === 6
+  && parsedCgroupMetrics.oomKilled === true,
+  "Cgroup-v2 execution measurements must parse exact bounded CPU, memory-peak, PID-peak, and OOM counters."
+);
+const invalidCgroupMetrics = parseCgroupV2Metrics("usage_usec invalid\n", "max\n", "-1\n");
+assert(
+  invalidCgroupMetrics.actualCpuTimeMs === null
+  && invalidCgroupMetrics.peakMemoryBytes === null
+  && invalidCgroupMetrics.peakPids === null
+  && invalidCgroupMetrics.oomKilled === false,
+  "Malformed or unbounded cgroup measurements must degrade to null rather than invent resource usage."
+);
 
 assert((() => {
   try {

@@ -10,7 +10,7 @@ const MAX_ROTATIONS = 5;
 function boundedMetadata(metadata) {
   const source = metadata && typeof metadata === "object" && !Array.isArray(metadata) ? metadata : {};
   const allowed = {};
-  for (const key of ["status", "exit_code", "duration_ms", "timed_out", "output_overflow", "cleanup_ok"]) {
+  for (const key of ["status", "exit_code", "duration_ms", "timed_out", "output_overflow", "actual_cpu_time_ms", "peak_memory_bytes", "peak_pids", "oom_killed", "cleanup_ok"]) {
     if (key in source) allowed[key] = source[key];
   }
   return JSON.parse(redactSecrets(JSON.stringify(allowed)));

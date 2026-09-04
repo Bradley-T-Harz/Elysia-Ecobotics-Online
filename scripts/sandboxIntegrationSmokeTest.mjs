@@ -116,6 +116,8 @@ try {
 }
 const timeout = await timeoutPromise;
 assert(!timeout.ok && timeout.diagnostics.some((item) => item.category === "timeout"), "Wall-clock timeout was not enforced.");
+assert(Number.isInteger(timeout.usage.actualCpuTimeMs) && timeout.usage.actualCpuTimeMs > 0, "The cgroup-v2 CPU counter was not captured for the bounded timeout run.");
+assert(Number.isInteger(timeout.usage.peakMemoryBytes) && timeout.usage.peakMemoryBytes > 0 && timeout.usage.peakMemoryBytes <= 256 * 1024 * 1024, "The cgroup-v2 memory peak was not captured within the configured limit.");
 await assertNoSandboxContainers(config, "Timeout cleanup");
 const cancellation = new AbortController();
 const cancellationPromise = createAndRunSnapshotRun(payload("python", "main.py", "while True: pass", "cancelled"), { confirmLocalExecution: true, config, requireReservation: true, signal: cancellation.signal });
@@ -129,6 +131,8 @@ assert(!flood.ok && flood.outputTruncated, "Hard output flood limit was not enfo
 await assertNoSandboxContainers(config, "Output-overflow cleanup");
 const memory = await createAndRunSnapshotRun(payload("python", "main.py", "x = bytearray(400 * 1024 * 1024); print(len(x))", "memory"), { confirmLocalExecution: true, config, requireReservation: true });
 assert(!memory.ok, "Memory limit was not enforced.");
+assert(memory.usage.failureClass === "memory_exceeded", "The cgroup-v2 OOM event was not classified as memory exhaustion.");
+assert(Number.isInteger(memory.usage.peakMemoryBytes) && memory.usage.peakMemoryBytes > 0 && memory.usage.peakMemoryBytes <= 256 * 1024 * 1024, "The memory-exhaustion run did not report a bounded cgroup-v2 peak.");
 const pids = await createAndRunSnapshotRun(payload("python", "main.py", "import os, time\nfor _ in range(100):\n os.fork()\ntime.sleep(1)", "pids"), { confirmLocalExecution: true, config, requireReservation: true });
 assert(!pids.ok, "PID limit was not enforced.");
 const network = await createAndRunSnapshotRun(payload("python", "main.py", "s = __import__('so' + 'cket'); s.create_connection(('example.com', 443), 0.5)", "network"), { confirmLocalExecution: true, config, requireReservation: true });

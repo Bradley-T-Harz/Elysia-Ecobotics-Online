@@ -66,7 +66,7 @@ function usageMeasurement(payload: Record<string, unknown>, source: AuthorizedSo
   const peakMemoryBytes = finiteInteger(usage.peakMemoryBytes, 0, 17_179_869_184);
   const allowedFailureClasses = new Set([
     "policy_blocked", "runner_unavailable", "runtime_error", "timeout", "output_overflow",
-    "cancelled", "cleanup_failed", "denied"
+    "cancelled", "cleanup_failed", "memory_exceeded", "denied"
   ]);
   const failureClass = typeof usage.failureClass === "string" && allowedFailureClasses.has(usage.failureClass)
     ? usage.failureClass

@@ -12,6 +12,7 @@ Production uses rootless Podman only. Rootless Docker is a separately selected, 
 - The runner passes fixed argument arrays with `shell: false` and writes source to the container process over stdin. It provides no package manager, shell, host-execution fallback, host source bind mount, repository mount, home mount, vault mount, engine-socket mount, or credential mount.
 - One run owns the execution slot. A second request immediately receives `429 Busy` with `Retry-After`; there is no in-process queue.
 - Timeout and output-overflow paths kill and forcibly remove the container before releasing the slot.
+- While a job is running, the service reads only its validated cgroup-v2 directory and records bounded `cpu.stat` usage, `memory.peak`, `pids.peak`, and `memory.events` OOM evidence. Missing or malformed kernel counters become `null`; they never become invented "actual" usage. An observed `oom_kill` is reported as `memory_exceeded`.
 - Successful run input and raw output are deleted immediately. Failed/interrupted run data is bounded and cleaned at startup and by the periodic timer.
 - Health details require the private service token. The public Pages health endpoint returns only `available` or `unavailable`.
 
@@ -53,6 +54,8 @@ ELYSIA_SANDBOX_INTEGRATION=1 npm run test:sandbox-integration
 ```
 
 Run that suite as `elysia-sandbox`, first with Podman. A Docker certification additionally requires `ELYSIA_SANDBOX_DOCKER_STANDBY_TEST=1`; it is a deliberate cold-standby check, not fallback. Never use either suite as root or point it at production state.
+
+The suite fails unless a busy timeout produces real cgroup CPU and memory counters and a bounded memory-exhaustion case produces both a memory peak and `memory_exceeded`. This proof is required separately on the production host after installing a release because local success does not prove host cgroup delegation.
 
 ## Release and operation
 
