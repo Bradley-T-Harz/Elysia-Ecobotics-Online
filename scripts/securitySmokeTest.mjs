@@ -124,6 +124,9 @@ const reviewedCirclePrivacyMigrations = new Set([
 const reviewedBadgeAuthorityMigrations = new Set([
   "supabase/migrations/20260904010000_badge_producer_and_admin_history_hardening.sql",
 ]);
+const reviewedAbuseAuthorityMigrations = new Set([
+  "supabase/migrations/20260904040000_online_action_rate_and_abuse_decisions.sql",
+]);
 
 function allowHit(file, line, checkName) {
   const normalized = file.replaceAll(path.sep, "/");
@@ -232,6 +235,11 @@ function allowHit(file, line, checkName) {
     if (
       reviewedBadgeAuthorityMigrations.has(normalized)
       && /\bservice_role\b|\bgrant\b|\brevoke\b/i.test(line)
+      && !/SUPABASE_SERVICE_ROLE_KEY\s*=|SUPABASE_SERVICE\w*\s*=|SERVICE_ROLE_KEY\s*=/.test(line)
+    ) return true;
+    if (
+      reviewedAbuseAuthorityMigrations.has(normalized)
+      && /\bservice_role\b|\bgrant\b|\brevoke\b|online_abuse_service_role_required/i.test(line)
       && !/SUPABASE_SERVICE_ROLE_KEY\s*=|SUPABASE_SERVICE\w*\s*=|SERVICE_ROLE_KEY\s*=/.test(line)
     ) return true;
     if (

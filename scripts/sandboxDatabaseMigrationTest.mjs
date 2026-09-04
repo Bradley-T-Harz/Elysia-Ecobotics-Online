@@ -115,6 +115,10 @@ const storageUploadHardeningPaths = [
   "supabase/migrations/20260904030000_storage_upload_policy_hardening.sql",
 ];
 
+const onlineActionRatePaths = [
+  "supabase/migrations/20260904040000_online_action_rate_and_abuse_decisions.sql",
+];
+
 const activePaths = [
   ...baselinePaths,
   ...economicPaths,
@@ -130,6 +134,7 @@ const activePaths = [
   ...badgeCompletionPaths,
   ...storagePrivacyPaths,
   ...storageUploadHardeningPaths,
+  ...onlineActionRatePaths,
 ];
 
 const legacyHashes = new Map(Object.entries({
@@ -241,10 +246,14 @@ const storagePrivacyMigrations = await Promise.all(
 const storageUploadHardeningMigrations = await Promise.all(
   storageUploadHardeningPaths.map((file) => fs.readFile(file, "utf8"))
 );
+const onlineActionRateMigrations = await Promise.all(
+  onlineActionRatePaths.map((file) => fs.readFile(file, "utf8"))
+);
 const jobOpportunityBehaviorFixture = await fs.readFile("scripts/fixtures/jobOpportunityDatabaseBehavior.sql", "utf8");
 const circlePrivateBehaviorFixture = await fs.readFile("scripts/fixtures/communeCirclePrivateBehavior.sql", "utf8");
 const badgeCompletionBehaviorFixture = await fs.readFile("scripts/fixtures/badgeCompletionBehavior.sql", "utf8");
 const storageUploadPolicyBehaviorFixture = await fs.readFile("scripts/fixtures/storageUploadPolicyBehavior.sql", "utf8");
+const onlineActionRateBehaviorFixture = await fs.readFile("scripts/fixtures/onlineActionRateBehavior.sql", "utf8");
 const routeKillSwitchMigration = economicMigrations.at(-1);
 assert(routeKillSwitchMigration, "Economic route kill-switch migration is missing.");
 const economicBehaviorFixture = await fs.readFile("scripts/fixtures/economicDatabaseBehavior.sql", "utf8");
@@ -343,6 +352,32 @@ for (const [index, migration] of storageUploadHardeningMigrations.entries()) {
   ]) assert(migration.includes(marker), `${storageUploadHardeningPaths[index]} omits ${marker}.`);
 }
 assert(storageUploadPolicyBehaviorFixture.includes("storage_upload_policy_behavior_ok"), "Storage upload policy behavior marker is missing.");
+for (const [index, migration] of onlineActionRateMigrations.entries()) {
+  assert(migration.startsWith("--"), `${onlineActionRatePaths[index]} needs an explanatory header.`);
+  assert(/^begin;/im.test(migration), `${onlineActionRatePaths[index]} must start a transaction.`);
+  assert(/commit;\s*$/i.test(migration), `${onlineActionRatePaths[index]} must commit atomically.`);
+  assert(!/postgres(?:ql)?:\/\//i.test(migration), `${onlineActionRatePaths[index]} contains a connection string.`);
+  assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${onlineActionRatePaths[index]} contains a token-like value.`);
+  for (const marker of [
+    "private.online_action_rate_policies",
+    "private.online_action_rate_counters",
+    "private.online_abuse_decisions",
+    "online_action_rate_limited",
+    "velocity_limit_reached",
+    "email_confirmed_at is not null",
+    "created_at <= pg_catalog.now() - interval '7 days'",
+    "online_rate_storage_upload",
+    "ordinary account gate own work with requests",
+    "public.online_abuse_decision_summary",
+    "public.expire_online_abuse_decisions",
+  ]) assert(migration.includes(marker), `${onlineActionRatePaths[index]} omits ${marker}.`);
+  for (const prohibited of ["stripe", "payment", "badge", "fingerprint", "ip_address", "request_body"]) {
+    if (["fingerprint", "request_body"].includes(prohibited)) {
+      assert(!new RegExp(`\\b${prohibited}\\b`, "i").test(migration.replace(/comment on table[\s\S]*?;/gi, "")), `${onlineActionRatePaths[index]} persists prohibited ${prohibited} state.`);
+    }
+  }
+}
+assert(onlineActionRateBehaviorFixture.includes("online_action_rate_behavior_ok"), "Online action rate behavior marker is missing.");
 const badgeCompletionSource = badgeCompletionMigrations.join("\n");
 for (const marker of [
   "badge_credit_events_one_active_review_credit",
@@ -861,6 +896,7 @@ try {
     "scripts/fixtures/userSovereignLifecycleBehavior.sql",
     "scripts/fixtures/badgeCompletionBehavior.sql",
     "scripts/fixtures/storageUploadPolicyBehavior.sql",
+    "scripts/fixtures/onlineActionRateBehavior.sql",
     "scripts/sql/supabase_read_only_inventory.sql",
   ]) {
     await run(containerRuntime, ["cp", file, `${container}:/tmp/${path.basename(file)}`]);
@@ -1074,6 +1110,106 @@ try {
     storageUploadPolicyBehavior.stdout.includes("storage_upload_policy_behavior_ok"),
     "Storage upload policy behavior marker missing."
   );
+  for (const file of onlineActionRatePaths) {
+    await psql(["-f", `/tmp/${path.basename(file)}`]);
+  }
+  const onlineActionRateBehavior = await psql(["-f", "/tmp/onlineActionRateBehavior.sql"]);
+  assert(
+    onlineActionRateBehavior.stdout.includes("online_action_rate_behavior_ok"),
+    "Online action rate behavior marker missing."
+  );
+  await psql(["-c", `
+    insert into auth.users(id, email, email_confirmed_at, created_at, updated_at)
+    values (
+      'd4000000-0000-4000-8000-000000000001',
+      'rate-concurrency@example.invalid', now(), now(), now()
+    );
+    insert into public.profiles(id, username, display_name, commons_onboarding_completed_at)
+    values (
+      'd4000000-0000-4000-8000-000000000001',
+      'rate-concurrency', 'Rate Concurrency', now()
+    );
+    set role authenticated;
+    select pg_catalog.set_config(
+      'request.jwt.claim.sub',
+      'd4000000-0000-4000-8000-000000000001', false
+    );
+    select pg_catalog.set_config(
+      'request.jwt.claims',
+      '{"sub":"d4000000-0000-4000-8000-000000000001","role":"authenticated"}',
+      false
+    );
+    insert into public.work_with_requests(id, user_id, request_type, status)
+    values
+      ('d4100000-0000-4000-8000-000000000001', 'd4000000-0000-4000-8000-000000000001', 'Volunteer', 'pending_review'),
+      ('d4100000-0000-4000-8000-000000000002', 'd4000000-0000-4000-8000-000000000001', 'Contributor', 'pending_review'),
+      ('d4100000-0000-4000-8000-000000000003', 'd4000000-0000-4000-8000-000000000001', 'Research help', 'pending_review'),
+      ('d4100000-0000-4000-8000-000000000004', 'd4000000-0000-4000-8000-000000000001', 'Documentation help', 'pending_review');
+    reset role;
+  `]);
+  const concurrentRateSql = (requestId) => `
+    begin;
+    set local role authenticated;
+    select pg_catalog.set_config(
+      'request.jwt.claim.sub',
+      'd4000000-0000-4000-8000-000000000001', true
+    );
+    select pg_catalog.set_config(
+      'request.jwt.claims',
+      '{"sub":"d4000000-0000-4000-8000-000000000001","role":"authenticated"}',
+      true
+    );
+    insert into public.work_with_requests(id, user_id, request_type, status)
+    values (
+      '${requestId}', 'd4000000-0000-4000-8000-000000000001',
+      'Other', 'pending_review'
+    );
+    commit;
+  `;
+  const concurrentRateResults = await Promise.all([
+    run(containerRuntime, [
+      "exec", container, "psql", "-q", "-v", "ON_ERROR_STOP=1",
+      "-U", "supabase_admin", "-d", "postgres", "-c",
+      concurrentRateSql("d4100000-0000-4000-8000-000000000005"),
+    ], { allowFailure: true }),
+    run(containerRuntime, [
+      "exec", container, "psql", "-q", "-v", "ON_ERROR_STOP=1",
+      "-U", "supabase_admin", "-d", "postgres", "-c",
+      concurrentRateSql("d4100000-0000-4000-8000-000000000006"),
+    ], { allowFailure: true }),
+  ]);
+  assert(
+    concurrentRateResults.filter((result) => result.code === 0).length === 1,
+    "Exactly one concurrent boundary action must commit."
+  );
+  const refusedConcurrentRate = concurrentRateResults.find((result) => result.code !== 0);
+  assert(
+    /online_action_rate_limited/.test(`${refusedConcurrentRate?.stderr}\n${refusedConcurrentRate?.stdout}`),
+    "Concurrent boundary refusal did not return the governed rate-limit class."
+  );
+  const concurrentRateState = await psql(["-tAc", `
+    select
+      (select count(*) from public.work_with_requests
+       where user_id = 'd4000000-0000-4000-8000-000000000001')::text
+      || ':' ||
+      (select attempt_count from private.online_action_rate_counters
+       where actor_user_id = 'd4000000-0000-4000-8000-000000000001'
+         and policy_key = 'participation_request_create')::text
+      || ':' ||
+      (select count(*) from private.online_abuse_decisions
+       where actor_user_id = 'd4000000-0000-4000-8000-000000000001'
+         and policy_key = 'participation_request_create')::text;
+  `]);
+  assert(
+    concurrentRateState.stdout.trim() === "5:5:1",
+    `Concurrent rate state was not exactly-once: ${concurrentRateState.stdout.trim()}.`
+  );
+  await psql(["-c", `
+    delete from private.online_abuse_decisions
+    where actor_user_id = 'd4000000-0000-4000-8000-000000000001';
+    delete from auth.users
+    where id = 'd4000000-0000-4000-8000-000000000001';
+  `]);
   const artisanBehavior = await psql(["-f", "/tmp/artisanDatabaseBehavior.sql"]);
   assert(artisanBehavior.stdout.includes("Artisan database behavior checks ok."), "Artisan database behavior marker missing.");
   const onlineProfileBehavior = await psql(["-f", "/tmp/onlinePublicProfileBehavior.sql"]);

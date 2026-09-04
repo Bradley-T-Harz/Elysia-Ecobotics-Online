@@ -1,0 +1,293 @@
+{
+  "version": "2026-09-04.1",
+  "purpose": "Machine-tested current ownership map for layered, privacy-minimized abuse controls. This document does not grant authority or activate a provider feature.",
+  "required_surface_groups": [
+    "edge",
+    "signup",
+    "account",
+    "posts",
+    "comments_replies",
+    "votes_polls",
+    "follows",
+    "messages",
+    "mentions",
+    "notifications",
+    "uploads",
+    "search",
+    "forge",
+    "marketplace",
+    "hosted_execution",
+    "reports",
+    "artisan"
+  ],
+  "transparent_velocity_tiers": {
+    "new_or_unverified": "Email is unconfirmed or account age is under seven days.",
+    "established_verified": "Email is confirmed and account age is at least seven days.",
+    "effect": "Only the action-specific velocity ceiling changes. No capability, authority, prominence, or community standing is granted."
+  },
+  "allowed_signals": [
+    "authenticated account identifier",
+    "session/AAL state",
+    "email-confirmation state",
+    "account age",
+    "action class",
+    "authoritative resource state",
+    "short-lived provider rate bucket"
+  ],
+  "excluded_signals": [
+    "persistent device fingerprint",
+    "cross-context identity graph",
+    "payment or support status",
+    "hosted execution balance",
+    "badge or recognition",
+    "role or governance rank as a velocity reward",
+    "private content body",
+    "file content or file name in abuse decisions"
+  ],
+  "controls": [
+    {
+      "control_id": "ABUSE-EDGE-001",
+      "surface_groups": ["edge"],
+      "status": "provider_visibility_partial",
+      "primary_owner": "Cloudflare edge",
+      "server_enforcement": [
+        "Cloudflare Access fail-closed sandbox ingress",
+        "Cloudflare Pages and Worker request routing",
+        "Worker Rate Limit bindings",
+        "Turnstile siteverify"
+      ],
+      "source_contracts": [
+        "wrangler.identity.production.jsonc",
+        "services/identity-worker/_shared/abuse.ts",
+        "services/identity-worker/_shared/turnstile.ts"
+      ],
+      "known_boundary": "Exact zone WAF, managed-rule, Bot Management, DNS, zone-setting, and alert objects remain unavailable to the current purpose-limited OAuth session. No paid-plan capability is assumed."
+    },
+    {
+      "control_id": "ABUSE-AUTH-001",
+      "surface_groups": ["signup", "account"],
+      "status": "enforced",
+      "primary_owner": "Supabase Auth plus Identity Worker",
+      "database_policy_keys": ["account_profile_mutation"],
+      "server_enforcement": [
+        "Supabase Auth CAPTCHA verification",
+        "email verification and session validation",
+        "Identity exact-origin, bounded-body, bearer, and AAL2 checks",
+        "Identity operation-scoped edge rate keys",
+        "account_profile_mutation database velocity policy"
+      ],
+      "source_contracts": [
+        "src/shared/auth/AuthTurnstile.tsx",
+        "src/pages/The-Elysia-Marketplace/components/authSignup.ts",
+        "functions/api/identity/[[path]].ts",
+        "services/identity-worker/_shared/auth.ts",
+        "services/identity-worker/_shared/abuse.ts",
+        "supabase/migrations/20260904040000_online_action_rate_and_abuse_decisions.sql"
+      ],
+      "degraded_behavior": "Required CAPTCHA, rate binding, origin, session, or AAL state fails closed with a bounded low-information response."
+    },
+    {
+      "control_id": "ABUSE-COMMUNE-CONTENT-001",
+      "surface_groups": ["posts", "comments_replies", "mentions", "notifications"],
+      "status": "enforced",
+      "primary_owner": "Commune database authority",
+      "database_policy_keys": [
+        "commune_post_create",
+        "commune_comment_create",
+        "commune_realtime_message"
+      ],
+      "server_enforcement": [
+        "RLS and domain capability predicates",
+        "action-specific atomic velocity triggers",
+        "content/state/length constraints",
+        "authoritative mention/reply notification producers",
+        "moderation and reporting"
+      ],
+      "source_contracts": [
+        "supabase/migrations/20260802060000_account_notification_producers.sql",
+        "supabase/migrations/20260904040000_online_action_rate_and_abuse_decisions.sql"
+      ]
+    },
+    {
+      "control_id": "ABUSE-COMMUNE-SIGNALS-001",
+      "surface_groups": ["votes_polls", "follows"],
+      "status": "enforced",
+      "primary_owner": "Commune and Commons Circle database authority",
+      "database_policy_keys": [
+        "commune_reaction_write",
+        "commune_vote_write",
+        "community_save_follow",
+        "commons_circle_invitation"
+      ],
+      "server_enforcement": [
+        "unique actor/target constraints",
+        "vote-state and Circle-consent RPC checks",
+        "action-specific atomic velocity triggers"
+      ],
+      "source_contracts": [
+        "supabase/migrations/20260810020000_mutual_commons_circle.sql",
+        "supabase/migrations/20260904040000_online_action_rate_and_abuse_decisions.sql"
+      ]
+    },
+    {
+      "control_id": "ABUSE-MESSAGING-001",
+      "surface_groups": ["messages", "search"],
+      "status": "enforced",
+      "primary_owner": "Identity Worker plus private messaging database authority",
+      "server_enforcement": [
+        "authenticated per-operation Worker rate key for public-profile search",
+        "three-character query minimum and eight-result safe projection",
+        "per-conversation and per-day database message limits",
+        "direct-request cooldown, block, participation, and recipient-opt-in checks"
+      ],
+      "source_contracts": [
+        "services/identity-worker/worker.ts",
+        "services/identity-worker/_shared/abuse.ts",
+        "supabase/migrations/20260802050000_governed_account_conversations.sql",
+        "supabase/migrations/20260803030000_messaging_capabilities_and_public_profile_search.sql"
+      ]
+    },
+    {
+      "control_id": "ABUSE-UPLOAD-001",
+      "surface_groups": ["uploads"],
+      "status": "enforced",
+      "primary_owner": "Storage RLS, bucket contracts, and content-specific processors",
+      "database_policy_keys": [
+        "profile_upload",
+        "private_document_upload",
+        "commune_upload",
+        "forge_package_upload"
+      ],
+      "server_enforcement": [
+        "private/public bucket contract",
+        "provider size and MIME allowlists",
+        "active-account and exact owner/request/draft path authority",
+        "action-specific atomic upload velocity trigger",
+        "Identity magic-byte/dimension validation and bounded profile re-encoding",
+        "Artisan quarantine, decode, metadata stripping, moderation, and approved derivatives"
+      ],
+      "source_contracts": [
+        "supabase/migrations/20260904020000_profile_original_storage_privacy.sql",
+        "supabase/migrations/20260904030000_storage_upload_policy_hardening.sql",
+        "supabase/migrations/20260904040000_online_action_rate_and_abuse_decisions.sql",
+        "services/identity-worker/worker.ts"
+      ]
+    },
+    {
+      "control_id": "ABUSE-FORGE-MARKETPLACE-001",
+      "surface_groups": ["forge", "marketplace"],
+      "status": "enforced",
+      "primary_owner": "Developer Forge and Marketplace review authority",
+      "database_policy_keys": [
+        "forge_draft_write",
+        "marketplace_submission_create",
+        "forge_package_upload"
+      ],
+      "server_enforcement": [
+        "owner RLS and immutable submission snapshots",
+        "reviewer-only publication",
+        "bounded draft/submission/package velocity",
+        "browser and CLI archive traversal, symlink, bomb, secret, and package-hook inspection",
+        "local Elysia retains final installation and permission authority"
+      ],
+      "source_contracts": [
+        "src/shared/addons/browserArchiveInspector.ts",
+        "packages/addon-sdk/core.mjs",
+        "supabase/migrations/20260904040000_online_action_rate_and_abuse_decisions.sql"
+      ]
+    },
+    {
+      "control_id": "ABUSE-SANDBOX-001",
+      "surface_groups": ["hosted_execution"],
+      "status": "enforced",
+      "primary_owner": "Sandbox proxy, credit ledger, and isolated runner",
+      "server_enforcement": [
+        "same-origin authenticated proxy",
+        "per-user/global concurrency and provider-neutral allowance reservation",
+        "idempotent reserve/start/finalize/refund semantics",
+        "code/output/body bounds and secret/command policy",
+        "rootless container resource, filesystem, network, process, kill, and cleanup controls"
+      ],
+      "source_contracts": [
+        "functions/api/sandbox/run.ts",
+        "supabase/migrations/20260716030000_sandbox_credit_ledger_and_metering.sql",
+        "services/sandbox-runner/policy.mjs",
+        "services/sandbox-runner/dockerRunner.mjs"
+      ],
+      "known_boundary": "Qualified measured runner source awaits the existing secure privileged production-host checkpoint."
+    },
+    {
+      "control_id": "ABUSE-PARTICIPATION-001",
+      "surface_groups": ["account"],
+      "status": "enforced",
+      "primary_owner": "Work With Elysia and Commons Circle stewardship database authority",
+      "database_policy_keys": [
+        "participation_request_create",
+        "stewardship_request_create"
+      ],
+      "server_enforcement": [
+        "active ordinary-account RLS gates",
+        "owner-bound request and private-document storage authority",
+        "action-specific atomic request velocity triggers"
+      ],
+      "source_contracts": [
+        "supabase/migrations/20260904030000_storage_upload_policy_hardening.sql",
+        "supabase/migrations/20260904040000_online_action_rate_and_abuse_decisions.sql"
+      ]
+    },
+    {
+      "control_id": "ABUSE-REPORTS-001",
+      "surface_groups": ["reports"],
+      "status": "enforced",
+      "primary_owner": "Moderation database authority",
+      "database_policy_keys": ["content_report_create"],
+      "server_enforcement": [
+        "authenticated/report-target RLS",
+        "action-specific report velocity",
+        "reviewer-only evidence and resolution authority",
+        "content-minimized velocity decision record"
+      ],
+      "source_contracts": [
+        "supabase/migrations/20260904040000_online_action_rate_and_abuse_decisions.sql"
+      ]
+    },
+    {
+      "control_id": "ABUSE-ARTISAN-001",
+      "surface_groups": ["artisan"],
+      "status": "enforced_dormant",
+      "primary_owner": "Artisan API and database authority",
+      "server_enforcement": [
+        "read/mutation/sensitive Worker rate classes",
+        "Turnstile and exact-origin mutation gates",
+        "age/legal/guardian/capability matrix",
+        "private quarantine and media processing",
+        "moderation, appeals, and account lifecycle"
+      ],
+      "source_contracts": [
+        "Elysia-Artisan-Collective/src/worker.ts",
+        "Elysia-Artisan-Collective/wrangler.artisan-api.example.jsonc",
+        "supabase/migrations/20260718030000_artisan_authorization_rpcs_and_storage.sql"
+      ],
+      "known_boundary": "Production remains orientation-only and all participation/media providers remain disabled."
+    }
+  ],
+  "decision_record": {
+    "authority": "private.online_abuse_decisions",
+    "stored_fields": [
+      "actor",
+      "action",
+      "resource domain",
+      "resource type",
+      "policy",
+      "decision",
+      "reason class",
+      "timestamp",
+      "expiry",
+      "review state"
+    ],
+    "admin_projection": "public.online_abuse_decision_summary(integer)",
+    "admin_review": "public.review_online_abuse_decision(uuid,text,text)",
+    "retention_cleanup": "public.expire_online_abuse_decisions(integer)",
+    "content_minimization": "No request body, message text, file name, target record identifier, IP address, device identifier, payment state, badge, or hosted-credit balance is stored."
+  }
+}
