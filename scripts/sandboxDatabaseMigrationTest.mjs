@@ -119,6 +119,10 @@ const onlineActionRatePaths = [
   "supabase/migrations/20260904040000_online_action_rate_and_abuse_decisions.sql",
 ];
 
+const operationalOverviewPaths = [
+  "supabase/migrations/20260904050000_admin_operational_overview.sql",
+];
+
 const activePaths = [
   ...baselinePaths,
   ...economicPaths,
@@ -135,6 +139,7 @@ const activePaths = [
   ...storagePrivacyPaths,
   ...storageUploadHardeningPaths,
   ...onlineActionRatePaths,
+  ...operationalOverviewPaths,
 ];
 
 const legacyHashes = new Map(Object.entries({
@@ -249,11 +254,15 @@ const storageUploadHardeningMigrations = await Promise.all(
 const onlineActionRateMigrations = await Promise.all(
   onlineActionRatePaths.map((file) => fs.readFile(file, "utf8"))
 );
+const operationalOverviewMigrations = await Promise.all(
+  operationalOverviewPaths.map((file) => fs.readFile(file, "utf8"))
+);
 const jobOpportunityBehaviorFixture = await fs.readFile("scripts/fixtures/jobOpportunityDatabaseBehavior.sql", "utf8");
 const circlePrivateBehaviorFixture = await fs.readFile("scripts/fixtures/communeCirclePrivateBehavior.sql", "utf8");
 const badgeCompletionBehaviorFixture = await fs.readFile("scripts/fixtures/badgeCompletionBehavior.sql", "utf8");
 const storageUploadPolicyBehaviorFixture = await fs.readFile("scripts/fixtures/storageUploadPolicyBehavior.sql", "utf8");
 const onlineActionRateBehaviorFixture = await fs.readFile("scripts/fixtures/onlineActionRateBehavior.sql", "utf8");
+const operationalOverviewBehaviorFixture = await fs.readFile("scripts/fixtures/adminOperationalOverviewBehavior.sql", "utf8");
 const routeKillSwitchMigration = economicMigrations.at(-1);
 assert(routeKillSwitchMigration, "Economic route kill-switch migration is missing.");
 const economicBehaviorFixture = await fs.readFile("scripts/fixtures/economicDatabaseBehavior.sql", "utf8");
@@ -378,6 +387,30 @@ for (const [index, migration] of onlineActionRateMigrations.entries()) {
   }
 }
 assert(onlineActionRateBehaviorFixture.includes("online_action_rate_behavior_ok"), "Online action rate behavior marker is missing.");
+for (const [index, migration] of operationalOverviewMigrations.entries()) {
+  assert(migration.startsWith("--"), `${operationalOverviewPaths[index]} needs an explanatory header.`);
+  assert(/^begin;/im.test(migration), `${operationalOverviewPaths[index]} must start a transaction.`);
+  assert(/commit;\s*$/i.test(migration), `${operationalOverviewPaths[index]} must commit atomically.`);
+  assert(!/postgres(?:ql)?:\/\//i.test(migration), `${operationalOverviewPaths[index]} contains a connection string.`);
+  assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${operationalOverviewPaths[index]} contains a token-like value.`);
+  for (const marker of [
+    "public.current_admin_operational_overview",
+    "security definer",
+    "set search_path = ''",
+    "operational_overview_admin_required",
+    "database_aggregate_only",
+    "disabled_pending_review",
+    "unknown_pending_purpose_scoped_inspection",
+    "bounded_credential_checkpoint",
+  ]) assert(migration.toLowerCase().includes(marker), `${operationalOverviewPaths[index]} omits ${marker}.`);
+  for (const prohibited of ["recipient_user_id", "actor_user_id", "private_review_note", "file_name", "private_reason"]) {
+    assert(!migration.includes(`'${prohibited}'`), `${operationalOverviewPaths[index]} exposes prohibited ${prohibited} as a JSON field.`);
+  }
+}
+assert(
+  operationalOverviewBehaviorFixture.includes("ADMIN_OPERATIONAL_OVERVIEW_BEHAVIOR_OK"),
+  "Admin operational overview behavior marker is missing."
+);
 const badgeCompletionSource = badgeCompletionMigrations.join("\n");
 for (const marker of [
   "badge_credit_events_one_active_review_credit",
@@ -897,6 +930,7 @@ try {
     "scripts/fixtures/badgeCompletionBehavior.sql",
     "scripts/fixtures/storageUploadPolicyBehavior.sql",
     "scripts/fixtures/onlineActionRateBehavior.sql",
+    "scripts/fixtures/adminOperationalOverviewBehavior.sql",
     "scripts/sql/supabase_read_only_inventory.sql",
   ]) {
     await run(containerRuntime, ["cp", file, `${container}:/tmp/${path.basename(file)}`]);
@@ -1117,6 +1151,17 @@ try {
   assert(
     onlineActionRateBehavior.stdout.includes("online_action_rate_behavior_ok"),
     "Online action rate behavior marker missing."
+  );
+  for (const file of operationalOverviewPaths) {
+    await psql(["-f", `/tmp/${path.basename(file)}`]);
+  }
+  const operationalOverviewBehavior = await psql([
+    "-f",
+    "/tmp/adminOperationalOverviewBehavior.sql",
+  ]);
+  assert(
+    operationalOverviewBehavior.stdout.includes("ADMIN_OPERATIONAL_OVERVIEW_BEHAVIOR_OK"),
+    "Admin operational overview behavior marker missing."
   );
   await psql(["-c", `
     insert into auth.users(id, email, email_confirmed_at, created_at, updated_at)

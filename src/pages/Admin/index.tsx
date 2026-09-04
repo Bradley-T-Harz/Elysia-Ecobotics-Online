@@ -99,6 +99,10 @@ import {
   type AbuseDecisionReviewState,
   type OnlineAbuseDecision
 } from "../../shared/review/abuseAdminClient";
+import {
+  loadAdminOperationalOverview,
+  type AdminOperationalOverview
+} from "../../shared/review/operationalOverviewClient";
 
 const adminLinks = [
   ["/admin", "Admin Home"],
@@ -555,6 +559,55 @@ function AdminSummaryCards() {
   return <section className="feature-grid feature-grid--three admin-summary-grid">{cards.map(([label, count, href]) => <Link className="feature-card" to={href} key={label}><span className="admin-count">{count}</span><h3>{label}</h3><p>Open, submitted, or review-needed records visible to your current role.</p></Link>)}{warnings.length > 0 && <article className="feature-card"><h3>Queue setup</h3><p>Some admin summaries are not active until the latest Supabase migrations are applied.</p></article>}</section>;
 }
 
+function OperationalOverviewPanel({ isAdmin }: { isAdmin: boolean }) {
+  const [overview, setOverview] = useState<AdminOperationalOverview | null>(null);
+  const [messages, setMessages] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    const result = await loadAdminOperationalOverview();
+    setOverview(result.overview);
+    setMessages(result.warnings);
+    setLoading(false);
+  }, []);
+  useEffect(() => { if (isAdmin) void refresh(); }, [isAdmin, refresh]);
+
+  if (!isAdmin) return <section className="section-card">
+    <p className="eyebrow">Operational overview</p>
+    <h2>Administrator authority required</h2>
+    <p>Cross-domain operational aggregates are not requested or shown to domain reviewers or moderators without administrator authority.</p>
+  </section>;
+
+  return <section className="section-card" aria-labelledby="operational-overview-title">
+    <p className="eyebrow">Privacy-minimized operations</p>
+    <h2 id="operational-overview-title">Operational attention overview</h2>
+    <p>This projection reports counts and oldest timestamps from named database workflows. It contains no case records, account identifiers, email, content, filenames, review notes, payment details, or secrets.</p>
+    <p className="boundary-note">A clear database queue is not proof that an external provider or host is healthy. Cloudflare controls, the sandbox host, delivery providers, Stripe, and media providers retain separate qualification boundaries.</p>
+    <div className="button-row"><button type="button" onClick={() => void refresh()} disabled={loading}>{loading ? "Refreshing overview…" : "Refresh overview"}</button></div>
+    <QueueMessages messages={messages} />
+    {overview && <>
+      <p className="boundary-note">Database aggregate generated {new Date(overview.generatedAt).toLocaleString()}.</p>
+      <div className="feature-grid feature-grid--three">
+        {overview.metrics.map((metric) => <article className="feature-card" key={metric.key}>
+          <span className="admin-count">{metric.count}</span>
+          <h3>{metric.label}</h3>
+          <p>{metric.domain.replace(/_/g, " ")} · {metric.state}</p>
+          <p className="boundary-note">{metric.oldestAt ? `Oldest matching state: ${new Date(metric.oldestAt).toLocaleString()}` : "No matching database state."}</p>
+        </article>)}
+      </div>
+      <h3>External qualification boundaries</h3>
+      <div className="two-column">
+        {overview.externalBoundaries.map((boundary) => <article className="review-list-item" key={boundary.key}>
+          <strong>{boundary.label}</strong>
+          <span>{boundary.state.replace(/_/g, " ")}</span>
+          <p>{boundary.boundary}</p>
+        </article>)}
+      </div>
+    </>}
+    {!loading && !overview && !messages.length && <p>No operational aggregate is available.</p>}
+  </section>;
+}
+
 function QueueMessages({ messages }: { messages: string[] }) {
   if (!messages.length) return null;
   return <>{[...new Set(messages)].map((message) => <p className="message" key={message}>{message}</p>)}</>;
@@ -931,7 +984,7 @@ function CombinedAuditPage() {
 export function AdminHomePage() {
   const gate = useRoleGate();
   if (!gate.allowed) return <Unauthorized warnings={gate.warnings} />;
-  return <div className="page-stack admin-page"><PageHero eyebrow="Admin" title="Governance Console"><p>Review public website submissions without connecting to private local Elysia memory, files, logs, vaults, passwords, or credentials.</p></PageHero><AdminNav /><section className="section-card"><h2>Your roles</h2><div className="commons-badge-row">{gate.roles.map((role) => <RoleBadge key={role} role={role} />)}</div><p className="boundary-note">Roles are Supabase-backed and RLS-enforced. Badges, membership, donations, developer profiles, and contribution interest do not grant authority.</p></section><AdminSummaryCards /><section className="feature-grid feature-grid--three">{(Object.entries(domainLabels).filter(([domain]) => domain !== "contribution") as [ReviewDomain, string][]).map(([domain, label]) => <Link className="feature-card" to={`/admin/review/${domain === "work_with" ? "work-with" : domain === "living_library_source" ? "living-library" : domain === "living_library_broken_link" ? "broken-links" : domain}`} key={domain}><h3>{label}</h3><p>{canReviewDomain(gate.roles, domain) ? "Available for your role." : "Hidden by RLS if unauthorized."}</p></Link>)}</section><section className="section-card"><p className="eyebrow">Content visibility states</p><h2>Moderation lifecycle</h2><div className="commons-badge-row">{visibilityStates.map((state) => <span key={state}>{state}</span>)}</div><p className="boundary-note">Drafts are owner-only. Submitted items are owner plus reviewer/admin. Published items may be public. Flagged, hidden, removed, archived, and revoked content is restricted unless a public notice is intentionally shown.</p></section></div>;
+  return <div className="page-stack admin-page"><PageHero eyebrow="Admin" title="Governance Console"><p>Review public website submissions without connecting to private local Elysia memory, files, logs, vaults, passwords, or credentials.</p></PageHero><AdminNav /><section className="section-card"><h2>Your roles</h2><div className="commons-badge-row">{gate.roles.map((role) => <RoleBadge key={role} role={role} />)}</div><p className="boundary-note">Roles are Supabase-backed and RLS-enforced. Badges, membership, donations, developer profiles, and contribution interest do not grant authority.</p></section><AdminSummaryCards /><OperationalOverviewPanel isAdmin={gate.isAdmin} /><section className="feature-grid feature-grid--three">{(Object.entries(domainLabels).filter(([domain]) => domain !== "contribution") as [ReviewDomain, string][]).map(([domain, label]) => <Link className="feature-card" to={`/admin/review/${domain === "work_with" ? "work-with" : domain === "living_library_source" ? "living-library" : domain === "living_library_broken_link" ? "broken-links" : domain}`} key={domain}><h3>{label}</h3><p>{canReviewDomain(gate.roles, domain) ? "Available for your role." : "Hidden by RLS if unauthorized."}</p></Link>)}</section><section className="section-card"><p className="eyebrow">Content visibility states</p><h2>Moderation lifecycle</h2><div className="commons-badge-row">{visibilityStates.map((state) => <span key={state}>{state}</span>)}</div><p className="boundary-note">Drafts are owner-only. Submitted items are owner plus reviewer/admin. Published items may be public. Flagged, hidden, removed, archived, and revoked content is restricted unless a public notice is intentionally shown.</p></section></div>;
 }
 
 export function AdminReviewPage() {

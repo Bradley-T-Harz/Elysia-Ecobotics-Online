@@ -71,12 +71,38 @@ const fixtureUser = {
 };
 const accessToken = `${base64Url({ alg: "none", typ: "JWT" })}.${base64Url({ sub: administratorId, role: "authenticated", aud: "authenticated", exp: Math.floor(Date.now() / 1000) + 3600 })}.fixture-signature`;
 const fixtureSession = { access_token: accessToken, refresh_token: "fixture-refresh", expires_in: 3600, expires_at: Math.floor(Date.now() / 1000) + 3600, token_type: "bearer", user: fixtureUser };
+const operationalOverviewFixture = {
+  generatedAt: "2026-09-04T12:00:00.000Z",
+  scope: "database_aggregate_only",
+  administratorOnly: true,
+  metrics: [
+    ["account_lifecycle_open", "identity", "Open account lifecycle requests", 0, null, "clear"],
+    ["account_delivery_attention", "notifications", "Account delivery work", 0, null, "clear"],
+    ["account_support_open", "identity", "Open account support conversations", 0, null, "clear"],
+    ["review_queue_open", "review", "Open shared review items", 3, "2026-09-04T10:00:00.000Z", "attention"],
+    ["forge_scan_attention", "developer_forge", "Add-on packages needing scan attention", 0, null, "clear"],
+    ["badge_suppressions_active", "badges", "Active badge suppressions", 0, null, "clear"],
+    ["online_abuse_unreviewed", "abuse", "Unreviewed active velocity decisions", 2, "2026-09-04T11:00:00.000Z", "attention"],
+    ["sandbox_runs_inflight", "sandbox", "Hosted sandbox runs in flight", 0, null, "clear"],
+    ["sandbox_credit_holds", "sandbox_credits", "Hosted execution allowance holds", 1, "2026-09-04T11:30:00.000Z", "critical"],
+    ["economic_reconciliation_open", "economic_operations", "Open economic reconciliation cases", 0, null, "clear"],
+    ["economic_delivery_attention", "economic_operations", "Economic notification work", 0, null, "clear"],
+    ["artisan_media_attention", "artisan", "Artisan media processing work", 0, null, "clear"],
+  ].map(([key, domain, label, count, oldestAt, state]) => ({ key, domain, label, count, oldestAt, state })),
+  externalBoundaries: [
+    { key: "cloudflare_controls", label: "Cloudflare controls and alerts", state: "unknown_pending_purpose_scoped_inspection", boundary: "Not observed by this database projection." },
+    { key: "sandbox_host", label: "Hosted sandbox operating host", state: "bounded_credential_checkpoint", boundary: "Host isolation and service health require the separate production acceptance gate." },
+    { key: "notification_provider", label: "External notification delivery provider", state: "not_observed_by_database", boundary: "An empty outbox does not prove provider delivery health." },
+    { key: "stripe", label: "Stripe live financial flows", state: "disabled_pending_review", boundary: "No live financial activation is performed or inferred here." },
+    { key: "media_providers", label: "External media providers", state: "not_observed_by_database", boundary: "Database jobs do not prove provider availability or licensing state." },
+  ],
+};
 
 function responseHeaders() {
   return { "Access-Control-Allow-Headers": "*", "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS", "Access-Control-Allow-Origin": "*", "Content-Type": "application/json; charset=utf-8" };
 }
 
-async function installFixtures(context, { administrator, captures }) {
+async function installFixtures(context, { administrator, captures, overviewMode = "valid" }) {
   await context.route(/^https:\/\/[^/]+\.supabase\.co\//, async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -89,6 +115,8 @@ async function installFixtures(context, { administrator, captures }) {
       const rpc = url.pathname.split("/").at(-1);
       const payload = request.postDataJSON();
       captures.push({ rpc, payload });
+      if (rpc === "current_admin_operational_overview" && overviewMode === "invalid") return route.fulfill({ status: 200, headers, body: "{}" });
+      if (rpc === "current_admin_operational_overview") return route.fulfill({ status: 200, headers, body: JSON.stringify(operationalOverviewFixture) });
       if (rpc === "online_abuse_decision_summary") return route.fulfill({ status: 200, headers, body: JSON.stringify([{
         decision_id: decisionId,
         actor_user_id: actorId,
@@ -164,11 +192,66 @@ async function runCase(browser, { administrator, viewport }) {
   await context.close();
 }
 
+async function runOverviewCase(browser, { administrator, viewport, overviewMode = "valid" }) {
+  const context = await browser.newContext({ viewport, isMobile: viewport.width < 600 });
+  const captures = [];
+  await context.addInitScript(({ storageKey, session }) => {
+    localStorage.setItem(storageKey, JSON.stringify(session));
+    window.__elysiaCspViolations = [];
+    window.addEventListener("securitypolicyviolation", (event) => window.__elysiaCspViolations.push({ directive: event.effectiveDirective, blockedUri: event.blockedURI }));
+  }, { storageKey: `sb-${projectRef}-auth-token`, session: fixtureSession });
+  await installFixtures(context, { administrator, captures, overviewMode });
+  const page = await context.newPage();
+  const pageErrors = [];
+  const consoleErrors = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  page.on("console", (message) => { if (message.type() === "error") consoleErrors.push(message.text()); });
+  await page.goto(`${origin}/admin`, { waitUntil: "networkidle" });
+  await page.getByRole("heading", { name: "Governance Console" }).waitFor();
+
+  if (!administrator) {
+    await page.getByRole("heading", { name: "Administrator authority required" }).waitFor();
+    assert(!captures.some(({ rpc }) => rpc === "current_admin_operational_overview"), "A non-administrator requested the cross-domain operational overview.");
+  } else if (overviewMode === "invalid") {
+    await page.getByText("The operational overview returned an invalid or unexpected aggregate shape.", { exact: true }).waitFor();
+    assert.equal(captures.filter(({ rpc }) => rpc === "current_admin_operational_overview").length, 1, "Invalid operational response produced unexpected retries.");
+    assert.equal(await page.getByRole("heading", { name: "Unreviewed active velocity decisions" }).count(), 0, "A degraded operational response rendered metric data.");
+  } else {
+    await page.getByRole("heading", { name: "Operational attention overview" }).waitFor();
+    await waitForRpc(page, captures, "current_admin_operational_overview");
+    const abuseMetric = page.locator("article.feature-card").filter({ hasText: "Unreviewed active velocity decisions" });
+    await abuseMetric.getByText("2", { exact: true }).waitFor();
+    await page.getByText("Stripe live financial flows", { exact: true }).waitFor();
+    await page.getByText("disabled pending review", { exact: true }).waitFor();
+    await page.getByText("A clear database queue is not proof", { exact: false }).waitFor();
+    assert(!/abuse-admin-fixture@example\.invalid|aa000000-/i.test(await page.locator('[aria-labelledby="operational-overview-title"]').innerText()), "Operational overview rendered fixture record identifiers.");
+    await page.getByRole("button", { name: "Refresh overview" }).click();
+    for (let attempt = 0; attempt < 100 && captures.filter(({ rpc }) => rpc === "current_admin_operational_overview").length < 2; attempt += 1) {
+      await page.waitForTimeout(20);
+    }
+    assert.equal(captures.filter(({ rpc }) => rpc === "current_admin_operational_overview").length, 2, "Operational overview refresh did not make exactly one additional request.");
+    for (const request of captures.filter(({ rpc }) => rpc === "current_admin_operational_overview")) {
+      assert.deepEqual(request.payload, {}, "Operational overview request unexpectedly carried parameters.");
+    }
+  }
+
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+  assert(overflow <= 1, `Operational overview overflowed by ${overflow}px at ${viewport.width}px.`);
+  assert.deepEqual(await page.evaluate(() => window.__elysiaCspViolations), [], "Operational overview triggered CSP violations.");
+  assert.deepEqual(pageErrors, [], `Operational overview page errors: ${pageErrors.join(" | ")}`);
+  assert.deepEqual(consoleErrors, [], `Operational overview console errors: ${consoleErrors.join(" | ")}`);
+  await context.close();
+}
+
 const browser = await chromium.launch({ headless: true });
 try {
   await runCase(browser, { administrator: true, viewport: { width: 1280, height: 1000 } });
   await runCase(browser, { administrator: true, viewport: { width: 390, height: 844 } });
   await runCase(browser, { administrator: false, viewport: { width: 390, height: 844 } });
+  await runOverviewCase(browser, { administrator: true, viewport: { width: 1280, height: 1000 } });
+  await runOverviewCase(browser, { administrator: true, viewport: { width: 390, height: 844 } });
+  await runOverviewCase(browser, { administrator: true, viewport: { width: 390, height: 844 }, overviewMode: "invalid" });
+  await runOverviewCase(browser, { administrator: false, viewport: { width: 390, height: 844 } });
   console.log("Abuse administration browser smoke test ok.");
 } finally {
   await browser.close();
