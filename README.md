@@ -26,6 +26,17 @@ VITE_AUTH_TURNSTILE_SITE_KEY=
 
 Never put a Supabase service-role key in frontend code.
 
+Production is built and directly uploaded as an already-compiled Pages
+artifact. The production build command therefore requires
+`VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` in its process environment;
+Cloudflare runtime variables cannot retroactively configure a Vite bundle.
+The build and deploy gates reject missing remote-auth configuration, secret or
+service-role Supabase keys, and artifacts that do not contain the exact
+browser-safe public configuration. After deployment, run
+`npm run audit:production-remote-auth` against the canonical origin; it fails
+if the account surface enters demo/fallback mode or if the Auth Turnstile
+widget does not render.
+
 `VITE_AUTH_CAPTCHA_MODE` accepts only `off`, `preflight`, or `required`;
 missing and invalid values resolve to `off`. The Auth Turnstile site key is
 public, but production uses the dedicated Auth widget rather than

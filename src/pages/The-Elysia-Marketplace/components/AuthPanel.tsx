@@ -479,6 +479,7 @@ export default function AuthPanel({ onMessage, onAuthChanged, copy }: AuthPanelP
     <section
       className="account-card"
       id="account"
+      data-remote-auth-configured={String(hasSupabaseConfig)}
       data-auth-signup-version={AUTH_SIGNUP_DIAGNOSTIC_CONTRACT}
       data-auth-signup-contract={AUTH_SIGNUP_DIAGNOSTIC_CONTRACT}
       data-auth-signup-attempt={signupDiagnostic?.attemptId ?? "none"}

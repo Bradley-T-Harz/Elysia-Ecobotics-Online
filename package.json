@@ -27,6 +27,7 @@
     "audit:native-firefox": "node scripts/nativeFirefoxBidiRouteAudit.mjs",
     "audit:production-cache-upgrade": "node scripts/productionCacheUpgradeBrowserAudit.mjs",
     "audit:production-artifact-parity": "node scripts/productionArtifactParityAudit.mjs",
+    "audit:production-remote-auth": "node scripts/productionRemoteAuthBrowserAudit.mjs",
     "test:protected-surfaces": "node scripts/protectedPublicSurfacesTest.mjs",
     "test:protected-surfaces-browser:built": "node scripts/protectedPublicSurfacesBrowserSmokeTest.mjs",
     "test:protected-surfaces-browser": "npm run build && npm run test:protected-surfaces-browser:built",

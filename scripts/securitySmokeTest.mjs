@@ -281,6 +281,16 @@ function allowHit(file, line, checkName) {
   }
   if (normalized.endsWith("scripts/securitySmokeTest.mjs")) return true;
   if (
+    normalized.endsWith("scripts/authProductionRelease.mjs")
+    && checkName === "service role key strings"
+    && /decodeJwtPayload|production_supabase_service_role_jwt_in_public_artifact/.test(line)
+  ) return true;
+  if (
+    normalized.endsWith("scripts/authProductionReleaseTest.mjs")
+    && checkName === "service role key strings"
+    && /serviceRolePayload|production_supabase_service_role_jwt_in_public_artifact/.test(line)
+  ) return true;
+  if (
     normalized.endsWith("scripts/billingWorkerIsolationSmokeTest.mjs")
     && checkName === "service role key strings"
     && /assert|scan|binding|credential|service-role/i.test(line)

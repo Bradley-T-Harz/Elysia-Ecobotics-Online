@@ -47,6 +47,8 @@ lifecycle_turnstile_site_key="${VITE_TURNSTILE_SITE_KEY:-}"
   exit 1
 }
 
+node scripts/authProductionRelease.mjs validate-environment
+
 VITE_AUTH_CAPTCHA_MODE=required \
 VITE_AUTH_TURNSTILE_SITE_KEY=0x4AAAAAAECNSZYyGXT8LPJC \
 VITE_TURNSTILE_SITE_KEY="$lifecycle_turnstile_site_key" \

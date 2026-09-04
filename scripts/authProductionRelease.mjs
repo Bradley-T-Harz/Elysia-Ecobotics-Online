@@ -27,6 +27,47 @@ function escapeRegExp(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function decodeJwtPayload(candidate) {
+  const segments = candidate.split(".");
+  if (segments.length !== 3) return null;
+  try {
+    return JSON.parse(Buffer.from(segments[1], "base64url").toString("utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function isBrowserPublishableSupabaseKey(candidate) {
+  if (/^sb_publishable_[A-Za-z0-9_-]{16,}$/.test(candidate)) return true;
+  const payload = decodeJwtPayload(candidate);
+  return payload?.role === "anon";
+}
+
+export function requireProductionSupabasePublicConfig(environment = process.env) {
+  const supabaseUrl = environment.VITE_SUPABASE_URL?.trim() ?? "";
+  const publishableKey = environment.VITE_SUPABASE_ANON_KEY?.trim() ?? "";
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(supabaseUrl);
+  } catch {
+    throw new Error("production_supabase_url_missing_or_invalid");
+  }
+  assert(
+    parsedUrl.protocol === "https:"
+      && /^[a-z0-9-]+\.supabase\.co$/.test(parsedUrl.hostname)
+      && parsedUrl.pathname === "/"
+      && !parsedUrl.username
+      && !parsedUrl.password
+      && !parsedUrl.search
+      && !parsedUrl.hash,
+    "production_supabase_url_missing_or_invalid",
+  );
+  assert(publishableKey.length <= 4096, "production_supabase_public_key_missing_or_invalid");
+  assert(!publishableKey.startsWith("sb_secret_"), "production_supabase_secret_key_forbidden");
+  assert(isBrowserPublishableSupabaseKey(publishableKey), "production_supabase_public_key_missing_or_invalid");
+  return Object.freeze({ supabaseUrl: parsedUrl.origin, publishableKey });
+}
+
 export function requireProductionLifecycleTurnstileSiteKey(environment = process.env) {
   const siteKey = environment.VITE_TURNSTILE_SITE_KEY?.trim() ?? "";
   assert(/^0x[0-9A-Za-z_-]{20,}$/.test(siteKey), "lifecycle_turnstile_site_key_missing_or_invalid");
@@ -57,6 +98,7 @@ async function collectArtifactFiles(root, current = root) {
 export async function verifyProductionAuthArtifact(
   distDirectory = defaultDistDirectory,
   lifecycleSiteKey = requireProductionLifecycleTurnstileSiteKey(),
+  supabaseConfig = requireProductionSupabasePublicConfig(),
 ) {
   const dist = path.resolve(distDirectory);
   const stat = await fs.lstat(dist);
@@ -93,6 +135,9 @@ export async function verifyProductionAuthArtifact(
 
   let siteKeyOccurrences = 0;
   let lifecycleSiteKeyOccurrences = 0;
+  let supabaseUrlOccurrences = 0;
+  let supabasePublicKeyOccurrences = 0;
+  const supabaseConfigBundles = [];
   const artifactDigest = createHash("sha256");
   for (const file of files) {
     const bytes = await fs.readFile(file.absolute);
@@ -100,6 +145,18 @@ export async function verifyProductionAuthArtifact(
       const source = bytes.toString("utf8");
       siteKeyOccurrences += source.split(productionAuthTurnstileSiteKey).length - 1;
       lifecycleSiteKeyOccurrences += source.split(lifecycleSiteKey).length - 1;
+      const urlOccurrences = source.split(supabaseConfig.supabaseUrl).length - 1;
+      const keyOccurrences = source.split(supabaseConfig.publishableKey).length - 1;
+      supabaseUrlOccurrences += urlOccurrences;
+      supabasePublicKeyOccurrences += keyOccurrences;
+      if (urlOccurrences > 0 || keyOccurrences > 0) {
+        assert(urlOccurrences > 0 && keyOccurrences > 0, "production_supabase_config_split_or_partial");
+        supabaseConfigBundles.push(file.relative);
+      }
+      assert(!/\bsb_secret_[A-Za-z0-9_-]{16,}\b/.test(source), "production_supabase_secret_key_in_public_artifact");
+      for (const token of source.matchAll(/\beyJ[A-Za-z0-9_-]{8,}\.eyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b/g)) {
+        assert(decodeJwtPayload(token[0])?.role !== "service_role", "production_supabase_service_role_jwt_in_public_artifact");
+      }
     }
     const fileDigest = sha256(bytes);
     artifactDigest.update(file.relative);
@@ -111,6 +168,9 @@ export async function verifyProductionAuthArtifact(
   }
   assert(siteKeyOccurrences === 1, "production_auth_public_site_key_occurrence_invalid");
   assert(lifecycleSiteKeyOccurrences === 1, "production_lifecycle_public_site_key_occurrence_invalid");
+  assert(supabaseUrlOccurrences === 1, "production_supabase_url_occurrence_invalid");
+  assert(supabasePublicKeyOccurrences === 1, "production_supabase_public_key_occurrence_invalid");
+  assert(supabaseConfigBundles.length === 1, "production_supabase_config_bundle_count_invalid");
 
   return Object.freeze({
     mode: productionAuthCaptchaMode,
@@ -120,6 +180,9 @@ export async function verifyProductionAuthArtifact(
     lifecyclePublicSiteKeyMatched: true,
     lifecycleBundlePath: lifecycleBundle.relative,
     lifecycleBundleSha256: sha256(lifecycleBundleBytes),
+    remoteAuthConfigured: true,
+    browserPublishableSupabaseKeyMatched: true,
+    supabaseConfigBundlePath: supabaseConfigBundles[0],
     artifactSha256: artifactDigest.digest("hex"),
     fileCount: files.length,
   });
@@ -134,18 +197,28 @@ function printVerification(result) {
   console.log("Lifecycle Turnstile public site key: exact match");
   console.log(`Lifecycle Turnstile bundle: ${result.lifecycleBundlePath}`);
   console.log(`Lifecycle Turnstile bundle SHA-256: ${result.lifecycleBundleSha256}`);
+  console.log("Supabase remote-auth public configuration: exact compiled match");
+  console.log("Supabase browser key classification: publishable/anon only");
+  console.log(`Supabase configuration bundle: ${result.supabaseConfigBundlePath}`);
   console.log(`Complete artifact SHA-256: ${result.artifactSha256}`);
   console.log(`Artifact file count: ${result.fileCount}`);
 }
 
 async function main() {
   const command = process.argv[2];
+  if (command === "validate-environment") {
+    assert(process.argv.length === 3, "production_environment_validation_does_not_accept_arguments");
+    requireProductionLifecycleTurnstileSiteKey();
+    requireProductionSupabasePublicConfig();
+    console.log("Production public configuration gate passed: Supabase remote auth and both Turnstile widget bindings are present and safely classified.");
+    return;
+  }
   if (command === "verify") {
     assert(process.argv.length === 3, "production_verify_does_not_accept_arguments");
     printVerification(await verifyProductionAuthArtifact());
     return;
   }
-  throw new Error("usage: authProductionRelease.mjs verify");
+  throw new Error("usage: authProductionRelease.mjs <validate-environment|verify>");
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

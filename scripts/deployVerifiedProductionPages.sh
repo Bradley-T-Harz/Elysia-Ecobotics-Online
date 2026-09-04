@@ -34,6 +34,7 @@ lifecycle_turnstile_site_key="${VITE_TURNSTILE_SITE_KEY:-}"
   exit 1
 }
 
+node scripts/authProductionRelease.mjs validate-environment
 node scripts/authProductionRelease.mjs verify
 wrangler_bin="$repository_root/node_modules/.bin/wrangler"
 [[ -x "$wrangler_bin" ]] || {
