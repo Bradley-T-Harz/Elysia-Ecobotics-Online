@@ -126,6 +126,7 @@ const reviewedBadgeAuthorityMigrations = new Set([
 ]);
 const reviewedAbuseAuthorityMigrations = new Set([
   "supabase/migrations/20260904040000_online_action_rate_and_abuse_decisions.sql",
+  "scripts/fixtures/onlineActionRateBehavior.sql",
 ]);
 
 function allowHit(file, line, checkName) {

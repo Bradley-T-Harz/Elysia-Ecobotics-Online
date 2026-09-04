@@ -92,6 +92,13 @@ import {
   type BadgeDefinitionAdmin,
   type BadgeRuleAdmin
 } from "../../shared/review/badgeAdminClient";
+import {
+  abuseDecisionReviewStates,
+  loadOnlineAbuseDecisions,
+  reviewOnlineAbuseDecision,
+  type AbuseDecisionReviewState,
+  type OnlineAbuseDecision
+} from "../../shared/review/abuseAdminClient";
 
 const adminLinks = [
   ["/admin", "Admin Home"],
@@ -845,6 +852,65 @@ function WorkSubmissionsPage() {
   return <div className="page-stack admin-page"><PageHero eyebrow="Admin review" title="Work and Role Submissions"><p>Work and role submissions are private review records. They do not create employment, reviewer authority, moderator authority, or paid status by themselves.</p></PageHero><AdminNav /><QueueMessages messages={messages} /><section className="section-card"><h2>{rows.length} work/role submission{rows.length === 1 ? "" : "s"}</h2>{!rows.length && <p>No pending items.</p>}{rows.map((row) => <article className="review-list-item admin-detail-card" key={row.id}><strong>{row.display_name ?? row.role_type}</strong><StatusBadge status={row.status} /><p>{row.summary}</p><p className="boundary-note">Private contact is visible to authorized reviewers only: {row.contact_email ? "provided" : "not provided"}</p><VisibilityActions id={row.id} initialStatus={row.status} initialNote={row.reviewer_note} onSave={async (id, status, note) => { const message = await updateWorkRoleSubmission(id, status, note); void refresh(); return message; }} onChanged={(message) => setMessages([message])} /></article>)}</section></div>;
 }
 
+function AbuseDecisionCard({ row, onChanged }: { row: OnlineAbuseDecision; onChanged: (message: string) => void }) {
+  const [reviewState, setReviewState] = useState<AbuseDecisionReviewState>(row.review_state === "unreviewed" ? "acknowledged" : row.review_state);
+  const [privateNote, setPrivateNote] = useState(row.private_review_note ?? "");
+  const [busy, setBusy] = useState(false);
+  const expired = Date.parse(row.expires_at) <= Date.now();
+
+  async function saveReview() {
+    setBusy(true);
+    const result = await reviewOnlineAbuseDecision(row.decision_id, reviewState, privateNote);
+    setBusy(false);
+    onChanged(result.ok ? "Restriction review saved. Velocity policy and account authority were unchanged." : result.warning ?? "Restriction review failed.");
+  }
+
+  return <article className="review-list-item admin-detail-card">
+    <strong>{row.resource_domain.replace(/_/g, " ")} · {row.action.replace(/_/g, " ")}</strong>
+    <StatusBadge status={row.review_state} />
+    <dl className="mini-facts">
+      <div><dt>Actor auth UUID</dt><dd>{row.actor_user_id ?? "Deleted account"}</dd></div>
+      <div><dt>Policy</dt><dd>{row.policy_key}</dd></div>
+      <div><dt>Resource class</dt><dd>{row.resource_type}</dd></div>
+      <div><dt>Reason</dt><dd>{row.reason_class.replace(/_/g, " ")}</dd></div>
+      <div><dt>Decided</dt><dd>{row.decided_at}</dd></div>
+      <div><dt>Restriction window</dt><dd>{expired ? "Expired" : `Until ${row.expires_at}`}</dd></div>
+      <div><dt>Reviewed</dt><dd>{row.reviewed_at ?? "Not yet reviewed"}</dd></div>
+    </dl>
+    <label><span>Review state</span><select aria-label={`Review state for ${row.decision_id}`} value={reviewState} onChange={(event) => setReviewState(event.target.value as AbuseDecisionReviewState)}>{abuseDecisionReviewStates.map((state) => <option key={state} value={state}>{state}</option>)}</select></label>
+    <label><span>Private review note</span><textarea aria-label={`Private review note for ${row.decision_id}`} maxLength={500} rows={3} value={privateNote} onChange={(event) => setPrivateNote(event.target.value)} /></label>
+    <div className="button-row"><button type="button" onClick={() => void saveReview()} disabled={busy}>{busy ? "Saving review…" : "Save restriction review"}</button></div>
+  </article>;
+}
+
+function AbuseDecisionPanel({ isAdmin }: { isAdmin: boolean }) {
+  const [rows, setRows] = useState<OnlineAbuseDecision[]>([]);
+  const [messages, setMessages] = useState<string[]>([]);
+  const refresh = useCallback(async () => {
+    const result = await loadOnlineAbuseDecisions(100);
+    setRows(result.rows);
+    setMessages(result.warnings);
+  }, []);
+  useEffect(() => { if (isAdmin) void refresh(); }, [isAdmin, refresh]);
+
+  if (!isAdmin) return <section className="section-card">
+    <p className="eyebrow">Abuse operations</p>
+    <h2>Administrator authority required</h2>
+    <p>Restriction metadata and private review notes are not available to domain reviewers or moderators without administrator authority.</p>
+  </section>;
+
+  return <section className="section-card" aria-labelledby="online-abuse-decisions-title">
+    <p className="eyebrow">Privacy-minimized abuse operations</p>
+    <h2 id="online-abuse-decisions-title">Action-velocity decisions</h2>
+    <p>These records identify an account, action class, policy, timing, and review state. They do not contain request bodies, messages, filenames, target records, IP addresses, device identifiers, payment state, badges, or hosted-credit balances.</p>
+    <p className="boundary-note">Acknowledging, dismissing, or escalating a record documents human review only. It does not change a role, permission, account state, rate ceiling, badge, payment, or community standing. Expired records are removed only by the separate service retention job.</p>
+    <div className="button-row"><button type="button" onClick={() => void refresh()}>Refresh decisions</button></div>
+    {messages.map((message) => <p className="message" key={message}>{message}</p>)}
+    {!rows.length && !messages.length && <p>No action-velocity decisions are awaiting or retaining review.</p>}
+    {rows.map((row) => <AbuseDecisionCard key={`${row.decision_id}-${row.reviewed_at ?? "unreviewed"}`} row={row} onChanged={(message) => { setMessages([message]); void refresh(); }} />)}
+  </section>;
+}
+
 function CombinedAuditPage() {
   const gate = useRoleGate();
   const [events, setEvents] = useState<Awaited<ReturnType<typeof loadReviewEvents>>["events"]>([]);
@@ -859,7 +925,7 @@ function CombinedAuditPage() {
     });
   }, [gate.allowed]);
   if (!gate.allowed) return <Unauthorized warnings={gate.warnings} />;
-  return <div className="page-stack admin-page"><PageHero eyebrow="Admin" title="Audit Trail"><p>Review events and admin moderation events are internal governance records.</p></PageHero><AdminNav /><QueueMessages messages={messages} /><section className="two-column"><div className="section-card"><h2>Review events</h2>{events.map((event) => <article className="review-list-item" key={event.id}><strong>{event.event_type}</strong><span>{event.created_at}</span><span>{event.from_status ?? "none"} → {event.to_status ?? "none"}</span><p>{event.note}</p></article>)}</div><div className="section-card"><h2>Admin audit log</h2>{adminEvents.map((event) => <article className="review-list-item" key={event.id}><strong>{event.action}</strong><span>{event.target_type}: {event.target_id ?? "none"}</span><span>{event.created_at}</span></article>)}</div></section></div>;
+  return <div className="page-stack admin-page"><PageHero eyebrow="Admin" title="Audit Trail"><p>Review events, moderation actions, and content-minimized restriction decisions are internal governance records.</p></PageHero><AdminNav /><QueueMessages messages={messages} /><section className="two-column"><div className="section-card"><h2>Review events</h2>{events.map((event) => <article className="review-list-item" key={event.id}><strong>{event.event_type}</strong><span>{event.created_at}</span><span>{event.from_status ?? "none"} → {event.to_status ?? "none"}</span><p>{event.note}</p></article>)}</div><div className="section-card"><h2>Admin audit log</h2>{adminEvents.map((event) => <article className="review-list-item" key={event.id}><strong>{event.action}</strong><span>{event.target_type}: {event.target_id ?? "none"}</span><span>{event.created_at}</span></article>)}</div></section><AbuseDecisionPanel isAdmin={gate.isAdmin} /></div>;
 }
 
 export function AdminHomePage() {

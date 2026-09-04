@@ -17,6 +17,8 @@ const identityWorker = await fs.readFile("services/identity-worker/worker.ts", "
 const identityAbuse = await fs.readFile("services/identity-worker/_shared/abuse.ts", "utf8");
 const identityProxy = await fs.readFile("functions/api/identity/[[path]].ts", "utf8");
 const sandboxProxy = await fs.readFile("functions/api/sandbox/run.ts", "utf8");
+const abuseAdminClient = await fs.readFile("src/shared/review/abuseAdminClient.ts", "utf8");
+const adminPage = await fs.readFile("src/pages/Admin/index.tsx", "utf8");
 
 assert(/^\d{4}-\d{2}-\d{2}\.\d+$/.test(manifest.version), "Abuse manifest needs a dated version.");
 assert(Array.isArray(manifest.controls) && manifest.controls.length >= 10, "Abuse manifest control coverage is incomplete.");
@@ -76,6 +78,12 @@ assert(identityAbuse.includes("`${operation}:${userId}`"), "Identity rate keys a
 assert(identityWorker.includes('"messaging_profile_search"'), "Messaging profile search is not edge-rate-limited.");
 assert(identityProxy.includes("MAXIMUM_IDENTITY_PROXY_BODY_BYTES = 65_536"), "Identity proxy body limit is missing.");
 assert(sandboxProxy.includes("sandbox_quota_exceeded") && sandboxProxy.includes("sandbox_busy"), "Sandbox quota/concurrency refusals are missing.");
+for (const marker of ["online_abuse_decision_summary", "review_online_abuse_decision", "Administrator authority is required"]) {
+  assert(abuseAdminClient.includes(marker), `Abuse Admin client omits ${marker}.`);
+}
+for (const marker of ["Action-velocity decisions", "They do not contain request bodies", "It does not change a role, permission, account state, rate ceiling, badge, payment, or community standing."]) {
+  assert(adminPage.includes(marker), `Abuse Admin UI omits ${marker}.`);
+}
 
 const excluded = new Set(manifest.excluded_signals);
 for (const item of [
