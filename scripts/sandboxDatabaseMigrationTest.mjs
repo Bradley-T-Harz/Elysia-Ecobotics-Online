@@ -111,6 +111,10 @@ const storagePrivacyPaths = [
   "supabase/migrations/20260904020000_profile_original_storage_privacy.sql",
 ];
 
+const storageUploadHardeningPaths = [
+  "supabase/migrations/20260904030000_storage_upload_policy_hardening.sql",
+];
+
 const activePaths = [
   ...baselinePaths,
   ...economicPaths,
@@ -125,6 +129,7 @@ const activePaths = [
   ...userSovereignLifecyclePaths,
   ...badgeCompletionPaths,
   ...storagePrivacyPaths,
+  ...storageUploadHardeningPaths,
 ];
 
 const legacyHashes = new Map(Object.entries({
@@ -233,9 +238,13 @@ const badgeCompletionMigrations = await Promise.all(
 const storagePrivacyMigrations = await Promise.all(
   storagePrivacyPaths.map((file) => fs.readFile(file, "utf8"))
 );
+const storageUploadHardeningMigrations = await Promise.all(
+  storageUploadHardeningPaths.map((file) => fs.readFile(file, "utf8"))
+);
 const jobOpportunityBehaviorFixture = await fs.readFile("scripts/fixtures/jobOpportunityDatabaseBehavior.sql", "utf8");
 const circlePrivateBehaviorFixture = await fs.readFile("scripts/fixtures/communeCirclePrivateBehavior.sql", "utf8");
 const badgeCompletionBehaviorFixture = await fs.readFile("scripts/fixtures/badgeCompletionBehavior.sql", "utf8");
+const storageUploadPolicyBehaviorFixture = await fs.readFile("scripts/fixtures/storageUploadPolicyBehavior.sql", "utf8");
 const routeKillSwitchMigration = economicMigrations.at(-1);
 assert(routeKillSwitchMigration, "Economic route kill-switch migration is missing.");
 const economicBehaviorFixture = await fs.readFile("scripts/fixtures/economicDatabaseBehavior.sql", "utf8");
@@ -318,6 +327,22 @@ for (const [index, migration] of storagePrivacyMigrations.entries()) {
   }
   assert(migration.includes("profile_original_public_policy_remains"), `${storagePrivacyPaths[index]} must fail closed if the legacy public policies survive.`);
 }
+for (const [index, migration] of storageUploadHardeningMigrations.entries()) {
+  assert(migration.startsWith("--"), `${storageUploadHardeningPaths[index]} needs an explanatory header.`);
+  assert(/^begin;/im.test(migration), `${storageUploadHardeningPaths[index]} must start a transaction.`);
+  assert(/commit;\s*$/i.test(migration), `${storageUploadHardeningPaths[index]} must commit atomically.`);
+  assert(!/postgres(?:ql)?:\/\//i.test(migration), `${storageUploadHardeningPaths[index]} contains a connection string.`);
+  assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${storageUploadHardeningPaths[index]} contains a token-like value.`);
+  for (const marker of [
+    "loose_profile_storage_policy_remains",
+    "governed_storage_upload_policy_contract_missing",
+    "private_upload_bucket_contract_invalid",
+    "private.community_account_allows_ordinary_mutation(auth.uid())",
+    "request.id::text = pg_catalog.split_part(objects.name, '/', 2)",
+    "draft.id::text = pg_catalog.split_part(objects.name, '/', 2)",
+  ]) assert(migration.includes(marker), `${storageUploadHardeningPaths[index]} omits ${marker}.`);
+}
+assert(storageUploadPolicyBehaviorFixture.includes("storage_upload_policy_behavior_ok"), "Storage upload policy behavior marker is missing.");
 const badgeCompletionSource = badgeCompletionMigrations.join("\n");
 for (const marker of [
   "badge_credit_events_one_active_review_credit",
@@ -835,6 +860,7 @@ try {
     "scripts/fixtures/accountActivationBehavior.sql",
     "scripts/fixtures/userSovereignLifecycleBehavior.sql",
     "scripts/fixtures/badgeCompletionBehavior.sql",
+    "scripts/fixtures/storageUploadPolicyBehavior.sql",
     "scripts/sql/supabase_read_only_inventory.sql",
   ]) {
     await run(containerRuntime, ["cp", file, `${container}:/tmp/${path.basename(file)}`]);
@@ -1040,6 +1066,14 @@ try {
       and allowed_mime_types = array['image/jpeg','image/png','image/webp']::text[];
   `]);
   assert(privateProfileBucketCount.stdout.trim() === "2", "Profile image bucket privacy/size/type contract drifted.");
+  for (const file of storageUploadHardeningPaths) {
+    await psql(["-f", `/tmp/${path.basename(file)}`]);
+  }
+  const storageUploadPolicyBehavior = await psql(["-f", "/tmp/storageUploadPolicyBehavior.sql"]);
+  assert(
+    storageUploadPolicyBehavior.stdout.includes("storage_upload_policy_behavior_ok"),
+    "Storage upload policy behavior marker missing."
+  );
   const artisanBehavior = await psql(["-f", "/tmp/artisanDatabaseBehavior.sql"]);
   assert(artisanBehavior.stdout.includes("Artisan database behavior checks ok."), "Artisan database behavior marker missing.");
   const onlineProfileBehavior = await psql(["-f", "/tmp/onlinePublicProfileBehavior.sql"]);
