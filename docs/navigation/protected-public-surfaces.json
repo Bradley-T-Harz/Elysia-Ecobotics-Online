@@ -13,7 +13,7 @@
     { "name": "Marketplace", "path": "/marketplace", "component": "MarketplaceProvider", "publicNavigationLabel": "Marketplace", "backendProof": "test:marketplace-submission-boundary" },
     { "name": "Developer Forge", "path": "/developer-forge", "component": "DeveloperForgePage", "publicNavigationLabel": "Developer Forge", "backendProof": "test:developer-forge-browser:built" },
     { "name": "Living Library", "path": "/living-library", "component": "LivingLibraryPage", "publicNavigationLabel": "Living Library", "backendProof": "test:living-library-browser:built" },
-    { "name": "Commons Circle", "path": "/commons-circle", "component": "CommonsCirclePage", "publicNavigationLabel": "Commons Circle", "backendProof": "test:commons-circle-mutual" },
+    { "name": "Commons Circle", "path": "/commons-circle", "component": "CommonsCirclePage", "routeAdapter": "CommonsCircleEntry", "publicNavigationLabel": "Commons Circle", "backendProof": "test:commons-circle-mutual" },
     { "name": "Admin", "path": "/admin", "component": "AdminHomePage", "publicNavigationLabel": null, "backendProof": "role-gated" }
   ]
 }

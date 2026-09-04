@@ -125,6 +125,15 @@ async function waitForRpc(page, captures, name) {
   assert.fail(`Badge Admin browser flow did not call ${name}.`);
 }
 
+async function waitForInputValue(page, label, expected) {
+  const input = page.getByLabel(label);
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (await input.inputValue() === expected) return;
+    await page.waitForTimeout(20);
+  }
+  assert.fail(`Badge Admin input ${label} did not settle to the expected state.`);
+}
+
 async function runCase(browser, { administrator, viewport }) {
   const context = await browser.newContext({ viewport, isMobile: viewport.width < 600 });
   const captures = [];
@@ -173,6 +182,7 @@ async function runCase(browser, { administrator, viewport }) {
     await page.getByLabel("Reason for the next revoke or restore action").fill("Correct reviewed evidence and retain audit history.");
     await history.getByRole("button", { name: "Revoke credit and re-evaluate" }).click();
     await waitForRpc(page, captures, "revoke_badge_credit_event");
+    await waitForInputValue(page, "Reason for the next revoke or restore action", "");
     await page.getByLabel("Reason for the next revoke or restore action").fill("Restore recognition after verified correction.");
     await history.getByRole("button", { name: "Restore or re-evaluate badge" }).waitFor();
     await history.getByRole("button", { name: "Restore or re-evaluate badge" }).click();

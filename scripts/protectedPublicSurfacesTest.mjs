@@ -21,8 +21,18 @@ for (const surface of inventory.surfaces) {
   const declaredPath = surface.routePattern ?? surface.path;
   const routeFragment = `path="${declaredPath.slice(1)}"`;
   assert(app.includes(routeFragment), `${surface.name}: protected route is absent (${surface.path}).`);
-  const componentRoute = `<Route ${routeFragment} element={<${surface.component}`;
-  assert(app.includes(componentRoute), `${surface.name}: route no longer resolves to ${surface.component}.`);
+  const routedComponent = surface.routeAdapter ?? surface.component;
+  const componentRoute = `<Route ${routeFragment} element={<${routedComponent}`;
+  assert(app.includes(componentRoute), `${surface.name}: route no longer resolves through ${routedComponent}.`);
+  if (surface.routeAdapter) {
+    const adapterStart = app.indexOf(`function ${surface.routeAdapter}(`);
+    const nextFunction = app.indexOf("\nfunction ", adapterStart + 1);
+    const defaultExport = app.indexOf("\nexport default", adapterStart + 1);
+    const adapterEnd = [nextFunction, defaultExport].filter((index) => index > adapterStart).sort((a, b) => a - b)[0] ?? app.length;
+    const adapterBody = app.slice(adapterStart, adapterEnd);
+    assert(adapterStart >= 0 && adapterBody.includes(`<${surface.component}`), `${surface.name}: ${surface.routeAdapter} no longer resolves to ${surface.component}.`);
+    assert(!adapterBody.includes('to="/"'), `${surface.name}: ${surface.routeAdapter} silently redirects to home.`);
+  }
   assert(!app.includes(`<Route ${routeFragment} element={<Navigate replace to="/"`), `${surface.name}: protected route silently redirects to home.`);
   if (surface.publicNavigationLabel) {
     assert(navigation.includes(`label: "${surface.publicNavigationLabel}"`), `${surface.name}: public navigation label was removed.`);
