@@ -457,9 +457,13 @@ assert(adminPage.includes("Restore to public") && adminPage.includes("Keep hidde
 assert(adminPage.includes("Rejected recovery is a review reconsideration workflow"), "Admin Review rejected recovery explanation missing.");
 assert(app.includes('path="admin/badges"') && adminPage.includes('title="Badge Management"'), "Administrator badge-management route missing.");
 assert(badgeAdminClient.includes('rpc("grant_user_badge"') && badgeAdminClient.includes('rpc("revoke_user_badge"'), "Badge administration must use the governed grant/revoke RPCs.");
+assert(badgeAdminClient.includes('rpc("create_badge_credit_event"') && badgeAdminClient.includes('rpc("revoke_badge_credit_event"'), "Badge administration must expose governed review-credit creation and revocation.");
+assert(badgeAdminClient.includes('rpc("restore_user_badge"') && badgeAdminClient.includes('rpc("badge_administration_timeline"'), "Badge administration must expose audited restore and private history RPCs.");
 assert(badgeAdminClient.includes("Administrators cannot grant badges to themselves") && adminPage.includes("Badge management requires administrator authority."), "Badge management must refuse self-awards and require administrator authority.");
 assert(badgeAdminClient.includes("BADGE_KEY_PATTERN") && badgeAdminClient.includes("2,000 characters or fewer"), "Badge administration must bound identifiers and audited reasons before RPC calls.");
 assert(adminPage.includes("durable suppression") && adminPage.includes("private evidence payloads"), "Badge administration must explain revocation/suppression and private evidence boundaries.");
+assert(adminPage.includes("Record reviewed contribution evidence") && adminPage.includes("Per-account award, evidence, suppression, and audit history") && adminPage.includes("Restore or re-evaluate badge"), "Badge administration must render the producer, evidence-history, and restore workflows.");
+assert(adminPage.includes("Active qualification rules") && adminPage.includes("Badges never create roles, moderation authority, Marketplace approval, governance power, paid status, or trust"), "Badge administration must expose current rules while preserving authority separation.");
 assert(adminPage.includes("Reopen review") && adminPage.includes("Approve and restore") && adminPage.includes("Keep rejected"), "Admin Review rejected recovery controls missing.");
 assert(adminPage.includes("Source content not found; this rejected record is history only."), "Admin Review rejected history-only fallback missing.");
 assert(adminPage.includes("Public visibility") && adminPage.includes("Moderation state") && adminPage.includes("Review status"), "Admin Review detail should surface review/moderation/public visibility state.");

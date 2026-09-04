@@ -103,6 +103,10 @@ const userSovereignLifecyclePaths = [
   "supabase/migrations/20260830070000_account_deletion_artisan_retention_claim.sql",
 ];
 
+const badgeCompletionPaths = [
+  "supabase/migrations/20260904010000_badge_producer_and_admin_history_hardening.sql",
+];
+
 const activePaths = [
   ...baselinePaths,
   ...economicPaths,
@@ -115,6 +119,7 @@ const activePaths = [
   ...releaseBoundaryPaths,
   ...accountActivationPaths,
   ...userSovereignLifecyclePaths,
+  ...badgeCompletionPaths,
 ];
 
 const legacyHashes = new Map(Object.entries({
@@ -217,8 +222,12 @@ const releaseBoundaryMigrations = await Promise.all(
 const accountActivationMigrations = await Promise.all(
   accountActivationPaths.map((file) => fs.readFile(file, "utf8"))
 );
+const badgeCompletionMigrations = await Promise.all(
+  badgeCompletionPaths.map((file) => fs.readFile(file, "utf8"))
+);
 const jobOpportunityBehaviorFixture = await fs.readFile("scripts/fixtures/jobOpportunityDatabaseBehavior.sql", "utf8");
 const circlePrivateBehaviorFixture = await fs.readFile("scripts/fixtures/communeCirclePrivateBehavior.sql", "utf8");
+const badgeCompletionBehaviorFixture = await fs.readFile("scripts/fixtures/badgeCompletionBehavior.sql", "utf8");
 const routeKillSwitchMigration = economicMigrations.at(-1);
 assert(routeKillSwitchMigration, "Economic route kill-switch migration is missing.");
 const economicBehaviorFixture = await fs.readFile("scripts/fixtures/economicDatabaseBehavior.sql", "utf8");
@@ -283,6 +292,34 @@ for (const [index, migration] of accountActivationMigrations.entries()) {
   assert(!/postgres(?:ql)?:\/\//i.test(migration), `${accountActivationPaths[index]} contains a connection string.`);
   assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${accountActivationPaths[index]} contains a token-like value.`);
 }
+for (const [index, migration] of badgeCompletionMigrations.entries()) {
+  assert(migration.startsWith("--"), `${badgeCompletionPaths[index]} needs an explanatory header.`);
+  assert(/^begin;/im.test(migration), `${badgeCompletionPaths[index]} must start a transaction.`);
+  assert(/commit;\s*$/i.test(migration), `${badgeCompletionPaths[index]} must commit atomically.`);
+  assert(!/postgres(?:ql)?:\/\//i.test(migration), `${badgeCompletionPaths[index]} contains a connection string.`);
+  assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${badgeCompletionPaths[index]} contains a token-like value.`);
+}
+const badgeCompletionSource = badgeCompletionMigrations.join("\n");
+for (const marker of [
+  "badge_credit_events_one_active_review_credit",
+  "badge_credit_self_award_denied",
+  "badge_credit_approved_review_item_required",
+  "private.badge_credit_domain_allowed",
+  "private.badge_credit_rule_qualifies",
+  "grant_free_member_after_completed_profile_update",
+  "rule_badge_revoked",
+  "public.restore_user_badge",
+  "public.badge_administration_timeline",
+  "manual_admin_restore",
+]) assert(badgeCompletionSource.includes(marker), `Badge completion migration omits ${marker}.`);
+for (const marker of [
+  "badge_completion_behavior_ok",
+  "review-backed badge credits were not idempotent",
+  "not every review-triggered badge rule produced an active award",
+  "durable suppression allowed immediate automatic re-award",
+  "revoked authoritative credit did not retract the no-longer-qualified rule award",
+  "ordinary authenticated user read private badge timeline",
+]) assert(badgeCompletionBehaviorFixture.includes(marker), `Badge completion disposable fixture omits ${marker}.`);
 const accountActivationSource = accountActivationMigrations.join("\n");
 for (const marker of [
   "private.account_activation_state",
@@ -778,6 +815,7 @@ try {
     "scripts/fixtures/communeCirclePrivateBehavior.sql",
     "scripts/fixtures/accountActivationBehavior.sql",
     "scripts/fixtures/userSovereignLifecycleBehavior.sql",
+    "scripts/fixtures/badgeCompletionBehavior.sql",
     "scripts/sql/supabase_read_only_inventory.sql",
   ]) {
     await run(containerRuntime, ["cp", file, `${container}:/tmp/${path.basename(file)}`]);
@@ -936,6 +974,14 @@ try {
   for (const file of userSovereignLifecyclePaths) {
     await psql(["-f", `/tmp/${path.basename(file)}`]);
   }
+  for (const file of badgeCompletionPaths) {
+    await psql(["-f", `/tmp/${path.basename(file)}`]);
+  }
+  const badgeCompletionBehavior = await psql(["-f", "/tmp/badgeCompletionBehavior.sql"]);
+  assert(
+    badgeCompletionBehavior.stdout.includes("badge_completion_behavior_ok"),
+    "Badge completion behavior marker missing."
+  );
   const artisanBehavior = await psql(["-f", "/tmp/artisanDatabaseBehavior.sql"]);
   assert(artisanBehavior.stdout.includes("Artisan database behavior checks ok."), "Artisan database behavior marker missing.");
   const onlineProfileBehavior = await psql(["-f", "/tmp/onlinePublicProfileBehavior.sql"]);

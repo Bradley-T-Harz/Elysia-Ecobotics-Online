@@ -121,6 +121,9 @@ const reviewedCirclePrivacyMigrations = new Set([
   "supabase/migrations/20260810020000_mutual_commons_circle.sql",
   "supabase/migrations/20260810030000_circle_private_commune_posts.sql",
 ]);
+const reviewedBadgeAuthorityMigrations = new Set([
+  "supabase/migrations/20260904010000_badge_producer_and_admin_history_hardening.sql",
+]);
 
 function allowHit(file, line, checkName) {
   const normalized = file.replaceAll(path.sep, "/");
@@ -227,6 +230,11 @@ function allowHit(file, line, checkName) {
       && !/SUPABASE_SERVICE_ROLE_KEY\s*=|SUPABASE_SERVICE\w*\s*=|SERVICE_ROLE_KEY\s*=/.test(line)
     ) return true;
     if (
+      reviewedBadgeAuthorityMigrations.has(normalized)
+      && /\bservice_role\b|\bgrant\b|\brevoke\b/i.test(line)
+      && !/SUPABASE_SERVICE_ROLE_KEY\s*=|SUPABASE_SERVICE\w*\s*=|SERVICE_ROLE_KEY\s*=/.test(line)
+    ) return true;
+    if (
       normalized === "scripts/communeCirclePrivateTest.mjs"
       && /assert|service_role|membership|administrator|reviewer/i.test(line)
     ) return true;
@@ -251,6 +259,7 @@ function allowHit(file, line, checkName) {
       "supabase/policies.sql",
     ].includes(normalized) && /\brevoke\b|from public, anon, authenticated, service_role/i.test(line)) return true;
     if (normalized === "scripts/fixtures/sandboxDatabaseBehavior.sql" && /has_(?:function|table)_privilege\('service_role'/i.test(line)) return true;
+    if (normalized === "scripts/fixtures/badgeCompletionBehavior.sql" && /has_function_privilege\('service_role'/i.test(line)) return true;
     if (
       normalized === "scripts/fixtures/economicDatabaseBehavior.sql"
       && (
