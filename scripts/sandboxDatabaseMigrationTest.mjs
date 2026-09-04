@@ -107,6 +107,10 @@ const badgeCompletionPaths = [
   "supabase/migrations/20260904010000_badge_producer_and_admin_history_hardening.sql",
 ];
 
+const storagePrivacyPaths = [
+  "supabase/migrations/20260904020000_profile_original_storage_privacy.sql",
+];
+
 const activePaths = [
   ...baselinePaths,
   ...economicPaths,
@@ -120,6 +124,7 @@ const activePaths = [
   ...accountActivationPaths,
   ...userSovereignLifecyclePaths,
   ...badgeCompletionPaths,
+  ...storagePrivacyPaths,
 ];
 
 const legacyHashes = new Map(Object.entries({
@@ -225,6 +230,9 @@ const accountActivationMigrations = await Promise.all(
 const badgeCompletionMigrations = await Promise.all(
   badgeCompletionPaths.map((file) => fs.readFile(file, "utf8"))
 );
+const storagePrivacyMigrations = await Promise.all(
+  storagePrivacyPaths.map((file) => fs.readFile(file, "utf8"))
+);
 const jobOpportunityBehaviorFixture = await fs.readFile("scripts/fixtures/jobOpportunityDatabaseBehavior.sql", "utf8");
 const circlePrivateBehaviorFixture = await fs.readFile("scripts/fixtures/communeCirclePrivateBehavior.sql", "utf8");
 const badgeCompletionBehaviorFixture = await fs.readFile("scripts/fixtures/badgeCompletionBehavior.sql", "utf8");
@@ -298,6 +306,17 @@ for (const [index, migration] of badgeCompletionMigrations.entries()) {
   assert(/commit;\s*$/i.test(migration), `${badgeCompletionPaths[index]} must commit atomically.`);
   assert(!/postgres(?:ql)?:\/\//i.test(migration), `${badgeCompletionPaths[index]} contains a connection string.`);
   assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${badgeCompletionPaths[index]} contains a token-like value.`);
+}
+for (const [index, migration] of storagePrivacyMigrations.entries()) {
+  assert(migration.startsWith("--"), `${storagePrivacyPaths[index]} needs an explanatory header.`);
+  assert(/^begin;/im.test(migration), `${storagePrivacyPaths[index]} must start a transaction.`);
+  assert(/commit;\s*$/i.test(migration), `${storagePrivacyPaths[index]} must commit atomically.`);
+  assert(!/postgres(?:ql)?:\/\//i.test(migration), `${storagePrivacyPaths[index]} contains a connection string.`);
+  assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${storagePrivacyPaths[index]} contains a token-like value.`);
+  for (const policy of ["public reads profile avatars", "public reads profile banners"]) {
+    assert(migration.includes(`drop policy if exists \"${policy}\" on storage.objects`), `${storagePrivacyPaths[index]} does not remove ${policy}.`);
+  }
+  assert(migration.includes("profile_original_public_policy_remains"), `${storagePrivacyPaths[index]} must fail closed if the legacy public policies survive.`);
 }
 const badgeCompletionSource = badgeCompletionMigrations.join("\n");
 for (const marker of [
@@ -982,6 +1001,45 @@ try {
     badgeCompletionBehavior.stdout.includes("badge_completion_behavior_ok"),
     "Badge completion behavior marker missing."
   );
+  await psql(["-c", `
+    grant select on storage.objects to anon;
+    create policy "public reads profile avatars"
+      on storage.objects for select to public
+      using (bucket_id = 'profile-avatars');
+    create policy "public reads profile banners"
+      on storage.objects for select to public
+      using (bucket_id = 'profile-banners');
+    insert into storage.objects(id, bucket_id, name, owner_id)
+    values
+      ('d1000000-0000-4000-8000-000000000001', 'profile-avatars', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/avatars/privacy-probe.png', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),
+      ('d1000000-0000-4000-8000-000000000002', 'profile-banners', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/banners/privacy-probe.png', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa');
+  `]);
+  for (const file of storagePrivacyPaths) {
+    await psql(["-f", `/tmp/${path.basename(file)}`]);
+  }
+  const publicProfilePolicyCount = await psql(["-tAc", `
+    select count(*)
+    from pg_catalog.pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname in ('public reads profile avatars', 'public reads profile banners');
+  `]);
+  assert(publicProfilePolicyCount.stdout.trim() === "0", "Legacy public profile-original policies survived the privacy migration.");
+  const anonymousProfileObjectCount = await psql(["-tAc", `
+    set role anon;
+    select count(*) from storage.objects where bucket_id in ('profile-avatars', 'profile-banners');
+    reset role;
+  `]);
+  assert(anonymousProfileObjectCount.stdout.trim().split(/\s+/).at(-1) === "0", "Anonymous role can still read private profile image originals.");
+  await psql(["-c", "revoke select on storage.objects from anon;"]);
+  const privateProfileBucketCount = await psql(["-tAc", `
+    select count(*) from storage.buckets
+    where id in ('profile-avatars', 'profile-banners')
+      and public = false
+      and file_size_limit = 5242880
+      and allowed_mime_types = array['image/jpeg','image/png','image/webp']::text[];
+  `]);
+  assert(privateProfileBucketCount.stdout.trim() === "2", "Profile image bucket privacy/size/type contract drifted.");
   const artisanBehavior = await psql(["-f", "/tmp/artisanDatabaseBehavior.sql"]);
   assert(artisanBehavior.stdout.includes("Artisan database behavior checks ok."), "Artisan database behavior marker missing.");
   const onlineProfileBehavior = await psql(["-f", "/tmp/onlinePublicProfileBehavior.sql"]);
