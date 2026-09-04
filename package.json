@@ -44,6 +44,7 @@
     "test:marketplace-submission-boundary": "node --experimental-strip-types --no-warnings scripts/marketplaceSubmissionBoundaryTest.mts",
     "test:marketplace-cleanup-contract": "node scripts/marketplaceV1CleanupContractTest.mjs",
     "test:legacy-origin-canonicalizer": "node scripts/legacyOriginCanonicalizerSmokeTest.mjs",
+    "audit:legacy-origin-canonicalizer": "node scripts/legacyOriginCanonicalizerLiveAudit.mjs",
     "test:public-commons-profile": "node scripts/publicCommonsProfileSmokeTest.mjs",
     "test:public-commons-profile-browser:built": "node scripts/publicCommonsProfileBrowserSmokeTest.mjs",
     "test:public-commons-profile-browser": "npm run build && npm run test:public-commons-profile-browser:built",
