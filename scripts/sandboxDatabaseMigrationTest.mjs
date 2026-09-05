@@ -123,6 +123,10 @@ const operationalOverviewPaths = [
   "supabase/migrations/20260904050000_admin_operational_overview.sql",
 ];
 
+const adminBadgeSelfManagementPaths = [
+  "supabase/migrations/20260904060000_admin_badge_self_management.sql",
+];
+
 const activePaths = [
   ...baselinePaths,
   ...economicPaths,
@@ -140,6 +144,7 @@ const activePaths = [
   ...storageUploadHardeningPaths,
   ...onlineActionRatePaths,
   ...operationalOverviewPaths,
+  ...adminBadgeSelfManagementPaths,
 ];
 
 const legacyHashes = new Map(Object.entries({
@@ -257,6 +262,9 @@ const onlineActionRateMigrations = await Promise.all(
 const operationalOverviewMigrations = await Promise.all(
   operationalOverviewPaths.map((file) => fs.readFile(file, "utf8"))
 );
+const adminBadgeSelfManagementMigrations = await Promise.all(
+  adminBadgeSelfManagementPaths.map((file) => fs.readFile(file, "utf8"))
+);
 const jobOpportunityBehaviorFixture = await fs.readFile("scripts/fixtures/jobOpportunityDatabaseBehavior.sql", "utf8");
 const circlePrivateBehaviorFixture = await fs.readFile("scripts/fixtures/communeCirclePrivateBehavior.sql", "utf8");
 const badgeCompletionBehaviorFixture = await fs.readFile("scripts/fixtures/badgeCompletionBehavior.sql", "utf8");
@@ -333,6 +341,13 @@ for (const [index, migration] of badgeCompletionMigrations.entries()) {
   assert(/commit;\s*$/i.test(migration), `${badgeCompletionPaths[index]} must commit atomically.`);
   assert(!/postgres(?:ql)?:\/\//i.test(migration), `${badgeCompletionPaths[index]} contains a connection string.`);
   assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${badgeCompletionPaths[index]} contains a token-like value.`);
+}
+for (const [index, migration] of adminBadgeSelfManagementMigrations.entries()) {
+  assert(migration.startsWith("--"), `${adminBadgeSelfManagementPaths[index]} needs an explanatory header.`);
+  assert(/^begin;/im.test(migration), `${adminBadgeSelfManagementPaths[index]} must start a transaction.`);
+  assert(/commit;\s*$/i.test(migration), `${adminBadgeSelfManagementPaths[index]} must commit atomically.`);
+  assert(!/postgres(?:ql)?:\/\//i.test(migration), `${adminBadgeSelfManagementPaths[index]} contains a connection string.`);
+  assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${adminBadgeSelfManagementPaths[index]} contains a token-like value.`);
 }
 for (const [index, migration] of storagePrivacyMigrations.entries()) {
   assert(migration.startsWith("--"), `${storagePrivacyPaths[index]} needs an explanatory header.`);
@@ -411,7 +426,9 @@ assert(
   operationalOverviewBehaviorFixture.includes("ADMIN_OPERATIONAL_OVERVIEW_BEHAVIOR_OK"),
   "Admin operational overview behavior marker is missing."
 );
-const badgeCompletionSource = badgeCompletionMigrations.join("\n");
+const badgeCompletionSource = [...badgeCompletionMigrations, ...adminBadgeSelfManagementMigrations].join("\n");
+const badgeSelfManagementSource = adminBadgeSelfManagementMigrations.at(-1);
+assert(badgeSelfManagementSource, "Administrator badge self-management migration is missing.");
 for (const marker of [
   "badge_credit_events_one_active_review_credit",
   "badge_credit_self_award_denied",
@@ -425,12 +442,28 @@ for (const marker of [
   "manual_admin_restore",
 ]) assert(badgeCompletionSource.includes(marker), `Badge completion migration omits ${marker}.`);
 for (const marker of [
+  "Administrator-only audited manual recognition grant for any target account, including the acting administrator",
+  "badge_manual_grant_denied",
+  "badge_restore_denied",
+  "manual_grant",
+  "badge_restored",
+]) assert(badgeSelfManagementSource.includes(marker), `Administrator badge self-management migration omits ${marker}.`);
+for (const prohibited of ["badge_manual_self_grant_denied", "badge_restore_self_action_denied"]) {
+  assert(!badgeSelfManagementSource.includes(prohibited), `Administrator badge self-management migration retains obsolete refusal ${prohibited}.`);
+}
+for (const marker of [
   "badge_completion_behavior_ok",
   "review-backed badge credits were not idempotent",
   "not every review-triggered badge rule produced an active award",
   "durable suppression allowed immediate automatic re-award",
   "revoked authoritative credit did not retract the no-longer-qualified rule award",
   "ordinary authenticated user read private badge timeline",
+  "administrator self-grant omitted active public recognition or durable provenance",
+  "administrator self-restore omitted restored recognition or durable lifecycle history",
+  "ordinary account self-awarded a badge",
+  "ordinary account awarded another account a badge",
+  "recognition badges conferred administrator or badge-credit authority",
+  "anonymous public badge projection omitted administrator-managed recognition",
 ]) assert(badgeCompletionBehaviorFixture.includes(marker), `Badge completion disposable fixture omits ${marker}.`);
 const accountActivationSource = accountActivationMigrations.join("\n");
 for (const marker of [
@@ -1092,11 +1125,6 @@ try {
   for (const file of badgeCompletionPaths) {
     await psql(["-f", `/tmp/${path.basename(file)}`]);
   }
-  const badgeCompletionBehavior = await psql(["-f", "/tmp/badgeCompletionBehavior.sql"]);
-  assert(
-    badgeCompletionBehavior.stdout.includes("badge_completion_behavior_ok"),
-    "Badge completion behavior marker missing."
-  );
   await psql(["-c", `
     grant select on storage.objects to anon;
     create policy "public reads profile avatars"
@@ -1155,6 +1183,14 @@ try {
   for (const file of operationalOverviewPaths) {
     await psql(["-f", `/tmp/${path.basename(file)}`]);
   }
+  for (const file of adminBadgeSelfManagementPaths) {
+    await psql(["-f", `/tmp/${path.basename(file)}`]);
+  }
+  const badgeCompletionBehavior = await psql(["-f", "/tmp/badgeCompletionBehavior.sql"]);
+  assert(
+    badgeCompletionBehavior.stdout.includes("badge_completion_behavior_ok"),
+    "Badge completion behavior marker missing."
+  );
   const operationalOverviewBehavior = await psql([
     "-f",
     "/tmp/adminOperationalOverviewBehavior.sql",

@@ -153,7 +153,7 @@ export async function loadBadgeAdministration(): Promise<{
   };
 }
 
-async function currentAdministratorId() {
+export async function loadCurrentAdministratorId() {
   if (!hasSupabaseConfig || !supabase) return null;
   const { data: auth } = await supabase.auth.getUser();
   return auth.user?.id ?? null;
@@ -165,9 +165,8 @@ export async function grantBadgeToUser(targetUserId: string, badgeKey: string, r
   if (!BADGE_KEY_PATTERN.test(badgeKey)) return { ok: false, warning: "Choose a valid badge definition." };
   if (!reason.trim()) return { ok: false, warning: "Record a reason for the audited badge grant." };
   if (reason.trim().length > 2000) return { ok: false, warning: "Keep the audited grant reason to 2,000 characters or fewer." };
-  const administratorId = await currentAdministratorId();
+  const administratorId = await loadCurrentAdministratorId();
   if (!administratorId) return { ok: false, warning: "Sign in as administrator first." };
-  if (administratorId === targetUserId) return { ok: false, warning: "Administrators cannot grant badges to themselves from this console." };
   const { error } = await supabase.rpc("grant_user_badge", {
     p_target_user_id: targetUserId,
     p_badge_key: badgeKey,
@@ -201,7 +200,7 @@ export async function createReviewedBadgeCredit(input: ReviewedBadgeCreditInput)
   if (input.creditAmount !== 1 && input.creditAmount !== 2) return { ok: false, warning: "Badge credit amount must be 1 or 2." };
   if (!input.notes.trim() || input.notes.trim().length > 2000) return { ok: false, warning: "Record a review note of 2,000 characters or fewer." };
   if ((input.distinctSubjectKey?.trim().length ?? 0) > 200) return { ok: false, warning: "Keep the distinct subject key to 200 characters or fewer." };
-  const administratorId = await currentAdministratorId();
+  const administratorId = await loadCurrentAdministratorId();
   if (!administratorId) return { ok: false, warning: "Sign in as administrator first." };
   if (administratorId === input.targetUserId) return { ok: false, warning: "Administrators cannot create badge credits for themselves from this console." };
   const { data, error } = await supabase.rpc("create_badge_credit_event", {
@@ -264,9 +263,8 @@ export async function restoreBadgeForUser(targetUserId: string, badgeKey: string
   if (!hasSupabaseConfig || !supabase) return { ok: false, warning: supabaseNotConfiguredMessage };
   if (!UUID_PATTERN.test(targetUserId) || !BADGE_KEY_PATTERN.test(badgeKey)) return { ok: false, warning: "The badge restore target is invalid." };
   if (!reason.trim() || reason.trim().length > 2000) return { ok: false, warning: "Record a restore reason of 2,000 characters or fewer." };
-  const administratorId = await currentAdministratorId();
+  const administratorId = await loadCurrentAdministratorId();
   if (!administratorId) return { ok: false, warning: "Sign in as administrator first." };
-  if (administratorId === targetUserId) return { ok: false, warning: "Administrators cannot restore their own badges from this console." };
   const { data, error } = await supabase.rpc("restore_user_badge", {
     p_target_user_id: targetUserId,
     p_badge_key: badgeKey,

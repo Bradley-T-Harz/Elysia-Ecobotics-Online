@@ -217,6 +217,7 @@ declare
   v_credit_id uuid;
   v_result jsonb;
   v_timeline jsonb;
+  v_role_count integer;
 begin
   -- One reviewed major contribution satisfies every established rule with a
   -- major shortcut. Source Curator was already qualified through specialist
@@ -317,6 +318,109 @@ begin
       and award.revoked_at is null
   ) <> 24 then
     raise exception 'the full preserved 24-badge catalog did not reach governed active state';
+  end if;
+
+  select pg_catalog.count(*) into v_role_count
+  from public.user_roles as role_assignment
+  where role_assignment.user_id = 'ee100000-0000-4000-8000-000000000001'
+    and role_assignment.revoked_at is null;
+
+  perform public.grant_user_badge(
+    'ee100000-0000-4000-8000-000000000001',
+    'founding_steward',
+    'Disposable administrator self-recognition review.',
+    'badge_completion_fixture',
+    'ee700000-0000-4000-8000-000000000001'
+  );
+  if not exists (
+    select 1
+    from public.user_badges as award
+    where award.user_id = 'ee100000-0000-4000-8000-000000000001'
+      and award.badge_key = 'founding_steward'
+      and award.awarded_by = 'ee100000-0000-4000-8000-000000000001'
+      and award.award_source = 'manual_admin'
+      and award.visibility = 'public'
+      and award.revoked_at is null
+  ) or not exists (
+    select 1
+    from public.badge_audit_log as audit
+    where audit.actor_user_id = 'ee100000-0000-4000-8000-000000000001'
+      and audit.target_user_id = 'ee100000-0000-4000-8000-000000000001'
+      and audit.badge_slug = 'founding_steward'
+      and audit.action = 'manual_grant'
+      and audit.evidence_type = 'badge_completion_fixture'
+      and audit.evidence_id = 'ee700000-0000-4000-8000-000000000001'
+      and audit.metadata ->> 'award_reason' = 'Disposable administrator self-recognition review.'
+  ) then
+    raise exception 'administrator self-grant omitted active public recognition or durable provenance';
+  end if;
+
+  begin
+    perform public.grant_user_badge(
+      'ee100000-0000-4000-8000-000000000001',
+      'founding_steward',
+      'Duplicate active self-grant must remain bounded.',
+      'badge_completion_fixture',
+      'ee700000-0000-4000-8000-000000000002'
+    );
+    raise exception 'duplicate active administrator self-grant was accepted';
+  exception when unique_violation then
+    if sqlerrm <> 'active_badge_award_already_exists' then raise; end if;
+  end;
+
+  perform public.revoke_user_badge(
+    'ee100000-0000-4000-8000-000000000001',
+    'founding_steward',
+    'Disposable administrator self-revoke review.'
+  );
+  if not exists (
+    select 1
+    from public.badge_audit_log as audit
+    where audit.actor_user_id = 'ee100000-0000-4000-8000-000000000001'
+      and audit.target_user_id = 'ee100000-0000-4000-8000-000000000001'
+      and audit.badge_slug = 'founding_steward'
+      and audit.action = 'badge_revoked'
+      and audit.metadata ->> 'revoked_reason' = 'Disposable administrator self-revoke review.'
+  ) then
+    raise exception 'administrator self-revoke omitted durable actor, target, badge, action, reason, or time';
+  end if;
+
+  v_result := public.restore_user_badge(
+    'ee100000-0000-4000-8000-000000000001',
+    'founding_steward',
+    'Disposable administrator self-restore review.',
+    false
+  );
+  if v_result ->> 'restored' <> 'true'
+     or not exists (
+       select 1
+       from public.user_badges as award
+       where award.user_id = 'ee100000-0000-4000-8000-000000000001'
+         and award.badge_key = 'founding_steward'
+         and award.awarded_by = 'ee100000-0000-4000-8000-000000000001'
+         and award.award_source = 'manual_admin_restore'
+         and award.visibility = 'public'
+         and award.revoked_at is null
+     )
+     or not exists (
+       select 1
+       from public.badge_audit_log as audit
+       where audit.actor_user_id = 'ee100000-0000-4000-8000-000000000001'
+         and audit.target_user_id = 'ee100000-0000-4000-8000-000000000001'
+         and audit.badge_slug = 'founding_steward'
+         and audit.action = 'badge_restored'
+         and audit.metadata ->> 'restore_reason' = 'Disposable administrator self-restore review.'
+     ) then
+    raise exception 'administrator self-restore omitted restored recognition or durable lifecycle history';
+  end if;
+
+  if (
+    select pg_catalog.count(*)
+    from public.user_roles as role_assignment
+    where role_assignment.user_id = 'ee100000-0000-4000-8000-000000000001'
+      and role_assignment.revoked_at is null
+  ) <> v_role_count then
+    raise exception 'administrator badge self-management changed authority roles';
   end if;
 
   perform public.revoke_user_badge(
@@ -427,6 +531,80 @@ begin
   end if;
 end
 $all_badge_rules_and_admin_behavior$;
+
+select pg_catalog.set_config(
+  'request.jwt.claim.sub',
+  'ee300000-0000-4000-8000-000000000003',
+  false
+);
+select pg_catalog.set_config(
+  'request.jwt.claims',
+  '{"sub":"ee300000-0000-4000-8000-000000000003","role":"authenticated"}',
+  false
+);
+
+do $ordinary_badge_authority_refusal$
+begin
+  if public.current_user_is_admin()
+     or public.current_user_can_create_badge_credit() then
+    raise exception 'recognition badges conferred administrator or badge-credit authority';
+  end if;
+
+  begin
+    perform public.grant_user_badge(
+      'ee300000-0000-4000-8000-000000000003',
+      'founding_steward',
+      'Ordinary self-grant must fail.',
+      'badge_completion_fixture',
+      null
+    );
+    raise exception 'ordinary account self-awarded a badge';
+  exception when insufficient_privilege then
+    if sqlerrm <> 'badge_manual_grant_denied' then raise; end if;
+  end;
+
+  begin
+    perform public.grant_user_badge(
+      'ee100000-0000-4000-8000-000000000001',
+      'founding_steward',
+      'Ordinary cross-account grant must fail.',
+      'badge_completion_fixture',
+      null
+    );
+    raise exception 'ordinary account awarded another account a badge';
+  exception when insufficient_privilege then
+    if sqlerrm <> 'badge_manual_grant_denied' then raise; end if;
+  end;
+
+  begin
+    perform public.revoke_user_badge(
+      'ee300000-0000-4000-8000-000000000003',
+      'founding_steward',
+      'Ordinary self-revoke must fail.'
+    );
+    raise exception 'ordinary account revoked a badge';
+  exception when insufficient_privilege then
+    if sqlerrm <> 'badge_revocation_denied' then raise; end if;
+  end;
+end
+$ordinary_badge_authority_refusal$;
+
+set local role anon;
+do $public_badge_visibility$
+begin
+  if not exists (
+    select 1
+    from public.visible_user_badges as award
+    where award.user_id = 'ee100000-0000-4000-8000-000000000001'
+      and award.badge_key = 'founding_steward'
+      and award.award_source = 'manual_admin_restore'
+      and award.visibility = 'public'
+  ) then
+    raise exception 'anonymous public badge projection omitted administrator-managed recognition';
+  end if;
+end
+$public_badge_visibility$;
+reset role;
 
 select pg_catalog.set_config(
   'request.jwt.claim.sub',

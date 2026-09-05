@@ -123,6 +123,7 @@ const reviewedCirclePrivacyMigrations = new Set([
 ]);
 const reviewedBadgeAuthorityMigrations = new Set([
   "supabase/migrations/20260904010000_badge_producer_and_admin_history_hardening.sql",
+  "supabase/migrations/20260904060000_admin_badge_self_management.sql",
 ]);
 const reviewedAbuseAuthorityMigrations = new Set([
   "supabase/migrations/20260904040000_online_action_rate_and_abuse_decisions.sql",

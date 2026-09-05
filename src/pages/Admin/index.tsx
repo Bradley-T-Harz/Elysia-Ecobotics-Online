@@ -82,6 +82,7 @@ import {
 import {
   createReviewedBadgeCredit,
   grantBadgeToUser,
+  loadCurrentAdministratorId,
   loadBadgeAdministration,
   loadBadgeAdministrationTimeline,
   restoreBadgeForUser,
@@ -433,8 +434,14 @@ function BadgesPage() {
     <section className="two-column">
       <div className="section-card">
         <h2>Manual badge grant</h2>
-        <p className="boundary-note">Use a target account auth UUID. Self-awards are refused by both this client and the database function. Every successful grant writes badge audit evidence.</p>
+        <p className="boundary-note">Authorized administrators may select any target account, including their own signed-in account. Every successful grant records the acting administrator, target, badge, reason, timestamp, action, and supplied evidence. Badges remain recognition only.</p>
         <label><span>Target user auth UUID</span><input value={manualForm.userId} onChange={(event) => setManualForm({ ...manualForm, userId: event.target.value })} /></label>
+        <div className="button-row"><button type="button" onClick={async () => {
+          const administratorId = await loadCurrentAdministratorId();
+          if (!administratorId) { setMessages(["Sign in as administrator before selecting your account."]); return; }
+          setManualForm((current) => ({ ...current, userId: administratorId }));
+          setMessages(["Your signed-in administrator account is selected as the badge target."]);
+        }}>Use my signed-in account</button></div>
         <label><span>Badge</span><select value={manualForm.badgeKey} onChange={(event) => setManualForm({ ...manualForm, badgeKey: event.target.value })}><option value="">Choose a badge</option>{definitions.map((definition) => <option key={definition.badge_key} value={definition.badge_key}>{definition.name} · {definition.award_mode ?? "governed"}</option>)}</select></label>
         <label><span>Audited reason</span><textarea value={manualForm.reason} onChange={(event) => setManualForm({ ...manualForm, reason: event.target.value })} /></label>
         <button className="button-primary" type="button" onClick={async () => {

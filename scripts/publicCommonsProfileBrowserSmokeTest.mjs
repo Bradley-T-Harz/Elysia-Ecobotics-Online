@@ -77,7 +77,14 @@ const publicPresentation = {
     bannerUrl: `/api/public/profile-banners/${bannerId}`,
   },
   isOwner: false,
-  publicBadges: [],
+  publicBadges: [
+    {
+      badgeKey: "founding_steward",
+      awardedAt: "2026-09-04T00:01:00.000Z",
+      awardSource: "manual_admin",
+      visibility: "public",
+    },
+  ],
   publicLinks: [
     { label: "Fixture work", url: "https://example.invalid/work", kind: "website" },
   ],
@@ -282,6 +289,8 @@ async function loadCase({ handle, viewport, expected, canonicalAfterLoad, signed
   assert.equal(await page.locator("header").count(), 1, "site header must render");
   assert.equal(await page.locator("footer").count(), 1, "site footer must render");
   if (handle === canonicalHandle) {
+    await page.getByRole("heading", { name: "Founding Steward", exact: true }).waitFor();
+    await page.getByText("Badges are recognition, not administrator, moderator, reviewer, guardian, developer trust, or paid-role authority.", { exact: true }).waitFor();
     if (owner) {
       await page.getByRole("link", { name: "Edit in Commons Circle", exact: true }).waitFor();
       assert.equal(await page.getByRole("link", { name: "Message", exact: true }).count(), 0, "Own public profile must not offer self-messaging.");

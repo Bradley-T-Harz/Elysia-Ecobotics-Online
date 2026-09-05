@@ -67,6 +67,7 @@ const evidenceId = "ba000000-0000-4000-8000-000000000003";
 const reviewItemId = "ba000000-0000-4000-8000-000000000004";
 const creditId = "ba000000-0000-4000-8000-000000000005";
 const awardId = "ba000000-0000-4000-8000-000000000006";
+const selfAwardId = "ba000000-0000-4000-8000-000000000009";
 const fixtureUser = {
   id: administratorId, aud: "authenticated", role: "authenticated",
   email: "badge-admin-fixture@example.invalid", app_metadata: {}, user_metadata: {},
@@ -91,24 +92,32 @@ async function installFixtures(context, { administrator, captures }) {
     if (url.pathname.endsWith("/rest/v1/badge_definitions")) return route.fulfill({ status: 200, headers, body: JSON.stringify([
       { badge_key: "free_member", name: "Free Member", description: "Completed Commons onboarding.", category: "membership", award_mode: "automatic", is_manual_only: false },
       { badge_key: "seed_sower", name: "Seed Sower", description: "Reviewed source contribution.", category: "contribution", award_mode: "review_triggered", is_manual_only: false },
+      { badge_key: "founding_steward", name: "Founding Steward", description: "Foundational recognition without authority.", category: "membership", award_mode: "manual", is_manual_only: true },
     ]) });
     if (url.pathname.endsWith("/rest/v1/badge_rules")) return route.fulfill({ status: 200, headers, body: JSON.stringify([
       { badge_slug: "seed_sower", rule_type: "credit_count", required_credit_type: "source_contribution", required_count: 1, required_credit_sum: null, requires_major: false, distinct_subject_min: null, description: "One reviewed source contribution." },
     ]) });
     if (url.pathname.endsWith("/rest/v1/user_badges")) return route.fulfill({ status: 200, headers, body: JSON.stringify([
       { id: awardId, user_id: targetId, badge_key: "seed_sower", awarded_at: "2026-09-04T00:00:00.000Z", award_source: "credit_rule", visibility: "public", revoked_at: null },
+      { id: selfAwardId, user_id: administratorId, badge_key: "founding_steward", awarded_at: "2026-09-04T00:01:00.000Z", award_source: "manual_admin", visibility: "public", revoked_at: null },
     ]) });
     if (url.pathname.includes("/rest/v1/rpc/")) {
       const rpc = url.pathname.split("/").at(-1);
       const payload = request.postDataJSON();
       captures.push({ rpc, payload });
-      if (rpc === "badge_administration_timeline") return route.fulfill({ status: 200, headers, body: JSON.stringify({
-        targetUserId: targetId, badgeKey: "seed_sower",
-        awards: [{ id: awardId, user_id: targetId, badge_key: "seed_sower", awarded_at: "2026-09-04T00:00:00.000Z", award_source: "credit_rule", visibility: "public", revoked_at: "2026-09-04T00:05:00.000Z", awarded_by: administratorId, award_reason: "Rule qualification", evidence_type: "badge_credit_rule", evidence_id: creditId, revoked_by: administratorId, revoked_reason: "Evidence correction", created_at: "2026-09-04T00:00:00.000Z", updated_at: "2026-09-04T00:05:00.000Z" }],
-        credits: [{ id: creditId, credit_type: "source_contribution", credit_amount: 1, contribution_type: "living_library_source_suggestions", contribution_id: evidenceId, review_item_id: reviewItemId, awarded_by: administratorId, awarded_at: "2026-09-04T00:00:00.000Z", is_major: false, distinct_subject_key: null, notes: "Reviewed evidence", revoked_at: null, revoked_by: null, revoked_reason: null }],
-        suppressions: [{ id: "ba000000-0000-4000-8000-000000000007", badge_key: "seed_sower", suppressed_by: administratorId, suppressed_at: "2026-09-04T00:05:00.000Z", reason: "Evidence correction", lifted_by: null, lifted_at: null, lift_reason: null }],
-        auditEvents: [{ id: "ba000000-0000-4000-8000-000000000008", actor_user_id: administratorId, action: "badge_revoked", badge_slug: "seed_sower", credit_event_id: null, evidence_type: "badge_credit_rule", evidence_id: creditId, metadata: { reason: "Evidence correction" }, created_at: "2026-09-04T00:05:00.000Z" }],
-      }) });
+      if (rpc === "badge_administration_timeline") {
+        const selfTarget = payload.p_target_user_id === administratorId;
+        return route.fulfill({ status: 200, headers, body: JSON.stringify({
+          targetUserId: selfTarget ? administratorId : targetId,
+          badgeKey: selfTarget ? "founding_steward" : "seed_sower",
+          awards: selfTarget
+            ? [{ id: selfAwardId, user_id: administratorId, badge_key: "founding_steward", awarded_at: "2026-09-04T00:01:00.000Z", award_source: "manual_admin", visibility: "public", revoked_at: "2026-09-04T00:06:00.000Z", awarded_by: administratorId, award_reason: "Administrator self-recognition review.", evidence_type: "manual_admin_review", evidence_id: null, revoked_by: administratorId, revoked_reason: "Exercise self-management lifecycle.", created_at: "2026-09-04T00:01:00.000Z", updated_at: "2026-09-04T00:06:00.000Z" }]
+            : [{ id: awardId, user_id: targetId, badge_key: "seed_sower", awarded_at: "2026-09-04T00:00:00.000Z", award_source: "credit_rule", visibility: "public", revoked_at: "2026-09-04T00:05:00.000Z", awarded_by: administratorId, award_reason: "Rule qualification", evidence_type: "badge_credit_rule", evidence_id: creditId, revoked_by: administratorId, revoked_reason: "Evidence correction", created_at: "2026-09-04T00:00:00.000Z", updated_at: "2026-09-04T00:05:00.000Z" }],
+          credits: selfTarget ? [] : [{ id: creditId, credit_type: "source_contribution", credit_amount: 1, contribution_type: "living_library_source_suggestions", contribution_id: evidenceId, review_item_id: reviewItemId, awarded_by: administratorId, awarded_at: "2026-09-04T00:00:00.000Z", is_major: false, distinct_subject_key: null, notes: "Reviewed evidence", revoked_at: null, revoked_by: null, revoked_reason: null }],
+          suppressions: [{ id: "ba000000-0000-4000-8000-000000000007", badge_key: selfTarget ? "founding_steward" : "seed_sower", suppressed_by: administratorId, suppressed_at: "2026-09-04T00:05:00.000Z", reason: selfTarget ? "Exercise self-management lifecycle." : "Evidence correction", lifted_by: null, lifted_at: null, lift_reason: null }],
+          auditEvents: [{ id: "ba000000-0000-4000-8000-000000000008", actor_user_id: administratorId, action: "badge_revoked", badge_slug: selfTarget ? "founding_steward" : "seed_sower", credit_event_id: null, evidence_type: selfTarget ? "manual_admin_review" : "badge_credit_rule", evidence_id: selfTarget ? null : creditId, metadata: { reason: selfTarget ? "Exercise self-management lifecycle." : "Evidence correction" }, created_at: "2026-09-04T00:05:00.000Z" }],
+        }) });
+      }
       if (rpc === "create_badge_credit_event") return route.fulfill({ status: 200, headers, body: JSON.stringify(creditId) });
       if (rpc === "restore_user_badge") return route.fulfill({ status: 200, headers, body: JSON.stringify({ restored: true }) });
       return route.fulfill({ status: 200, headers, body: JSON.stringify(true) });
@@ -120,18 +129,25 @@ async function installFixtures(context, { administrator, captures }) {
 async function waitForRpc(page, captures, name) {
   for (let attempt = 0; attempt < 100; attempt += 1) {
     if (captures.some(({ rpc }) => rpc === name)) return;
-    await page.waitForTimeout(20);
+    await new Promise((resolve) => setTimeout(resolve, 20));
   }
   assert.fail(`Badge Admin browser flow did not call ${name}.`);
 }
 
-async function waitForInputValue(page, label, expected) {
-  const input = page.getByLabel(label);
+async function waitForRpcCount(page, captures, name, expected) {
   for (let attempt = 0; attempt < 100; attempt += 1) {
-    if (await input.inputValue() === expected) return;
+    if (captures.filter(({ rpc }) => rpc === name).length >= expected) return;
     await page.waitForTimeout(20);
   }
-  assert.fail(`Badge Admin input ${label} did not settle to the expected state.`);
+  assert.fail(`Badge Admin browser flow did not call ${name} ${expected} times.`);
+}
+
+async function waitForInputValue(input, expected) {
+  for (let attempt = 0; attempt < 100; attempt += 1) {
+    if (await input.inputValue() === expected) return;
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.fail("Badge Admin input did not settle to the expected state.");
 }
 
 async function runCase(browser, { administrator, viewport }) {
@@ -164,6 +180,19 @@ async function runCase(browser, { administrator, viewport }) {
     await manual.getByLabel("Badge").selectOption("seed_sower");
     await manual.getByLabel("Audited reason").fill("Verified manual recognition reason.");
     await manual.getByRole("button", { name: "Grant badge" }).click();
+    await waitForRpcCount(page, captures, "grant_user_badge", 1);
+
+    await manual.getByRole("button", { name: "Use my signed-in account" }).click();
+    await waitForInputValue(manual.getByLabel("Target user auth UUID"), administratorId);
+    await manual.getByLabel("Badge").selectOption("founding_steward");
+    await manual.getByLabel("Audited reason").fill("Administrator self-recognition review.");
+    await manual.getByRole("button", { name: "Grant badge" }).click();
+    await waitForRpcCount(page, captures, "grant_user_badge", 2);
+
+    await page.getByLabel("Reason for the next revoke or restore action").fill("Exercise self-management lifecycle.");
+    const selfAward = page.getByText(`Target: ${administratorId}`, { exact: true }).locator("xpath=ancestor::article[1]");
+    await selfAward.getByRole("button", { name: "Revoke badge" }).click();
+    await waitForRpc(page, captures, "revoke_user_badge");
 
     const producer = page.getByRole("heading", { name: "Record reviewed contribution evidence" }).locator("xpath=ancestor::div[contains(@class,'section-card')][1]");
     await producer.getByLabel("Target user auth UUID").fill(targetId);
@@ -182,11 +211,19 @@ async function runCase(browser, { administrator, viewport }) {
     await page.getByLabel("Reason for the next revoke or restore action").fill("Correct reviewed evidence and retain audit history.");
     await history.getByRole("button", { name: "Revoke credit and re-evaluate" }).click();
     await waitForRpc(page, captures, "revoke_badge_credit_event");
-    await waitForInputValue(page, "Reason for the next revoke or restore action", "");
+    await waitForInputValue(page.getByLabel("Reason for the next revoke or restore action"), "");
     await page.getByLabel("Reason for the next revoke or restore action").fill("Restore recognition after verified correction.");
     await history.getByRole("button", { name: "Restore or re-evaluate badge" }).waitFor();
     await history.getByRole("button", { name: "Restore or re-evaluate badge" }).click();
     await waitForRpc(page, captures, "restore_user_badge");
+
+    await history.getByLabel("Target user auth UUID").fill(administratorId);
+    await history.getByLabel("Badge filter").selectOption("founding_steward");
+    await history.getByRole("button", { name: "Load private badge history" }).click();
+    await history.getByText("Administrator self-recognition review.", { exact: true }).waitFor();
+    await page.getByLabel("Reason for the next revoke or restore action").fill("Restore self-managed recognition with history.");
+    await history.getByRole("button", { name: "Restore or re-evaluate badge" }).click();
+    await waitForRpcCount(page, captures, "restore_user_badge", 2);
 
     const rpcNames = captures.map(({ rpc }) => rpc);
     for (const expected of ["grant_user_badge", "create_badge_credit_event", "badge_administration_timeline", "revoke_badge_credit_event", "restore_user_badge"]) {
@@ -197,6 +234,11 @@ async function runCase(browser, { administrator, viewport }) {
     assert.equal(credit.p_contribution_id, evidenceId);
     assert.equal(credit.p_review_item_id, reviewItemId);
     assert.equal(credit.p_credit_type, "source_contribution");
+    const grants = captures.filter(({ rpc }) => rpc === "grant_user_badge").map(({ payload }) => payload);
+    assert(grants.some((payload) => payload.p_target_user_id === targetId && payload.p_badge_key === "seed_sower"), "Administrator did not grant another account through the governed RPC.");
+    assert(grants.some((payload) => payload.p_target_user_id === administratorId && payload.p_badge_key === "founding_steward" && payload.p_evidence_type === "manual_admin_review"), "Administrator self-grant did not retain governed provenance.");
+    assert(captures.some(({ rpc, payload }) => rpc === "revoke_user_badge" && payload.p_target_user_id === administratorId && payload.p_badge_key === "founding_steward"), "Administrator self-revoke did not use the governed RPC.");
+    assert(captures.some(({ rpc, payload }) => rpc === "restore_user_badge" && payload.p_target_user_id === administratorId && payload.p_badge_key === "founding_steward"), "Administrator self-restore did not use the governed RPC.");
   }
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
