@@ -216,7 +216,49 @@ async function installNetworkFixtures(context, networkState) {
     });
   });
   await context.route(`${origin}/api/sandbox/credits`, async (route) => {
-    await route.fulfill({ status: 503, headers: { "Cache-Control": "no-store", "Content-Type": "application/json" }, body: '{"ok":false,"error":"sandbox_disabled"}' });
+    await route.fulfill({
+      status: 200,
+      headers: { "Cache-Control": "no-store", "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ok: true,
+        summary: {
+          available: true,
+          mode: "live",
+          display_enabled: true,
+          enforcement_enabled: true,
+          test_mode: false,
+          unit_scale: 100,
+          allowance_total_units: 1_000,
+          used_units: 200,
+          balance_units: 800,
+          reserved_units: 150,
+          available_units: 650,
+          remaining_percent: 65,
+          allowance_type: "one_time_starter",
+          renews_at: null,
+          paid_allowance_available: false,
+          available_credits: 6.5,
+          purchased_credits: 0,
+          sponsored_credits: 0,
+          waived_credits: 0,
+          operator_granted_credits: 6.5,
+          active_rate: {
+            rate_key: "hosted_allowance_browser_fixture",
+            base_units: 10,
+            input_kib_units: 1,
+            output_kib_units: 1,
+            cpu_second_units: 5,
+            memory_gib_second_units: 2,
+            maximum_run_units: 100,
+            approved_for_live_use: true,
+          },
+          source_categories: [{ category: "starter", available_units: 650 }],
+          active_reservations: [{ run_id: "a1600000-0000-4000-8000-000000000001", reserved_units: 150, expires_at: "2026-09-06T20:00:00.000Z" }],
+          recent_receipts: [{ id: "a1700000-0000-4000-8000-000000000001", entry_type: "consume", units_delta: -20, source_category: "sandbox_run", run_id: "a1800000-0000-4000-8000-000000000001", created_at: "2026-09-06T19:00:00.000Z" }],
+          warnings: ["Local Elysia computation is not metered by EcoSyneva."],
+        },
+      }),
+    });
   });
   await context.route(`${origin}/api/sandbox/run`, async (route) => {
     const request = route.request();
@@ -379,6 +421,14 @@ async function loadWorkbench(browser, browserName, viewport, comprehensive, scen
   assert.equal(await page.getByText("Current accepted snapshot", { exact: false }).count(), 0);
   await waitFor(async () => await workspace.getByText("Sandbox available", { exact: true }).count() === 2, `${browserName} did not confirm server-authoritative sandbox eligibility.`);
   assert.equal(await workspace.getByText("Sandbox execution eligible", { exact: true }).count(), 0, "Language policy alone must not claim account eligibility.");
+  if (scenario === "plain-text") {
+    assert.equal(await workspace.getByText("Hosted allowance: 65% remaining", { exact: true }).count(), 0, `${browserName} must not imply that a static non-executable surface can consume hosted allowance.`);
+    assert.equal(await workspace.getByRole("link", { name: "View allowance", exact: true }).count(), 0, `${browserName} must keep the compact allowance control off static non-executable surfaces.`);
+  } else {
+    await waitFor(async () => await workspace.getByText("Hosted allowance: 65% remaining", { exact: true }).count() === 2, `${browserName} did not render the shared authoritative hosted-allowance percentage on both runnable surfaces.`);
+    assert.equal(await workspace.getByRole("link", { name: "View allowance", exact: true }).count(), 2, `${browserName} must link both runnable surfaces to the canonical allowance page.`);
+  }
+  assert.equal(await workspace.locator("progress").count(), 0, `${browserName} must not render detailed meters on compact execution surfaces.`);
 
   const horizontalOverflow = await workspace.evaluate((element) => element.scrollWidth > element.clientWidth + 2);
   assert.equal(horizontalOverflow, false, `${browserName} ${viewport.width}px workbench should not overflow horizontally.`);
@@ -423,6 +473,21 @@ async function loadWorkbench(browser, browserName, viewport, comprehensive, scen
     await context.close();
     return;
   }
+
+  const allowancePage = await context.newPage();
+  const allowanceResponse = await allowancePage.goto(`${origin}/commons-circle/settings/hosted-execution`, { waitUntil: "networkidle", timeout: 45_000 });
+  assert.equal(allowanceResponse?.status(), 200, `${browserName} private hosted-allowance route should load.`);
+  await allowancePage.getByRole("heading", { name: "Hosted Execution Allowance", exact: true }).waitFor({ timeout: 30_000 });
+  await allowancePage.getByRole("heading", { name: "6.5 / 10 units remaining", exact: true }).waitFor();
+  const allowanceProgress = allowancePage.getByRole("progressbar", { name: "65% of hosted execution allowance remaining" });
+  assert.equal(await allowanceProgress.getAttribute("value"), "65");
+  assert.equal(await allowancePage.getByText("Reserved right now", { exact: true }).count(), 1);
+  assert.equal(await allowancePage.getByText("1.5 units", { exact: true }).count(), 1);
+  assert.equal(await allowancePage.getByText("Next renewal", { exact: true }).count(), 0, "A non-renewing allowance must not invent a renewal date.");
+  assert.equal(await allowancePage.getByText("Local Elysia is unaffected", { exact: true }).count(), 1);
+  assert.equal(await allowancePage.getByText("Not available while payment-system activation remains externally gated. Voluntary support is a separate choice.", { exact: true }).count(), 1);
+  assert.equal(await allowancePage.getByText("Recent allowance receipts", { exact: true }).count(), 1);
+  await allowancePage.close();
 
   const leftRunButton = left.getByRole("button", { name: "Run current published snapshot in sandbox" });
   const rightRunButton = right.getByRole("button", { name: "Run proposed revision in sandbox" });

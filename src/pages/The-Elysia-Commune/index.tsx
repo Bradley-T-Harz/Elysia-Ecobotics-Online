@@ -159,7 +159,8 @@ import { type SandboxRequestInput, type SandboxRequestRecord } from "../../share
 import { codingLanguageOptions, codingLanguageStatusLabel, getCodingLanguagePolicy, getSandboxExecutionLanguageCompatibility, normalizeCodingLanguage } from "./codeLanguagePolicies";
 import { runStaticCodingDiagnostics, type CodingDiagnostic, type SandboxRunResult } from "./codeDiagnosticTypes";
 import { requestSandboxRun, sandboxEndpointState, type SandboxSourceType } from "./codingSandboxClient";
-import { loadSandboxCreditSummary, sandboxCreditClientMessage, type SandboxCreditSourceCategory, type SandboxCreditSummary } from "./sandboxCreditsClient";
+import HostedAllowanceCompact from "../../shared/sandbox/HostedAllowanceCompact";
+import { loadSandboxCreditSummary, type SandboxCreditSummary } from "./sandboxCreditsClient";
 import {
   initialSandboxEligibility,
   requestSandboxEligibility,
@@ -530,46 +531,6 @@ function DiagnosticsList({ diagnostics }: { diagnostics: CodingDiagnostic[] }) {
 
 type SandboxRunUiState = "idle" | "preparing_snapshot" | SandboxRunResult["status"];
 
-function formatSandboxCredits(units: number, unitScale: number) {
-  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 3 }).format(units / unitScale);
-}
-
-const sandboxCreditSourceLabels: Record<SandboxCreditSourceCategory, string> = {
-  starter: "Starter access",
-  purchased: "Purchased service access",
-  sponsored: "Sponsored access",
-  waiver: "Waived access",
-  waived: "Waived access",
-  recurring_support: "Sustaining-support access",
-  operational: "Existing operational access",
-  operator: "Service-provided access",
-  test: "Test access"
-};
-
-function groupedSandboxCreditSources(summary: SandboxCreditSummary) {
-  const grouped = new Map<string, number>();
-  for (const source of summary.sourceCategories) {
-    const label = sandboxCreditSourceLabels[source.category];
-    grouped.set(label, (grouped.get(label) ?? 0) + source.availableUnits);
-  }
-  return [...grouped.entries()].map(([label, units]) => ({ label, units }));
-}
-
-function sandboxCreditReceiptLabel(entryType: SandboxCreditSummary["recentReceipts"][number]["entryType"]) {
-  switch (entryType) {
-    case "grant": return "added";
-    case "reserve": return "reserved";
-    case "consume": return "consumed";
-    case "release": return "released";
-    case "expire": return "expiry adjustment";
-    case "refund_adjustment": return "refund adjustment";
-    case "dispute_hold": return "dispute hold";
-    case "admin_correction": return "account correction";
-    case "compensating_credit": return "returned";
-    case "compensating_debit": return "corrected";
-  }
-}
-
 function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeDocumentId, codeVersionId, language, fileName, code, signedIn = true, runLabel = "Run snapshot in sandbox" }: {
   snapshotId: string;
   sourceType: SandboxSourceType;
@@ -609,24 +570,21 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
   useEffect(() => { void refreshEligibility(); }, [refreshEligibility]);
   const [creditSummary, setCreditSummary] = useState<SandboxCreditSummary | null>(null);
   const [creditLoading, setCreditLoading] = useState(false);
-  const [creditMessage, setCreditMessage] = useState("");
   const refreshCreditSummary = useCallback(async (force = false) => {
-    if (!signedIn || !accessToken || !eligibility.available) {
+    if (!signedIn || !accessToken || !eligibility.available || !executionCompatibility.executable) {
       setCreditSummary(null);
-      setCreditMessage("");
       setCreditLoading(false);
       return;
     }
     setCreditLoading(true);
     try {
       setCreditSummary(await loadSandboxCreditSummary(accessToken, { force }));
-      setCreditMessage("");
-    } catch (error) {
-      setCreditMessage(sandboxCreditClientMessage(error));
+    } catch {
+      setCreditSummary(null);
     } finally {
       setCreditLoading(false);
     }
-  }, [accessToken, eligibility.available, signedIn]);
+  }, [accessToken, eligibility.available, executionCompatibility.executable, signedIn]);
   useEffect(() => { void refreshCreditSummary(); }, [refreshCreditSummary]);
   useEffect(() => {
     setResult(null);
@@ -704,17 +662,6 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
     }
   }
 
-  const maximumRunCredits = creditSummary?.activeRate
-    ? formatSandboxCredits(creditSummary.activeRate.maximumRunUnits, creditSummary.unitScale)
-    : null;
-  const conservativeFullRuns = creditSummary?.activeRate
-    ? Math.floor(creditSummary.availableUnits / creditSummary.activeRate.maximumRunUnits)
-    : null;
-  const lowBalance = Boolean(creditSummary?.activeRate && creditSummary.availableUnits < creditSummary.activeRate.maximumRunUnits);
-  const matchedReceipts = result?.runId ? creditSummary?.recentReceipts.filter((receipt) => receipt.runId === result.runId).slice(0, 3) ?? [] : [];
-  const matchedReservation = result?.runId ? creditSummary?.activeReservations.find((reservation) => reservation.runId === result.runId) ?? null : null;
-  const creditSources = creditSummary ? groupedSandboxCreditSources(creditSummary) : [];
-
   return <section className="coding-sandbox-panel">
     <div className="addon-card__topline"><strong>Sandbox diagnostics</strong><span>{codingLanguageStatusLabel(policy.status)}</span></div>
     <p className="boundary-note">{endpoint.message}</p>
@@ -728,32 +675,7 @@ function CodingSandboxRunPanel({ snapshotId, sourceType, sourceId, postId, codeD
         {signedIn && accessToken && <button type="button" disabled={!sandboxEligibilityCanBeRefreshed(eligibility)} onClick={() => void refreshEligibility()}>{eligibility.state === "checking" ? "Checking eligibility..." : "Refresh sandbox eligibility"}</button>}
       </div>
     </section>
-    {signedIn && eligibility.available && <section className={`coding-sandbox-credit-summary${lowBalance ? " coding-sandbox-credit-summary--low" : ""}`} aria-live="polite" aria-busy={creditLoading}>
-      <div className="addon-card__topline"><strong>Private sandbox service credits</strong><span>{creditLoading ? "refreshing" : creditSummary?.mode === "test" ? "test mode" : "availability unknown"}</span></div>
-      {creditLoading && !creditSummary && <p>Loading the private account summary...</p>}
-      {creditMessage && <p className="boundary-note">{creditMessage}</p>}
-      {creditSummary?.displayEnabled && <>
-        <dl className="mini-facts">
-          <div><dt>Available</dt><dd>{formatSandboxCredits(creditSummary.availableUnits, creditSummary.unitScale)} credits</dd></div>
-          <div><dt>Reserved</dt><dd>{formatSandboxCredits(creditSummary.reservedUnits, creditSummary.unitScale)} credits</dd></div>
-          <div><dt>Maximum per run</dt><dd>{maximumRunCredits ? `${maximumRunCredits} provisional credits` : "Rate unavailable"}</dd></div>
-          <div><dt>Conservative full-limit estimate</dt><dd>{conservativeFullRuns === null ? "Unavailable" : `${conservativeFullRuns} run${conservativeFullRuns === 1 ? "" : "s"}`}</dd></div>
-        </dl>
-        {creditSources.length > 0 && <div className="sandbox-credit-source-list" aria-label="Private sandbox credit sources">{creditSources.map((source) => <span key={source.label}>{source.label}: {formatSandboxCredits(source.units, creditSummary.unitScale)}</span>)}</div>}
-        {lowBalance && <p className="sandbox-credit-low-balance"><strong>Low balance for a full-limit run.</strong> No automatic purchase or charge will occur. A smaller successful run may use less than the provisional maximum.</p>}
-        {creditSummary.enforcementEnabled
-          ? <p className="boundary-note">Credit enforcement is enabled for measured online execution capacity only. It does not increase safety privileges, network access, concurrency limits, reviewer status, or authority.</p>
-          : <p className="boundary-note">Credit enforcement is off. Existing free operational sandbox behavior remains available under the current quota and safety rules; this balance is test information only.</p>}
-        {result?.runId && matchedReceipts.length > 0 && <div className="inline-status"><strong>Latest matched run receipts</strong><ul>{matchedReceipts.map((receipt) => <li key={receipt.id}>{sandboxCreditReceiptLabel(receipt.entryType)} {formatSandboxCredits(Math.abs(receipt.unitsDelta), creditSummary.unitScale)} credits</li>)}</ul><span>This private ledger information grants no trust or authority.</span></div>}
-        {result?.runId && matchedReservation && <p className="inline-status">This run has {formatSandboxCredits(matchedReservation.reservedUnits, creditSummary.unitScale)} credits reserved while server finalization completes. No second checkout is needed.</p>}
-        {result?.runId && creditSummary.enforcementEnabled && matchedReceipts.length === 0 && !matchedReservation && <p className="small-note">No matching private consumption or reservation receipt is available yet. No charge or release is being claimed by this panel.</p>}
-        {creditSummary.warnings.map((warning) => <p className="small-note" key={warning}>{warning}</p>)}
-        <div className="button-row"><button type="button" disabled={creditLoading} onClick={() => void refreshCreditSummary(true)}>{creditLoading ? "Refreshing..." : "Refresh private balance"}</button><Link className="button-link" to="/support">Learn about optional support</Link></div>
-        <p className="small-note">The Support page never starts an automatic sandbox-credit purchase. Only an explicitly labeled, enabled sandbox checkout could add purchased credits.</p>
-      </>}
-      {creditSummary && !creditSummary.displayEnabled && <p className="boundary-note">Private credit display is disabled. The existing sandbox run path and its operational safety limits remain unchanged.</p>}
-      <p className="small-note">Credits never enable network access, secrets, package installation, host files, private Elysia context, approval, or trust. Free, sponsored, waived, recurring, purchased, and service-provided access use the same execution safety policy.</p>
-    </section>}
+    {signedIn && eligibility.available && executionCompatibility.executable && <HostedAllowanceCompact summary={creditSummary} loading={creditLoading} />}
     <DiagnosticsList diagnostics={staticDiagnostics} />
     {!executionCompatibility.executable && executionCompatibility.message && <p className="boundary-note">{executionCompatibility.message}</p>}
     <div className="button-row">

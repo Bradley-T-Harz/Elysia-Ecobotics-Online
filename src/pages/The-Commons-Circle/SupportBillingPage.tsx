@@ -4,7 +4,7 @@ import PageHero from "../../shared/components/PageHero";
 import StatusBadge from "../../shared/components/StatusBadge";
 import WarningCallout from "../../shared/components/WarningCallout";
 import CheckoutReturnStatus from "../../shared/billing/CheckoutReturnStatus";
-import { billingErrorMessage, createBillingClientRequestId, createBillingPortal, createSandboxCreditCheckout, loadBillingAccount, loadBillingCapabilities, loadEconomicClosureReadiness, loadEconomicOrganizationAccount, loadSandboxCreditCatalog, requestEconomicAccountAction, setSupportRecognitionPreference, type BillingAccountSummary, type BillingCapabilities, type BillingLegalConsentBundle, type BillingLegalDocumentVersions, type EconomicAccountRequestType, type EconomicClosureReadiness, type EconomicOrganizationAccount, type EconomicSupportRecognitionSummary, type SandboxCreditCatalog } from "../../shared/billing/billingClient";
+import { billingErrorMessage, createBillingClientRequestId, createBillingPortal, loadBillingAccount, loadBillingCapabilities, loadEconomicClosureReadiness, loadEconomicOrganizationAccount, requestEconomicAccountAction, setSupportRecognitionPreference, type BillingAccountSummary, type BillingCapabilities, type BillingLegalDocumentVersions, type EconomicAccountRequestType, type EconomicClosureReadiness, type EconomicOrganizationAccount, type EconomicSupportRecognitionSummary } from "../../shared/billing/billingClient";
 import { useAuth } from "../../shared/auth/useAuth";
 import OrganizationSponsorshipAccountPanel from "./OrganizationSponsorshipAccountPanel";
 
@@ -21,70 +21,6 @@ function when(value: string | null) {
 
 function EmptyPrivateState({ children }: { children: ReactNode }) {
   return <p className="commons-empty-state">{children}</p>;
-}
-
-function SandboxCreditPurchasePanel({ accessToken, catalog, consentBundle }: { accessToken: string; catalog: SandboxCreditCatalog; consentBundle: BillingLegalConsentBundle }) {
-  const [selectedPackCode, setSelectedPackCode] = useState("");
-  const [accepted, setAccepted] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [status, setStatus] = useState("");
-  const [error, setError] = useState("");
-  const errorRef = useRef<HTMLDivElement>(null);
-  const checkoutRequestIdRef = useRef("");
-  const selectedPack = catalog.packs.find((pack) => pack.packCode === selectedPackCode) ?? null;
-  const canSubmit = Boolean(selectedPack && accepted && !busy);
-
-  function choosePack(packCode: string) {
-    checkoutRequestIdRef.current = "";
-    setSelectedPackCode(packCode);
-    setAccepted(false);
-    setStatus("");
-    setError("");
-  }
-
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (busy) return;
-    setStatus("");
-    setError("");
-    if (!selectedPack || !accepted) {
-      setError("Choose one test-mode sandbox credit pack and accept its service, processor, privacy, and refund disclosures.");
-      requestAnimationFrame(() => errorRef.current?.focus());
-      return;
-    }
-    setBusy(true);
-    setStatus("Preparing a Stripe-hosted sandbox credit checkout in test mode...");
-    try {
-      checkoutRequestIdRef.current ||= createBillingClientRequestId();
-      const result = await createSandboxCreditCheckout({
-        clientRequestId: checkoutRequestIdRef.current,
-        packCode: selectedPack.packCode,
-        sourceRoute: "/commons-circle/support-billing",
-        consentVersion: consentBundle.version
-      }, accessToken);
-      setStatus("Opening Stripe-hosted test checkout. No sandbox credits exist until the signed webhook is verified and server fulfillment succeeds.");
-      window.location.assign(result.checkoutUrl);
-    } catch (requestError) {
-      setBusy(false);
-      setStatus("");
-      setError(billingErrorMessage(requestError));
-      requestAnimationFrame(() => errorRef.current?.focus());
-    }
-  }
-
-  return <form className="support-form sandbox-credit-purchase-form" onSubmit={submit} noValidate aria-labelledby="sandbox-credit-purchase-title">
-    <div><p className="eyebrow">Optional test-mode service purchase</p><h3 id="sandbox-credit-purchase-title">Choose sandbox service credits</h3></div>
-    <p>These are one-time online service units, separate from voluntary support. No option is preselected, no automatic purchase occurs, and this test checkout moves no live money.</p>
-    <fieldset><legend>Available test packs</legend><div className="support-choice-grid support-choice-grid--plans">
-      {catalog.packs.map((pack) => <label className={selectedPackCode === pack.packCode ? "support-choice support-choice--selected" : "support-choice"} key={pack.packCode}><input type="radio" name="sandbox-credit-pack" value={pack.packCode} checked={selectedPackCode === pack.packCode} onChange={() => choosePack(pack.packCode)} /><span><strong>{money(pack.amountMinor, pack.currency)} test purchase</strong><small>{pack.grantedUnits.toLocaleString()} service units · {pack.expiresAfterDays === null ? "no pack expiration advertised" : `expires ${pack.expiresAfterDays} days after fulfillment`}</small></span></label>)}
-    </div></fieldset>
-    {selectedPack && <div className="boundary-note"><strong>Selected test pack:</strong> {money(selectedPack.amountMinor, selectedPack.currency)} once for {selectedPack.grantedUnits.toLocaleString()} hosted-sandbox service units. {selectedPack.expiresAfterDays === null ? "No expiration is advertised for this pack." : `The fulfilled lot expires ${selectedPack.expiresAfterDays} days after fulfillment.`} Credits never alter network access, filesystem access, package installation, safety limits, code trust, reviewer status, or governance.</div>}
-    <label className="checkbox-line support-consent"><input type="checkbox" checked={accepted} disabled={!selectedPack || busy} onChange={(event) => { setAccepted(event.target.checked); setStatus(""); setError(""); }} /><span>I understand this is a one-time Stripe test checkout for measured online sandbox service; it is not voluntary support, money, recognition, or authority; fulfillment requires a verified webhook; and the <Link to={consentBundle.documents.sandboxCreditTerms.path}>Sandbox Credit Terms</Link>, <Link to={consentBundle.documents.refundPolicy.path}>Refund and Cancellation Policy</Link>, and <Link to={consentBundle.documents.privacyDisclosure.path}>Privacy Policy</Link> in consent bundle {consentBundle.version} apply.</span></label>
-    {error && <div className="validation validation--bad" role="alert" tabIndex={-1} ref={errorRef}>{error}</div>}
-    <p className="inline-status operator-live-region" role="status" aria-live="polite" aria-atomic="true">{status}</p>
-    <button className="button-primary" type="submit" disabled={!canSubmit}>{busy ? "Opening Stripe test checkout..." : "Continue to Stripe test checkout"}</button>
-    <p className="small-note">Only the selected server catalog code and canonical consent-bundle version are sent with a fresh client request ID. The browser does not set price, units, expiration, provider references, fulfillment, or safety privileges.</p>
-  </form>;
 }
 
 function SupportRecognitionPreferencePanel({ accessToken, recognition, legalDocument, onComplete }: { accessToken: string; recognition: EconomicSupportRecognitionSummary | null; legalDocument: BillingLegalDocumentVersions["supportRecognition"] | null; onComplete: () => Promise<void> }) {
@@ -288,7 +224,6 @@ export default function SupportBillingPage() {
   const [searchParams] = useSearchParams();
   const { accessToken, email, loading: authLoading } = useAuth();
   const [capabilities, setCapabilities] = useState<BillingCapabilities | null>(null);
-  const [sandboxCatalog, setSandboxCatalog] = useState<SandboxCreditCatalog | null>(null);
   const [account, setAccount] = useState<BillingAccountSummary | null>(null);
   const [organizationAccount, setOrganizationAccount] = useState<EconomicOrganizationAccount | null>(null);
   const [loading, setLoading] = useState(true);
@@ -298,16 +233,14 @@ export default function SupportBillingPage() {
 
   const refresh = useCallback(async () => {
     setLoading(true);
-    const [featureResult, creditCatalog] = await Promise.all([
-      loadBillingCapabilities().then((value) => ({ value, failed: false as const })).catch(() => ({ value: null, failed: true as const })),
-      loadSandboxCreditCatalog().catch(() => null)
-    ]);
+    const featureResult = await loadBillingCapabilities()
+      .then((value) => ({ value, failed: false as const }))
+      .catch(() => ({ value: null, failed: true as const }));
     const featureState = featureResult.value;
     const availabilityWarnings = featureResult.failed
       ? ["Billing capability and legal-version availability could not be verified. Mutating controls remain safely disabled; no absence of account records should be inferred."]
       : [];
     setCapabilities(featureState);
-    setSandboxCatalog(creditCatalog);
     if (!accessToken) {
       setAccount(null);
       setOrganizationAccount(null);
@@ -416,7 +349,7 @@ export default function SupportBillingPage() {
         <article className="section-card economic-room-card"><p className="eyebrow">Receipts</p><h2>Private transaction summaries</h2>{!account.projectionCoverage.receipts ? <EmptyPrivateState>The current private account summary does not include receipt projections. This does not mean no receipt exists; Stripe email is the current receipt path.</EmptyPrivateState> : !account.receipts.length && <EmptyPrivateState>No private transaction summaries are connected to this Website Account. Stripe may send a receipt to the checkout email.</EmptyPrivateState>}{account.receipts.map((receipt) => <div className="economic-summary-card" key={receipt.id}><strong>{receipt.label}</strong><p>{money(receipt.amountCents, receipt.currency)} · {when(receipt.createdAt)}</p><p className="small-note">Elysia reference: <code>{receipt.publicReference}</code></p><p>Stripe email is the current receipt path; this private summary is not a downloadable receipt.</p><a className="button-link" href={`mailto:support@elysiaecobotics.com?subject=${encodeURIComponent(`Private billing help · ${receipt.publicReference}`)}`}>Ask about this transaction</a></div>)}<p className="small-note">Use only the Elysia reference when asking about a payment, refund, or dispute. Never email card, bank, identity, tax, password, or full Stripe identifiers.</p></article>
       </section>
 
-      <section className="section-card economic-room-card"><p className="eyebrow">Online sandbox</p><h2>Service credits</h2>{!account.projectionCoverage.sandbox ? <EmptyPrivateState>The support-account summary does not include sandbox ledger totals. This does not mean the balance is zero; view the <Link to="/commune/sandbox-review">online sandbox room</Link> for its dedicated private status.</EmptyPrivateState> : account.sandbox.displayEnabled ? <dl className="mini-facts"><div><dt>Available</dt><dd>{account.sandbox.availableCredits ?? "Unavailable"}</dd></div><div><dt>Purchased</dt><dd>{account.sandbox.purchasedCredits ?? "Unavailable"}</dd></div><div><dt>Sponsored</dt><dd>{account.sandbox.sponsoredCredits ?? "Unavailable"}</dd></div><div><dt>Waived</dt><dd>{account.sandbox.waivedCredits ?? "Unavailable"}</dd></div></dl> : <EmptyPrivateState>Sandbox credit display is disabled. Existing operational safety quotas remain separate.</EmptyPrivateState>}<p className="boundary-note">Purchased credits never raise reviewer/admin tiers, concurrency safety limits, network permissions, or code trust. Free, sponsored, and waived access are legitimate and remain private.</p>{sandboxCatalog?.available && sandboxCatalog.packs.length && capabilities?.legalConsentBundles?.sandbox_credits_checkout_bundle ? <SandboxCreditPurchasePanel accessToken={accessToken} catalog={sandboxCatalog} consentBundle={capabilities.legalConsentBundles.sandbox_credits_checkout_bundle} /> : <EmptyPrivateState>Sandbox credit purchase is disabled. Free operational behavior, sponsored access, and waivers remain separate and legitimate. No legal version is guessed when the canonical consent bundle is unavailable.</EmptyPrivateState>}</section>
+      <section className="section-card economic-room-card"><p className="eyebrow">Hosted execution</p><h2>Allowance has its own account page</h2><p>Hosted execution is finite service-use infrastructure, separate from voluntary support and billing. Review the authoritative remaining percentage, reservations, and private usage receipts in Account &amp; Profile Settings.</p><div className="button-row"><Link className="button-link button-link--primary" to="/commons-circle/settings/hosted-execution">View Hosted Execution Allowance</Link></div><p className="boundary-note">Additional paid hosted execution is unavailable pending the separate payment-system decision. Local Elysia computation is unaffected.</p></section>
 
       <section className="two-column">
         <article className="section-card economic-room-card"><p className="eyebrow">Marketplace</p><h2>Purchase summaries</h2>{!account.projectionCoverage.marketplacePurchases ? <EmptyPrivateState>The support-account summary does not include Marketplace licenses. This does not mean no license exists; view the <Link to="/marketplace/account">Marketplace Account</Link> for the dedicated private record.</EmptyPrivateState> : !account.marketplacePurchases.length && <EmptyPrivateState>No commercial Marketplace purchases are connected to this Website Account. Free add-ons remain separate.</EmptyPrivateState>}{account.marketplacePurchases.map((item) => <div className="economic-summary-card" key={item.id}><strong>{item.label}</strong><p>{item.status} · {when(item.purchasedAt)}</p></div>)}<p className="boundary-note">A purchase never approves, verifies, publishes, downloads, or installs an add-on. Local Elysia retains installation authority.</p></article>

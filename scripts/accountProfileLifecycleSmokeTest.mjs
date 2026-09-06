@@ -28,14 +28,14 @@ const [
 
 for (const route of [
   "commons-circle/settings", "commons-circle/settings/privacy",
-  "commons-circle/settings/notifications", "commons-circle/settings/appearance",
+  "commons-circle/settings/notifications", "commons-circle/settings/appearance", "commons-circle/settings/hosted-execution",
   "account/change-password", "account/deactivate", "account/reactivate",
 ]) assert.match(app, new RegExp(`path="${route.replaceAll("/", "\\/")}"`), `App omits ${route}.`);
 assert.match(app, /location\.hash === "#privacy-lanterns"[\s\S]*?\/commons-circle\/settings\/privacy/);
 
 for (const heading of [
   "Profile & Appearance", "Privacy & Public Profile", "Notifications & Communication",
-  "Account & Security", "Data & Lifecycle", "Support & Billing",
+  "Account & Security", "Data & Lifecycle", "Hosted Execution Allowance", "Support & Billing",
 ]) assert.match(settings, new RegExp(heading), `Settings omits ${heading}.`);
 for (const control of ["Change Password", "Temporarily Deactivate Account", "Permanently Delete Account"]) {
   assert.match(settings, new RegExp(control));

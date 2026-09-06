@@ -486,6 +486,35 @@ assert(!JSON.stringify(publicCreditBody).includes("private_reason") && !JSON.str
 const invalidCreditSummaryResponse = await handleSandboxCreditSummary(creditRequest, env, { authenticate: async () => auth, load: async () => ({ ...creditSummaryFixture, test_mode: false }) });
 assert(invalidCreditSummaryResponse.status === 503 && (await invalidCreditSummaryResponse.json()).error === "sandbox_credit_summary_invalid", "Sandbox credit endpoint must reject a non-test or malformed database projection.");
 
+const liveCreditSummaryFixture = {
+  ...creditSummaryFixture,
+  mode: "live",
+  display_enabled: true,
+  enforcement_enabled: true,
+  test_mode: false,
+  allowance_total_units: 2000,
+  used_units: 750,
+  balance_units: 1250,
+  reserved_units: 100,
+  available_units: 1150,
+  remaining_percent: 58,
+  allowance_type: "one_time_starter",
+  renews_at: null,
+  paid_allowance_available: false,
+  active_rate: { ...creditSummaryFixture.active_rate, rate_key: "hosted_allowance_fixture_v1", approved_for_live_use: true }
+};
+const liveCreditResponse = await handleSandboxCreditSummary(creditRequest, env, { authenticate: async () => auth, load: async () => liveCreditSummaryFixture });
+const liveCreditBody = await liveCreditResponse.json();
+assert(liveCreditResponse.status === 200 && liveCreditBody.summary.remaining_percent === 58 && liveCreditBody.summary.paid_allowance_available === false, "The private endpoint must validate and preserve authoritative live allowance percentage without enabling paid allowance.");
+const inconsistentPercentage = await handleSandboxCreditSummary(creditRequest, env, { authenticate: async () => auth, load: async () => ({ ...liveCreditSummaryFixture, remaining_percent: 59 }) });
+assert(inconsistentPercentage.status === 503, "A client-visible live percentage that disagrees with authoritative units must fail closed.");
+const missingLiveRate = await handleSandboxCreditSummary(creditRequest, env, { authenticate: async () => auth, load: async () => ({ ...liveCreditSummaryFixture, active_rate: null }) });
+assert(missingLiveRate.status === 503, "A live allowance projection without its approved versioned meter must fail closed.");
+const falseOneTimeRenewal = await handleSandboxCreditSummary(creditRequest, env, { authenticate: async () => auth, load: async () => ({ ...liveCreditSummaryFixture, renews_at: "2026-08-16T12:00:00.000Z" }) });
+assert(falseOneTimeRenewal.status === 503, "A one-time allowance must not imply a renewal date.");
+const missingReplenishmentRenewal = await handleSandboxCreditSummary(creditRequest, env, { authenticate: async () => auth, load: async () => ({ ...liveCreditSummaryFixture, allowance_type: "replenishing" }) });
+assert(missingReplenishmentRenewal.status === 503, "A replenishing allowance must identify its authoritative next renewal time.");
+
 const oversizedCodeResponse = await handleSandboxRun(request({ body: { code: "x".repeat(65_537) } }), env, dependencies());
 assert(oversizedCodeResponse.status === 413, "Oversized submitted code must fail before reservation or runner execution.");
 

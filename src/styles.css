@@ -5751,14 +5751,23 @@ button.repository-tree-row {
   background: rgba(3, 10, 16, 0.54);
 }
 
-.coding-sandbox-credit-summary {
-  display: grid;
-  gap: 0.7rem;
+.hosted-allowance-compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.45rem 0.8rem;
   border: 1px solid rgba(142, 232, 220, 0.24);
-  border-radius: 13px;
-  padding: 0.8rem;
+  border-radius: 999px;
+  padding: 0.52rem 0.75rem;
   background: rgba(142, 232, 220, 0.045);
+  font-size: 0.9rem;
 }
+
+.hosted-allowance-compact > span { font-weight: 700; }
+.hosted-allowance-compact > a { color: var(--teal); }
+.hosted-allowance-compact--low,
+.hosted-allowance-compact--exhausted { border-color: rgba(216, 182, 111, 0.6); background: rgba(216, 182, 111, 0.07); }
 
 .coding-sandbox-eligibility {
   display: grid;
@@ -5776,44 +5785,6 @@ button.repository-tree-row {
 
 .coding-sandbox-eligibility p {
   margin: 0;
-}
-
-.coding-sandbox-credit-summary--low {
-  border-color: rgba(216, 182, 111, 0.48);
-  background: rgba(216, 182, 111, 0.055);
-}
-
-.coding-sandbox-credit-summary p,
-.coding-sandbox-credit-summary dl,
-.coding-sandbox-credit-summary ul {
-  margin-top: 0;
-  margin-bottom: 0;
-}
-
-.coding-sandbox-credit-summary .inline-status ul {
-  margin: 0.35rem 0;
-  padding-left: 1.2rem;
-}
-
-.sandbox-credit-source-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-}
-
-.sandbox-credit-source-list span {
-  border: 1px solid rgba(142, 232, 220, 0.2);
-  border-radius: 999px;
-  padding: 0.32rem 0.58rem;
-  background: rgba(255, 255, 255, 0.035);
-  color: var(--muted);
-  font-size: 0.84rem;
-}
-
-.sandbox-credit-low-balance {
-  border-left: 3px solid rgba(216, 182, 111, 0.75);
-  padding: 0.55rem 0.7rem;
-  background: rgba(216, 182, 111, 0.07);
 }
 
 .coding-diagnostic {
@@ -6894,6 +6865,31 @@ button.repository-tree-row {
 .account-settings-section p {
   margin: 0;
 }
+
+.hosted-allowance-detail progress {
+  width: 100%;
+  height: 1rem;
+  accent-color: var(--teal);
+}
+
+.hosted-allowance-receipts {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.hosted-allowance-receipts li {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  border-bottom: 1px solid var(--line);
+  padding: 0.55rem 0;
+}
+
+.hosted-allowance-receipts span { color: var(--muted); }
 
 .account-settings-section p {
   color: var(--muted);

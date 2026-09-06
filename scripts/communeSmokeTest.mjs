@@ -36,7 +36,11 @@ const sandboxBuilder = await read("src/shared/sandbox/sandboxHandoffBuilder.ts")
 const languagePolicies = await read("src/pages/The-Elysia-Commune/codeLanguagePolicies.ts");
 const diagnosticTypes = await read("src/pages/The-Elysia-Commune/codeDiagnosticTypes.ts");
 const sandboxClient = await read("src/pages/The-Elysia-Commune/codingSandboxClient.ts");
-const sandboxCreditsClient = await read("src/pages/The-Elysia-Commune/sandboxCreditsClient.ts");
+const sandboxCreditsClient = await read("src/shared/sandbox/hostedAllowanceClient.ts");
+const hostedAllowanceCompact = await read("src/shared/sandbox/HostedAllowanceCompact.tsx");
+const hostedAllowancePage = await read("src/pages/The-Commons-Circle/HostedExecutionAllowancePage.tsx");
+const accountSettingsPage = await read("src/pages/The-Commons-Circle/AccountSettingsPage.tsx");
+const supportBillingPage = await read("src/pages/The-Commons-Circle/SupportBillingPage.tsx");
 const commonsPage = await read("src/pages/The-Commons-Circle/index.tsx");
 const commonsApi = await read("src/pages/The-Commons-Circle/commonsCircleApi.ts");
 const signalConsolePage = await read("src/pages/The-Commons-Circle/SignalConsolePage.tsx");
@@ -480,7 +484,7 @@ assert(!sandboxClient.includes("VITE_CODING_SANDBOX_ENDPOINT"), "The removed dir
 assert(sandboxCreditsClient.includes('fetch("/api/sandbox/credits"') && sandboxCreditsClient.includes('authorization: `Bearer ${accessToken}`') && sandboxCreditsClient.includes('credentials: "same-origin"') && sandboxCreditsClient.includes('cache: "no-store"'), "Sandbox credit display must use only the authenticated, no-store, same-origin summary endpoint.");
 assert(sandboxCreditsClient.includes("new AbortController()") && sandboxCreditsClient.includes("15_000") && sandboxCreditsClient.includes("clearTimeout(timeout)"), "Sandbox credit summary requests must retain the bounded 15-second timeout and cleanup.");
 assert(sandboxCreditsClient.includes("MAX_RESPONSE_BYTES") && sandboxCreditsClient.includes("content-length") && sandboxCreditsClient.includes("TextEncoder().encode(text).byteLength"), "Sandbox credit summary parsing must bound both declared and actual response sizes.");
-assert(sandboxCreditsClient.includes("envelope?.ok !== true") && sandboxCreditsClient.includes("parseSummary(envelope.summary)"), "Sandbox credit client must require the canonical ok/summary response envelope.");
+assert(sandboxCreditsClient.includes("envelope?.ok !== true") && sandboxCreditsClient.includes("parseHostedAllowanceSummary(envelope.summary)"), "Sandbox credit client must require the canonical ok/summary response envelope.");
 assert(sandboxCreditsClient.includes("CACHE_MILLISECONDS = 30_000") && sandboxCreditsClient.includes("inFlight?.token === accessToken") && sandboxCreditsClient.includes("cache?.token === accessToken"), "Sandbox credit summaries should be briefly cached and in-flight deduplicated across repeated Commune panels.");
 const sandboxCreditSummaryFixture = {
   available: true,
@@ -515,19 +519,21 @@ for (const category of ["starter", "recurring_support", "purchased", "sponsored"
 for (const entryType of ["grant", "reserve", "consume", "release", "expire", "refund_adjustment", "dispute_hold", "admin_correction", "compensating_credit", "compensating_debit"]) {
   assert(sandboxCreditsClient.includes(`"${entryType}"`), `Sandbox credit client is missing a repository-declared receipt type: ${entryType}`);
 }
-assert(page.includes("Private sandbox service credits") && page.includes("creditSummary?.displayEnabled"), "Commune sandbox panels should render the authenticated private summary only when its display flag is enabled.");
-assert(page.includes("Credit enforcement is off") && page.includes("Existing free operational sandbox behavior remains available"), "Sandbox credit display must preserve and explain enforcement-off/free behavior.");
-assert(page.includes("Maximum per run") && page.includes("Conservative full-limit estimate") && page.includes("Low balance for a full-limit run."), "Sandbox credit display should explain the provisional maximum, conservative estimate, and low-balance state.");
-assert(page.includes("Latest matched run receipts") && page.includes("receipt.runId === result.runId") && page.includes("No charge or release is being claimed by this panel."), "Sandbox credit receipts must be shown only when safely matched to the latest run id, without inventing a charge or release.");
-assert(page.includes('to="/support"') && page.includes("No automatic purchase or charge will occur") && page.includes("never starts an automatic sandbox-credit purchase"), "Low credit balance must offer only optional support information and must never imply an automatic purchase.");
-assert(page.includes("Credits never enable network access, secrets, package installation, host files, private Elysia context, approval, or trust."), "Sandbox credit display must preserve the execution, privacy, and authority boundary.");
+assert(page.includes("signedIn && eligibility.available && executionCompatibility.executable && <HostedAllowanceCompact summary={creditSummary} loading={creditLoading} />"), "Every runnable eligible Commune/Workbench panel must reuse the compact hosted-allowance truth surface while non-executable surfaces omit it.");
+assert((page.match(/<CodingSandboxRunPanel/g) ?? []).length === 7, "All seven preserved hosted-execution contexts must remain inventoried.");
+assert(hostedAllowanceCompact.includes("Hosted allowance: ${percentage}% remaining") && hostedAllowanceCompact.includes("Hosted allowance exhausted") && hostedAllowanceCompact.includes("View allowance"), "Compact execution surfaces must use identical remaining-percentage and exhausted copy.");
+assert(!hostedAllowanceCompact.includes("<progress") && !hostedAllowanceCompact.includes("recentReceipts"), "Compact execution surfaces must not become detailed meters or ledger panels.");
+assert(hostedAllowancePage.includes("<progress") && hostedAllowancePage.includes("Reserved right now") && hostedAllowancePage.includes("Recent allowance receipts"), "The dedicated private page must own the detailed meter, reservation, and receipt views.");
+assert(hostedAllowancePage.includes("Local Elysia is unaffected") && hostedAllowancePage.includes("Additional paid allowance") && /not available/i.test(hostedAllowancePage), "The allowance page must preserve the local/hosted/payment boundary.");
+assert(accountSettingsPage.includes("Hosted Execution Allowance") && accountSettingsPage.includes("/commons-circle/settings/hosted-execution"), "Account Settings must own the hosted-allowance destination.");
+assert(supportBillingPage.includes("Allowance has its own account page") && !supportBillingPage.includes("SandboxCreditPurchasePanel"), "Support & Billing must link to the canonical allowance page without offering test checkout UI.");
 const sandboxPanelStart = page.indexOf("function CodingSandboxRunPanel");
 const sandboxDisabledStart = page.indexOf("const disabledReason", sandboxPanelStart);
 const sandboxRunStart = page.indexOf("async function runSnapshot", sandboxDisabledStart);
 const sandboxRunEligibility = page.slice(sandboxDisabledStart, sandboxRunStart);
 assert(sandboxRunEligibility.includes("const canRun = !disabledReason") && !sandboxRunEligibility.includes("creditSummary"), "Client sandbox execution eligibility must remain independent from the informational credit balance.");
 assert(page.includes("if (runResult.runId) void refreshCreditSummary(true)"), "A completed sandbox run should refresh its private credit summary so a safely matched receipt can appear.");
-assert(styles.includes(".coding-sandbox-credit-summary") && styles.includes(".coding-sandbox-credit-summary--low") && styles.includes(".sandbox-credit-source-list") && styles.includes(".sandbox-credit-low-balance"), "Commune sandbox credit summary and low-balance styles are missing.");
+assert(styles.includes(".hosted-allowance-compact") && styles.includes(".hosted-allowance-compact--low") && styles.includes(".hosted-allowance-detail progress"), "Shared compact and dedicated detailed allowance styles are missing.");
 assert(page.includes("No terminal") && page.includes("No package install"), "Coding Cornucopia must preserve no-terminal/no-package-install boundary copy.");
 assert(!page.includes("dangerouslySetInnerHTML"), "Commune page must not render chat/code with dangerouslySetInnerHTML.");
 assert(page.includes("Canonical account-backed paths"), "Commune canonical table path status copy missing.");

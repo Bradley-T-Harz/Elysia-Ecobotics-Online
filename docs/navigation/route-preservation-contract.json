@@ -6,7 +6,7 @@
     "repository": "Elysia-Ecobotics-Online",
     "branchPoint": "97bfc8b95f295c9c6dae98c9feb914e88c91b036",
     "routerSource": "src/App.tsx",
-    "routerDeclarationCount": 140,
+    "routerDeclarationCount": 141,
     "deployedBehaviorClaimed": false
   },
   "invariants": [
@@ -342,7 +342,8 @@
     { "id": "RT-0137", "declaredPath": "commons-circle/settings/appearance", "resolvedPattern": "/commons-circle/settings/appearance", "kind": "static", "parentId": "RT-0001", "owner": "ProfileAppearanceSettingsPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "signed-in-or-component-gated", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["page-local", "restricted", "direct-load"], "smokePaths": ["/commons-circle/settings/appearance"] },
     { "id": "RT-0138", "declaredPath": "account/change-password", "resolvedPattern": "/account/change-password", "kind": "static", "parentId": "RT-0001", "owner": "AccountChangePasswordPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "signed-in-or-component-gated", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["account-contextual", "restricted", "direct-load"], "smokePaths": ["/account/change-password"] },
     { "id": "RT-0139", "declaredPath": "account/deactivate", "resolvedPattern": "/account/deactivate", "kind": "static", "parentId": "RT-0001", "owner": "AccountDeactivationPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "signed-in-or-component-gated", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["account-contextual", "restricted", "direct-load"], "smokePaths": ["/account/deactivate"] },
-    { "id": "RT-0140", "declaredPath": "account/reactivate", "resolvedPattern": "/account/reactivate", "kind": "static", "parentId": "RT-0001", "owner": "AccountReactivationPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "signed-in-or-component-gated", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["account-contextual", "restricted", "direct-load"], "smokePaths": ["/account/reactivate"] }
+    { "id": "RT-0140", "declaredPath": "account/reactivate", "resolvedPattern": "/account/reactivate", "kind": "static", "parentId": "RT-0001", "owner": "AccountReactivationPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "signed-in-or-component-gated", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["account-contextual", "restricted", "direct-load"], "smokePaths": ["/account/reactivate"] },
+    { "id": "RT-0141", "declaredPath": "commons-circle/settings/hosted-execution", "resolvedPattern": "/commons-circle/settings/hosted-execution", "kind": "static", "parentId": "RT-0001", "owner": "HostedExecutionAllowancePage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "signed-in-or-component-gated", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["page-local", "restricted", "direct-load"], "smokePaths": ["/commons-circle/settings/hosted-execution"] }
   ],
   "externalDestinations": [
     { "id": "EXT-0001", "url": "https://elysiaartisancollective.pages.dev", "kind": "external", "owner": "ElysiaArtisanCollectivePage", "accessProfile": "external-approved-boundary", "statusProfile": "approved-external-boundary", "zone": "orange-boundary", "reachability": ["artisan-bridge-page-only"] },

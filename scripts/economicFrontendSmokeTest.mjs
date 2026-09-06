@@ -19,6 +19,7 @@ const thankYou = await read("src/pages/Support/SupportThankYouPage.tsx");
 const forgotPassword = await read("src/pages/Account/AccountForgotPasswordPage.tsx");
 const recovery = await read("src/pages/Account/AccountRecoveryPage.tsx");
 const supportBilling = await read("src/pages/The-Commons-Circle/SupportBillingPage.tsx");
+const hostedAllowance = await read("src/pages/The-Commons-Circle/HostedExecutionAllowancePage.tsx");
 const commonsCircle = await read("src/pages/The-Commons-Circle/index.tsx");
 const operator = await read("src/pages/Admin/EconomicOperationsPage.tsx");
 const organizationSponsorshipOperator = await read("src/pages/Admin/EconomicOrganizationSponsorshipOperations.tsx");
@@ -216,24 +217,22 @@ assert(
     && billingClient.includes("source.providerIdentifiersExposed !== false")
     && billingClient.includes("source.moneyDoesNotGrantAuthority !== true")
     && supportBilling.includes("This does not mean no receipt exists")
-    && supportBilling.includes("This does not mean the balance is zero")
+    && supportBilling.includes("View Hosted Execution Allowance")
     && supportBilling.includes("This does not mean no license exists")
     && supportBilling.includes("No conclusion about whether a fee record exists is being made here")
     && commonsCircle.includes("Missing projections are never presented as proof that no record exists"),
-  "Missing account-summary projections must never be presented as proof that the user has no receipt, sandbox balance, Marketplace license, or Job Post fee record."
+  "Missing account-summary projections must never be presented as proof that the user has no receipt, Marketplace license, or Job Post fee record, and hosted allowance must use its own authoritative page."
 );
 assert(
-  supportBilling.includes("SandboxCreditPurchasePanel")
-    && supportBilling.includes("No option is preselected, no automatic purchase occurs")
-    && supportBilling.includes("checkoutRequestIdRef.current ||=")
-    && supportBilling.includes('role="alert" tabIndex={-1} ref={errorRef}')
-    && supportBilling.includes('role="status" aria-live="polite"')
-    && supportBilling.includes("disabled={!canSubmit}")
-    && supportBilling.includes("consentVersion: consentBundle.version")
+  !supportBilling.includes("SandboxCreditPurchasePanel")
+    && supportBilling.includes("Additional paid hosted execution is unavailable")
+    && hostedAllowance.includes("Additional paid allowance")
+    && /not available/i.test(hostedAllowance)
+    && hostedAllowance.includes("Voluntary support is a separate choice")
     && supportBilling.includes("<CheckoutReturnStatus")
     && checkoutReturnStatus.includes("Browser return alone is not proof of payment or fulfillment")
     && checkoutReturnStatus.includes("loadBillingOrder(orderReference, accessToken)"),
-  "Sandbox credit purchase presentation must remain opt-in, idempotent, accessible, and honest about webhook verification."
+  "Paid hosted allowance must remain visibly unavailable and separate from support while historical return reconciliation remains truthful."
 );
 assert(
   checkoutReturnStatus.includes("loadBillingOrder(orderReference, accessToken)")

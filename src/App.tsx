@@ -52,6 +52,7 @@ const AccountSettingsPage = lazy(() => import("./pages/The-Commons-Circle/Accoun
 const AccountPrivacySettingsPage = lazy(() => import("./pages/The-Commons-Circle/AccountPrivacySettingsPage"));
 const AccountNotificationPreferencesPage = lazy(() => import("./pages/The-Commons-Circle/AccountNotificationPreferencesPage"));
 const ProfileAppearanceSettingsPage = lazy(() => import("./pages/The-Commons-Circle/ProfileAppearanceSettingsPage"));
+const HostedExecutionAllowancePage = lazy(() => import("./pages/The-Commons-Circle/HostedExecutionAllowancePage"));
 const PublicCommonsProfilePage = lazy(() => import("./pages/Public-Commons-Profile"));
 const StoryPage = lazy(() => import("./pages/The-Story-of-Elysia"));
 const AboutPage = lazy(() => import("./pages/About-Elysia-Ecobotics"));
@@ -270,6 +271,7 @@ export default function App() {
             <Route path="account/change-password" element={<AccountChangePasswordPage />} />
             <Route path="account/deactivate" element={<AccountDeactivationPage />} />
             <Route path="account/reactivate" element={<AccountReactivationPage />} />
+            <Route path="commons-circle/settings/hosted-execution" element={<HostedExecutionAllowancePage />} />
             </Route>
             </Routes>
             </AccountActivationBoundary>

@@ -99,6 +99,7 @@ const exactTitles: Record<string, string> = {
   "/commons-circle/settings/privacy": "Privacy & Public Profile",
   "/commons-circle/settings/notifications": "Notification Preferences",
   "/commons-circle/settings/appearance": "Profile & Appearance",
+  "/commons-circle/settings/hosted-execution": "Hosted Execution Allowance",
   "/artisan-collective": "Elysia Artisan Collective",
   "/story": "The Story of Elysia",
   "/about": "About Elysia Ecobotics",
@@ -135,6 +136,7 @@ const exactDescriptions: Record<string, string> = {
   "/commons-circle/settings/privacy": "Privacy Lanterns and public Commons Profile publication settings.",
   "/commons-circle/settings/notifications": "Account event and legacy signal notification preferences for the signed-in Website Account.",
   "/commons-circle/settings/appearance": "Customize the current Commons Profile appearance.",
+  "/commons-circle/settings/hosted-execution": "Private hosted-execution allowance, reservations, and recent usage for the signed-in Website Account.",
   "/artisan-collective": "Meet the Elysia Artisan Collective, a separate creative commons for credited human-made, AI-assisted, generative, hybrid, and difficult-to-classify art.",
 };
 

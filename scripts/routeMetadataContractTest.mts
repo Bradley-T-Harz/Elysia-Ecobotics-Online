@@ -20,7 +20,7 @@ function materializePath(value: string) {
 
 const smokePaths = [...new Set<string>(contract.routes.flatMap((route: { smokePaths?: string[] }) => route.smokePaths ?? []).map(materializePath))]
   .filter((pathname) => pathname.startsWith("/") && !pathname.includes("*"));
-assert.equal(smokePaths.length, 162, "The metadata contract must cover the complete preserved smoke-path baseline.");
+assert.equal(smokePaths.length, 163, "The metadata contract must cover the complete preserved smoke-path baseline.");
 
 for (const pathname of smokePaths) {
   const metadata = routeMetadataForPath(pathname);
@@ -34,6 +34,7 @@ for (const pathname of smokePaths) {
 
 assert.equal(routeMetadataForPath("/account/change-password").title, "Change Password | Elysia Ecobotics Online");
 assert.equal(routeMetadataForPath("/commons-circle/settings/privacy").title, "Privacy & Public Profile | Elysia Ecobotics Online");
+assert.equal(routeMetadataForPath("/commons-circle/settings/hosted-execution").title, "Hosted Execution Allowance | Elysia Ecobotics Online");
 assert.equal(routeMetadataForPath("/artisan-collective").title, "Elysia Artisan Collective | Elysia Ecobotics Online");
 assert.equal(routeMetadataForPath("/marketplace/addons/private-looking-slug").title, "Marketplace Add-on | Elysia Ecobotics Online");
 assert.equal(routeMetadataForPath("/commons-circle/@private-looking-handle").title, "Public Commons Profile | Elysia Ecobotics Online");
