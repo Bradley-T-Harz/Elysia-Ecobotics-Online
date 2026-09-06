@@ -116,6 +116,8 @@ export type Reservation = {
   creditReservationId?: string | null;
   reservedCreditUnits?: number | null;
   creditUnitScale?: number | null;
+  accountingMode?: "finite" | "admin_operational" | null;
+  administrativeOperationalAccess?: boolean;
   result: Omit<PublicSandboxResult, "recordingStatus" | "idempotentReplay" | "runId"> | null;
 };
 

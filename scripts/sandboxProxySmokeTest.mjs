@@ -460,6 +460,10 @@ const creditSummaryFixture = {
   balance_units: 1250,
   reserved_units: 100,
   available_units: 1150,
+  accounting_mode: "finite",
+  accounting_policy_version: "hosted_execution_allowance_v1",
+  administrative_operational_access: false,
+  operational_reserved_units: 0,
   available_credits: 11.5,
   purchased_credits: 5,
   sponsored_credits: 5,
@@ -469,6 +473,7 @@ const creditSummaryFixture = {
   source_categories: [{ category: "sponsored", available_units: 500, private_reason: "must not pass" }],
   active_reservations: [{ run_id: "00000000-0000-4000-8000-000000000010", reserved_units: 100, expires_at: "2026-07-16T12:00:00.000Z", user_id: "must not pass" }],
   recent_receipts: [{ id: "00000000-0000-4000-8000-000000000011", entry_type: "consume", units_delta: -25, source_category: "sandbox_run", run_id: "00000000-0000-4000-8000-000000000010", created_at: "2026-07-16T12:00:01.000Z", private_reason: "must not pass" }],
+  recent_operational_usage: [],
   warnings: ["Provisional test values only."],
   provider_customer_reference: "must not pass"
 };
@@ -514,6 +519,18 @@ const falseOneTimeRenewal = await handleSandboxCreditSummary(creditRequest, env,
 assert(falseOneTimeRenewal.status === 503, "A one-time allowance must not imply a renewal date.");
 const missingReplenishmentRenewal = await handleSandboxCreditSummary(creditRequest, env, { authenticate: async () => auth, load: async () => ({ ...liveCreditSummaryFixture, allowance_type: "replenishing" }) });
 assert(missingReplenishmentRenewal.status === 503, "A replenishing allowance must identify its authoritative next renewal time.");
+const forgedAdminCreditResponse = await handleSandboxCreditSummary(creditRequest, env, { authenticate: async () => auth, load: async () => ({ ...liveCreditSummaryFixture, administrative_operational_access: true }) });
+assert(forgedAdminCreditResponse.status === 503, "Administrator operational access must fail closed when it contradicts the server accounting mode.");
+const adminCreditResponse = await handleSandboxCreditSummary(creditRequest, env, { authenticate: async () => auth, load: async () => ({
+  ...liveCreditSummaryFixture,
+  accounting_mode: "admin_operational",
+  accounting_policy_version: "admin_operational_allowance_v1",
+  administrative_operational_access: true,
+  operational_reserved_units: 100,
+  recent_operational_usage: [{ run_id: "00000000-0000-4000-8000-000000000012", calculated_units: 19, charged_units: 0, failure_class: null, measured_at: "2026-07-16T12:01:00.000Z" }],
+}) });
+const adminCreditBody = await adminCreditResponse.json();
+assert(adminCreditResponse.status === 200 && adminCreditBody.summary.administrative_operational_access === true && adminCreditBody.summary.recent_operational_usage[0].charged_units === 0, "The private endpoint must preserve measured non-depleting administrator operational history.");
 
 const oversizedCodeResponse = await handleSandboxRun(request({ body: { code: "x".repeat(65_537) } }), env, dependencies());
 assert(oversizedCodeResponse.status === 413, "Oversized submitted code must fail before reservation or runner execution.");

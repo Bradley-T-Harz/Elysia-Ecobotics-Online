@@ -3,6 +3,7 @@ import { PublicHttpError } from "./http.ts";
 type JsonObject = Record<string, unknown>;
 type AllowanceMode = "test" | "live";
 type AllowanceType = "one_time_starter" | "replenishing" | "mixed" | "test_only";
+type AccountingMode = "finite" | "admin_operational";
 
 export type PublicSandboxCreditSummary = {
   available: true;
@@ -20,6 +21,10 @@ export type PublicSandboxCreditSummary = {
   allowance_type: AllowanceType;
   renews_at: string | null;
   paid_allowance_available: false;
+  accounting_mode: AccountingMode;
+  accounting_policy_version: string;
+  administrative_operational_access: boolean;
+  operational_reserved_units: number;
   available_credits: number;
   purchased_credits: number;
   sponsored_credits: number;
@@ -45,12 +50,20 @@ export type PublicSandboxCreditSummary = {
     run_id: string | null;
     created_at: string;
   }>;
+  recent_operational_usage: Array<{
+    run_id: string;
+    calculated_units: number;
+    charged_units: 0;
+    failure_class: string | null;
+    measured_at: string;
+  }>;
   warnings: string[];
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SAFE_KEY = /^[a-z][a-z0-9_]{1,100}$/;
 const ALLOWANCE_TYPES = new Set<AllowanceType>(["one_time_starter", "replenishing", "mixed", "test_only"]);
+const ACCOUNTING_MODES = new Set<AccountingMode>(["finite", "admin_operational"]);
 
 function object(value: unknown): JsonObject {
   if (!value || typeof value !== "object" || Array.isArray(value)) invalid();
@@ -147,7 +160,14 @@ export function parseSandboxCreditSummary(value: unknown): PublicSandboxCreditSu
     : mode === "test" ? "test_only" : invalid();
   const renewsAt = optionalTimestamp(summary.renews_at);
   const paidAllowanceAvailable = summary.paid_allowance_available === undefined ? false : summary.paid_allowance_available;
+  const accountingMode = ACCOUNTING_MODES.has(summary.accounting_mode as AccountingMode)
+    ? summary.accounting_mode as AccountingMode : invalid();
+  const accountingPolicyVersion = safeKey(summary.accounting_policy_version);
+  const administrativeOperationalAccess = boolean(summary.administrative_operational_access);
+  const operationalReservedUnits = integer(summary.operational_reserved_units);
   if (paidAllowanceAvailable !== false
+    || (accountingMode === "admin_operational") !== administrativeOperationalAccess
+    || (!administrativeOperationalAccess && operationalReservedUnits !== 0)
     || (mode === "test" && allowanceType !== "test_only")
     || (mode === "live" && allowanceType === "test_only")
     || (allowanceType === "one_time_starter" && renewsAt !== null)
@@ -177,6 +197,10 @@ export function parseSandboxCreditSummary(value: unknown): PublicSandboxCreditSu
     allowance_type: allowanceType,
     renews_at: renewsAt,
     paid_allowance_available: false,
+    accounting_mode: accountingMode,
+    accounting_policy_version: accountingPolicyVersion,
+    administrative_operational_access: administrativeOperationalAccess,
+    operational_reserved_units: operationalReservedUnits,
     available_credits: nonnegativeNumber(summary.available_credits),
     purchased_credits: nonnegativeNumber(summary.purchased_credits),
     sponsored_credits: nonnegativeNumber(summary.sponsored_credits),
@@ -195,11 +219,25 @@ export function parseSandboxCreditSummary(value: unknown): PublicSandboxCreditSu
       const receipt = object(item);
       return { id: uuid(receipt.id), entry_type: safeKey(receipt.entry_type), units_delta: signedInteger(receipt.units_delta), source_category: safeKey(receipt.source_category), run_id: receipt.run_id === null ? null : uuid(receipt.run_id), created_at: timestamp(receipt.created_at) };
     }),
+    recent_operational_usage: boundedArray(summary.recent_operational_usage, 50).map((item) => {
+      const usage = object(item);
+      const failureClass = usage.failure_class === null ? null : safeKey(usage.failure_class);
+      const chargedUnits = integer(usage.charged_units, 0, 0);
+      return {
+        run_id: uuid(usage.run_id),
+        calculated_units: integer(usage.calculated_units),
+        charged_units: chargedUnits as 0,
+        failure_class: failureClass,
+        measured_at: timestamp(usage.measured_at),
+      };
+    }),
     warnings: boundedArray(summary.warnings, 20).map((item) => {
       if (typeof item !== "string" || item.length < 1 || item.length > 500 || /[\u0000-\u001f\u007f]/.test(item)) invalid();
       return item;
     })
   };
+
+  if (!parsed.administrative_operational_access && parsed.recent_operational_usage.length !== 0) invalid();
 
   if (new TextEncoder().encode(JSON.stringify(parsed)).byteLength > 65_536) invalid();
   return parsed;

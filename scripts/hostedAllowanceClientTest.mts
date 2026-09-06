@@ -20,6 +20,10 @@ const liveSummary = {
   allowance_type: "one_time_starter",
   renews_at: null,
   paid_allowance_available: false,
+  accounting_mode: "finite",
+  accounting_policy_version: "hosted_execution_allowance_v1",
+  administrative_operational_access: false,
+  operational_reserved_units: 0,
   available_credits: 6.5,
   purchased_credits: 0,
   sponsored_credits: 0,
@@ -49,6 +53,7 @@ const liveSummary = {
     run_id: "a1800000-0000-4000-8000-000000000001",
     created_at: "2026-09-06T19:00:00.000Z",
   }],
+  recent_operational_usage: [],
   warnings: ["Local Elysia computation is not metered by EcoSyneva."],
 };
 
@@ -59,12 +64,68 @@ assert.equal(parsed.availableUnits, 650);
 assert.equal(parsed.paidAllowanceAvailable, false);
 assert.equal(parsed.renewsAt, null);
 assert.equal(parsed.activeRate?.approvedForLiveUse, true);
+assert.equal(parsed.administrativeOperationalAccess, false);
 assert.equal(formatHostedAllowance(parsed.availableUnits, parsed.unitScale), "6.5");
 
 assert.throws(
   () => parseHostedAllowanceSummary({ ...liveSummary, remaining_percent: 64 }),
   /sandbox_credit_summary_invalid/,
   "The client must reject a percentage that does not match authoritative available and total units.",
+);
+
+assert.throws(
+  () => parseHostedAllowanceSummary({ ...liveSummary, administrative_operational_access: true }),
+  /sandbox_credit_summary_invalid/,
+  "A client-side or malformed administrator flag must not contradict the server accounting mode.",
+);
+assert.throws(
+  () => parseHostedAllowanceSummary({ ...liveSummary, recent_operational_usage: [{
+    run_id: "a1800000-0000-4000-8000-000000000002",
+    calculated_units: 19,
+    charged_units: 0,
+    failure_class: null,
+    measured_at: "2026-09-06T19:10:00.000Z",
+  }] }),
+  /sandbox_credit_summary_invalid/,
+  "A finite account must not receive administrator operational history.",
+);
+
+const adminSummary = parseHostedAllowanceSummary({
+  ...liveSummary,
+  accounting_mode: "admin_operational",
+  accounting_policy_version: "admin_operational_allowance_v1",
+  administrative_operational_access: true,
+  operational_reserved_units: 100,
+  recent_operational_usage: [{
+    run_id: "a1800000-0000-4000-8000-000000000002",
+    calculated_units: 19,
+    charged_units: 0,
+    failure_class: null,
+    measured_at: "2026-09-06T19:10:00.000Z",
+  }],
+});
+assert.equal(adminSummary.accountingMode, "admin_operational");
+assert.equal(adminSummary.administrativeOperationalAccess, true);
+assert.equal(adminSummary.operationalReservedUnits, 100);
+assert.equal(adminSummary.recentOperationalUsage[0]?.calculatedUnits, 19);
+assert.equal(adminSummary.recentOperationalUsage[0]?.chargedUnits, 0);
+assert.equal(adminSummary.balanceUnits, 800, "Administrative operations must not rewrite the ordinary balance projection.");
+assert.throws(
+  () => parseHostedAllowanceSummary({
+    ...liveSummary,
+    accounting_mode: "admin_operational",
+    accounting_policy_version: "admin_operational_allowance_v1",
+    administrative_operational_access: true,
+    recent_operational_usage: [{
+      run_id: "a1800000-0000-4000-8000-000000000002",
+      calculated_units: 19,
+      charged_units: 1,
+      failure_class: null,
+      measured_at: "2026-09-06T19:10:00.000Z",
+    }],
+  }),
+  /sandbox_credit_summary_invalid/,
+  "Administrator operational history must fail closed if it claims ordinary-balance depletion.",
 );
 assert.throws(
   () => parseHostedAllowanceSummary({ ...liveSummary, balance_units: 799 }),

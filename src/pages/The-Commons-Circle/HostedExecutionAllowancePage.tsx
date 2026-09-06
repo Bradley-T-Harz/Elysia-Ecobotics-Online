@@ -80,16 +80,23 @@ export default function HostedExecutionAllowancePage() {
         </section>}
 
         {summary && live && <section className="section-card hosted-allowance-detail" aria-live="polite">
-          <div className="section-heading section-heading--inline"><div><p className="eyebrow">Available hosted service use</p><h2>{formatHostedAllowance(summary.availableUnits, summary.unitScale)} / {formatHostedAllowance(summary.allowanceTotalUnits!, summary.unitScale)} units remaining</h2></div><strong>{summary.remainingPercent}%</strong></div>
+          {summary.administrativeOperationalAccess && <div className="boundary-note hosted-allowance-admin-state">
+            <p className="eyebrow">Administrative operational access</p>
+            <h2>Non-depleting accounting within bounded sandbox execution</h2>
+            <p>Hosted execution usage is measured and audited, but administrator operations do not consume the ordinary starter allowance.</p>
+            <p>This does not mean unlimited runtime, parallelism, CPU, RAM, network access, or server authority. Administrator operations remain subject to the same isolation, resource, timeout, concurrency, secret, network, and abuse controls.</p>
+          </div>}
+          <div className="section-heading section-heading--inline"><div><p className="eyebrow">{summary.administrativeOperationalAccess ? "Ordinary starter allowance preserved" : "Available hosted service use"}</p><h2>{formatHostedAllowance(summary.availableUnits, summary.unitScale)} / {formatHostedAllowance(summary.allowanceTotalUnits!, summary.unitScale)} units remaining</h2></div><strong>{summary.remainingPercent}%</strong></div>
           <progress max="100" value={summary.remainingPercent!} aria-label={`${summary.remainingPercent}% of hosted execution allowance remaining`}>{summary.remainingPercent}%</progress>
           <dl className="mini-facts">
             <div><dt>Used</dt><dd>{formatHostedAllowance(summary.usedUnits!, summary.unitScale)} units</dd></div>
             <div><dt>Reserved right now</dt><dd>{formatHostedAllowance(summary.reservedUnits, summary.unitScale)} units</dd></div>
             <div><dt>Available</dt><dd>{formatHostedAllowance(summary.availableUnits, summary.unitScale)} units</dd></div>
             <div><dt>Allowance type</dt><dd>{allowanceType(summary)}</dd></div>
+            {summary.administrativeOperationalAccess && <div><dt>Operational reservation right now</dt><dd>{formatHostedAllowance(summary.operationalReservedUnits, summary.unitScale)} measured units</dd></div>}
             {summary.renewsAt && <div><dt>Next renewal</dt><dd>{new Date(summary.renewsAt).toLocaleString()}</dd></div>}
           </dl>
-          <p>Hosted execution pauses when the available allowance cannot cover a run reservation.</p>
+          <p>{summary.administrativeOperationalAccess ? "Administrator operations do not deplete this ordinary balance. If administrator authority ends, normal finite allowance policy resumes with the legitimate ordinary balance preserved." : "Hosted execution pauses when the available allowance cannot cover a run reservation."}</p>
           <p className="boundary-note">Unused reservation is released after finalization. Platform failure, cancellation, policy refusal, or cleanup failure does not consume allowance. A user-code error or timeout may consume the measured resources actually used.</p>
           <div className="button-row"><button type="button" disabled={loading} onClick={() => void refresh(true)}>{loading ? "Refreshing…" : "Refresh allowance"}</button></div>
         </section>}
@@ -98,6 +105,12 @@ export default function HostedExecutionAllowancePage() {
           <p className="eyebrow">Private history</p><h2>Recent allowance receipts</h2>
           {summary.recentReceipts.length === 0 ? <p>No allowance receipts are available yet.</p> : <ul className="hosted-allowance-receipts">{summary.recentReceipts.map((receipt) => <li key={receipt.id}><strong>{receiptLabel(receipt.entryType)}</strong><span>{receipt.unitsDelta > 0 ? "+" : "−"}{formatHostedAllowance(Math.abs(receipt.unitsDelta), summary.unitScale)} units · {new Date(receipt.createdAt).toLocaleString()}</span></li>)}</ul>}
           <p className="small-note">Receipts are private service-accounting history. They are not money, a wallet, recognition, trust, or authority.</p>
+        </section>}
+
+        {summary?.administrativeOperationalAccess && live && <section className="section-card">
+          <p className="eyebrow">Private measured operations</p><h2>Recent administrator hosted usage</h2>
+          {summary.recentOperationalUsage.length === 0 ? <p>No completed administrator operations are available yet.</p> : <ul className="hosted-allowance-receipts">{summary.recentOperationalUsage.map((usage) => <li key={usage.runId}><strong>Measured administrator operation</strong><span>{formatHostedAllowance(usage.calculatedUnits, summary.unitScale)} units measured · 0 deducted · {new Date(usage.measuredAt).toLocaleString()}{usage.failureClass ? ` · ${usage.failureClass.replace(/_/g, " ")}` : ""}</span></li>)}</ul>}
+          <p className="small-note">This history proves resource measurement without converting administrative access into money, prestige, trust, or broader sandbox power.</p>
         </section>}
 
         <section className="commons-doctrine-grid">

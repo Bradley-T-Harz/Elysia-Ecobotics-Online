@@ -9,12 +9,15 @@ export default function HostedAllowanceCompact({ summary, loading }: {
 }) {
   const live = summary?.mode === "live" && summary.displayEnabled && summary.enforcementEnabled;
   const percentage = live ? summary.remainingPercent : null;
-  const state = percentage === 0 ? "exhausted" : percentage !== null && percentage <= 10 ? "low" : "normal";
+  const administrative = live && summary.administrativeOperationalAccess;
+  const state = !administrative && percentage === 0 ? "exhausted" : !administrative && percentage !== null && percentage <= 10 ? "low" : "normal";
   const label = !summary && loading
     ? "Hosted allowance: checking…"
     : !live
       ? summary?.testMode ? "Hosted allowance: production policy pending" : "Hosted allowance: details unavailable"
-    : percentage === 0 ? "Hosted allowance exhausted" : `Hosted allowance: ${percentage}% remaining`;
+    : administrative
+      ? "Admin operational allowance · non-depleting"
+      : percentage === 0 ? "Hosted allowance exhausted" : `Hosted allowance: ${percentage}% remaining`;
 
   return <aside className={`hosted-allowance-compact hosted-allowance-compact--${state}`} aria-live="polite" aria-busy={loading}>
     <span>{label}</span>

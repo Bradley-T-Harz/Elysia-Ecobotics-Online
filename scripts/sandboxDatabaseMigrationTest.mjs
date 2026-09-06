@@ -129,6 +129,7 @@ const adminBadgeSelfManagementPaths = [
 
 const hostedAllowanceActivationPaths = [
   "supabase/migrations/20260906010000_hosted_execution_allowance_production_activation.sql",
+  "supabase/migrations/20260906020000_admin_hosted_execution_operational_allowance.sql",
 ];
 
 const activePaths = [
@@ -310,6 +311,13 @@ for (const marker of [
   "economicEnforcement", "reservedCreditUnits", "creditUnitScale",
   "allowance_type", "one_time_starter",
   "Local Elysia computation is not metered by EcoSyneva.",
+  "admin_operational_allowance_v1",
+  "public.current_user_is_admin()",
+  "accounting_mode", "admin_operational",
+  "administrativeOperationalAccess",
+  "non_depleting_accounting",
+  "starter_allowance_preserved",
+  "safety_limits_unchanged",
 ]) assert(hostedAllowanceActivationMigrations.join("\n").includes(marker), `Hosted allowance activation migration omits ${marker}.`);
 for (const marker of [
   "hosted_execution_allowance_production_behavior_ok",
@@ -322,6 +330,13 @@ for (const marker of [
   "double-run protection did not serialize requests",
   "exhaustion did not fail closed",
   "a reservation has duplicate settlement entries",
+  "administrator operational reservation replay was not exactly-once",
+  "administrator accounting exemption bypassed one-slot concurrency",
+  "administrator exceeded the measured runtime/resource contract",
+  "administrator bypassed the sandbox network prohibition",
+  "administrator operation was not measured without depletion",
+  "administrator operation depleted the starter allowance or lost its private usage receipt",
+  "removed administrator or reviewer retained the accounting exemption",
 ]) assert(hostedAllowanceProductionBehaviorFixture.includes(marker), `Hosted allowance production fixture omits ${marker}.`);
 for (const [index, migration] of artisanMigrations.entries()) {
   assert(migration.startsWith("--"), `${artisanPaths[index]} needs an explanatory header.`);

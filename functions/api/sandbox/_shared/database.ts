@@ -18,6 +18,10 @@ function booleanOrUndefined(value: unknown): boolean | undefined {
   return typeof value === "boolean" ? value : undefined;
 }
 
+function accountingModeOrNull(value: unknown): "finite" | "admin_operational" | null {
+  return value === "finite" || value === "admin_operational" ? value : null;
+}
+
 export async function sha256Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -59,6 +63,8 @@ export async function reserveRun(
     creditReservationId: stringOrNull(record.creditReservationId),
     reservedCreditUnits: numberOrNull(record.reservedCreditUnits),
     creditUnitScale: numberOrNull(record.creditUnitScale),
+    accountingMode: accountingModeOrNull(record.accountingMode),
+    administrativeOperationalAccess: booleanOrUndefined(record.administrativeOperationalAccess),
     result: existingResult as Reservation["result"]
   };
 }

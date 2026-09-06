@@ -2,6 +2,7 @@ export type SandboxCreditSourceCategory = "starter" | "recurring_support" | "pur
 export type SandboxCreditReceiptType = "grant" | "reserve" | "consume" | "release" | "expire" | "refund_adjustment" | "dispute_hold" | "admin_correction" | "compensating_credit" | "compensating_debit";
 export type SandboxCreditReceiptSourceCategory = SandboxCreditSourceCategory | "sandbox_run" | "refund" | "dispute";
 export type HostedAllowanceType = "one_time_starter" | "replenishing" | "mixed" | "test_only";
+export type HostedAllowanceAccountingMode = "finite" | "admin_operational";
 
 export type SandboxCreditRate = {
   baseUnits: number;
@@ -33,6 +34,14 @@ export type SandboxCreditReceiptSummary = {
   createdAt: string;
 };
 
+export type SandboxOperationalUsageSummary = {
+  runId: string;
+  calculatedUnits: number;
+  chargedUnits: 0;
+  failureClass: string | null;
+  measuredAt: string;
+};
+
 export type SandboxCreditSummary = {
   available: true;
   mode: "test" | "live";
@@ -49,6 +58,10 @@ export type SandboxCreditSummary = {
   allowanceType: HostedAllowanceType;
   renewsAt: string | null;
   paidAllowanceAvailable: false;
+  accountingMode: HostedAllowanceAccountingMode;
+  accountingPolicyVersion: string;
+  administrativeOperationalAccess: boolean;
+  operationalReservedUnits: number;
   availableCredits: number;
   purchasedCredits: number;
   sponsoredCredits: number;
@@ -58,6 +71,7 @@ export type SandboxCreditSummary = {
   sourceCategories: SandboxCreditSourceSummary[];
   activeReservations: SandboxCreditReservationSummary[];
   recentReceipts: SandboxCreditReceiptSummary[];
+  recentOperationalUsage: SandboxOperationalUsageSummary[];
   warnings: string[];
 };
 
@@ -69,6 +83,7 @@ const sourceCategories = new Set<SandboxCreditSourceCategory>(["starter", "recur
 const receiptSourceCategories = new Set<SandboxCreditReceiptSourceCategory>([...sourceCategories, "sandbox_run", "refund", "dispute"]);
 const receiptTypes = new Set<SandboxCreditReceiptType>(["grant", "reserve", "consume", "release", "expire", "refund_adjustment", "dispute_hold", "admin_correction", "compensating_credit", "compensating_debit"]);
 const allowanceTypes = new Set<HostedAllowanceType>(["one_time_starter", "replenishing", "mixed", "test_only"]);
+const accountingModes = new Set<HostedAllowanceAccountingMode>(["finite", "admin_operational"]);
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const safeKeyPattern = /^[a-z][a-z0-9_]{1,100}$/;
 
@@ -178,7 +193,15 @@ export function parseHostedAllowanceSummary(value: unknown): SandboxCreditSummar
   const allowanceType = allowanceTypes.has(row.allowance_type as HostedAllowanceType) ? row.allowance_type as HostedAllowanceType : mode === "test" ? "test_only" : null;
   const renewsAt = row.renews_at === undefined ? null : nullableTimestamp(row.renews_at);
   const paidAllowanceAvailable = row.paid_allowance_available === undefined ? false : row.paid_allowance_available;
+  const accountingMode = accountingModes.has(row.accounting_mode as HostedAllowanceAccountingMode)
+    ? row.accounting_mode as HostedAllowanceAccountingMode : null;
+  const accountingPolicyVersion = safeKey(row.accounting_policy_version);
+  const administrativeOperationalAccess = exactBoolean(row.administrative_operational_access);
+  const operationalReservedUnits = boundedInteger(row.operational_reserved_units);
   if (!allowanceType || paidAllowanceAvailable !== false
+    || !accountingMode || !accountingPolicyVersion || administrativeOperationalAccess === null || operationalReservedUnits === null
+    || (accountingMode === "admin_operational") !== administrativeOperationalAccess
+    || (!administrativeOperationalAccess && operationalReservedUnits !== 0)
     || (mode === "test" && allowanceType !== "test_only")
     || (mode === "live" && allowanceType === "test_only")
     || (allowanceType === "one_time_starter" && renewsAt !== null)
@@ -216,15 +239,29 @@ export function parseHostedAllowanceSummary(value: unknown): SandboxCreditSummar
     return { id, entryType, unitsDelta, sourceCategory, runId, createdAt };
   });
 
+  const operationalUsage = boundedArray(row.recent_operational_usage, 50).map((value) => {
+    const usage = record(value);
+    const runId = safeIdentifier(usage?.run_id);
+    const calculatedUnits = boundedInteger(usage?.calculated_units);
+    const chargedUnits = boundedInteger(usage?.charged_units, 0, 0);
+    const failureClass = usage?.failure_class === null ? null : safeKey(usage?.failure_class);
+    const measuredAt = timestamp(usage?.measured_at);
+    if (!runId || calculatedUnits === null || chargedUnits !== 0 || (usage?.failure_class !== null && !failureClass)) invalidSummary();
+    return { runId, calculatedUnits, chargedUnits: 0 as const, failureClass, measuredAt };
+  });
+  if (!administrativeOperationalAccess && operationalUsage.length !== 0) invalidSummary();
+
   const activeRate = parseRate(row.active_rate, mode);
   if (mode === "live" && activeRate === null) invalidSummary();
 
   return {
     available: true, mode, displayEnabled: displayEnabled!, enforcementEnabled: enforcementEnabled!, testMode: testMode!, unitScale: unitScale!,
     allowanceTotalUnits, usedUnits, balanceUnits: balanceUnits!, reservedUnits: reservedUnits!, availableUnits: availableUnits!, remainingPercent,
-    allowanceType, renewsAt, paidAllowanceAvailable: false, availableCredits: availableCredits!, purchasedCredits: purchasedCredits!,
+    allowanceType, renewsAt, paidAllowanceAvailable: false, accountingMode, accountingPolicyVersion,
+    administrativeOperationalAccess, operationalReservedUnits,
+    availableCredits: availableCredits!, purchasedCredits: purchasedCredits!,
     sponsoredCredits: sponsoredCredits!, waivedCredits: waivedCredits!, operatorGrantedCredits: operatorGrantedCredits!, activeRate,
-    sourceCategories: sources, activeReservations: reservations, recentReceipts: receipts,
+    sourceCategories: sources, activeReservations: reservations, recentReceipts: receipts, recentOperationalUsage: operationalUsage,
     warnings: boundedArray(row.warnings, 20).slice(0, 8).flatMap((warning) => { const safe = safeWarning(warning); return safe ? [safe] : []; })
   };
 }

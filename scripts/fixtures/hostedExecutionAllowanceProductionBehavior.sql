@@ -94,6 +94,11 @@ values
     'a6000000-0000-4000-8000-000000000004',
     'hosted-allowance-exhausted@example.invalid',
     pg_catalog.now(), pg_catalog.now(), pg_catalog.now()
+  ),
+  (
+    'a6000000-0000-4000-8000-000000000005',
+    'hosted-allowance-admin@example.invalid',
+    pg_catalog.now(), pg_catalog.now(), pg_catalog.now()
   );
 
 insert into public.profiles(id, username, display_name, commons_onboarding_completed_at)
@@ -105,7 +110,17 @@ values
   (
     'a6000000-0000-4000-8000-000000000004',
     'hosted-allowance-exhausted', 'Hosted Allowance Exhausted', pg_catalog.now()
+  ),
+  (
+    'a6000000-0000-4000-8000-000000000005',
+    'hosted-allowance-admin', 'Hosted Allowance Administrator', pg_catalog.now()
   );
+
+insert into public.user_roles(user_id, role, reason)
+values (
+  'a6000000-0000-4000-8000-000000000005', 'administrator',
+  'Disposable authoritative administrator allowance fixture.'
+);
 
 do $new_eligible_grant$
 declare
@@ -393,6 +408,246 @@ begin
   end if;
 end
 $exhaustion_refusal$;
+
+reset role;
+
+set local role authenticated;
+select pg_catalog.set_config('request.jwt.claim.sub', 'a6000000-0000-4000-8000-000000000005', true);
+select pg_catalog.set_config(
+  'request.jwt.claims',
+  '{"sub":"a6000000-0000-4000-8000-000000000005","role":"authenticated"}',
+  true
+);
+
+do $admin_operational_allowance$
+declare
+  v_admin uuid := 'a6000000-0000-4000-8000-000000000005';
+  v_summary jsonb;
+  v_reserved jsonb;
+  v_replay jsonb;
+  v_busy jsonb;
+  v_final jsonb;
+  v_run uuid;
+  v_request uuid := 'a6100000-0000-4000-8000-000000000201';
+begin
+  v_summary := public.current_user_sandbox_credit_summary();
+  if v_summary ->> 'accounting_mode' <> 'admin_operational'
+     or v_summary ->> 'accounting_policy_version' <> 'admin_operational_allowance_v1'
+     or v_summary ->> 'administrative_operational_access' <> 'true'
+     or (v_summary ->> 'allowance_total_units')::integer <> 1000
+     or (v_summary ->> 'balance_units')::integer <> 1000
+     or (v_summary ->> 'used_units')::integer <> 0
+     or (v_summary ->> 'operational_reserved_units')::integer <> 0 then
+    raise exception 'administrator summary did not separate operational access from the preserved starter allowance: %', v_summary;
+  end if;
+
+  v_reserved := public.reserve_commune_sandbox_run(
+    v_request, 'admin-operational-success',
+    'manual_snapshot', null, null, null, null,
+    'python', 'main.py', repeat('7', 64), 16
+  );
+  if v_reserved ->> 'accepted' <> 'true'
+     or v_reserved ->> 'accountingMode' <> 'admin_operational'
+     or v_reserved ->> 'administrativeOperationalAccess' <> 'true'
+     or (v_reserved ->> 'reservedCreditUnits')::integer <> 100 then
+    raise exception 'administrator operation did not receive a governed operational reservation: %', v_reserved;
+  end if;
+  v_run := (v_reserved ->> 'runId')::uuid;
+
+  v_replay := public.reserve_commune_sandbox_run(
+    v_request, 'admin-operational-success',
+    'manual_snapshot', null, null, null, null,
+    'python', 'main.py', repeat('7', 64), 16
+  );
+  if v_replay ->> 'idempotentReplay' <> 'true'
+     or (v_replay ->> 'runId')::uuid is distinct from v_run
+     or v_replay ->> 'accountingMode' <> 'admin_operational' then
+    raise exception 'administrator operational reservation replay was not exactly-once: %', v_replay;
+  end if;
+
+  v_busy := public.reserve_commune_sandbox_run(
+    'a6100000-0000-4000-8000-000000000202', 'admin-operational-concurrent',
+    'manual_snapshot', null, null, null, null,
+    'python', 'main.py', repeat('8', 64), 16
+  );
+  if v_busy ->> 'accepted' <> 'false' or v_busy ->> 'reason' <> 'active_reservation' then
+    raise exception 'administrator accounting exemption bypassed one-slot concurrency: %', v_busy;
+  end if;
+
+  perform public.start_commune_sandbox_run(
+    v_run, v_request, 'disposable-finalizer-token-0123456789abcdef'
+  );
+
+  begin
+    perform public.finalize_commune_sandbox_run(
+      v_run, v_request, 'disposable-finalizer-token-0123456789abcdef',
+      'completed', true, 'Completed.', 'ok', '', 0, 25, false, '[]'::jsonb,
+      16, 3, 600001, 268435456, 20, 8388608, false, null
+    );
+    raise exception 'administrator exceeded the measured runtime/resource contract';
+  exception when sqlstate '22023' then
+    if sqlerrm <> 'sandbox_measurement_invalid' then raise; end if;
+  end;
+
+  begin
+    perform public.finalize_commune_sandbox_run(
+      v_run, v_request, 'disposable-finalizer-token-0123456789abcdef',
+      'completed', true, 'Completed.', 'ok', '', 0, 25, false, '[]'::jsonb,
+      16, 3, 500, 268435456, 20, 8388608, true, null
+    );
+    raise exception 'administrator bypassed the sandbox network prohibition';
+  exception when insufficient_privilege then
+    if sqlerrm <> 'sandbox_network_access_violation' then raise; end if;
+  end;
+
+  v_final := public.finalize_commune_sandbox_run(
+    v_run, v_request, 'disposable-finalizer-token-0123456789abcdef',
+    'completed', true, 'Completed.', 'ok', '', 0, 25, false, '[]'::jsonb,
+    16, 3, 500, 268435456, 20, 8388608, false, null
+  );
+  if v_final ->> 'economicEnforcement' <> 'true'
+     or (v_final ->> 'calculatedUnits')::integer <> 19
+     or (v_final ->> 'chargedUnits')::integer <> 0
+     or v_final ->> 'accountingMode' <> 'admin_operational'
+     or v_final ->> 'administrativeOperationalAccess' <> 'true' then
+    raise exception 'administrator operation was not measured without depletion: %', v_final;
+  end if;
+
+  v_final := public.finalize_commune_sandbox_run(
+    v_run, v_request, 'disposable-finalizer-token-0123456789abcdef',
+    'completed', true, 'Completed.', 'ok', '', 0, 25, false, '[]'::jsonb,
+    16, 3, 500, 268435456, 20, 8388608, false, null
+  );
+  if (v_final ->> 'calculatedUnits')::integer <> 19
+     or (v_final ->> 'chargedUnits')::integer <> 0 then
+    raise exception 'administrator finalization replay changed measured operational accounting';
+  end if;
+
+  v_summary := public.current_user_sandbox_credit_summary();
+  if (v_summary ->> 'balance_units')::integer <> 1000
+     or (v_summary ->> 'used_units')::integer <> 0
+     or (v_summary ->> 'reserved_units')::integer <> 0
+     or (v_summary ->> 'operational_reserved_units')::integer <> 0
+     or pg_catalog.jsonb_array_length(v_summary -> 'recent_operational_usage') <> 1
+     or (v_summary #>> '{recent_operational_usage,0,calculated_units}')::integer <> 19
+     or (v_summary #>> '{recent_operational_usage,0,charged_units}')::integer <> 0 then
+    raise exception 'administrator operation depleted the starter allowance or lost its private usage receipt: %', v_summary;
+  end if;
+
+  if pg_catalog.strpos(pg_catalog.pg_get_functiondef(
+    'public.reserve_commune_sandbox_run(uuid,text,text,text,uuid,uuid,uuid,text,text,text,integer)'::regprocedure
+  ), 'public.current_user_is_admin()') = 0 then
+    raise exception 'administrator operational accounting lost its canonical server authority predicate';
+  end if;
+end
+$admin_operational_allowance$;
+
+reset role;
+
+do $admin_private_accounting_evidence$
+declare
+  v_admin uuid := 'a6000000-0000-4000-8000-000000000005';
+  v_run uuid;
+begin
+  select id into v_run
+  from public.commune_sandbox_runs
+  where requester_user_id = v_admin
+    and client_request_id = 'a6100000-0000-4000-8000-000000000201';
+  if v_run is null then
+    raise exception 'administrator operational run evidence is missing';
+  end if;
+  if exists (
+    select 1 from private.sandbox_credit_reservation_allocations as allocation
+    join private.sandbox_credit_reservations as reservation on reservation.id = allocation.reservation_id
+    where reservation.run_id = v_run
+  ) or exists (
+    select 1 from private.sandbox_credit_lots
+    where user_id = v_admin and test_mode = false and (reserved_units <> 0 or consumed_units <> 0)
+  ) then
+    raise exception 'administrator operation reserved or consumed the ordinary starter allowance';
+  end if;
+  if (
+    select count(*) from private.sandbox_credit_ledger_entries
+    where run_id = v_run and source_category = 'operational' and entry_type = 'reserve'
+  ) <> 1 or (
+    select count(*) from private.sandbox_credit_ledger_entries
+    where run_id = v_run and source_category = 'operational' and entry_type = 'release'
+  ) <> 1 or (
+    select count(*) from private.sandbox_run_economic_measurements
+    where run_id = v_run and accounting_mode = 'admin_operational'
+      and calculated_units = 19 and charged_units = 0 and network_access = false
+  ) <> 1 then
+    raise exception 'administrator operational reservation, receipt, or measurement history is incomplete';
+  end if;
+end
+$admin_private_accounting_evidence$;
+
+-- Removing administrator authority ends future non-depleting operations.
+-- A reviewer role is added deliberately to prove adjacent authority does not
+-- inherit the exemption, while the untouched starter allowance remains.
+update public.user_roles
+set revoked_at = pg_catalog.now(), reason = 'Disposable administrator removal fixture.'
+where user_id = 'a6000000-0000-4000-8000-000000000005'
+  and role = 'administrator' and revoked_at is null;
+insert into public.user_roles(user_id, role, reason)
+values (
+  'a6000000-0000-4000-8000-000000000005', 'reviewer',
+  'Disposable adjacent-role non-exemption fixture.'
+);
+
+set local role authenticated;
+select pg_catalog.set_config('request.jwt.claim.sub', 'a6000000-0000-4000-8000-000000000005', true);
+select pg_catalog.set_config(
+  'request.jwt.claims',
+  '{"sub":"a6000000-0000-4000-8000-000000000005","role":"authenticated"}',
+  true
+);
+
+do $removed_admin_returns_to_finite_allowance$
+declare
+  v_summary jsonb;
+  v_reserved jsonb;
+  v_final jsonb;
+  v_run uuid;
+  v_request uuid := 'a6100000-0000-4000-8000-000000000203';
+begin
+  v_summary := public.current_user_sandbox_credit_summary();
+  if v_summary ->> 'accounting_mode' <> 'finite'
+     or v_summary ->> 'administrative_operational_access' <> 'false'
+     or (v_summary ->> 'balance_units')::integer <> 1000 then
+    raise exception 'removed administrator did not return to the preserved finite starter allowance: %', v_summary;
+  end if;
+
+  v_reserved := public.reserve_commune_sandbox_run(
+    v_request, 'removed-admin-finite-success',
+    'manual_snapshot', null, null, null, null,
+    'python', 'main.py', repeat('9', 64), 16
+  );
+  if v_reserved ->> 'accepted' <> 'true'
+     or v_reserved ->> 'accountingMode' <> 'finite'
+     or v_reserved ->> 'administrativeOperationalAccess' <> 'false' then
+    raise exception 'removed administrator or reviewer retained the accounting exemption: %', v_reserved;
+  end if;
+  v_run := (v_reserved ->> 'runId')::uuid;
+  perform public.start_commune_sandbox_run(
+    v_run, v_request, 'disposable-finalizer-token-0123456789abcdef'
+  );
+  v_final := public.finalize_commune_sandbox_run(
+    v_run, v_request, 'disposable-finalizer-token-0123456789abcdef',
+    'completed', true, 'Completed.', 'ok', '', 0, 25, false, '[]'::jsonb,
+    16, 3, 500, 268435456, 20, 8388608, false, null
+  );
+  if (v_final ->> 'chargedUnits')::integer <> 19
+     or v_final ->> 'accountingMode' <> 'finite' then
+    raise exception 'removed administrator did not resume measured finite depletion: %', v_final;
+  end if;
+  v_summary := public.current_user_sandbox_credit_summary();
+  if (v_summary ->> 'balance_units')::integer <> 981
+     or (v_summary ->> 'used_units')::integer <> 19 then
+    raise exception 'removed administrator ordinary allowance did not decrease normally: %', v_summary;
+  end if;
+end
+$removed_admin_returns_to_finite_allowance$;
 
 reset role;
 

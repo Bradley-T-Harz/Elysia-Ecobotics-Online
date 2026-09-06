@@ -237,6 +237,10 @@ async function installNetworkFixtures(context, networkState) {
           allowance_type: "one_time_starter",
           renews_at: null,
           paid_allowance_available: false,
+          accounting_mode: networkState.administrativeAllowance ? "admin_operational" : "finite",
+          accounting_policy_version: networkState.administrativeAllowance ? "admin_operational_allowance_v1" : "hosted_execution_allowance_v1",
+          administrative_operational_access: networkState.administrativeAllowance,
+          operational_reserved_units: networkState.administrativeAllowance ? 100 : 0,
           available_credits: 6.5,
           purchased_credits: 0,
           sponsored_credits: 0,
@@ -255,6 +259,7 @@ async function installNetworkFixtures(context, networkState) {
           source_categories: [{ category: "starter", available_units: 650 }],
           active_reservations: [{ run_id: "a1600000-0000-4000-8000-000000000001", reserved_units: 150, expires_at: "2026-09-06T20:00:00.000Z" }],
           recent_receipts: [{ id: "a1700000-0000-4000-8000-000000000001", entry_type: "consume", units_delta: -20, source_category: "sandbox_run", run_id: "a1800000-0000-4000-8000-000000000001", created_at: "2026-09-06T19:00:00.000Z" }],
+          recent_operational_usage: networkState.administrativeAllowance ? [{ run_id: "a1800000-0000-4000-8000-000000000002", calculated_units: 19, charged_units: 0, failure_class: null, measured_at: "2026-09-06T19:10:00.000Z" }] : [],
           warnings: ["Local Elysia computation is not metered by EcoSyneva."],
         },
       }),
@@ -343,7 +348,7 @@ async function installNetworkFixtures(context, networkState) {
   });
 }
 
-async function loadWorkbench(browser, browserName, viewport, comprehensive, scenario = "supported", navigateFromPost = false) {
+async function loadWorkbench(browser, browserName, viewport, comprehensive, scenario = "supported", navigateFromPost = false, administrativeAllowance = false) {
   currentPost = publicPost();
   currentSnippet = scenario === "plain-text" ? plainTextSnippet() : snippetVersion(1);
   const context = await browser.newContext({ viewport });
@@ -354,7 +359,8 @@ async function loadWorkbench(browser, browserName, viewport, comprehensive, scen
     healthRequests: 0,
     healthError: null,
     nextSandboxError: null,
-    nextSandboxStatus: "completed"
+    nextSandboxStatus: "completed",
+    administrativeAllowance,
   };
   await context.addInitScript(({ storageKey, session }) => {
     localStorage.setItem(storageKey, JSON.stringify(session));
@@ -424,6 +430,10 @@ async function loadWorkbench(browser, browserName, viewport, comprehensive, scen
   if (scenario === "plain-text") {
     assert.equal(await workspace.getByText("Hosted allowance: 65% remaining", { exact: true }).count(), 0, `${browserName} must not imply that a static non-executable surface can consume hosted allowance.`);
     assert.equal(await workspace.getByRole("link", { name: "View allowance", exact: true }).count(), 0, `${browserName} must keep the compact allowance control off static non-executable surfaces.`);
+  } else if (administrativeAllowance) {
+    await waitFor(async () => await workspace.getByText("Admin operational allowance · non-depleting", { exact: true }).count() === 2, `${browserName} did not render truthful administrator operational accounting on both runnable surfaces.`);
+    assert.equal(await workspace.getByText("Hosted allowance: 65% remaining", { exact: true }).count(), 0, `${browserName} must not portray administrator operational access as a permanently full finite allowance.`);
+    assert.equal(await workspace.getByRole("link", { name: "View allowance", exact: true }).count(), 2, `${browserName} must preserve the detailed allowance link for administrator operations.`);
   } else {
     await waitFor(async () => await workspace.getByText("Hosted allowance: 65% remaining", { exact: true }).count() === 2, `${browserName} did not render the shared authoritative hosted-allowance percentage on both runnable surfaces.`);
     assert.equal(await workspace.getByRole("link", { name: "View allowance", exact: true }).count(), 2, `${browserName} must link both runnable surfaces to the canonical allowance page.`);
@@ -465,6 +475,20 @@ async function loadWorkbench(browser, browserName, viewport, comprehensive, scen
     assert.deepEqual(violations, [], "Plain-text workbench interactions should not violate CSP.");
     await context.close();
     return;
+  }
+
+  if (administrativeAllowance) {
+    const adminAllowancePage = await context.newPage();
+    const adminAllowanceResponse = await adminAllowancePage.goto(`${origin}/commons-circle/settings/hosted-execution`, { waitUntil: "networkidle", timeout: 45_000 });
+    assert.equal(adminAllowanceResponse?.status(), 200, `${browserName} administrator allowance route should load.`);
+    await adminAllowancePage.getByRole("heading", { name: "Non-depleting accounting within bounded sandbox execution", exact: true }).waitFor({ timeout: 30_000 });
+    await adminAllowancePage.getByText("Ordinary starter allowance preserved", { exact: true }).waitFor();
+    assert.equal(await adminAllowancePage.getByRole("heading", { name: "6.5 / 10 units remaining", exact: true }).count(), 1);
+    assert.equal(await adminAllowancePage.getByText("1 measured units", { exact: true }).count(), 1);
+    assert.equal(await adminAllowancePage.getByText("0.19 units measured · 0 deducted", { exact: false }).count(), 1);
+    assert.equal(await adminAllowancePage.getByText("This does not mean unlimited runtime", { exact: false }).count(), 1);
+    assert.equal(await adminAllowancePage.locator("body").evaluate((element) => element.scrollWidth > element.clientWidth + 2), false, `${browserName} administrator allowance page must not overflow horizontally.`);
+    await adminAllowancePage.close();
   }
 
   if (!comprehensive) {
@@ -649,6 +673,7 @@ try {
   await loadWorkbench(activeBrowser, "Chromium", { width: 1440, height: 1000 }, true, "supported", true);
   await loadWorkbench(activeBrowser, "Chromium Plain text", { width: 1440, height: 1000 }, false, "plain-text");
   await loadWorkbench(activeBrowser, "Chromium mobile", { width: 390, height: 844 }, false, "supported", true);
+  await loadWorkbench(activeBrowser, "Chromium administrator allowance", { width: 1024, height: 900 }, false, "supported", false, true);
   await activeBrowser.close();
   activeBrowser = null;
 
