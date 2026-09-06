@@ -94,7 +94,8 @@ const reviewed20260716ServiceRoleMigrations = new Set([
   "supabase/migrations/20260716050000_marketplace_commerce_licenses_and_seller_accounting.sql",
   "supabase/migrations/20260716060000_organization_sponsorship_waiver_sidecars.sql",
   "supabase/migrations/20260716070000_economic_projections_reporting_notifications_lifecycle.sql",
-  "supabase/migrations/20260716071000_economic_route_kill_switch_boundaries.sql"
+  "supabase/migrations/20260716071000_economic_route_kill_switch_boundaries.sql",
+  "supabase/migrations/20260906010000_hosted_execution_allowance_production_activation.sql"
 ]);
 const reviewedArtisanServiceRoleMigrations = new Set([
   "supabase/migrations/20260718010000_shared_identity_profile_governance.sql",

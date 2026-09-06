@@ -127,6 +127,10 @@ const adminBadgeSelfManagementPaths = [
   "supabase/migrations/20260904060000_admin_badge_self_management.sql",
 ];
 
+const hostedAllowanceActivationPaths = [
+  "supabase/migrations/20260906010000_hosted_execution_allowance_production_activation.sql",
+];
+
 const activePaths = [
   ...baselinePaths,
   ...economicPaths,
@@ -145,6 +149,7 @@ const activePaths = [
   ...onlineActionRatePaths,
   ...operationalOverviewPaths,
   ...adminBadgeSelfManagementPaths,
+  ...hostedAllowanceActivationPaths,
 ];
 
 const legacyHashes = new Map(Object.entries({
@@ -265,12 +270,16 @@ const operationalOverviewMigrations = await Promise.all(
 const adminBadgeSelfManagementMigrations = await Promise.all(
   adminBadgeSelfManagementPaths.map((file) => fs.readFile(file, "utf8"))
 );
+const hostedAllowanceActivationMigrations = await Promise.all(
+  hostedAllowanceActivationPaths.map((file) => fs.readFile(file, "utf8"))
+);
 const jobOpportunityBehaviorFixture = await fs.readFile("scripts/fixtures/jobOpportunityDatabaseBehavior.sql", "utf8");
 const circlePrivateBehaviorFixture = await fs.readFile("scripts/fixtures/communeCirclePrivateBehavior.sql", "utf8");
 const badgeCompletionBehaviorFixture = await fs.readFile("scripts/fixtures/badgeCompletionBehavior.sql", "utf8");
 const storageUploadPolicyBehaviorFixture = await fs.readFile("scripts/fixtures/storageUploadPolicyBehavior.sql", "utf8");
 const onlineActionRateBehaviorFixture = await fs.readFile("scripts/fixtures/onlineActionRateBehavior.sql", "utf8");
 const operationalOverviewBehaviorFixture = await fs.readFile("scripts/fixtures/adminOperationalOverviewBehavior.sql", "utf8");
+const hostedAllowanceProductionBehaviorFixture = await fs.readFile("scripts/fixtures/hostedExecutionAllowanceProductionBehavior.sql", "utf8");
 const routeKillSwitchMigration = economicMigrations.at(-1);
 assert(routeKillSwitchMigration, "Economic route kill-switch migration is missing.");
 const economicBehaviorFixture = await fs.readFile("scripts/fixtures/economicDatabaseBehavior.sql", "utf8");
@@ -281,6 +290,39 @@ for (const [index, migration] of economicMigrations.entries()) {
   assert(!/postgres(?:ql)?:\/\//i.test(migration), `${economicPaths[index]} contains a connection string.`);
   assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${economicPaths[index]} contains a token-like value.`);
 }
+for (const [index, migration] of hostedAllowanceActivationMigrations.entries()) {
+  assert(migration.startsWith("--"), `${hostedAllowanceActivationPaths[index]} needs an explanatory header.`);
+  assert(/^begin;/im.test(migration), `${hostedAllowanceActivationPaths[index]} must start a transaction.`);
+  assert(/commit;\s*$/i.test(migration), `${hostedAllowanceActivationPaths[index]} must commit atomically.`);
+  assert(!/postgres(?:ql)?:\/\//i.test(migration), `${hostedAllowanceActivationPaths[index]} contains a connection string.`);
+  assert(!/\b(?:eyJ[A-Za-z0-9_-]{20,}|sb_(?:secret|publishable)_[A-Za-z0-9_-]{10,})\b/.test(migration), `${hostedAllowanceActivationPaths[index]} contains a token-like value.`);
+}
+for (const marker of [
+  "hosted_execution_allowance_v1",
+  "hosted_execution_starter_v1",
+  "unit_scale", "100", "1000",
+  "test_mode = false", "approved_for_live_use = true",
+  "private.ensure_hosted_execution_starter_allowance",
+  "private.sandbox_actor_is_active",
+  "sandbox_credit_display", "sandbox_credit_enforcement",
+  "paid_allowance_available", "false",
+  "memory_exceeded",
+  "economicEnforcement", "reservedCreditUnits", "creditUnitScale",
+  "allowance_type", "one_time_starter",
+  "Local Elysia computation is not metered by EcoSyneva.",
+]) assert(hostedAllowanceActivationMigrations.join("\n").includes(marker), `Hosted allowance activation migration omits ${marker}.`);
+for (const marker of [
+  "hosted_execution_allowance_production_behavior_ok",
+  "existing eligible user did not receive exactly one live starter grant",
+  "profileless user received a hosted-execution starter grant",
+  "new-user starter grant was not idempotent",
+  "live reservation replay was not exactly-once",
+  "measured success did not settle at 19 raw units",
+  "failure charging semantics drifted",
+  "double-run protection did not serialize requests",
+  "exhaustion did not fail closed",
+  "a reservation has duplicate settlement entries",
+]) assert(hostedAllowanceProductionBehaviorFixture.includes(marker), `Hosted allowance production fixture omits ${marker}.`);
 for (const [index, migration] of artisanMigrations.entries()) {
   assert(migration.startsWith("--"), `${artisanPaths[index]} needs an explanatory header.`);
   assert(/^begin;/im.test(migration), `${artisanPaths[index]} must start a transaction.`);
@@ -666,6 +708,11 @@ const economicPlpgsqlFunctions = [...new Set(
   [...economicSource.matchAll(/create or replace function\s+(public|private)\.([a-z0-9_]+)\s*\(/gi)]
     .map((match) => `${match[1].toLowerCase()}.${match[2].toLowerCase()}`),
 )];
+const hostedAllowanceActivationSource = hostedAllowanceActivationMigrations.join("\n");
+const hostedAllowancePlpgsqlFunctions = [...new Set(
+  [...hostedAllowanceActivationSource.matchAll(/create or replace function\s+(public|private)\.([a-z0-9_]+)\s*\(/gi)]
+    .map((match) => `${match[1].toLowerCase()}.${match[2].toLowerCase()}`),
+)];
 for (const marker of [
   "private.economic_orders", "private.economic_payment_transactions",
   "private.economic_subscriptions", "private.economic_refunds",
@@ -964,6 +1011,7 @@ try {
     "scripts/fixtures/storageUploadPolicyBehavior.sql",
     "scripts/fixtures/onlineActionRateBehavior.sql",
     "scripts/fixtures/adminOperationalOverviewBehavior.sql",
+    "scripts/fixtures/hostedExecutionAllowanceProductionBehavior.sql",
     "scripts/sql/supabase_read_only_inventory.sql",
   ]) {
     await run(containerRuntime, ["cp", file, `${container}:/tmp/${path.basename(file)}`]);
@@ -1110,6 +1158,14 @@ try {
   for (const file of accountCommunicationPaths) {
     await psql(["-f", `/tmp/${path.basename(file)}`]);
   }
+  const accountReleaseReconciliationBehavior = await psql([
+    "-f",
+    "/tmp/accountReleaseReconciliationBehavior.sql",
+  ]);
+  assert(
+    accountReleaseReconciliationBehavior.stdout.includes("account_release_reconciliation_behavior_ok"),
+    "Account release reconciliation behavior marker missing."
+  );
   for (const file of opportunityPaths) {
     await psql(["-f", `/tmp/${path.basename(file)}`]);
   }
@@ -1186,6 +1242,140 @@ try {
   for (const file of adminBadgeSelfManagementPaths) {
     await psql(["-f", `/tmp/${path.basename(file)}`]);
   }
+  await psql(["-c", `
+    insert into auth.users(id, email, email_confirmed_at, created_at, updated_at)
+    values
+      ('a6000000-0000-4000-8000-000000000001', 'hosted-allowance-existing@example.invalid', now(), now(), now()),
+      ('a6000000-0000-4000-8000-000000000002', 'hosted-allowance-ineligible@example.invalid', now(), now(), now());
+    insert into public.profiles(id, username, display_name, commons_onboarding_completed_at)
+    values (
+      'a6000000-0000-4000-8000-000000000001',
+      'hosted-allowance-existing', 'Hosted Allowance Existing', now()
+    );
+  `]);
+  for (const file of hostedAllowanceActivationPaths) {
+    await psql(["-f", `/tmp/${path.basename(file)}`]);
+  }
+  const hostedAllowanceProductionBehavior = await psql([
+    "-f",
+    "/tmp/hostedExecutionAllowanceProductionBehavior.sql",
+  ]);
+  assert(
+    hostedAllowanceProductionBehavior.stdout.includes("hosted_execution_allowance_production_behavior_ok"),
+    "Hosted execution allowance production behavior marker missing."
+  );
+  await psql(["-c", `
+    insert into auth.users(id, email, email_confirmed_at, created_at, updated_at)
+    values (
+      'c5000000-0000-4000-8000-000000000001',
+      'hosted-allowance-concurrency@example.invalid', now(), now(), now()
+    );
+    insert into public.profiles(id, username, display_name, commons_onboarding_completed_at)
+    values (
+      'c5000000-0000-4000-8000-000000000001',
+      'hosted-allowance-concurrency', 'Hosted Allowance Concurrency', now()
+    );
+  `]);
+  const concurrentAllowanceReserveSql = (requestId, snapshot) => `
+    begin;
+    set local role authenticated;
+    select pg_catalog.set_config(
+      'request.jwt.claim.sub',
+      'c5000000-0000-4000-8000-000000000001', true
+    );
+    select pg_catalog.set_config(
+      'request.jwt.claims',
+      '{"sub":"c5000000-0000-4000-8000-000000000001","role":"authenticated"}',
+      true
+    );
+    select public.reserve_commune_sandbox_run(
+      '${requestId}', '${snapshot}', 'manual_snapshot', null, null, null, null,
+      'python', 'main.py', repeat('7', 64), 16
+    );
+    commit;
+  `;
+  const concurrentAllowanceResults = await Promise.all([
+    run(containerRuntime, [
+      "exec", container, "psql", "-qAt", "-v", "ON_ERROR_STOP=1",
+      "-U", "supabase_admin", "-d", "postgres", "-c",
+      concurrentAllowanceReserveSql(
+        "c5100000-0000-4000-8000-000000000001",
+        "concurrent-allowance-one"
+      ),
+    ], { allowFailure: true }),
+    run(containerRuntime, [
+      "exec", container, "psql", "-qAt", "-v", "ON_ERROR_STOP=1",
+      "-U", "supabase_admin", "-d", "postgres", "-c",
+      concurrentAllowanceReserveSql(
+        "c5100000-0000-4000-8000-000000000002",
+        "concurrent-allowance-two"
+      ),
+    ], { allowFailure: true }),
+  ]);
+  assert(
+    concurrentAllowanceResults.every((result) => result.code === 0),
+    "Concurrent hosted-allowance reservations must return governed results without transaction failure."
+  );
+  const concurrentAllowancePayloads = concurrentAllowanceResults.map((result) => {
+    const jsonLine = result.stdout.trim().split("\n").findLast((line) => line.startsWith("{"));
+    return JSON.parse(jsonLine ?? "null");
+  });
+  assert(
+    concurrentAllowancePayloads.filter((payload) => payload?.accepted === true).length === 1
+      && concurrentAllowancePayloads.filter((payload) =>
+        payload?.accepted === false && payload?.reason === "active_reservation"
+      ).length === 1,
+    `Concurrent hosted-allowance reserve did not serialize exactly one run: ${JSON.stringify(concurrentAllowancePayloads)}.`
+  );
+  const concurrencyCleanup = await psql(["-tAc", `
+    begin;
+    set local role authenticated;
+    select pg_catalog.set_config(
+      'request.jwt.claim.sub',
+      'c5000000-0000-4000-8000-000000000001', true
+    );
+    select pg_catalog.set_config(
+      'request.jwt.claims',
+      '{"sub":"c5000000-0000-4000-8000-000000000001","role":"authenticated"}',
+      true
+    );
+    select public.start_commune_sandbox_run(
+      run.id, run.client_request_id,
+      'disposable-finalizer-token-0123456789abcdef'
+    )
+    from public.commune_sandbox_runs as run
+    where run.requester_user_id = 'c5000000-0000-4000-8000-000000000001'
+      and run.status = 'queued';
+    select public.finalize_commune_sandbox_run(
+      run.id, run.client_request_id,
+      'disposable-finalizer-token-0123456789abcdef',
+      'failed', false, 'Cancelled after concurrency proof.', '', '', null,
+      1, false, '[]'::jsonb, 16, 0, 500, 268435456,
+      0, 1048576, false, 'cancelled'
+    )
+    from public.commune_sandbox_runs as run
+    where run.requester_user_id = 'c5000000-0000-4000-8000-000000000001'
+      and run.status = 'running';
+    reset role;
+    do \$concurrent_allowance_cleanup\$
+    begin
+      if exists (
+        select 1
+        from private.sandbox_credit_reservations
+        where user_id = 'c5000000-0000-4000-8000-000000000001'
+          and status = 'held'
+      ) then
+        raise exception 'concurrent_hosted_allowance_reservation_not_released';
+      end if;
+    end
+    \$concurrent_allowance_cleanup\$;
+    select 'concurrent_hosted_allowance_cleanup_ok';
+    commit;
+  `]);
+  assert(
+    concurrencyCleanup.stdout.includes("concurrent_hosted_allowance_cleanup_ok"),
+    `Concurrent hosted-allowance qualification left a held reservation: ${concurrencyCleanup.stdout.trim()}.`
+  );
   const badgeCompletionBehavior = await psql(["-f", "/tmp/badgeCompletionBehavior.sql"]);
   assert(
     badgeCompletionBehavior.stdout.includes("badge_completion_behavior_ok"),
@@ -1310,14 +1500,6 @@ try {
   assert(
     accountAuthDeletionLifecycleBehavior.stdout.includes("Account Auth deletion lifecycle behavior checks ok."),
     "Account Auth deletion lifecycle behavior marker missing."
-  );
-  const accountReleaseReconciliationBehavior = await psql([
-    "-f",
-    "/tmp/accountReleaseReconciliationBehavior.sql",
-  ]);
-  assert(
-    accountReleaseReconciliationBehavior.stdout.includes("account_release_reconciliation_behavior_ok"),
-    "Account release reconciliation behavior marker missing."
   );
   const codeProposalIntegrityBehavior = await psql([
     "-f",
@@ -1551,6 +1733,7 @@ try {
     await psql(["-c", "create extension if not exists plpgsql_check;"]);
     const governedPlpgsqlFunctions = [...new Set([
       ...economicPlpgsqlFunctions,
+      ...hostedAllowancePlpgsqlFunctions,
       ...artisanPlpgsqlFunctions,
       ...onlineCompatibilityPlpgsqlFunctions,
       ...accountCommunicationPlpgsqlFunctions,
