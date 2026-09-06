@@ -395,7 +395,10 @@ function BadgesPage() {
   const [awards, setAwards] = useState<BadgeAwardAdmin[]>([]);
   const [messages, setMessages] = useState<string[]>([]);
   const [manualForm, setManualForm] = useState({ userId: "", badgeKey: "", reason: "" });
-  const [actionReason, setActionReason] = useState("");
+  const [recentActionReason, setRecentActionReason] = useState("");
+  const [recentActionError, setRecentActionError] = useState("");
+  const [timelineActionReason, setTimelineActionReason] = useState("");
+  const [timelineActionError, setTimelineActionError] = useState("");
   const [manualRestoreOverride, setManualRestoreOverride] = useState(false);
   const [creditForm, setCreditForm] = useState({
     userId: "", creditType: "", creditAmount: 1 as 1 | 2,
@@ -427,7 +430,13 @@ function BadgesPage() {
       .map((rule) => [rule.required_credit_type, rule])
   ).values()];
 
-  return <div className="page-stack admin-page">
+  const validateLocalActionReason = (reason: string, action: "revoke" | "restore") => {
+    if (!reason.trim()) return `Record a reason here before you ${action}.`;
+    if (reason.trim().length > 2000) return "Keep the audited reason to 2,000 characters or fewer.";
+    return "";
+  };
+
+  return <div className="page-stack admin-page admin-badges-page">
     <PageHero eyebrow="Admin" title="Badge Management"><p>Record reviewed evidence, grant, revoke, restore, and inspect recognition through audited backend functions. Badges never create roles, moderation authority, Marketplace approval, governance power, paid status, or trust by themselves.</p></PageHero>
     <AdminNav />
     {messages.map((message) => <p className="message" key={message}>{message}</p>)}
@@ -453,7 +462,9 @@ function BadgesPage() {
       <div className="section-card">
         <h2>Active definitions</h2>
         {!definitions.length && <p>No active badge definitions were returned.</p>}
-        {definitions.map((definition) => <article className="review-list-item" key={definition.badge_key}><strong>{definition.name}</strong><span>{definition.badge_key} · {definition.category ?? "uncategorized"}</span><span>{definition.award_mode ?? "governed"}{definition.is_manual_only ? " · manual only" : ""}</span><p>{definition.description}</p></article>)}
+        {definitions.length > 0 && <div className="admin-badge-scroll admin-badge-scroll--catalog" role="region" aria-label="Active badge definitions" tabIndex={0}>
+          {definitions.map((definition) => <article className="review-list-item" key={definition.badge_key}><strong>{definition.name}</strong><span>{definition.badge_key} · {definition.category ?? "uncategorized"}</span><span>{definition.award_mode ?? "governed"}{definition.is_manual_only ? " · manual only" : ""}</span><p>{definition.description}</p></article>)}
+        </div>}
       </div>
     </section>
     <section className="two-column">
@@ -489,20 +500,27 @@ function BadgesPage() {
         <h2>Active qualification rules</h2>
         <p className="boundary-note">These thresholds are recognition rules only. “Major” is a reviewed evidence classification, never a payment amount, hosted-credit balance, or social rank.</p>
         {!rules.length && <p>No active badge rules were returned.</p>}
-        {rules.map((rule) => <article className="review-list-item" key={`${rule.badge_slug}-${rule.rule_type}-${rule.required_credit_type ?? "none"}`}><strong>{rule.badge_slug.replace(/_/g, " ")}</strong><span>{rule.rule_type.replace(/_/g, " ")}{rule.required_credit_type ? ` · ${rule.required_credit_type.replace(/_/g, " ")}` : ""}</span><span>{rule.required_count ? `count ${rule.required_count}` : ""}{rule.required_credit_sum ? ` sum ${rule.required_credit_sum}` : ""}{rule.distinct_subject_min ? ` · ${rule.distinct_subject_min} distinct subjects` : ""}{rule.requires_major ? " · major shortcut reviewed" : ""}</span><p>{rule.description ?? "No rule description supplied."}</p></article>)}
+        {rules.length > 0 && <div className="admin-badge-scroll admin-badge-scroll--catalog" role="region" aria-label="Active badge qualification rules" tabIndex={0}>
+          {rules.map((rule) => <article className="review-list-item" key={`${rule.badge_slug}-${rule.rule_type}-${rule.required_credit_type ?? "none"}`}><strong>{rule.badge_slug.replace(/_/g, " ")}</strong><span>{rule.rule_type.replace(/_/g, " ")}{rule.required_credit_type ? ` · ${rule.required_credit_type.replace(/_/g, " ")}` : ""}</span><span>{rule.required_count ? `count ${rule.required_count}` : ""}{rule.required_credit_sum ? ` sum ${rule.required_credit_sum}` : ""}{rule.distinct_subject_min ? ` · ${rule.distinct_subject_min} distinct subjects` : ""}{rule.requires_major ? " · major shortcut reviewed" : ""}</span><p>{rule.description ?? "No rule description supplied."}</p></article>)}
+        </div>}
       </div>
     </section>
     <section className="section-card">
       <h2>Recent badge awards</h2>
       <p className="boundary-note">This administrator view omits private evidence payloads. Revocation creates durable suppression so automatic evaluation cannot immediately recreate the award.</p>
-      <label><span>Reason for the next revoke or restore action</span><textarea value={actionReason} onChange={(event) => setActionReason(event.target.value)} /></label>
+      <label><span>Reason for the next revoke action in Recent Badge Awards</span><textarea aria-describedby={recentActionError ? "recent-badge-reason-error" : undefined} value={recentActionReason} onChange={(event) => { setRecentActionReason(event.target.value); setRecentActionError(""); }} /></label>
+      {recentActionError && <p className="form-error" id="recent-badge-reason-error" role="alert">{recentActionError}</p>}
       {!awards.filter((award) => !award.revoked_at).length && <p>No active badge awards were returned.</p>}
+      {awards.filter((award) => !award.revoked_at).length > 0 && <div className="admin-badge-scroll admin-badge-scroll--recent" role="region" aria-label="Recent active badge awards" tabIndex={0}>
       {awards.filter((award) => !award.revoked_at).map((award) => <article className="review-list-item admin-detail-card" key={award.id}><strong>{award.badge_key}</strong><span>Target: {award.user_id}</span><span>{award.award_source ?? "unspecified source"} · {award.visibility}</span><span>Awarded {award.awarded_at}</span><button type="button" onClick={async () => {
+        const reasonError = validateLocalActionReason(recentActionReason, "revoke");
+        if (reasonError) { setRecentActionError(reasonError); return; }
         if (!window.confirm(`Revoke ${award.badge_key} from this target and create durable suppression?`)) return;
-        const result = await revokeBadgeFromUser(award.user_id, award.badge_key, actionReason);
+        const result = await revokeBadgeFromUser(award.user_id, award.badge_key, recentActionReason);
         setMessages([result.ok ? "Badge revoked and automatic re-award suppressed." : result.warning ?? "Badge revocation failed."]);
-        if (result.ok) { setActionReason(""); void refresh(); }
+        if (result.ok) { setRecentActionReason(""); setRecentActionError(""); void refresh(); }
       }}>Revoke badge</button></article>)}
+      </div>}
     </section>
     <section className="section-card">
       <h2>Per-account award, evidence, suppression, and audit history</h2>
@@ -512,32 +530,53 @@ function BadgesPage() {
         <label><span>Badge filter</span><select value={timelineForm.badgeKey} onChange={(event) => setTimelineForm({ ...timelineForm, badgeKey: event.target.value })}><option value="">All badges and credits</option>{definitions.map((definition) => <option key={definition.badge_key} value={definition.badge_key}>{definition.name}</option>)}</select></label>
       </div>
       <div className="button-row"><button className="button-primary" type="button" onClick={() => void refreshTimeline()}>Load private badge history</button></div>
-      {timeline && <div className="two-column admin-review-grid">
-        <div>
-          <h3>Awards ({timeline.awards.length})</h3>
+      {timeline && <>
+      <label className="admin-badge-local-reason"><span>Reason for the next revoke or restore action in this account history</span><textarea aria-describedby={timelineActionError ? "timeline-badge-reason-error" : undefined} value={timelineActionReason} onChange={(event) => { setTimelineActionReason(event.target.value); setTimelineActionError(""); }} /></label>
+      {timelineActionError && <p className="form-error" id="timeline-badge-reason-error" role="alert">{timelineActionError}</p>}
+      <div className="two-column admin-review-grid admin-badge-history-grid">
+        <div className="admin-badge-history-column">
+          <section className="admin-badge-history-group">
+          <h3 id="admin-badge-history-awards-heading">Awards ({timeline.awards.length})</h3>
+          <div className="admin-badge-scroll admin-badge-scroll--history" role="region" aria-labelledby="admin-badge-history-awards-heading" tabIndex={0}>
           {!timeline.awards.length && <p>No matching award history.</p>}
           {timeline.awards.map((award) => <article className="review-list-item admin-detail-card" key={award.id}><strong>{award.badge_key}</strong><span>{award.award_source ?? "unspecified"} · {award.visibility}</span><span>{award.revoked_at ? `Revoked ${award.revoked_at}` : `Active since ${award.awarded_at}`}</span><p>{award.award_reason ?? "No award reason recorded."}</p><span>Evidence: {award.evidence_type ?? "none"} · {award.evidence_id ?? "none"}</span>{award.revoked_reason && <p>Revocation: {award.revoked_reason}</p>}</article>)}
-          <h3>Suppressions ({timeline.suppressions.length})</h3>
+          </div></section>
+          <section className="admin-badge-history-group">
+          <h3 id="admin-badge-history-suppressions-heading">Suppressions ({timeline.suppressions.length})</h3>
+          <div className="admin-badge-scroll admin-badge-scroll--history" role="region" aria-labelledby="admin-badge-history-suppressions-heading" tabIndex={0}>
+          {!timeline.suppressions.length && <p>No matching suppression history.</p>}
           {timeline.suppressions.map((suppression) => <article className="review-list-item admin-detail-card" key={suppression.id}><strong>{suppression.badge_key}</strong><span>{suppression.lifted_at ? `Lifted ${suppression.lifted_at}` : `Active since ${suppression.suppressed_at}`}</span><p>{suppression.reason ?? "No suppression reason recorded."}</p>{suppression.lift_reason && <p>Lift reason: {suppression.lift_reason}</p>}{!suppression.lifted_at && <><label className="checkbox-line"><input type="checkbox" checked={manualRestoreOverride} onChange={(event) => setManualRestoreOverride(event.target.checked)} /><span>Explicit manual override if current evidence does not qualify (manual-only badges restore manually regardless)</span></label><button type="button" onClick={async () => {
+            const reasonError = validateLocalActionReason(timelineActionReason, "restore");
+            if (reasonError) { setTimelineActionError(reasonError); return; }
             if (!window.confirm(`Lift suppression and restore or re-evaluate ${suppression.badge_key}?`)) return;
-            const result = await restoreBadgeForUser(timeline.targetUserId, suppression.badge_key, actionReason, manualRestoreOverride);
+            const result = await restoreBadgeForUser(timeline.targetUserId, suppression.badge_key, timelineActionReason, manualRestoreOverride);
             setMessages([result.ok ? result.restored ? "Badge suppression lifted and recognition restored." : "Suppression lifted; current evidence did not requalify the badge." : result.warning ?? "Badge restore failed."]);
-            if (result.ok) { setActionReason(""); setManualRestoreOverride(false); void refresh(); void refreshTimeline(); }
+            if (result.ok) { setTimelineActionReason(""); setTimelineActionError(""); setManualRestoreOverride(false); void refresh(); void refreshTimeline(); }
           }}>Restore or re-evaluate badge</button></>}</article>)}
+          </div></section>
         </div>
-        <div>
-          <h3>Reviewed credit events ({timeline.credits.length})</h3>
+        <div className="admin-badge-history-column">
+          <section className="admin-badge-history-group">
+          <h3 id="admin-badge-history-credits-heading">Reviewed credit events ({timeline.credits.length})</h3>
+          <div className="admin-badge-scroll admin-badge-scroll--history" role="region" aria-labelledby="admin-badge-history-credits-heading" tabIndex={0}>
           {!timeline.credits.length && <p>No matching reviewed credit evidence.</p>}
           {timeline.credits.map((credit) => <article className="review-list-item admin-detail-card" key={credit.id}><strong>{credit.credit_type.replace(/_/g, " ")} · {credit.credit_amount}</strong><span>{credit.contribution_type} · {credit.contribution_id}</span><span>{credit.review_item_id ? `Review item ${credit.review_item_id}` : "Administrator-reviewed direct evidence"}</span><span>{credit.is_major ? "Major contribution evidence" : "Ordinary contribution evidence"}{credit.distinct_subject_key ? ` · subject ${credit.distinct_subject_key}` : ""}</span><p>{credit.notes}</p>{credit.revoked_at ? <p>Revoked {credit.revoked_at}: {credit.revoked_reason ?? "No reason recorded."}</p> : <button type="button" onClick={async () => {
+            const reasonError = validateLocalActionReason(timelineActionReason, "revoke");
+            if (reasonError) { setTimelineActionError(reasonError); return; }
             if (!window.confirm(`Revoke badge credit ${credit.id} and re-evaluate rule awards?`)) return;
-            const result = await revokeBadgeCredit(credit.id, actionReason);
+            const result = await revokeBadgeCredit(credit.id, timelineActionReason);
             setMessages([result.ok ? "Badge credit revoked and affected rule awards re-evaluated." : result.warning ?? "Badge-credit revocation failed."]);
-            if (result.ok) { setActionReason(""); void refresh(); void refreshTimeline(); }
+            if (result.ok) { setTimelineActionReason(""); setTimelineActionError(""); void refresh(); void refreshTimeline(); }
           }}>Revoke credit and re-evaluate</button>}</article>)}
-          <h3>Audit events ({timeline.auditEvents.length})</h3>
+          </div></section>
+          <section className="admin-badge-history-group">
+          <h3 id="admin-badge-history-audit-heading">Audit events ({timeline.auditEvents.length})</h3>
+          <div className="admin-badge-scroll admin-badge-scroll--audit" role="region" aria-labelledby="admin-badge-history-audit-heading" tabIndex={0}>
+          {!timeline.auditEvents.length && <p>No matching audit history.</p>}
           {timeline.auditEvents.map((event) => <article className="review-list-item admin-detail-card" key={event.id}><strong>{event.action.replace(/_/g, " ")}</strong><span>{event.created_at} · actor {event.actor_user_id ?? "system"}</span><span>{event.badge_slug ?? "credit/rule event"}{event.credit_event_id ? ` · credit ${event.credit_event_id}` : ""}</span><pre className="admin-json-preview">{JSON.stringify(event.metadata, null, 2)}</pre></article>)}
+          </div></section>
         </div>
-      </div>}
+      </div></>}
     </section>
   </div>;
 }

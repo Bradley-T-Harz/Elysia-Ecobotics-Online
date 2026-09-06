@@ -5696,6 +5696,118 @@ button.repository-tree-row {
   color: var(--text);
 }
 
+.admin-badges-page .section-card {
+  min-width: 0;
+}
+
+.admin-badge-scroll {
+  max-height: min(28rem, 58vh);
+  min-width: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-color: rgba(142, 232, 220, 0.68) rgba(255, 255, 255, 0.06);
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-right: 0.45rem;
+}
+
+.admin-badge-scroll--catalog {
+  max-height: min(32rem, 62vh);
+}
+
+.admin-badge-scroll--recent {
+  max-height: min(26rem, 54vh);
+}
+
+.admin-badge-scroll--history {
+  max-height: min(22rem, 48vh);
+}
+
+.admin-badge-scroll--audit {
+  max-height: min(28rem, 54vh);
+}
+
+.admin-badge-scroll::-webkit-scrollbar {
+  width: 0.75rem;
+}
+
+.admin-badge-scroll::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.admin-badge-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: rgba(142, 232, 220, 0.62);
+  background-clip: padding-box;
+}
+
+.admin-badge-scroll:focus-visible {
+  outline: 3px solid rgba(142, 232, 220, 0.72);
+  outline-offset: 3px;
+}
+
+.admin-badge-scroll > .review-list-item:first-child {
+  margin-top: 0;
+}
+
+.admin-badge-scroll > .review-list-item:last-child {
+  margin-bottom: 0;
+}
+
+.admin-badge-local-reason {
+  display: grid;
+  gap: 0.45rem;
+  margin: 1rem 0 0.35rem;
+}
+
+.form-error {
+  margin: 0.35rem 0 0.85rem;
+  color: #ffbea1;
+  font-weight: 700;
+}
+
+.admin-badge-history-grid {
+  align-items: start;
+  margin-top: 1rem;
+}
+
+.admin-badge-history-column {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.admin-badge-history-group {
+  min-width: 0;
+  border: 1px solid rgba(142, 232, 220, 0.22);
+  border-radius: 16px;
+  padding: 0.9rem;
+  background: rgba(4, 12, 19, 0.34);
+}
+
+.admin-badge-history-group > h3 {
+  margin: 0 0 0.7rem;
+}
+
+@media (max-width: 760px) {
+  .admin-badge-scroll,
+  .admin-badge-scroll--catalog,
+  .admin-badge-scroll--recent,
+  .admin-badge-scroll--history,
+  .admin-badge-scroll--audit {
+    max-height: min(24rem, 56vh);
+    scrollbar-gutter: auto;
+  }
+
+  .admin-badge-history-group {
+    padding: 0.7rem;
+  }
+}
+
 .commune-code-preview,
 .commune-realtime-card,
 .commune-sandbox-card {
