@@ -11,6 +11,8 @@ if (extra.length && (extra.length !== 2 || extra[0] !== "--output" || !extra[1])
   throw new Error("Usage: node scripts/runReadinessChecks.mjs <check> [--output <evidence-directory>]");
 }
 const commands = {
+  preProvider: ["node", ["scripts/preProviderSmokeTest.mjs"]],
+  preProviderBrowser: ["node", ["scripts/preProviderBrowserTest.mjs"]],
   legal: ["node", ["scripts/prepareReadinessLegal.mjs", "--check"]],
   billing: ["npm", ["run", "test:billing"]],
   types: ["npm", ["run", "typecheck"]],
