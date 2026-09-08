@@ -1,6 +1,7 @@
 import { matchPath } from "react-router-dom";
 
 const requiredRoutes = [
+  "/marketplace/creator-studio",
   "/", "/archive", "/marketplace", "/marketplace/browse", "/marketplace/addons/:id",
   "/marketplace/action-preview", "/marketplace/account", "/marketplace/submit", "/marketplace/trust",
   "/marketplace/manifest-api", "/marketplace/admin", "/products", "/lab", "/developer-forge", "/developer-forge/profile", "/developer-forge/dashboard", "/developer-forge/drafts", "/developer-forge/drafts/new", "/developer-forge/drafts/:id", "/developer-forge/drafts/:id/manifest", "/developer-forge/drafts/:id/permissions", "/developer-forge/drafts/:id/package", "/developer-forge/drafts/:id/validate", "/developer-forge/drafts/:id/preview", "/developer-forge/drafts/:id/submit", "/developer-forge/submissions", "/developer-forge/submissions/:id", "/developer-forge/docs", "/developer-forge/docs/workbench", "/developer-forge/docs/manifest", "/developer-forge/docs/permissions", "/developer-forge/docs/security", "/developer-forge/docs/templates", "/developer-forge/docs/compatibility",

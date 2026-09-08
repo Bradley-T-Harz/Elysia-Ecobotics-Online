@@ -1,3 +1,6 @@
+import { Link } from "react-router-dom";
+import CreatorStudioDoorway from "../../../shared/navigation/CreatorStudioDoorway";
+import { useAuth } from "../../../shared/auth/useAuth";
 import { useCallback } from "react";
 import AuthPanel from "../components/AuthPanel";
 import ProfilePanel from "../components/ProfilePanel";
@@ -5,6 +8,7 @@ import MarketplaceCommerceAccountPanel from "../components/MarketplaceCommerceAc
 import { useMarketplaceContext } from "./useMarketplaceContext";
 
 export default function AccountPage() {
+  const { userId } = useAuth();
   const { profile, pushMessage, supabaseConfigured, refreshProfile, refreshReviewQueue } = useMarketplaceContext();
 
   const refreshAccountSurfaces = useCallback(async () => {
@@ -32,9 +36,11 @@ export default function AccountPage() {
           <div><h3>Future linking</h3><p>A short-lived pairing code can later link accounts after explicit local approval.</p></div>
         </div>
       </section>
-      <section className="two-column">
+      <CreatorStudioDoorway invite />
+      <section className="section-card"><h2>Your Commons profile is separate</h2><p>Commons profile setup manages your community presence. Marketplace Account keeps saved add-ons, licenses and creator preparation together.</p><Link className="button-link" to="/commons-circle/setup/profile">Commons profile setup</Link></section>
+      <section className="two-column" id="marketplace-profile">
         <AuthPanel onMessage={pushMessage} onAuthChanged={refreshAccountSurfaces} />
-        <ProfilePanel profile={profile} supabaseConfigured={supabaseConfigured} onMessage={pushMessage} onProfileSaved={refreshAccountSurfaces} />
+        {userId ? <ProfilePanel profile={profile} supabaseConfigured={supabaseConfigured} onMessage={pushMessage} onProfileSaved={refreshAccountSurfaces} /> : <section className="account-card"><h2>Marketplace profile</h2><p>Sign in to view or edit your Marketplace profile and saved add-ons.</p></section>}
       </section>
       <MarketplaceCommerceAccountPanel />
     </div>

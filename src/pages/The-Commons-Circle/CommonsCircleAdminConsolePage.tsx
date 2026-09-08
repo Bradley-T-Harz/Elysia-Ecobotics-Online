@@ -1,3 +1,4 @@
+import { canVisitStaffRoute, useAccountDoorways } from "../../shared/navigation/useAccountDoorways";
 import { useCallback, useEffect, useState } from "react";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
 import PageHero from "../../shared/components/PageHero";
@@ -8,6 +9,7 @@ import type { CommonsHomebaseData } from "./commonsCircleApi";
 
 const adminConsoleLinks = [
   ["/admin/economic-operations/readiness", "Economic Operations", "Payment readiness, seller onboarding, support, Marketplace settlement, refunds, and provider status. Separately assigned economic authority is required."],
+  ["/admin/review", "Review Center", "Independent access for authorized domain reviewers and moderators."],
   ["/admin", "Admin dashboard", "Governance overview and safe queue counts."],
   ["/admin/moderation", "Moderation dashboard", "Reported and flagged public content."],
   ["/admin/reports", "Reported content queue", "Private reports and review outcomes."],
@@ -42,6 +44,7 @@ export function CommonsCircleAdminEntryCard() {
 }
 
 export function CommonsCircleAdminConsolePanel({ homebase, roleState }: { homebase: CommonsHomebaseData; roleState: RoleGateState }) {
+  const access = useAccountDoorways();
   const profile = homebase.profile;
   const canOpenPrivateCommunications = roleState.isAdmin || roleState.roles.some((role) => role === "administrator" || role === "moderator" || role === "commune_moderator");
   return <section className="section-card commons-admin-console" id="admin-console">
@@ -55,7 +58,7 @@ export function CommonsCircleAdminConsolePanel({ homebase, roleState }: { homeba
       <MiniFact label="Authority source" value="Admin-assigned roles only" />
     </dl>
     <div className="commons-admin-grid">
-      {adminConsoleLinks.map(([href, label, description]) => <a className="commons-admin-link" href={href} key={href}><strong>{label}</strong><span>{description}</span></a>)}
+      {adminConsoleLinks.filter(([href]) => canVisitStaffRoute(href, access)).map(([href, label, description]) => <a className="commons-admin-link" href={href} key={href}><strong>{label}</strong><span>{description}</span></a>)}
       {roleState.isAdmin && <a className="commons-admin-link" href="/admin/badges"><strong>Badge management</strong><span>Audited manual recognition grants, revocations, and durable re-award suppression.</span></a>}
       {canOpenPrivateCommunications && <a className="commons-admin-link" href="/commons-circle/admin-communications"><strong>Account communications</strong><span>{roleState.isAdmin ? "Governed support, individual notices, opted-in announcements, and reported-message cases." : "Claimed, report-bound private-message moderation cases only."}</span></a>}
       {profile?.is_admin && roleState.isAdmin && <a className="commons-admin-link" href="/commons-circle/admin/messaging-access"><strong>Messaging access</strong><span>Controlled-beta enrollment and the audited new-initiation kill switch.</span></a>}
@@ -65,6 +68,7 @@ export function CommonsCircleAdminConsolePanel({ homebase, roleState }: { homeba
 }
 
 export default function CommonsCircleAdminConsolePage() {
+  const access = useAccountDoorways();
   const [homebase, setHomebase] = useState<CommonsHomebaseData | null>(null);
   const [roleState, setRoleState] = useState<RoleGateState>({ roles: [], isAdmin: false, signedIn: false });
   const [loaded, setLoaded] = useState(false);
@@ -83,7 +87,7 @@ export default function CommonsCircleAdminConsolePage() {
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  const allowed = userCanOpenCommonsAdminConsole(homebase, roleState);
+  const allowed = access.signedIn && canVisitStaffRoute("/commons-circle/admin-console", access) && userCanOpenCommonsAdminConsole(homebase, roleState);
 
   return <div className="page-stack commons-circle-page commons-homebase">
     <PageHero eyebrow="Private account extension" title="Commons Circle Admin Console">

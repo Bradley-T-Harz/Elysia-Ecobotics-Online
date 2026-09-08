@@ -1,3 +1,4 @@
+import { canVisitStaffRoute, useAccountDoorways } from "../../shared/navigation/useAccountDoorways";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
@@ -113,7 +114,7 @@ const adminLinks = [
   ["/admin/developers", "Developers"],
   ["/admin/library-sources", "Sources"],
   ["/admin/work-submissions", "Work"],
-  ["/admin/review", "All Review"],
+  ["/admin/review", "Review Center"],
   ["/admin/review/work-with", "Work With"],
   ["/admin/review/stewardship", "Stewardship"],
   ["/admin/review/commune", "Commune"],
@@ -160,7 +161,8 @@ function AdminChipRow({ labels }: { labels: string[] }) {
 }
 
 function AdminNav() {
-  return <nav className="admin-nav" aria-label="Admin sections">{adminLinks.map(([to, label]) => <Link key={to} to={to}>{label}</Link>)}</nav>;
+  const access = useAccountDoorways();
+  return <nav className="admin-nav" aria-label="Admin sections">{adminLinks.filter(([to]) => canVisitStaffRoute(to, access)).map(([to, label]) => <Link key={to} to={to}>{label}</Link>)}</nav>;
 }
 
 function reviewQueueTitle(filter: ReviewQueueFilter) {
@@ -191,20 +193,10 @@ function Unauthorized({ warnings }: { warnings: string[] }) {
 }
 
 function useRoleGate(domain?: ReviewDomain) {
-  const [roles, setRoles] = useState<AppRole[]>([]);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [signedIn, setSignedIn] = useState(false);
-  const [warnings, setWarnings] = useState<string[]>([]);
-  const refresh = useCallback(async () => {
-    const state = await loadCurrentRoleState();
-    setRoles(state.roles);
-    setIsAdmin(state.isAdmin);
-    setSignedIn(state.signedIn);
-    setWarnings(state.warnings);
-  }, []);
-  useEffect(() => { void refresh(); }, [refresh]);
+  const { roles, isAdmin, signedIn, warning } = useAccountDoorways();
+  const warnings = warning ? [warning] : [];
   const allowed = signedIn && (isAdmin || (domain ? canReviewDomain(roles, domain) : roles.length > 0));
-  return { roles, isAdmin, signedIn, warnings, allowed, refresh };
+  return { roles, isAdmin, signedIn, warnings, allowed };
 }
 
 function ReviewActions({ item, onChanged }: { item: ReviewItem; onChanged: (message: string) => void }) {
@@ -1036,7 +1028,7 @@ function CombinedAuditPage() {
 export function AdminHomePage() {
   const gate = useRoleGate();
   if (!gate.allowed) return <Unauthorized warnings={gate.warnings} />;
-  return <div className="page-stack admin-page"><PageHero eyebrow="Admin" title="Governance Console"><p>Review public website submissions without connecting to private local Elysia memory, files, logs, vaults, passwords, or credentials.</p></PageHero><AdminNav /><section className="section-card"><h2>Your roles</h2><div className="commons-badge-row">{gate.roles.map((role) => <RoleBadge key={role} role={role} />)}</div><p className="boundary-note">Roles are Supabase-backed and RLS-enforced. Badges, membership, donations, developer profiles, and contribution interest do not grant authority.</p></section><AdminSummaryCards /><OperationalOverviewPanel isAdmin={gate.isAdmin} /><section className="feature-grid feature-grid--three">{(Object.entries(domainLabels).filter(([domain]) => domain !== "contribution") as [ReviewDomain, string][]).map(([domain, label]) => <Link className="feature-card" to={`/admin/review/${domain === "work_with" ? "work-with" : domain === "living_library_source" ? "living-library" : domain === "living_library_broken_link" ? "broken-links" : domain}`} key={domain}><h3>{label}</h3><p>{canReviewDomain(gate.roles, domain) ? "Available for your role." : "Hidden by RLS if unauthorized."}</p></Link>)}</section><section className="section-card"><p className="eyebrow">Content visibility states</p><h2>Moderation lifecycle</h2><div className="commons-badge-row">{visibilityStates.map((state) => <span key={state}>{state}</span>)}</div><p className="boundary-note">Drafts are owner-only. Submitted items are owner plus reviewer/admin. Published items may be public. Flagged, hidden, removed, archived, and revoked content is restricted unless a public notice is intentionally shown.</p></section></div>;
+  return <div className="page-stack admin-page"><PageHero eyebrow="Admin" title="Governance Console"><p>Review public website submissions without connecting to private local Elysia memory, files, logs, vaults, passwords, or credentials.</p></PageHero><AdminNav /><section className="section-card"><h2>Your roles</h2><div className="commons-badge-row">{gate.roles.map((role) => <RoleBadge key={role} role={role} />)}</div><p className="boundary-note">Roles are Supabase-backed and RLS-enforced. Badges, membership, donations, developer profiles, and contribution interest do not grant authority.</p></section><AdminSummaryCards /><OperationalOverviewPanel isAdmin={gate.isAdmin} /><section className="feature-grid feature-grid--three">{(Object.entries(domainLabels).filter(([domain]) => domain !== "contribution" && (gate.isAdmin || canReviewDomain(gate.roles, domain as ReviewDomain))) as [ReviewDomain, string][]).map(([domain, label]) => <Link className="feature-card" to={`/admin/review/${domain === "work_with" ? "work-with" : domain === "living_library_source" ? "living-library" : domain === "living_library_broken_link" ? "broken-links" : domain}`} key={domain}><h3>{label}</h3><p>{"Available for your role."}</p></Link>)}</section><section className="section-card"><p className="eyebrow">Content visibility states</p><h2>Moderation lifecycle</h2><div className="commons-badge-row">{visibilityStates.map((state) => <span key={state}>{state}</span>)}</div><p className="boundary-note">Drafts are owner-only. Submitted items are owner plus reviewer/admin. Published items may be public. Flagged, hidden, removed, archived, and revoked content is restricted unless a public notice is intentionally shown.</p></section></div>;
 }
 
 export function AdminReviewPage() {

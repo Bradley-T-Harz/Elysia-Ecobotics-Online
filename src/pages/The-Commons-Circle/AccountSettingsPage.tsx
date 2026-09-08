@@ -5,6 +5,7 @@ import PageMetadata from "../../shared/components/PageMetadata";
 import RequireMember from "../../shared/auth/RequireMember";
 
 const sections = [
+  { title: "Marketplace Account", body: "Manage your Marketplace profile, saved add-ons and licenses. Creator Studio appears for accounts with a recorded creator identity.", links: [["Marketplace Account", "/marketplace/account"]] },
   { title: "Profile & Appearance", body: "Edit your private homebase appearance and canonical Commons Profile setup.", links: [["Profile setup", "/commons-circle/setup/profile"], ["Homebase appearance", "/commons-circle/settings/appearance"]] },
   { title: "Privacy & Public Profile", body: "Control Privacy Lanterns and the canonical public-profile publication preference.", links: [["Privacy Lanterns", "/commons-circle/settings/privacy"]] },
   { title: "Notifications & Communication", body: "Choose account notification preferences without mixing them into private-message settings.", links: [["Notification Preferences", "/commons-circle/settings/notifications"], ["Messaging settings", "/commons-circle/signals/inbox/settings"]] },

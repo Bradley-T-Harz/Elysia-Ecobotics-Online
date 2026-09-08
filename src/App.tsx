@@ -123,6 +123,8 @@ function CommonsCircleEntry() {
   return <CommonsCirclePage />;
 }
 
+const CreatorStudioPage = lazy(() => import("./pages/The-Elysia-Marketplace/pages/CreatorStudioPage"));
+
 export default function App() {
   return (
     <AuthProvider>
@@ -274,6 +276,7 @@ export default function App() {
             <Route path="account/reactivate" element={<AccountReactivationPage />} />
             <Route path="commons-circle/settings/hosted-execution" element={<HostedExecutionAllowancePage />} />
             <Route path="admin/economic-operations/:section" element={<EconomicOperationsSectionPage />} />
+            <Route path="marketplace/creator-studio" element={<CreatorStudioPage />} />
             </Route>
             </Routes>
             </AccountActivationBoundary>

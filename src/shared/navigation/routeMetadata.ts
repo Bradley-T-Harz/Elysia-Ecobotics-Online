@@ -13,6 +13,7 @@ const exactTitles: Record<string, string> = {
   "/marketplace": "Elysia Marketplace",
   "/marketplace/browse": "Browse the Elysia Marketplace",
   "/marketplace/action-preview": "Marketplace Action Preview",
+  "/marketplace/creator-studio": "Creator Studio",
   "/marketplace/account": "Marketplace Account",
   "/marketplace/submit": "Submit to the Elysia Marketplace",
   "/marketplace/trust": "Marketplace Trust & Safety",
@@ -126,6 +127,7 @@ const exactTitles: Record<string, string> = {
 };
 
 const exactDescriptions: Record<string, string> = {
+  "/marketplace/creator-studio": "Your creator identity, account-owned add-ons, review feedback and Marketplace preparation. Payment-provider onboarding and payouts remain disabled.",
   "/": "Elysia Ecobotics Online: governed Marketplace intake, Developer Forge, Living Library, Commons Circle, and public project documentation around local Elysia.",
   "/account/export": "Request a portable export of shared Elysia public-community account data.",
   "/account/delete": "Request permanent deletion through the governed shared Elysia Website Account lifecycle.",

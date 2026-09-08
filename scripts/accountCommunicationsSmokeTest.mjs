@@ -162,8 +162,8 @@ assert(signals.includes("Choose the room that matches your task") && signals.inc
 for (const destination of ["/commons-circle/signals/inbox", "/commons-circle/signals/notifications", "/commons-circle/signals/requests-reviews"]) {
   assert(signals.includes(`to="${destination}"`), `Signals compatibility map omits ${destination}.`);
 }
-assert(signals.includes("state.isAdmin &&") && signals.includes('to="/commons-circle/admin-console"'), "Signals must expose Admin Console navigation only to administrators.");
-assert(signals.includes("state.canOpenReviewCenter &&") && signals.includes('to="/admin/review"'), "Signals must expose Review Center navigation only through established role truth.");
+assert(signals.includes("doorways.isAdmin &&") && signals.includes('to="/commons-circle/admin-console"'), "Signals must expose Admin Console navigation only to administrators.");
+assert(signals.includes("(doorways.isAdmin || doorways.roles.length > 0) &&") && signals.includes('to="/admin/review"'), "Signals must expose Review Center navigation only through established role truth.");
 assert(signals.includes("Local requests and recognition") && signals.includes("pending_admin_review_local"), "Signals must preserve browser-local request and recognition continuity without treating drafts as authoritative.");
 assert(signals.includes("Inbox &amp; Private Messages") && signals.includes("Start a private conversation"), "Signals must make the governed private Inbox unmistakable.");
 for (const category of ["Coding & Technical", "Research & Work", "Stewardship & Official"]) assert(signals.includes(category), `Signals hub omits ${category}.`);

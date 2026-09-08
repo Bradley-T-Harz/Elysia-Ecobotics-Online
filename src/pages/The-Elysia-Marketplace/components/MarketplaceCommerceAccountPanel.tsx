@@ -1,3 +1,4 @@
+import { useAccountDoorways } from "../../../shared/navigation/useAccountDoorways";
 import { legalDocumentLink } from "../../../shared/billing/legalDocumentLink";
 import { FundingLink } from "../../../shared/billing/FundingExplanation";
 import SellerPreparationPanel from "./SellerPreparationPanel";
@@ -330,6 +331,7 @@ function SellerOfferForm({ accessToken, reviewedVersions, publisherOptions, sell
 }
 
 export default function MarketplaceCommerceAccountPanel() {
+  const { creator } = useAccountDoorways();
   const [searchParams] = useSearchParams();
   const commerceReturnState = searchParams.get("commerce");
   const sellerReturnState = searchParams.get("seller");
@@ -487,8 +489,8 @@ export default function MarketplaceCommerceAccountPanel() {
   }
 
   return <section className="marketplace-commerce-account section-card"><FundingLink />
-    <SellerPreparationPanel />
-    <div className="section-heading section-heading--inline"><div><p className="eyebrow">Private Marketplace commerce</p><h2>Licenses and seller readiness</h2></div><span className="trust-badge">Test mode only</span></div>
+    {creator && <div id="seller-preparation"><SellerPreparationPanel /></div>}
+    <div className="section-heading section-heading--inline"><div><p className="eyebrow">Private Marketplace commerce</p><h2>{creator ? "Licenses and seller readiness" : "Account licenses"}</h2></div><span className="trust-badge">Test mode only</span></div>
     <p>These private economic records remain separate from your Commons Profile, Free Member recognition, badges, governance roles, developer status, publisher identity, listing review, and Local Elysia account.</p>
     {accessToken && (commerceReturnState === "success" || commerceReturnState === "canceled") && <CheckoutReturnStatus
       accessToken={accessToken}
@@ -504,8 +506,8 @@ export default function MarketplaceCommerceAccountPanel() {
     {error && <div className="validation validation--bad" role="alert" tabIndex={-1} ref={errorRef}>{error}</div>}
     <p className="inline-status operator-live-region" role="status" aria-live="polite" aria-atomic="true">{message}</p>
     {authLoading || loading ? <p aria-live="polite">Loading private Marketplace records…</p> : !accessToken ? <div className="member-gate"><p>Sign in to view account licenses or seller readiness. Public browsing, security review information, and free local Elysia remain available without purchasing anything.</p><div className="button-row"><Link className="button-link button-link--primary" to="/commons-circle">Sign in through Commons Circle</Link><Link className="button-link" to="/account/forgot-password">Recover account access</Link></div></div> : <>
-      <div><h3>Account licenses</h3><LicenseList licenses={licenses} /></div>
-      <div className="marketplace-seller-readiness"><div className="section-heading section-heading--inline"><div><p className="eyebrow">Eligible creators only</p><h3>Seller readiness</h3></div>{seller && <span className="trust-badge">{seller.status.replace(/_/g, " ")}</span>}</div>
+      <div id="marketplace-licenses"><h3>Account licenses</h3><LicenseList licenses={licenses} /></div>
+      {creator && <div className="marketplace-seller-readiness" id="seller-records"><div className="section-heading section-heading--inline"><div><p className="eyebrow">Eligible creators only</p><h3>Seller readiness</h3></div>{seller && <span className="trust-badge">{seller.status.replace(/_/g, " ")}</span>}</div>
         {!seller ? <p>Seller onboarding is disabled or unavailable. Developer submissions and free reviewed Marketplace listings remain separate and unchanged.</p> : <>
           <dl className="mini-facts"><div><dt>Seller eligibility</dt><dd>{seller.eligible ? "Eligible" : "Not currently eligible"}</dd></div><div><dt>Seller record</dt><dd>{seller.configured ? "Configured in test mode" : "Not configured"}</dd></div><div><dt>Provider details</dt><dd>{seller.detailsSubmitted ? "Submitted in test mode" : "Not complete"}</dd></div><div><dt>Test charges</dt><dd>{seller.chargesEnabled ? "Provider enabled in test mode" : "Disabled"}</dd></div><div><dt>Provider payout readiness</dt><dd>{seller.payoutsEnabled ? "Provider reports ready in test mode" : "Not ready"}</dd></div><div><dt>Elysia payout feature</dt><dd>{seller.payoutsEnabledByFeature ? "Enabled" : "Disabled"}</dd></div><div><dt>Payout preparation</dt><dd>{seller.payoutPreparationEnabled ? "Private test preparation enabled" : "Disabled"}</dd></div><div><dt>Payout execution</dt><dd>{seller.payoutExecutionAvailable ? "Available" : "Unavailable"}</dd></div><div><dt>Active offers</dt><dd>{seller.activeOfferCount}</dd></div><div><dt>Owned offer records</dt><dd>{seller.totalOwnedOfferCount}</dd></div></dl>
           {Object.keys(seller.availablePayableByCurrency).length > 0 && <div className="economic-summary-card"><strong>Private test accounting summary</strong>{Object.entries(seller.availablePayableByCurrency).map(([currency, amount]) => <p key={currency}>{money(amount, currency)} payable accounting state</p>)}<p className="small-note">These balances are private test records. They are not live funds, a payout promise, or proof that payout execution is available. Provider, bank, tax, buyer, and event identifiers are intentionally omitted.</p></div>}
@@ -538,7 +540,7 @@ export default function MarketplaceCommerceAccountPanel() {
             ? <SellerOfferForm accessToken={accessToken} reviewedVersions={seller.eligibleReviewedVersions} publisherOptions={seller.publisherOptions} sellerAgreementVersion={capabilities.legalDocumentVersions.marketplaceSellerAgreement.version} freeSellerAgreementVersion={capabilities.legalDocumentVersions.marketplaceFreeSellerAgreement.version} buyerTermsVersion={capabilities.legalDocumentVersions.marketplaceBuyerTerms.version} allowFree={currentFreeAgreementAccepted} allowPaid={seller.configured && seller.status === "ready"} revisionOffer={revisionOffer} onCancelRevision={() => setRevisionOffer(null)} onComplete={async () => { setRevisionOffer(null); await load(); }} />
             : seller.eligible && (effectiveFreeAgreementVersion !== null || (seller.configured && seller.status === "ready")) && <p className="boundary-note">Offer configuration remains disabled until the server publishes all exact Marketplace seller and buyer terms versions. No version will be guessed.</p>}
         </>}
-      </div>
+      </div>}
     </>}
   </section>;
 }

@@ -66,6 +66,8 @@ async function contextFor(operator = false) {
       let body = [];
       if (url.pathname === "/auth/v1/user") body = user;
       else if (url.pathname === "/rest/v1/user_roles") body = operator ? [{ role: "administrator" }] : [];
+      else if (url.pathname === "/rest/v1/developer_profiles") body = { id: id(91), user_id: user.id, developer_slug: "synthetic-creator", display_name: "Synthetic Creator", status: "active" };
+      else if (url.pathname === "/rest/v1/rpc/current_user_economic_operator_overview") body = { authorized: operator, capabilities: operator ? state.capabilities : [], test_mode: true };
       else if (url.pathname === "/rest/v1/profiles") {
         const profile = { id: user.id, username: "synthetic-preparation", display_name: "Synthetic Preparation Account", is_admin: operator, is_developer: true, saved_addon_ids: [] };
         body = request.headers().accept?.includes("vnd.pgrst.object") ? profile : [profile];

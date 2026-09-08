@@ -22,6 +22,10 @@ const approvedTargetIds = new Set([
   "privacy-lanterns",
   "release-availability",
   "support-checkout",
+  "marketplace-profile",
+  "marketplace-licenses",
+  "seller-preparation",
+  "seller-records",
 ]);
 
 export function targetIdFromHash(hash: string) {

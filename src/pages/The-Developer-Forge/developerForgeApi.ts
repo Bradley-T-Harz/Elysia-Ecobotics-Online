@@ -221,14 +221,14 @@ async function draftLockWarning(draftId: string, userId: string) {
   return null;
 }
 
-export async function loadForgeState(): Promise<ForgeState> {
+export async function loadForgeState({ allowLocalFallback = true }: { allowLocalFallback?: boolean } = {}): Promise<ForgeState> {
   const warnings: string[] = [];
   if (!hasSupabaseConfig || !supabase) {
-    return { signedIn: false, userId: null, profile: readLocal<DeveloperProfile | null>(localProfileKey, null), drafts: readLocal<AddonDraft[]>(localDraftKey, []), submissions: [], permissionCatalog: defaultPermissionCatalog, warnings: [supabaseNotConfiguredMessage] };
+    return { signedIn: false, userId: null, profile: (allowLocalFallback ? readLocal<DeveloperProfile | null>(localProfileKey, null) : null), drafts: (allowLocalFallback ? readLocal<AddonDraft[]>(localDraftKey, []) : []), submissions: [], permissionCatalog: defaultPermissionCatalog, warnings: [supabaseNotConfiguredMessage] };
   }
   const { data: auth, error: authError } = await supabase.auth.getUser();
   if (authError) warnings.push(friendly("Website Account", authError.message));
-  if (!auth.user) return { signedIn: false, userId: null, profile: null, drafts: readLocal<AddonDraft[]>(localDraftKey, []), submissions: [], permissionCatalog: defaultPermissionCatalog, warnings };
+  if (!auth.user) return { signedIn: false, userId: null, profile: null, drafts: (allowLocalFallback ? readLocal<AddonDraft[]>(localDraftKey, []) : []), submissions: [], permissionCatalog: defaultPermissionCatalog, warnings };
   const userId = auth.user.id;
   const [profileResult, draftResult, submissionResult, catalogResult] = await Promise.all([
     supabase.from("developer_profiles").select("*").eq("user_id", userId).maybeSingle(),
@@ -257,8 +257,8 @@ export async function loadForgeState(): Promise<ForgeState> {
   return {
     signedIn: true,
     userId,
-    profile: (profileResult.data as DeveloperProfile | null) ?? readLocal<DeveloperProfile | null>(localProfileKey, null),
-    drafts: ((draftResult.data as AddonDraft[] | null) ?? readLocal<AddonDraft[]>(localDraftKey, [])),
+    profile: (profileResult.data as DeveloperProfile | null) ?? (allowLocalFallback ? readLocal<DeveloperProfile | null>(localProfileKey, null) : null),
+    drafts: ((draftResult.data as AddonDraft[] | null) ?? (allowLocalFallback ? readLocal<AddonDraft[]>(localDraftKey, []) : [])),
     submissions,
     permissionCatalog: (catalogResult.data as PermissionDefinition[] | null)?.length ? catalogResult.data as PermissionDefinition[] : defaultPermissionCatalog,
     warnings

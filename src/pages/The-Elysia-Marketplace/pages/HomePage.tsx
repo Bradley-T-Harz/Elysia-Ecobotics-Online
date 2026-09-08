@@ -1,3 +1,4 @@
+import CreatorStudioDoorway from "../../../shared/navigation/CreatorStudioDoorway";
 import { FundingLink } from "../../../shared/billing/FundingExplanation";
 import { BookOpen, GitPullRequest, Search, ShieldCheck, Store, UploadCloud } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -32,6 +33,7 @@ export default function MarketplaceHomePage() {
           <FundingLink />
           <div className="hero-actions">
             <Link className="button-link button-link--primary" to="/marketplace/browse"><Store size={18} /> Browse Add-ons</Link>
+            <Link className="button-link" to="/marketplace/account">Marketplace Account</Link>
             <Link className="button-link" to="/marketplace/submit"><GitPullRequest size={18} /> Submit Add-on</Link>
             <Link className="button-link" to="/marketplace/trust"><ShieldCheck size={18} /> View Trust Policy</Link>
             <Link className="button-link" to="/marketplace/manifest-api"><BookOpen size={18} /> View Manifest API</Link>
@@ -72,6 +74,8 @@ export default function MarketplaceHomePage() {
           ))}
         </div>
       </section>
+
+      <CreatorStudioDoorway invite />
 
       <section className="section-card split-callout">
         <div>

@@ -21,7 +21,7 @@ function materializePath(value: string) {
 
 const smokePaths = [...new Set<string>(contract.routes.flatMap((route: { smokePaths?: string[] }) => route.smokePaths ?? []).map(materializePath))]
   .filter((pathname) => pathname.startsWith("/") && !pathname.includes("*"));
-assert.equal(smokePaths.length, 164, "The metadata contract must cover the complete preserved smoke-path baseline.");
+assert.equal(smokePaths.length, 165, "The metadata contract must cover the complete preserved smoke-path baseline.");
 
 for (const pathname of smokePaths) {
   const metadata = routeMetadataForPath(pathname);

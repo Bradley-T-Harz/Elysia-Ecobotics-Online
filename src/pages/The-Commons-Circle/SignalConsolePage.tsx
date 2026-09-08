@@ -1,4 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useAuth } from "../../shared/auth/useAuth";
+import CreatorStudioDoorway from "../../shared/navigation/CreatorStudioDoorway";
+import { useAccountDoorways } from "../../shared/navigation/useAccountDoorways";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
@@ -74,6 +77,10 @@ function MiniFact({ label, value }: { label: string; value: string | number }) {
 
 export default function SignalConsolePage() {
   const location = useLocation();
+  const doorways = useAccountDoorways();
+  const { accessToken } = useAuth();
+  const actor = useRef(accessToken); actor.current = accessToken;
+  const [loadedToken, setLoadedToken] = useState<string | null>(null);
   const [state, setState] = useState<SignalHubState | null>(null);
   const [messages, setMessages] = useState<string[]>([]);
   const [localActivity, setLocalActivity] = useState(loadBrowserLocalActivity);
@@ -84,6 +91,8 @@ export default function SignalConsolePage() {
       ? await loadCurrentUserCircleAccessReview()
       : { data: emptyCircleAccessReview, warnings: [] };
     const warnings = Array.from(new Set([...roles.warnings, ...counts.warnings, ...accessReview.warnings]));
+    if (actor.current !== accessToken) return;
+    setLoadedToken(accessToken);
     setState({
       signedIn: roles.signedIn && counts.signedIn,
       isAdmin: roles.isAdmin,
@@ -94,7 +103,7 @@ export default function SignalConsolePage() {
     });
     setLocalActivity(loadBrowserLocalActivity());
     setMessages(warnings);
-  }, []);
+  }, [accessToken]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -128,7 +137,9 @@ export default function SignalConsolePage() {
       />
     </section>
 
-    {state?.signedIn && <>
+    {state?.signedIn && doorways.signedIn && loadedToken === accessToken && <>
+      <CreatorStudioDoorway />
+      {doorways.economic && <section className="section-card split-callout"><div><p className="eyebrow">Separately assigned economic authority</p><h2>Economic Operations</h2><p>Your private economic tools, readiness and audit records. Community administration and review remain separate.</p></div><Link className="button-link button-link--primary" to="/admin/economic-operations/readiness">Open Economic Operations</Link></section>}
       <section className="section-card">
         <div className="section-heading">
           <p className="eyebrow">Account destinations</p>
@@ -184,14 +195,14 @@ export default function SignalConsolePage() {
             <Link className="button-link" to="/commons-circle/setup/stewardship">Review Commons setup</Link>
           </article>
 
-          {state.isAdmin && <article className="section-card commons-account-room-card signals-primary-card">
+          {doorways.isAdmin && <article className="section-card commons-account-room-card signals-primary-card">
             <p className="eyebrow">Administrators only</p>
             <h3>Admin Console</h3>
             <p>Open account governance, communications, moderation, role, and audit tools through their established authorization gates.</p>
             <Link className="button-link button-link--primary" to="/commons-circle/admin-console">Open Admin Console</Link>
           </article>}
 
-          {state.canOpenReviewCenter && <article className="section-card commons-account-room-card signals-primary-card">
+          {(doorways.isAdmin || doorways.roles.length > 0) && <article className="section-card commons-account-room-card signals-primary-card">
             <p className="eyebrow">Authorized staff only</p>
             <h3>Review Center</h3>
             <p>Specialist reviewer, moderator, steward, anti-scam, and administrator queues remain role-gated and source-authoritative.</p>

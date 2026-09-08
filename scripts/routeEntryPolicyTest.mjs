@@ -64,5 +64,8 @@ for (const approved of ["release-availability", "support-checkout", "library-env
   assert.equal(isApprovedRouteTarget(approved), true, `${approved} should remain approved`);
 }
 assert.equal(isApprovedRouteTarget("arbitrary-lower-control"), false);
+for (const targetId of ["marketplace-profile", "marketplace-licenses", "seller-preparation", "seller-records"]) {
+  assert.deepEqual(resolve(location("/marketplace/account", { hash: `#${targetId}` })), { behavior: "target", targetId });
+}
 
 console.log("Route-entry policy contract ok.");

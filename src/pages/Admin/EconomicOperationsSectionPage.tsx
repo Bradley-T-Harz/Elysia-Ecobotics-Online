@@ -1,3 +1,4 @@
+import { canVisitStaffRoute, useAccountDoorways } from "../../shared/navigation/useAccountDoorways";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
@@ -52,6 +53,7 @@ function LaneContext({ section }: { section: PreparationSection }) {
 }
 export default function EconomicOperationsSectionPage() {
   const { section: requested } = useParams();
+  const access = useAccountDoorways();
   const entry = preparationSections.find(([key]) => key === requested);
   const work = usePreparation("operator");
   if (!entry) return <section className="section-card"><h1>Economic section not found</h1><Link to="/admin/economic-operations">Return to Economic Operations</Link></section>;
@@ -75,6 +77,6 @@ export default function EconomicOperationsSectionPage() {
     </>}
     {["provider", "onboarding", "readiness"].includes(section) && <ProviderHandoffNotice />}
     {section === "provider" && <section className="section-card"><h2>Qualification still required</h2><ul><li>Owner authorization and provider approval for each financial lane.</li><li>Adopted charge model, seller responsibilities, fees, taxes and refund/dispute treatment.</li><li>Qualified account-scoped events, cancellation, receipt delivery and settlement evidence.</li><li>Separate audited release, migrations and exact activation flags.</li></ul><p>No credential entry, provider mutation or activation toggle exists on this page. The existing Stripe adapter is preserved; no additional provider is presented as integrated.</p></section>}
-    {(existingTools[section] ?? []).length > 0 && <section className="section-card"><h2>Existing working tools</h2><div className="button-row">{existingTools[section]!.map(([route, label]) => <Link className="button-link" key={route} to={route}>{label}</Link>)}</div><p>These tools retain their existing routes, behavior, capability checks and financial gates.</p></section>}
+    {(existingTools[section] ?? []).some(([route]) => canVisitStaffRoute(route, access)) && <section className="section-card"><h2>Existing working tools</h2><div className="button-row">{existingTools[section]!.filter(([route]) => canVisitStaffRoute(route, access)).map(([route, label]) => <Link className="button-link" key={route} to={route}>{label}</Link>)}</div><p>These tools retain their existing routes, behavior, capability checks and financial gates.</p></section>}
   </div>;
 }

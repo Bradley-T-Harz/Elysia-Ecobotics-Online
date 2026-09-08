@@ -486,7 +486,7 @@ assert(commons.includes("Free Member pending") && commons.includes("A browser-lo
 assert(commonsSetup.includes("successfully records this signed-in Commons Profile's onboarding completion") && commonsSetup.includes("minimal Marketplace profile alone does not qualify") && commonsSetup.includes("Existing legitimate awards remain preserved"), "Final Commons setup must explain canonical Free Member grant eligibility and preserve legitimate prior awards.");
 assert(commonsLocalOnboarding.includes("These local choices do not grant Free Member recognition to this or any other account"), "Browser-local Commons onboarding must not claim or imply account-bound Free Member recognition.");
 assert(!commons.includes("CommonsCircleAdminEntryCard") && !commons.includes("Admin-only backend status"), "Commons Circle Homebase must not duplicate administrator navigation or backend-status material.");
-assert(signalConsole.includes("state.isAdmin &&") && signalConsole.includes("Open Admin Console"), "Signals must preserve administrator-only Admin Console navigation.");
+assert(signalConsole.includes("doorways.isAdmin &&") && signalConsole.includes("Open Admin Console"), "Signals must preserve administrator-only Admin Console navigation.");
 assert(commons.includes("`/commons-circle/@${encodeURIComponent(profile.username)}`"), "Commons Circle View public profile should use /commons-circle/@username.");
 assert(!commons.includes("href=\"/\"") || !commons.includes("View public profile"), "Commons Circle View public profile should not point to the homepage.");
 assert(!commons.includes("<h2>Moderation and governance tools</h2>"), "Commons Circle main page should not render the full Admin Console panel inline.");
