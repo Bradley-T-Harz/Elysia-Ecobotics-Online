@@ -10,6 +10,7 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
     "typecheck": "tsc -b",
+    "test:route-reachability:built": "node scripts/routeReachabilityBrowserTest.mjs",
     "test:routes": "node scripts/routeSmokeTest.mjs",
     "test:route-preservation": "node scripts/routePreservationContractTest.mjs",
     "test:route-metadata": "node --experimental-strip-types --no-warnings scripts/routeMetadataContractTest.mts",
