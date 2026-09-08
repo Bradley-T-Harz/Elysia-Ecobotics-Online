@@ -132,6 +132,12 @@ const hostedAllowanceActivationPaths = [
   "supabase/migrations/20260906020000_admin_hosted_execution_operational_allowance.sql",
 ];
 
+const readinessPaths = [
+  "supabase/migrations/20260908010000_prepared_economic_legal_versions.sql",
+  "supabase/migrations/20260908020000_stewardship_attachment_boundary.sql",
+  "supabase/migrations/20260908030000_payment_records_and_support_credit_quarantine.sql",
+];
+
 const activePaths = [
   ...baselinePaths,
   ...economicPaths,
@@ -151,6 +157,7 @@ const activePaths = [
   ...operationalOverviewPaths,
   ...adminBadgeSelfManagementPaths,
   ...hostedAllowanceActivationPaths,
+  ...readinessPaths,
 ];
 
 const legacyHashes = new Map(Object.entries({
@@ -977,7 +984,7 @@ let started = false;
 try {
   console.log(`Using disposable container runtime: ${containerRuntime}.`);
   await run(containerRuntime, [
-    "run", "--rm", "--name", container,
+    "run", "--rm", "--pull=never", "--network=none", "--cpus=2", "--memory=2g", "--pids-limit=256", "--name", container,
     "-e", "POSTGRES_PASSWORD=elysia_disposable_only",
     "-d", image,
   ]);
@@ -1003,6 +1010,7 @@ try {
 
   for (const file of [
     ...activePaths,
+    "scripts/fixtures/stripeReadinessBehavior.sql",
     "scripts/fixtures/sandboxDatabaseBehavior.sql",
     "scripts/fixtures/codeRevisionProposalBehavior.sql",
     "scripts/fixtures/economicDatabaseBehavior.sql",
@@ -1728,6 +1736,11 @@ try {
     "Read-only inventory omitted Storage object ownership."
   );
 
+  // Preserve historical economic fixtures before quarantining the old credit trigger.
+  for (const file of readinessPaths) await psql(["-f", `/tmp/${path.basename(file)}`]);
+  await psql(["-f", "/tmp/stripeReadinessBehavior.sql"]);
+  console.log("Readiness forward migrations and synthetic attachment/payment/quarantine checks passed.");
+
   const catalogIntegrity = await psql(["-tAc", `
     select
       (select count(*) from pg_catalog.pg_index index_state
@@ -1747,6 +1760,7 @@ try {
   if (plpgsqlCheckAvailable.stdout.trim() === "t") {
     await psql(["-c", "create extension if not exists plpgsql_check;"]);
     const governedPlpgsqlFunctions = [...new Set([
+      "public.attach_own_stewardship_receipt",
       ...economicPlpgsqlFunctions,
       ...hostedAllowancePlpgsqlFunctions,
       ...artisanPlpgsqlFunctions,

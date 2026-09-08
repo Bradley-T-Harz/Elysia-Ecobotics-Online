@@ -552,9 +552,11 @@ export async function loadCurrentEconomicAccount(supabase: SupabaseClient): Prom
   const receiptStatuses = new Set(["pending", "succeeded", "failed", "canceled", "refunded", "disputed"]);
   for (const value of [...row.paymentTransactions, ...row.receipts]) {
     const receipt = object(value);
+    const enhanced = row.receipts.includes(value) && receipt.recordVersion === "payment-record-v1";
     const keys = new Set([
       "transactionId", "publicReference", "flow", "status", "amountMinor", "currency", "occurredAt",
-      "receiptAvailable", "providerIdentifiersExposed"
+      "receiptAvailable", "providerIdentifiersExposed",
+      ...(enhanced ? ["recordVersion", "payee", "orderStatus", "refundedAmountMinor"] : [])
     ]);
     const publicReference = requiredString(receipt, "publicReference", 160);
     const flow = requiredString(receipt, "flow", 40);
@@ -571,7 +573,12 @@ export async function loadCurrentEconomicAccount(supabase: SupabaseClient): Prom
       || receipt.receiptAvailable !== false
       || receipt.providerIdentifiersExposed !== false
     ) throw new BillingHttpError(503, "billing_database_invalid");
-    integer(receipt, "amountMinor", 0, 100_000_000_000);
+    const amount = integer(receipt, "amountMinor", 0, 100_000_000_000);
+    if (enhanced) {
+      if (receipt.payee !== (flow === "marketplace_purchase" ? null : "EcoSyneva Commons LLC")
+        || !new Set(["pending", "checkout_created", "processing", "paid", "failed", "canceled", "partially_refunded", "refunded", "disputed"]).has(requiredString(receipt, "orderStatus", 40))) throw new BillingHttpError(503, "billing_database_invalid");
+      integer(receipt, "refundedAmountMinor", 0, amount);
+    }
     requiredTimestamp(receipt, "occurredAt");
   }
 

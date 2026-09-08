@@ -452,6 +452,15 @@ assert(normalizedFinalAccount.marketplaceSeller.stripeConnectDisclosureVersion =
 assert(normalizedFinalAccount.receipts[0].receiptAvailable === false && normalizedFinalAccount.receipts[0].providerIdentifiersExposed === false, "Owner-scoped receipt projection did not preserve its no-link/no-provider boundary.");
 assert(normalizedFinalAccount.paymentTransactions[0].transactionId === finalAccountProjection.receipts[0].transactionId && normalizedFinalAccount.closureReadiness.scheduledSubscriptionCancellations === 1, "Transaction history or nonblocking scheduled cancellation readiness was discarded.");
 assert(normalizedFinalAccount.warnings.length === 5, "Bounded owner-facing billing warnings were discarded.");
+const enhancedReceipt = { ...finalAccountProjection.receipts[0], recordVersion: "payment-record-v1", payee: "EcoSyneva Commons LLC", orderStatus: "partially_refunded", refundedAmountMinor: 100 };
+const enhancedAccount = await loadCurrentEconomicAccount({ rpc: async () => ({ data: { ...finalAccountProjection, receipts: [enhancedReceipt] }, error: null }) });
+assert(enhancedAccount.receipts[0].refundedAmountMinor === 100 && enhancedAccount.receipts[0].orderStatus === "partially_refunded", "Enhanced verified refund state was lost by the server parser.");
+for (const patch of [{ refundedAmountMinor: 501 }, { payee: "Other merchant" }, { orderStatus: "payout_completed" }]) {
+  let rejected = false;
+  try { await loadCurrentEconomicAccount({ rpc: async () => ({ data: { ...finalAccountProjection, receipts: [{ ...enhancedReceipt, ...patch }] }, error: null }) }); }
+  catch (error) { rejected = error instanceof BillingHttpError && error.code === "billing_database_invalid"; }
+  assert(rejected, "Enhanced receipt accepted an unverified merchant/refund/payout claim.");
+}
 for (const unsafeReceipt of [
   { ...finalAccountProjection.receipts[0], providerPaymentReference: "pi_private" },
   { ...finalAccountProjection.receipts[0], receiptAvailable: true },

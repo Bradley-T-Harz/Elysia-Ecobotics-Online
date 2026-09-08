@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
@@ -255,17 +255,23 @@ function StewardshipReceiptReview({ item }: { item: ReviewItem }) {
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  const requestSequence = useRef(0);
   useEffect(() => {
+    requestSequence.current += 1;
+    setBusy(false);
     setEvidence(null);
     setMessage("");
     setLoaded(false);
+    return () => { requestSequence.current += 1; };
   }, [item.id]);
 
   if (item.domain !== "stewardship" || item.source_table !== "stewardship_recognition_requests") return null;
 
   async function openPrivateProof() {
+    const sequence = ++requestSequence.current;
     setBusy(true);
-    const result = await loadStewardshipReceiptEvidence(item);
+    const result = await loadStewardshipReceiptEvidence(item).catch(() => ({ evidence: null, warning: "Private proof access could not be confirmed. Try again." }));
+    if (sequence !== requestSequence.current) return;
     setBusy(false);
     setLoaded(true);
     setEvidence(result.evidence);
@@ -274,8 +280,8 @@ function StewardshipReceiptReview({ item }: { item: ReviewItem }) {
 
   return <section className="review-actions" aria-labelledby="stewardship-private-proof-title">
     <h3 id="stewardship-private-proof-title">Private stewardship proof</h3>
-    <p className="boundary-note">Receipt/proof files remain in a private storage bucket. Only an authorized stewardship reviewer can request a short-lived access link; no storage path or public URL is rendered.</p>
-    <div className="button-row"><button type="button" onClick={() => void openPrivateProof()} disabled={busy}>{busy ? "Checking private proof…" : evidence ? "Refresh 5-minute access link" : "Load private proof"}</button>{evidence && <a className="button-link" href={evidence.signedUrl} target="_blank" rel="noreferrer">Open private proof (5-minute link)</a>}</div>
+    <p className="boundary-note">Receipt/proof files remain in a private storage bucket. Only an authorized stewardship reviewer can request a short-lived access link; the link is private and expires. Treat the file as untrusted, avoid embedded links or active content, and do not send it to external AI, OCR or scanners.</p>
+    <div className="button-row"><button type="button" onClick={() => void openPrivateProof()} disabled={busy}>{busy ? "Checking private proof…" : evidence ? "Refresh 5-minute access link" : "Load private proof"}</button>{evidence && <a className="button-link" href={evidence.signedUrl} target="_blank" rel="noreferrer">Download private proof (5-minute link)</a>}</div>
     {loaded && <p className="boundary-note">{message}</p>}
     {evidence && <dl className="mini-facts"><div><dt>File</dt><dd>{evidence.displayName}</dd></div><div><dt>Type</dt><dd>{evidence.mimeType}</dd></div><div><dt>Size</dt><dd>{evidence.sizeBytes === null ? "Not recorded" : `${evidence.sizeBytes.toLocaleString()} bytes`}</dd></div><div><dt>SHA-256</dt><dd>{evidence.sha256Prefix ? `${evidence.sha256Prefix}…` : "Not recorded"}</dd></div><div><dt>Redaction</dt><dd>{evidence.redactionStatus.replace(/_/g, " ")}</dd></div><div><dt>Access</dt><dd>Private, reviewer-only, expires in {evidence.expiresInSeconds / 60} minutes</dd></div></dl>}
   </section>;

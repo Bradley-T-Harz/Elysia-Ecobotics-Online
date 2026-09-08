@@ -1,3 +1,4 @@
+import { prepareProofFile, proofFileError } from "../../shared/stewardshipEvidence";
 import { FundingLink } from "../../shared/billing/FundingExplanation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
@@ -92,8 +93,7 @@ const acceptedResumeMimeTypes = new Set([
   "text/x-markdown",
   "application/octet-stream"
 ]);
-const acceptedReceiptExtensions = new Set(["pdf", "png", "jpg", "jpeg", "txt", "md"]);
-const acceptedReceiptMimeTypes = new Set(["application/pdf", "image/png", "image/jpeg", "text/plain", "text/markdown", "text/x-markdown", "application/octet-stream"]);
+
 
 const initialProfileDraft: MarketplaceProfileDraft = {
   username: "",
@@ -189,26 +189,13 @@ function validateResumeFile(file: File | null): string | null {
   return null;
 }
 
-function validateReceiptFile(file: File | null): string | null {
-  if (!file) return null;
-  const extension = extensionForFile(file);
-  if (!acceptedReceiptExtensions.has(extension)) return "Receipt/proof must be a PDF, PNG, JPG, TXT, or Markdown file.";
-  if (file.size > maxResumeSizeBytes) return "Receipt/proof must be 10 MB or smaller.";
-  if (file.type && !acceptedReceiptMimeTypes.has(file.type)) return `Receipt/proof MIME type is not accepted: ${file.type}`;
-  return null;
-}
+const validateReceiptFile = proofFileError;
 
 function sanitizeFilename(name: string) {
   const cleaned = name.normalize("NFKD").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
   return cleaned.slice(0, 120) || "resume-cv";
 }
 
-async function sha256File(file: File): Promise<string | null> {
-  if (!globalThis.crypto?.subtle) return null;
-  const buffer = await file.arrayBuffer();
-  const digest = await globalThis.crypto.subtle.digest("SHA-256", buffer);
-  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, "0")).join("");
-}
 
 function newRequestId() {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -543,6 +530,7 @@ export default function CommonsCircleSetupPage() {
     if (validation) throw new Error(validation);
     if (receiptFile && !stewardshipDraft.redactionConfirmed) throw new Error("Confirm receipt/proof redaction before uploading private stewardship proof.");
 
+    const preparedProof = receiptFile ? await prepareProofFile(receiptFile) : null;
     const organizationRow = await supabase
       .from("stewardship_organizations")
       .select("id,name,official_url")
@@ -575,30 +563,31 @@ export default function CommonsCircleSetupPage() {
     });
     if (!reviewResult.ok) throw new Error(setupBackendMessage("Stewardship review routing", reviewResult.warning ?? "review routing failed"));
 
-    if (receiptFile) {
+    if (receiptFile && preparedProof) {
       const fileId = newRequestId();
-      const safeName = sanitizeFilename(receiptFile.name);
+      const safeName = preparedProof.name;
       const storagePath = `${userId}/${requestId}/${fileId}-${safeName}`;
       const uploadResult = await supabase.storage.from(receiptBucketName).upload(storagePath, receiptFile, {
-        cacheControl: "3600",
-        contentType: receiptFile.type || undefined,
+        cacheControl: "0",
+        contentType: preparedProof.mime,
         upsert: false
       });
       if (uploadResult.error) throw new Error(setupBackendMessage("Private stewardship receipt upload", uploadResult.error.message));
-      const hash = await sha256File(receiptFile);
+      const hash = preparedProof.sha256;
       const { error: fileError } = await supabase.from("stewardship_receipt_files").insert({
         id: fileId,
         request_id: requestId,
         user_id: userId,
         bucket: receiptBucketName,
         storage_path: storagePath,
-        original_filename: receiptFile.name,
-        mime_type: receiptFile.type || null,
+        original_filename: preparedProof.name,
+        mime_type: preparedProof.mime,
         size_bytes: receiptFile.size,
         sha256_hash: hash
       });
       if (fileError) throw new Error(setupBackendMessage("Private stewardship receipt metadata", fileError.message));
-      await supabase.from("stewardship_recognition_requests").update({ receipt_file_id: fileId, updated_at: new Date().toISOString() }).eq("id", requestId);
+      const { data: attached, error: attachmentError } = await supabase.rpc("attach_own_stewardship_receipt", { p_request_id: requestId, p_file_id: fileId });
+      if (attachmentError || attached !== true) throw new Error("Your recognition request was saved, but its proof attachment was not confirmed. Contact privacy@elysiaecobotics.com before submitting it again; do not send the file by email.");
     }
     return receiptFile ? "Stewardship recognition request and private receipt/proof saved for administrator review." : "Stewardship recognition request saved for administrator review.";
   }

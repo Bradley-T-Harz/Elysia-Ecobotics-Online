@@ -281,6 +281,12 @@ function allowHit(file, line, checkName) {
     ) return true;
     if (normalized === "scripts/sandboxDatabaseMigrationTest.mjs" && /assert|marker|service_role/i.test(line)) return true;
   }
+  if (["scripts/readinessBaselineBuild.mjs", "scripts/readinessRegression.mjs", "scripts/runReadinessChecks.mjs", "scripts/preparePublicationCandidate.mjs"].includes(normalized)
+    && ["Node child process", "process spawn"].includes(checkName)
+    && /node:child_process|spawn\(/.test(line)) return true;
+  if (["supabase/migrations/20260906020000_admin_hosted_execution_operational_allowance.sql", "supabase/migrations/20260908020000_stewardship_attachment_boundary.sql", "supabase/migrations/20260908030000_payment_records_and_support_credit_quarantine.sql"].includes(normalized)
+    && checkName === "service role key strings" && /from public, anon, authenticated, service_role;/.test(line)) return true;
+  if (normalized === "scripts/fixtures/stripeReadinessBehavior.sql" && checkName === "service role key strings" && /has_function_privilege\('service_role'/.test(line)) return true;
   if (normalized.endsWith("scripts/securitySmokeTest.mjs")) return true;
   if (
     normalized.endsWith("scripts/authProductionRelease.mjs")
@@ -342,7 +348,7 @@ for (const root of roots) {
       const text = await fs.readFile(file, "utf8");
       text.split(/\r?\n/).forEach((line, index) => {
         for (const check of checks) {
-          if (check.pattern.test(line) && !allowHit(file, line, check.name)) failures.push(`${file}:${index + 1}: ${check.name}: ${line.trim()}`);
+          if (check.pattern.test(line) && !allowHit(file, line, check.name)) failures.push(`${file}:${index + 1}: ${check.name} (matched text withheld)`);
         }
       });
     }

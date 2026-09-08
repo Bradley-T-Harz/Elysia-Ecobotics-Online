@@ -1,0 +1,104 @@
+import assert from "node:assert/strict";
+import crypto from "node:crypto";
+import fs from "node:fs/promises";
+import { prepareProofFile, proofFileError, proofStorageMetadataMatches, planProofRetention } from "../src/shared/stewardshipEvidence.ts";
+import { previewFeeSnapshot, previewFeeReversal, reconcileSettlementPreview, savedMethodReusePermitted, proposedDirectChargePlan, dispatchPreparedSettlement } from "../functions/api/billing/_shared/settlementPreparation.ts";
+import { formatMinorAmount } from "../src/shared/billing/paymentRecord.ts";
+import { normalizeReceipts } from "../src/shared/billing/billingClient.ts";
+import { legalDocumentLink } from "../src/shared/billing/legalDocumentLink.ts";
+import { getLegalPolicy } from "../src/pages/Legal/legalPolicyPages.ts";
+import { preparedEconomicLegalPageIntegrity, preparedEconomicLegalBundles } from "../src/pages/Legal/preparedEconomicLegalManifest.ts";
+import { economicLegalPageIntegrity, serializeEconomicLegalSemanticContent } from "../src/pages/Legal/economicLegalContentManifest.ts";
+
+const hash = page => crypto.createHash("sha256").update(serializeEconomicLegalSemanticContent(page)).digest("hex");
+const migration = await fs.readFile(new URL("../supabase/migrations/20260908010000_prepared_economic_legal_versions.sql", import.meta.url), "utf8");
+for (const entry of Object.values(preparedEconomicLegalPageIntegrity)) {
+  const page = getLegalPolicy(entry.slug, entry.version);
+  assert.equal(hash(page), entry.contentSha256);
+  assert.ok(migration.includes(entry.contentSha256));
+  assert.ok(!page.body.includes("If proof upload becomes active"));
+  assert.ok(!page.body.includes("At launch, proof handling may be local metadata/hash only"));
+  assert.ok(!/5%|10%|30.days|6–12/.test(page.body), "Tentative policy leaked into public commitments");
+}
+for (const entry of Object.values(economicLegalPageIntegrity)) assert.equal(hash(getLegalPolicy(entry.slug, entry.version)), entry.contentSha256);
+for (const bundle of Object.values(preparedEconomicLegalBundles)) for (const document of Object.values(bundle.documents)) {
+  assert.equal(hash(getLegalPolicy(document.path.split("/").pop(), document.version)), document.contentSha256);
+}
+assert.equal(getLegalPolicy("support-and-billing-terms", "unrecognized"), undefined);
+assert.equal(getLegalPolicy("third-party-media-credits", "2026-09-08-readiness"), undefined);
+assert.equal(legalDocumentLink({path:"/legal/support-and-billing-terms",version:"2026-07-16"}, "/legal"), "/legal/support-and-billing-terms?version=2026-07-16");
+assert.equal(legalDocumentLink({path:"https://example.invalid",version:"v1"}, "/legal"), "/legal");
+assert.ok(!/\b(?:insert into|update|delete from)\s+private\.economic_active_/i.test(migration));
+
+const prepared = await prepareProofFile(new File(["Redacted synthetic recognition evidence. No financial identifiers."], "private-person-name.txt", {type:"text/plain"}));
+assert.equal(prepared.name, "redacted-proof.txt");
+assert.match(prepared.sha256, /^[a-f0-9]{64}$/);
+assert.equal(proofFileError(new File(["x"], "a.html", {type:"text/html"})), "Receipt/proof must be a PDF, PNG, JPG, TXT, or Markdown file.");
+assert.ok(proofFileError({name:"a.png",type:"application/pdf",size:10}));
+assert.ok(proofFileError({name:"a.txt",type:"text/plain",size:10485761}));
+assert.ok(proofFileError({name:"a.txt",type:"text/plain",size:0}));
+await assert.rejects(prepareProofFile(new File(["not a PDF"], "a.pdf", {type:"application/pdf"})));
+await assert.rejects(prepareProofFile(new File([new Uint8Array([0xff,0xff])], "a.txt", {type:"text/plain"})));
+assert.equal((await prepareProofFile(new File([new Uint8Array([137,80,78,71,13,10,26,10,0])], "a.png", {type:"image/png"}))).mime, "image/png");
+const file = {request_id:"request-a",user_id:"owner-a",bucket:"stewardship-receipts",storage_path:"owner-a/request-a/file.txt"};
+assert.equal(proofStorageMetadataMatches(file,"request-a","owner-a"),true);
+assert.equal(proofStorageMetadataMatches(file,"request-b","owner-a"),false);
+assert.equal(proofStorageMetadataMatches(file,"request-a","owner-b"),false);
+assert.equal(proofStorageMetadataMatches({...file,storage_path:"owner-a/request-a/../other"},"request-a","owner-a"),false);
+const lifecycle = {id:"synthetic-proof",state:"completed",finalAt:"2026-07-01T00:00:00Z",appealClosedAt:null,hold:null,backupInventoryVerified:true,restoredCopy:false};
+const now = new Date("2026-09-08T00:00:00Z"), policy = {version:"proposal-30-days",daysAfterFinal:30};
+assert.equal(planProofRetention([lifecycle],null,now)[0].candidate,false);
+assert.equal(planProofRetention([lifecycle],policy,now)[0].candidate,true);
+for (const override of [{state:"pending"},{state:"appeal"},{finalAt:null},{backupInventoryVerified:false},{restoredCopy:true},{hold:{reason:"abuse",reviewAt:"2026-08-01T00:00:00Z"}},{appealClosedAt:"2026-09-01T00:00:00Z"}]) assert.equal(planProofRetention([{...lifecycle,...override}],policy,now)[0].candidate,false);
+assert.equal(planProofRetention([{...lifecycle,state:"withdrawn"}],policy,now)[0].dryRun,true);
+assert.equal(planProofRetention([{...lifecycle,hold:{reason:"legal",reviewAt:"2026-08-01T00:00:00Z"}}],policy,now)[0].reason,"hold_review_overdue");
+assert.throws(()=>planProofRetention([lifecycle,lifecycle],policy,now));
+assert.throws(()=>planProofRetention([{...lifecycle,state:"unknown"}],policy,now));
+
+const terms = {version:"proposal-500-bps",adopted:false,basisPoints:500,processorFeePayer:"seller"};
+assert.equal(previewFeeSnapshot(1000,"usd",null,null,null).platformFeeMinor,null);
+assert.equal(previewFeeSnapshot(1000,"usd",terms,null,0).creatorProceedsMinor,null);
+assert.equal(previewFeeSnapshot(0,"usd",terms,0,0).platformFeeMinor,0);
+assert.throws(()=>previewFeeSnapshot(0,"usd",terms,1,0));
+assert.equal(previewFeeSnapshot(1000,"usd",terms,59,0).creatorProceedsMinor,891);
+assert.equal(previewFeeSnapshot(10,"usd",terms,0,0).platformFeeMinor,1);
+assert.equal(previewFeeSnapshot(1100,"usd",terms,60,100).platformFeeMinor,50);
+assert.equal(previewFeeSnapshot(1000,"usd",{...terms,processorFeePayer:"platform"},59,0).platformNetMinor,-9);
+assert.throws(()=>previewFeeSnapshot(1000,"usd",{...terms,adopted:true},0,0));
+assert.throws(()=>previewFeeSnapshot(1000.1,"usd",terms,0,0));
+assert.equal(previewFeeSnapshot(100000000000,"jpy",terms,0,0).platformFeeMinor,5000000000);
+let previous=0,total=0;
+for (const refund of [1,2,3,7,50,100,333,999,1000]) { total+=previewFeeReversal(1000,50,previous,refund).newFeeReversalMinor;previous=refund; }
+assert.equal(total,50);
+assert.equal(previewFeeReversal(1000,50,1000,1000).newFeeReversalMinor,0);
+assert.throws(()=>previewFeeReversal(1000,50,999,1001));
+assert.throws(()=>previewFeeReversal(1000,50,200,100));
+const scope = {provider:"stripe",account:"acct_syntheticA",orderId:"a1000000-0000-4000-8000-000000000001",sellerId:"b1000000-0000-4000-8000-000000000001",currency:"usd"};
+const charge = {...scope,testMode:true,balanceTransactionId:"txn_chargeA",sourceSha256:"a".repeat(64),kind:"charge",grossMinor:1000,processorFeeMinor:59,netMinor:941,state:"available"};
+assert.equal(reconcileSettlementPreview([scope],[charge,charge]).partitions[0].chargesMinor,1000);
+assert.equal(reconcileSettlementPreview([scope],[{...charge,processorFeeMinor:null,netMinor:null}]).partitions[0].netMinor,null);
+assert.equal(reconcileSettlementPreview([scope],[charge,{...charge,balanceTransactionId:"txn_payoutA",kind:"payout",state:"paid"}]).partitions[0].chargesMinor,1000);
+assert.equal(reconcileSettlementPreview([scope],[{...charge,kind:"payout",state:"pending"}]).partitions.length,0);
+assert.equal(reconcileSettlementPreview([scope],[charge]).reserveBalanceMinor,null);
+for (const override of [{testMode:false},{account:"acct_syntheticB"},{sellerId:null},{currency:"eur"},{netMinor:940},{sourceSha256:"invalid"}]) assert.throws(()=>reconcileSettlementPreview([scope],[{...charge,...override}]));
+assert.throws(()=>reconcileSettlementPreview([scope],[charge,{...charge,grossMinor:999,netMinor:940}]));
+const eurScope={...scope,currency:"eur",orderId:"a2000000-0000-4000-8000-000000000002"};
+assert.equal(reconcileSettlementPreview([scope,eurScope],[charge,{...charge,...eurScope,balanceTransactionId:"txn_eur"}]).partitions.length,2);
+assert.equal(savedMethodReusePermitted({buyerId:"a",account:"acct_syntheticA",purpose:"marketplace",consent:true},{buyerId:"a",account:"acct_syntheticB",purpose:"marketplace"}),false);
+assert.equal(savedMethodReusePermitted({buyerId:"a",account:"platform",purpose:"support",consent:false},{buyerId:"a",account:"platform",purpose:"support"}),false);
+assert.equal(savedMethodReusePermitted({buyerId:"a",account:"platform",purpose:"support",consent:true},{buyerId:"a",account:"platform",purpose:"support"}),true);
+assert.equal(proposedDirectChargePlan({scope,grossMinor:1000,fee:terms,sellerAuthorized:true,chargesEnabled:true,payoutsEnabled:true,countryCurrencyQualified:true}).dispatchAllowed,false);
+assert.throws(dispatchPreparedSettlement);
+
+const receipt = {transactionId:"c1000000-0000-4000-8000-000000000001",publicReference:"synthetic-elysia-reference-0001",flow:"support_recurring",status:"succeeded",amountMinor:500,currency:"usd",occurredAt:"2026-09-08T00:00:00Z",receiptAvailable:false,providerIdentifiersExposed:false};
+assert.equal(normalizeReceipts([receipt])[0].refundedAmountCents,null);
+assert.equal(normalizeReceipts([receipt])[0].cadence,"monthly");
+const enhanced = {...receipt,recordVersion:"payment-record-v1",payee:"EcoSyneva Commons LLC",orderStatus:"partially_refunded",refundedAmountMinor:100};
+assert.equal(normalizeReceipts([enhanced])[0].orderStatus,"partially_refunded");
+assert.equal(normalizeReceipts([{...enhanced,flow:"marketplace_purchase",payee:null}])[0].payee,null);
+for (const override of [{refundedAmountMinor:501},{orderStatus:"payout_completed"},{payee:"https://example.invalid"},{secret:"unexpected"}]) assert.throws(()=>normalizeReceipts([{...enhanced,...override}]));
+assert.throws(()=>normalizeReceipts([receipt,receipt]));
+assert.equal(formatMinorAmount(null,"USD"),"Not yet verified");
+assert.equal(formatMinorAmount(123,"JPY"),"¥123");
+assert.equal(formatMinorAmount(123,"USD"),"$1.23");
+console.log("Stripe readiness behavior checks passed: immutable legal versions; safe proof formats/ownership/retention; integer fees/refunds; scoped duplicate settlement and payout separation; saved-method consent; disabled dispatch; verified payment records.");
