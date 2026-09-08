@@ -133,6 +133,15 @@ const reviewedAbuseAuthorityMigrations = new Set([
 
 function allowHit(file, line, checkName) {
   const normalized = file.replaceAll(path.sep, "/");
+  // Reviewed type names and SQL permission boundaries, never credential values.
+  if (checkName === "service role key strings") {
+    if (normalized === "functions/api/economic-preparation/_shared/handler.ts"
+      && line.trim() === 'export interface PreparationEnv extends Pick<BillingEnv, "SUPABASE_URL" | "SUPABASE_PUBLISHABLE_KEY" | "SUPABASE_SERVICE_ROLE_KEY"> {') return true;
+    if (normalized === "supabase/migrations/20260908040000_pre_provider_preparation.sql"
+      && /execute format\('revoke all on (?:table private\.%I|function %s) from public, anon, authenticated, service_role',(?:t|f)\);|^grant execute on function public\.(?:get_economic_preparation\(uuid,text\)|command_economic_preparation\(uuid,jsonb\)) to service_role;$|private\.economic_caller_is_service_role\(\)/.test(line)) return true;
+    if (normalized === "scripts/fixtures/preProviderBehavior.sql"
+      && /has_table_privilege\('service_role','private\.economic_owned_fee_waivers','insert'\)/.test(line)) return true;
+  }
   if (
     normalized.includes("scripts/fixtures/") && normalized.endsWith(".sql")
     && checkName === "service role key strings"

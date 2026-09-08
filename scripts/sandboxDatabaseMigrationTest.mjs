@@ -136,6 +136,7 @@ const readinessPaths = [
   "supabase/migrations/20260908010000_prepared_economic_legal_versions.sql",
   "supabase/migrations/20260908020000_stewardship_attachment_boundary.sql",
   "supabase/migrations/20260908030000_payment_records_and_support_credit_quarantine.sql",
+  "supabase/migrations/20260908040000_pre_provider_preparation.sql",
 ];
 
 const activePaths = [
@@ -1011,6 +1012,7 @@ try {
   for (const file of [
     ...activePaths,
     "scripts/fixtures/stripeReadinessBehavior.sql",
+    "scripts/fixtures/preProviderBehavior.sql",
     "scripts/fixtures/sandboxDatabaseBehavior.sql",
     "scripts/fixtures/codeRevisionProposalBehavior.sql",
     "scripts/fixtures/economicDatabaseBehavior.sql",
@@ -1739,6 +1741,7 @@ try {
   // Preserve historical economic fixtures before quarantining the old credit trigger.
   for (const file of readinessPaths) await psql(["-f", `/tmp/${path.basename(file)}`]);
   await psql(["-f", "/tmp/stripeReadinessBehavior.sql"]);
+  await psql(["-f", "/tmp/preProviderBehavior.sql"]);
   console.log("Readiness forward migrations and synthetic attachment/payment/quarantine checks passed.");
 
   const catalogIntegrity = await psql(["-tAc", `
@@ -1761,6 +1764,9 @@ try {
     await psql(["-c", "create extension if not exists plpgsql_check;"]);
     const governedPlpgsqlFunctions = [...new Set([
       "public.attach_own_stewardship_receipt",
+      "public.command_economic_preparation", "public.get_economic_preparation",
+      "private.require_economic_preparation_actor", "private.preparation_exact_keys", "private.preparation_minor",
+      "private.preparation_seller_blockers", "private.preparation_settlement_snapshot",
       ...economicPlpgsqlFunctions,
       ...hostedAllowancePlpgsqlFunctions,
       ...artisanPlpgsqlFunctions,
