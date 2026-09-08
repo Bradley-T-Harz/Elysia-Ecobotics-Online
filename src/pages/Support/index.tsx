@@ -1,3 +1,5 @@
+import { legalDocumentLink } from "../../shared/billing/legalDocumentLink";
+import FundingExplanation from "../../shared/billing/FundingExplanation";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import FeatureCard from "../../shared/components/FeatureCard";
@@ -152,6 +154,8 @@ export default function SupportPage() {
       {fromLocalRelease && <section className="section-card archive-support-boundary" aria-labelledby="release-support-separation-title"><p className="eyebrow">Separate from the free release path</p><h2 id="release-support-separation-title">Nothing is being unlocked</h2><p>The $0 Local Elysia path remains available without an account or checkout. Optional support helps sustain the work but does not create a download, earlier access, a different artifact, updates, trust, authority, or support priority.</p><div className="button-row"><Link className="button-link button-link--primary" to="/archive#release-availability">Return to $0 release availability</Link><a className="button-link" href="#support-checkout">Continue considering optional support</a></div></section>}
       {searchParams.get("checkout") === "canceled" && <div className="boundary-note" role="status">Stripe checkout was canceled or left before completion. No completed payment is being claimed, and nothing about your Website Account or community standing changed.</div>}
 
+      <FundingExplanation />
+
       <section className="feature-grid feature-grid--four support-promises" aria-label="Permanent support promises">
         <FeatureCard title="Free local core" tone="safe"><p>Local Elysia does not become subscription-locked. A website account is not required for ordinary local use.</p></FeatureCard>
         <FeatureCard title="No pay-to-govern" tone="safe"><p>Payment cannot purchase authority, moderation power, developer trust, publication approval, voting power, or preferential treatment.</p></FeatureCard>
@@ -161,7 +165,7 @@ export default function SupportPage() {
 
       <section className="section-card support-checkout-card" id="support-checkout" aria-labelledby="support-checkout-title">
         <div className="section-heading section-heading--inline">
-          <div><p className="eyebrow">Stripe-hosted checkout</p><h2 id="support-checkout-title">Choose support deliberately</h2></div>
+          <div><p className="eyebrow">Optional payment choices</p><h2 id="support-checkout-title">Choose support deliberately</h2></div>
           <StatusBadge
             label={!capabilitiesChecked
               ? "Checking availability"
@@ -173,8 +177,8 @@ export default function SupportPage() {
             tone={capabilities?.supportCheckout || capabilities?.recurringSupport ? "safe" : "warning"}
           />
         </div>
-        <p className="boundary-note">No recurring option is preselected. Stripe receives the payment, contact, device, and transaction information needed to process checkout. Stripe does not receive local Elysia memory, files, conversations, Commune content, profile interests, or sandbox source code through this form.</p>
-        {capabilities && <p className={capabilities.supportCheckout || capabilities.recurringSupport ? "inline-status" : "demo-banner"}>{capabilities.supportCheckout || capabilities.recurringSupport ? "An explicitly enabled Stripe-hosted support checkout is available in test mode. No live charge can be created." : "Support checkout is disabled. Private cancellation or other account workflows may remain available separately."}</p>}
+        <p className="boundary-note">No recurring option is preselected. When checkout is available and you choose to continue, Stripe receives the payment, contact, device, and transaction information needed to process it. Stripe does not receive local Elysia memory, files, conversations, Commune content, profile interests, or sandbox source code through this form.</p>
+        {capabilities && <p className={capabilities.supportCheckout || capabilities.recurringSupport ? "inline-status" : "demo-banner"}>{capabilities.supportCheckout || capabilities.recurringSupport ? "An explicitly enabled Stripe-hosted support checkout is available in test mode. No live charge can be created." : "Support checkout is disabled while payment-provider review and operational preparation are pending. Existing payment questions, refunds and cancellation remain separate responsibilities; use Support & Billing or contact support for help."}</p>}
         {capabilitiesChecked && !capabilities && <p className="demo-banner" role="status">Checkout availability could not be verified. This page remains safely disabled; no payment was created and no legal version will be guessed.</p>}
         {!authLoading && <p className="support-account-context">{email ? <>Account-linked support will be associated with the signed-in Website Account for private history and cancellation. <strong>{email}</strong></> : <>One-time support can remain a guest checkout. Sign in through <Link to="/commons-circle">Commons Circle</Link> before choosing monthly support.</>}</p>}
 
@@ -186,7 +190,7 @@ export default function SupportPage() {
               <label className={cadence === "monthly" ? "support-choice support-choice--selected" : "support-choice"}><input type="radio" name="support-cadence" value="monthly" checked={cadence === "monthly"} onChange={() => chooseCadence("monthly")} disabled={fromLocalRelease || !capabilities?.recurringSupport || !accessToken} /><span><strong>Monthly sustaining support</strong><small>{fromLocalRelease ? "Not part of the pay-what-you-can release choice; use the general Support page later if desired." : "Renews monthly until canceled through Support & Billing or Stripe's secure portal."}</small></span></label>
             </div>
             {fromLocalRelease && <p className="small-note">The optional pay-what-you-can release context offers one-time support only, with no contribution amount preselected. The $0 release path remains outside this form.</p>}
-            {!capabilities?.recurringSupport && <p className="small-note">Recurring support is safely disabled until its test-mode product, webhook, account recovery, and cancellation path are configured.</p>}
+            {!capabilities?.recurringSupport && <p className="small-note">Monthly support is being prepared with explicit consent, account recovery and cancellation. It remains disabled until the required review and payment setup are complete.</p>}
           </fieldset>
 
           {cadence === "one_time" ? <fieldset>
@@ -200,18 +204,18 @@ export default function SupportPage() {
             <div className="support-choice-grid support-choice-grid--plans">
               {recurringPlans.map((plan) => <label className={recurringPriceCode === plan.code ? "support-choice support-choice--selected" : "support-choice"} key={plan.code}><input type="radio" name="recurring-support-plan" value={plan.code} checked={recurringPriceCode === plan.code} onChange={() => { checkoutRequestIdRef.current = ""; setRecurringPriceCode(plan.code); }} /><span><strong>{plan.name}</strong><small>{plan.purpose}. It grants no authority, rank, or public financial status.</small></span></label>)}
             </div>
-            <p className="small-note">No monthly option is preselected. Monthly support helps fund shared work; it does not itself promise sandbox credits or change safety limits, authority, badges, recognition, or rank.</p>
+            <p className="small-note">No monthly option is preselected. Monthly support helps fund shared work; it does not grant personal sandbox units or change safety limits, authority, badges, recognition, or rank.</p>
           </fieldset>}
 
           {cadence === "monthly" && <div className="boundary-note"><strong>Recurring-payment disclosure:</strong> {dollars(amountCents || 0)} will renew monthly until canceled. Cancellation does not remove your profile, Free Member recognition, content, developer status, purchases, existing badges, or governance participation.</div>}
 
-          {(!activeSupportBundle || !activeSupportTermsDocument || !activeRefundDocument || !activePrivacyDocument) && <div className="boundary-note" role="status">The server has not published the complete reviewed consent bundle for this support path. Checkout remains disabled and no document or bundle version will be guessed.</div>}
-          <label className="checkbox-line support-consent"><input type="checkbox" checked={accepted} disabled={!activeSupportBundle || !activeSupportTermsDocument || !activeRefundDocument || !activePrivacyDocument || busy} onChange={(event) => setAccepted(event.target.checked)} /><span>I understand this is optional support paid to EcoSyneva Commons LLC, not a tax-deductible charitable contribution; payment grants no authority; Stripe processes checkout; and the <Link to={activeSupportTermsDocument?.path ?? "/legal/support-and-billing-terms"}>Support &amp; Billing Terms{activeSupportBundle ? ` (consent bundle ${activeSupportBundle.version})` : ""}</Link>, <Link to={activeRefundDocument?.path ?? "/legal/refund-and-cancellation-policy"}>Refund and Cancellation Policy</Link>, and <Link to={activePrivacyDocument?.path ?? "/legal/privacy-policy"}>Privacy Policy</Link> apply.</span></label>
+          {(!activeSupportBundle || !activeSupportTermsDocument || !activeRefundDocument || !activePrivacyDocument) && <div className="boundary-note" role="status">Payments are not active. You can review the public terms below; checkout will require the applicable terms before any payment.</div>}
+          <label className="checkbox-line support-consent"><input type="checkbox" checked={accepted} disabled={!activeSupportBundle || !activeSupportTermsDocument || !activeRefundDocument || !activePrivacyDocument || busy} onChange={(event) => setAccepted(event.target.checked)} /><span>I understand this is optional support paid to EcoSyneva Commons LLC, not a tax-deductible charitable contribution; payment grants no authority; Stripe processes checkout; and the <Link to={legalDocumentLink(activeSupportTermsDocument, "/legal/support-and-billing-terms")}>Support &amp; Billing Terms{activeSupportBundle ? ` (consent bundle ${activeSupportBundle.version})` : ""}</Link>, <Link to={legalDocumentLink(activeRefundDocument, "/legal/refund-and-cancellation-policy")}>Refund and Cancellation Policy</Link>, and <Link to={legalDocumentLink(activePrivacyDocument, "/legal/privacy-policy")}>Privacy Policy</Link> apply.</span></label>
 
           {error && <div className="validation validation--bad" role="alert" tabIndex={-1} ref={errorRef}>{error}</div>}
           {status && <p className="inline-status" aria-live="polite">{status}</p>}
-          <div className="button-row"><button className="button-primary" type="submit" disabled={!canSubmit}>{busy ? "Opening secure checkout..." : `Continue to Stripe for ${dollars(amountCents || 0)}${cadence === "monthly" ? "/month" : ""}`}</button><Link className="button-link" to={fromLocalRelease ? "/archive#release-availability" : "/"}>{fromLocalRelease ? "Return to $0 release path" : "Not now"}</Link></div>
-          <p className="small-note">This website never asks for card details. Checkout opens on Stripe. Arriving at the thank-you page does not by itself prove that a payment succeeded; the server verifies Stripe's signed webhook separately.</p>
+          <div className="button-row"><button className="button-primary" type="submit" disabled={!canSubmit}>{busy ? "Opening secure checkout..." : !cadenceAvailable ? "Support checkout unavailable" : `Continue to Stripe for ${dollars(amountCents || 0)}${cadence === "monthly" ? "/month" : ""}`}</button><Link className="button-link" to={fromLocalRelease ? "/archive#release-availability" : "/"}>{fromLocalRelease ? "Return to $0 release path" : "Not now"}</Link></div>
+          <p className="small-note">This website never asks for card details. When enabled, checkout opens on Stripe. Arriving at the thank-you page does not by itself prove that a payment succeeded; the server verifies Stripe's signed webhook separately.</p>
         </form>
       </section>
 

@@ -18,6 +18,7 @@ const archive = await read("src/pages/The-Elysia-Archive/index.tsx");
 const thankYou = await read("src/pages/Support/SupportThankYouPage.tsx");
 const forgotPassword = await read("src/pages/Account/AccountForgotPasswordPage.tsx");
 const recovery = await read("src/pages/Account/AccountRecoveryPage.tsx");
+const paymentRecord = await read("src/shared/billing/PaymentRecordCard.tsx");
 const supportBilling = await read("src/pages/The-Commons-Circle/SupportBillingPage.tsx");
 const hostedAllowance = await read("src/pages/The-Commons-Circle/HostedExecutionAllowancePage.tsx");
 const commonsCircle = await read("src/pages/The-Commons-Circle/index.tsx");
@@ -120,7 +121,7 @@ for (const forbiddenLabel of ["Seed Supporter", "Commons Sustainer", "Infrastruc
   assert(!support.includes(forbiddenLabel) && !stripeCatalog.includes(forbiddenLabel), `Wealth- or rank-like recurring label returned: ${forbiddenLabel}`);
 }
 assert(
-  support.includes("does not itself promise sandbox credits")
+  support.includes("does not grant personal sandbox units")
     && support.includes("no authority, rank, or public financial status")
     && supportBilling.includes("This is not an upgrade-membership page"),
   "Support presentation must not imply credits, rank, authority, or a paid membership tier."
@@ -227,8 +228,8 @@ assert(
   !supportBilling.includes("SandboxCreditPurchasePanel")
     && supportBilling.includes("Additional paid hosted execution is unavailable")
     && hostedAllowance.includes("Additional paid allowance")
-    && /not available/i.test(hostedAllowance)
-    && hostedAllowance.includes("Voluntary support is a separate choice")
+    && hostedAllowance.includes("No paid top-up is offered")
+    && hostedAllowance.includes("Voluntary support does not grant personal units or priority")
     && supportBilling.includes("<CheckoutReturnStatus")
     && checkoutReturnStatus.includes("Browser return alone is not proof of payment or fulfillment")
     && checkoutReturnStatus.includes("loadBillingOrder(orderReference, accessToken)"),
@@ -403,7 +404,7 @@ assert(
 assert(
   marketplaceHome.includes('searchParams.get("commerce") === "canceled"')
     && marketplaceHome.includes("No completed payment, fulfilled license, trust change, download, or installation is being claimed")
-    && marketplaceHome.includes("Separate test-mode offers only"),
+    && marketplaceHome.includes("Paid transactions not active"),
   "Marketplace checkout cancellation must land on an honest, test-only state rather than a false success or obsolete no-payments claim."
 );
 assert(
@@ -645,7 +646,7 @@ assert(
   billingClient.includes('receipt.receiptAvailable !== false')
     && billingClient.includes('receipt.providerIdentifiersExposed !== false')
     && billingClient.includes("normalizeAccountWarnings(source.warnings)")
-    && supportBilling.includes("Stripe email is the current receipt path; this private summary is not a downloadable receipt"),
+    && supportBilling.includes("<PaymentRecordCard") && paymentRecord.includes("Provider email delivery is not established by this record"),
   "Receipt and warning projections must be exact, provider-identifier-free, and honest that no repository download endpoint exists."
 );
 assert(

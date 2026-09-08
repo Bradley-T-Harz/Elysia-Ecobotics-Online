@@ -116,7 +116,7 @@ export default function HostedExecutionAllowancePage() {
         <section className="commons-doctrine-grid">
           <WarningCallout title="Hosted execution is finite"><p>EcoSyneva-operated execution consumes bounded server resources. The same authoritative allowance governs every runnable Website sandbox surface.</p></WarningCallout>
           <WarningCallout title="Local Elysia is unaffected"><p>Computation on your own local Elysia installation is not metered by EcoSyneva.</p></WarningCallout>
-          <WarningCallout title="Additional paid allowance"><p>Not available while payment-system activation remains externally gated. Voluntary support is a separate choice.</p></WarningCallout>
+          <WarningCallout title="Additional paid allowance"><p>No paid top-up is offered. The current free starter allowance is provided once, without scheduled renewal or expiration. Voluntary support does not grant personal units or priority.</p></WarningCallout>
         </section>
         <div className="button-row"><Link className="button-link" to="/commons-circle/settings">Account &amp; Profile Settings</Link></div>
       </div>

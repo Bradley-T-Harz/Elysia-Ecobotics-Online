@@ -1,3 +1,5 @@
+import { archivedLegalPolicyPages } from "./economicLegalArchive.ts";
+import { clarifyEconomicPolicy, readinessLegalVersion } from "./readinessLegalClarifications.ts";
 export type LegalPolicyPage = {
   slug: string;
   route: string;
@@ -770,8 +772,17 @@ export const legalPolicyGroups: LegalPolicyGroup[] = [
   }
 ];
 
-export function getLegalPolicy(slug: string | undefined): LegalPolicyPage | undefined {
-  return legalPolicyPages.find((policy) => policy.slug === slug);
+for (const page of legalPolicyPages) {
+  if (archivedLegalPolicyPages.some((archived) => archived.slug === page.slug)) {
+    page.body = clarifyEconomicPolicy(page.slug, page.body);
+    page.lastUpdated = "2026-09-08";
+  }
+}
+
+export function getLegalPolicy(slug: string | undefined, version?: string | null): LegalPolicyPage | undefined {
+  if (!version || version === readinessLegalVersion) return legalPolicyPages.find((policy) => policy.slug === slug && (!version || policy.lastUpdated === "2026-09-08"));
+  return archivedLegalPolicyPages.find((policy) => policy.slug === slug
+    && (version === policy.lastUpdated || (slug === "marketplace-commerce-terms" && version === "stripe-connect-test-2026-07-16")));
 }
 
 export function getLegalPolicyDescription(slug: string): string {

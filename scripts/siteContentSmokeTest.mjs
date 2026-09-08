@@ -681,7 +681,7 @@ for (const neutralLabel of ["$1 monthly support", "$5 monthly support", "$12 mon
 for (const wealthLikeLabel of ["Seed Supporter", "Commons Sustainer", "Infrastructure Sustainer", "Sandbox Sustainer", "Commons Patron"]) {
   assert(!supportPage.includes(wealthLikeLabel) && !stripeTestCatalog.includes(wealthLikeLabel), `Recurring support must not create a wealth- or rank-like public/provider label: ${wealthLikeLabel}`);
 }
-assert(supportPage.includes("does not itself promise sandbox credits") && supportPage.includes("no authority, rank, or public financial status") && stripeTestCatalog.includes("does not promise credits"), "Recurring support must not imply an unfulfilled sandbox-credit benefit or public status.");
+assert(supportPage.includes("does not grant personal sandbox units") && supportPage.includes("no authority, rank, or public financial status") && stripeTestCatalog.includes("does not promise credits"), "Recurring support must not imply an unfulfilled sandbox-credit benefit or public status.");
 assert(supportPage.includes('searchParams.get("checkout") === "canceled"') && supportPage.includes("No completed payment is being claimed"), "Canceled checkout return must not show a fake success or change account standing.");
 for (const priceCode of ["support_monthly_seed_usd", "support_monthly_commons_usd", "support_monthly_infrastructure_usd", "support_monthly_sandbox_usd", "support_monthly_50_usd"]) {
   assert(supportPage.includes(priceCode) && billingClient.includes(priceCode), `Recurring support product is not aligned across UI/client: ${priceCode}`);

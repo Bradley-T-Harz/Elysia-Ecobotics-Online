@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import fs from "node:fs/promises";
-import { legalPolicyPages } from "../src/pages/Legal/legalPolicyPages.ts";
+import { archivedLegalPolicyPages as legalPolicyPages } from "../src/pages/Legal/economicLegalArchive.ts";
 import {
   billingLegalConsentBundleIntegrityExpectations,
   billingLegalDocumentIntegrityExpectations,

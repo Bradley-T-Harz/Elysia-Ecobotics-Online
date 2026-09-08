@@ -418,6 +418,12 @@ export type SupportHistoryItem = {
 };
 
 export type ReceiptSummary = {
+  flow: BillingOrderFlow;
+  status: string;
+  payee: string | null;
+  cadence: SupportCadence;
+  orderStatus: string | null;
+  refundedAmountCents: number | null;
   id: string;
   publicReference: string;
   label: string;
@@ -1979,7 +1985,7 @@ function normalizeSupportHistory(value: unknown): SupportHistoryItem[] {
   });
 }
 
-function normalizeReceipts(value: unknown): ReceiptSummary[] {
+export function normalizeReceipts(value: unknown): ReceiptSummary[] {
   const receiptFlows = new Set(["support_one_time", "support_recurring", "sandbox_credits", "job_post_fee", "marketplace_purchase", "organization_service", "sponsorship"]);
   const receiptStatuses = new Set(["pending", "succeeded", "failed", "canceled", "refunded", "disputed"]);
   const flowLabels: Record<string, string> = {
@@ -1995,7 +2001,8 @@ function normalizeReceipts(value: unknown): ReceiptSummary[] {
   if (receipts.length > 100) accountProjectionError("billing_account_receipts_invalid");
   const seen = new Set<string>();
   return receipts.map((item): ReceiptSummary => {
-    const receipt = exactRecord(item, ["transactionId", "publicReference", "flow", "status", "amountMinor", "currency", "occurredAt", "receiptAvailable", "providerIdentifiersExposed"], "billing_account_receipts_invalid");
+    const enhanced = isRecord(item) && item.recordVersion === "payment-record-v1";
+    const receipt = exactRecord(item, ["transactionId", "publicReference", "flow", "status", "amountMinor", "currency", "occurredAt", "receiptAvailable", "providerIdentifiersExposed", ...(enhanced ? ["recordVersion", "payee", "orderStatus", "refundedAmountMinor"] : [])], "billing_account_receipts_invalid");
     const transactionId = marketplaceUuid(receipt.transactionId, "billing_account_receipts_invalid");
     const publicReference = marketplaceString(receipt.publicReference, 160, "billing_account_receipts_invalid");
     const flow = marketplaceString(receipt.flow, 40, "billing_account_receipts_invalid");
@@ -2009,7 +2016,16 @@ function normalizeReceipts(value: unknown): ReceiptSummary[] {
       accountProjectionError("billing_account_receipts_invalid");
     }
     seen.add(transactionId);
-    return { id: transactionId, publicReference, label: `${flowLabels[flow]} · ${status.replace(/_/g, " ")}`, amountCents: Number(receipt.amountMinor), currency: currency.toUpperCase(), createdAt: occurredAt, receiptAvailable: false };
+    const payee = enhanced ? receipt.payee === null ? null : marketplaceString(receipt.payee, 200, "billing_account_receipts_invalid") : flow === "marketplace_purchase" ? null : "EcoSyneva Commons LLC";
+    const orderStatus = enhanced ? marketplaceString(receipt.orderStatus, 40, "billing_account_receipts_invalid") : null;
+    const orderStatuses = new Set(["pending", "checkout_created", "processing", "paid", "failed", "canceled", "partially_refunded", "refunded", "disputed"]);
+    if (enhanced && (!orderStatuses.has(orderStatus!) || !Number.isSafeInteger(receipt.refundedAmountMinor)
+      || Number(receipt.refundedAmountMinor) < 0 || Number(receipt.refundedAmountMinor) > Number(receipt.amountMinor)
+      || /(?:sk_|whsec_|acct_|cus_|pi_|ch_|https?:|[\u0000-\u001f])/.test(payee ?? ""))) accountProjectionError("billing_account_receipts_invalid");
+    return { id: transactionId, publicReference, flow: flow as BillingOrderFlow, status, payee,
+      cadence: flow === "support_recurring" ? "monthly" : "one_time", orderStatus,
+      refundedAmountCents: enhanced ? Number(receipt.refundedAmountMinor) : null,
+      label: `${flowLabels[flow]} · ${status.replace(/_/g, " ")}`, amountCents: Number(receipt.amountMinor), currency: currency.toUpperCase(), createdAt: occurredAt, receiptAvailable: false };
   });
 }
 

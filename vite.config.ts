@@ -7,6 +7,8 @@ import react from "@vitejs/plugin-react";
 const browserAssetNamespace = "safe-assets-v1";
 
 export default defineConfig({
+  // Isolated readiness builds must never read real .env files into a preview.
+  envDir: (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.ELYSIA_ISOLATED_TEST === "1" ? false : undefined,
   plugins: [react()],
   build: {
     // Vite exposes one warning threshold, while the local Monaco core has a

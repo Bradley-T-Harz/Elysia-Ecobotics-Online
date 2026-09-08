@@ -1,3 +1,4 @@
+import { FundingLink } from "../../shared/billing/FundingExplanation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
@@ -769,9 +770,9 @@ export default function CommonsCircleSetupPage() {
 
       {step === "stewardship" && <section className="section-card commons-setup-panel">
         <p className="eyebrow">Step 2: Stewardship & Donation Options</p>
-        <h2>Optional stewardship support</h2>
+        <h2>Optional stewardship support</h2><div className="button-row"><FundingLink /></div>
         <WarningCallout title="Optional and direct"><p>Donations are optional and made directly to independent organizations. Elysia Ecobotics does not process these donations. Stewardship recognition may be requested, but it requires administrator review and does not grant authority, paid status, moderator access, reviewer access, or administrator access.</p></WarningCallout>
-        <p className="boundary-note">Receipt/proof uploads are private administrator-review materials stored in the private stewardship-receipts bucket only after final confirmation. Do not upload identity documents, medical records, passwords, API keys, .env files, bank account numbers, full card numbers, or unredacted third-party personal data.</p>
+        <p className="boundary-note">Receipt/proof uploads are private administrator-review materials sent to private hosted storage only after final confirmation. Remove unnecessary addresses, QR codes, transaction-access links and sensitive identifiers. Do not upload identity documents, medical records, passwords, API keys, .env files, bank account numbers, full card numbers, or unredacted third-party personal data.</p>
         {Object.entries(groupedOrganizations).map(([category, orgs]) => <section className="commons-org-category" key={category}>
           <div className="section-heading section-heading--inline"><h3>{category}</h3><span className="trust-badge">{orgs.length} organizations</span></div>
           <div className="commons-org-grid">

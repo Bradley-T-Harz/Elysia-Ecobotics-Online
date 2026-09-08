@@ -1,3 +1,4 @@
+import { FundingLink } from "../../../shared/billing/FundingExplanation";
 import { BookOpen, GitPullRequest, Search, ShieldCheck, Store, UploadCloud } from "lucide-react";
 import { Link, useSearchParams } from "react-router-dom";
 import PageBrandMark from "../../../shared/components/PageBrandMark";
@@ -27,6 +28,8 @@ export default function MarketplaceHomePage() {
           <p className="boundary-note">
             Marketplace actions prepare plans only. It never accesses private Elysia memory, logs, credentials, identity vaults, or unselected machine data. Developer submission can transfer only files the developer explicitly selects after a clear remote-upload confirmation.
           </p>
+          <p>Free catalog access remains available. Creator sales and EcoSyneva’s own offerings are being prepared separately; paid checkout and seller payouts are not active.</p>
+          <FundingLink />
           <div className="hero-actions">
             <Link className="button-link button-link--primary" to="/marketplace/browse"><Store size={18} /> Browse Add-ons</Link>
             <Link className="button-link" to="/marketplace/submit"><GitPullRequest size={18} /> Submit Add-on</Link>
@@ -44,7 +47,7 @@ export default function MarketplaceHomePage() {
             <dl className="mini-facts">
               <div><dt>Catalog entries</dt><dd>{sortedAddons.length}</dd></div>
               <div><dt>Local machine data</dt><dd>Unselected data not collected</dd></div>
-              <div><dt>Commerce</dt><dd>Separate test-mode offers only</dd></div>
+              <div><dt>Commerce</dt><dd>Paid transactions not active</dd></div>
               <div><dt>Website execution</dt><dd>Unavailable</dd></div>
             </dl>
           </aside>

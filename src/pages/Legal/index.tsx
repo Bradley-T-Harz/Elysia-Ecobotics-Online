@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import StatusBadge from "../../shared/components/StatusBadge";
 import {
@@ -166,7 +166,9 @@ export default function LegalPage() {
 
 export function LegalPolicyPage() {
   const { slug } = useParams();
-  const policy = getLegalPolicy(slug);
+  const [search] = useSearchParams();
+  const requestedVersion = search.get("version");
+  const policy = getLegalPolicy(slug, requestedVersion);
 
   if (!policy) {
     return (
@@ -190,6 +192,7 @@ export function LegalPolicyPage() {
           <StatusBadge label={policy.status} tone="warning" />
           <span>Last updated {policy.lastUpdated}</span>
         </div>
+        {requestedVersion && <p className="boundary-note">Version-specific text: {requestedVersion}. <Link to={policy.route}>Read the current public explanation</Link>. Historical text does not enable checkout.</p>}
         <p className="legal-policy-summary"><strong>What this covers:</strong> {getLegalPolicyDescription(policy.slug)}</p>
         <PolicyQuickLinks />
       </section>
