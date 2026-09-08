@@ -7,6 +7,7 @@ import { loadCommonsHomebase } from "./commonsCircleApi";
 import type { CommonsHomebaseData } from "./commonsCircleApi";
 
 const adminConsoleLinks = [
+  ["/admin/economic-operations/readiness", "Economic Operations", "Payment readiness, seller onboarding, support, Marketplace settlement, refunds, and provider status. Separately assigned economic authority is required."],
   ["/admin", "Admin dashboard", "Governance overview and safe queue counts."],
   ["/admin/moderation", "Moderation dashboard", "Reported and flagged public content."],
   ["/admin/reports", "Reported content queue", "Private reports and review outcomes."],

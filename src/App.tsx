@@ -70,6 +70,7 @@ const AdminAddonSubmissionsPage = lazy(() => import("./pages/Admin").then((modul
 const AdminLibrarySourcesPage = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminLibrarySourcesPage })));
 const AdminWorkSubmissionsPage = lazy(() => import("./pages/Admin").then((module) => ({ default: module.AdminWorkSubmissionsPage })));
 const EconomicOperationsPage = lazy(() => import("./pages/Admin/EconomicOperationsPage"));
+const EconomicOperationsSectionPage = lazy(() => import("./pages/Admin/EconomicOperationsSectionPage"));
 
 function PageLoading() {
   return <main className="site-loading" aria-live="polite">Loading Elysia Ecobotics Online...</main>;
@@ -272,6 +273,7 @@ export default function App() {
             <Route path="account/deactivate" element={<AccountDeactivationPage />} />
             <Route path="account/reactivate" element={<AccountReactivationPage />} />
             <Route path="commons-circle/settings/hosted-execution" element={<HostedExecutionAllowancePage />} />
+            <Route path="admin/economic-operations/:section" element={<EconomicOperationsSectionPage />} />
             </Route>
             </Routes>
             </AccountActivationBoundary>

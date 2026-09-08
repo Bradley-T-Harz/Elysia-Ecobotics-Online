@@ -1,5 +1,6 @@
 import { legalDocumentLink } from "../../../shared/billing/legalDocumentLink";
 import { FundingLink } from "../../../shared/billing/FundingExplanation";
+import SellerPreparationPanel from "./SellerPreparationPanel";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../../shared/auth/useAuth";
@@ -486,6 +487,7 @@ export default function MarketplaceCommerceAccountPanel() {
   }
 
   return <section className="marketplace-commerce-account section-card"><FundingLink />
+    <SellerPreparationPanel />
     <div className="section-heading section-heading--inline"><div><p className="eyebrow">Private Marketplace commerce</p><h2>Licenses and seller readiness</h2></div><span className="trust-badge">Test mode only</span></div>
     <p>These private economic records remain separate from your Commons Profile, Free Member recognition, badges, governance roles, developer status, publisher identity, listing review, and Local Elysia account.</p>
     {accessToken && (commerceReturnState === "success" || commerceReturnState === "canceled") && <CheckoutReturnStatus

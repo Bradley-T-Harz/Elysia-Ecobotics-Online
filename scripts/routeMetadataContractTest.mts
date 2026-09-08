@@ -14,13 +14,14 @@ function materializePath(value: string) {
     .replaceAll(":categorySlug", "earth-environment")
     .replaceAll(":sourceId", "nasa-earthdata")
     .replaceAll(":step", "profile")
+    .replaceAll(":section", "readiness")
     .replaceAll(":id", "synthetic-route-metadata")
     .replace(/:[A-Za-z][A-Za-z0-9_]*/g, "synthetic-route-metadata");
 }
 
 const smokePaths = [...new Set<string>(contract.routes.flatMap((route: { smokePaths?: string[] }) => route.smokePaths ?? []).map(materializePath))]
   .filter((pathname) => pathname.startsWith("/") && !pathname.includes("*"));
-assert.equal(smokePaths.length, 163, "The metadata contract must cover the complete preserved smoke-path baseline.");
+assert.equal(smokePaths.length, 164, "The metadata contract must cover the complete preserved smoke-path baseline.");
 
 for (const pathname of smokePaths) {
   const metadata = routeMetadataForPath(pathname);

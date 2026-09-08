@@ -1,6 +1,7 @@
 import { legalDocumentLink } from "../../shared/billing/legalDocumentLink";
 import PaymentRecordCard from "../../shared/billing/PaymentRecordCard";
 import { FundingLink } from "../../shared/billing/FundingExplanation";
+import SupportPreparationPanel from "../../shared/economics/SupportPreparationPanel";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
@@ -299,6 +300,7 @@ export default function SupportBillingPage() {
   return <div className="page-stack commons-circle-page commons-support-billing-page">
     <PageHero eyebrow="Commons Circle" title="Support & Billing" brandMark="standard"><p>Your private account room for account-linked support and recurring-support management, with clearly labeled availability and dedicated private paths for receipts, service credits, Marketplace licenses, Job Post fees, and seller readiness.</p><p>This is not an upgrade-membership page. Payment does not alter Free Member recognition, badges, roles, moderation authority, developer approval, publisher identity, or governance.</p></PageHero>
     <div className="button-row"><FundingLink /></div>
+    <SupportPreparationPanel />
     <section className="commons-doctrine-grid">
       <WarningCallout title="Private financial room"><p>Amounts, balances, payment failures, waivers, refunds, disputes, and seller income never belong on a public profile.</p></WarningCallout>
       <WarningCallout title="No pay-to-govern"><p>Economic entitlements are narrow service rights. They do not purchase trust, authority, review outcomes, rankings, or control of the Commons.</p></WarningCallout>

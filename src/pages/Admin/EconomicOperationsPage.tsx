@@ -41,6 +41,7 @@ import {
 } from "../../shared/billing/billingClient";
 import { useAuth } from "../../shared/auth/useAuth";
 import EconomicOrganizationSponsorshipOperations from "./EconomicOrganizationSponsorshipOperations";
+import EconomicOperationsNavigation from "./EconomicOperationsNavigation";
 
 const capabilityDescriptions: Record<EconomicOperatorCapability, string> = {
   economic_orders_view: "View normalized private order summaries.",
@@ -1242,6 +1243,7 @@ export default function EconomicOperationsPage() {
     "economic_feature_flags_manage"
   ].includes(capability)) ?? [];
   return <div className="page-stack economic-operations-page">
+    <EconomicOperationsNavigation />
     <PageHero eyebrow="Private economic operations" title="Financial separation of duties" brandMark="standard"><p>This console is gated by explicit private economic capabilities. Community administrator, moderator, reviewer, Free Member, badge, developer, publisher, and stewardship status do not grant access.</p></PageHero>
     <section className="commons-doctrine-grid">
       <WarningCallout title="Not governance"><p>Economic operators cannot use this console to grant roles, badges, trust, publication approval, moderator power, or social standing.</p></WarningCallout>

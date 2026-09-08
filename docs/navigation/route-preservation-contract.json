@@ -6,7 +6,7 @@
     "repository": "Elysia-Ecobotics-Online",
     "branchPoint": "97bfc8b95f295c9c6dae98c9feb914e88c91b036",
     "routerSource": "src/App.tsx",
-    "routerDeclarationCount": 141,
+    "routerDeclarationCount": 142,
     "deployedBehaviorClaimed": false
   },
   "invariants": [
@@ -108,6 +108,7 @@
     "orange-boundary": "Surface intersects an orange-zone workflow or system. Navigation may preserve its exact route; its behavior and internals may not be mutated."
   },
   "dynamicSources": {
+    "economic-preparation-section": {"kind": "closed-registry", "sources": ["src/shared/economics/preProviderContracts.ts"], "allowedValues": ["readiness", "support", "sellers", "offers", "onboarding", "settlement", "refunds", "receipts", "organizations", "sponsorship", "job-fees", "hosted-allowance", "legal", "provider", "waivers", "audit"], "rule": "Only preparationSections values resolve. New local destinations do not publish API routes or grant economic authority."},
     "marketplace-addon-id": {
       "kind": "record-backed",
       "sources": ["src/pages/The-Elysia-Marketplace/MarketplaceProvider.tsx", "src/pages/The-Elysia-Marketplace/lib/addonCatalog.ts", "src/pages/The-Elysia-Marketplace/data/seedAddons.ts"],
@@ -343,7 +344,8 @@
     { "id": "RT-0138", "declaredPath": "account/change-password", "resolvedPattern": "/account/change-password", "kind": "static", "parentId": "RT-0001", "owner": "AccountChangePasswordPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "signed-in-or-component-gated", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["account-contextual", "restricted", "direct-load"], "smokePaths": ["/account/change-password"] },
     { "id": "RT-0139", "declaredPath": "account/deactivate", "resolvedPattern": "/account/deactivate", "kind": "static", "parentId": "RT-0001", "owner": "AccountDeactivationPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "signed-in-or-component-gated", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["account-contextual", "restricted", "direct-load"], "smokePaths": ["/account/deactivate"] },
     { "id": "RT-0140", "declaredPath": "account/reactivate", "resolvedPattern": "/account/reactivate", "kind": "static", "parentId": "RT-0001", "owner": "AccountReactivationPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "signed-in-or-component-gated", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["account-contextual", "restricted", "direct-load"], "smokePaths": ["/account/reactivate"] },
-    { "id": "RT-0141", "declaredPath": "commons-circle/settings/hosted-execution", "resolvedPattern": "/commons-circle/settings/hosted-execution", "kind": "static", "parentId": "RT-0001", "owner": "HostedExecutionAllowancePage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "signed-in-or-component-gated", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["page-local", "restricted", "direct-load"], "smokePaths": ["/commons-circle/settings/hosted-execution"] }
+    { "id": "RT-0141", "declaredPath": "commons-circle/settings/hosted-execution", "resolvedPattern": "/commons-circle/settings/hosted-execution", "kind": "static", "parentId": "RT-0001", "owner": "HostedExecutionAllowancePage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "signed-in-or-component-gated", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["page-local", "restricted", "direct-load"], "smokePaths": ["/commons-circle/settings/hosted-execution"] },
+    {"id": "RT-0142", "declaredPath": "admin/economic-operations/:section", "resolvedPattern": "/admin/economic-operations/:section", "kind": "dynamic", "parentId": "RT-0001", "owner": "EconomicOperationsSectionPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": "economic-preparation-section", "accessProfile": "role-restricted", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["restricted", "direct-load"], "smokePaths": ["/admin/economic-operations/:section"]}
   ],
   "externalDestinations": [
     { "id": "EXT-0001", "url": "https://elysiaartisancollective.pages.dev", "kind": "external", "owner": "ElysiaArtisanCollectivePage", "accessProfile": "external-approved-boundary", "statusProfile": "approved-external-boundary", "zone": "orange-boundary", "reachability": ["artisan-bridge-page-only"] },

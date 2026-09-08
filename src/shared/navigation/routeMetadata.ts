@@ -157,6 +157,7 @@ function normalizedPathname(value: string) {
 function titleForPath(pathname: string) {
   const exact = exactTitles[pathname];
   if (exact) return exact;
+  if (/^\/admin\/economic-operations\/[^/]+$/.test(pathname)) return "Economic Operations";
   if (/^\/marketplace\/addons\/[^/]+$/.test(pathname) || /^\/addons\/[^/]+$/.test(pathname)) return "Marketplace Add-on";
   if (/^\/developer-forge\/drafts\/[^/]+\/manifest$/.test(pathname)) return "Developer Forge Draft Manifest";
   if (/^\/developer-forge\/drafts\/[^/]+\/permissions$/.test(pathname)) return "Developer Forge Draft Permissions";
