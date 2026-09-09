@@ -30,7 +30,7 @@ for (const name of assetNames.filter((item) => item.endsWith(".js"))) {
   const match = source.match(/https:\/\/([a-z0-9-]+)\.supabase\.co/i);
   if (match) { projectRef = match[1]; break; }
 }
-assert(projectRef, "configured Supabase public origin missing from production-equivalent build");
+assert.equal(projectRef, "readiness-fixture", "Job browser tests require the isolated synthetic build");
 
 const ids = {
   user: "c1000000-0000-4000-8000-000000000001",
@@ -219,8 +219,9 @@ const origin = `http://127.0.0.1:${address.port}`;
 const jsonHeaders = { "Access-Control-Allow-Headers": "*", "Access-Control-Allow-Methods": "GET,POST,PATCH,DELETE,OPTIONS", "Access-Control-Allow-Origin": "*", "Content-Type": "application/json; charset=utf-8" };
 
 async function installFixtures(context, options = {}) {
-  const { admin = false, viewerIsOwner = false, posts = [], jobs = [], review = false, captures = { posts: [], jobs: [], reviews: [], comments: [] } } = options;
+  const { admin = false, viewerIsOwner = false, posts = [], jobs = [], review = false, feeRequests = false, captures = { posts: [], jobs: [], reviews: [], comments: [] } } = options;
   let reviewInsert = 0;
+  let feeRequest = null;
   await context.route(/^https:\/\/[^/]+\.supabase\.co\//, async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -269,6 +270,14 @@ async function installFixtures(context, options = {}) {
       published: false,
       feeEnforcement: false,
     });
+    if (feeRequests && pathname.endsWith("/rest/v1/rpc/current_user_job_post_fee_workspace")) return fulfill({ items: captures.jobs.length ? [{ jobPostId: ids.job, postId: captures.jobs[0].post_id, authorUserId: null, title: captures.posts[0].title, classification: "not_assessed", conditionStatus: "not_assessed", contentStatus: "pending_review", request: feeRequest }] : [], canReview: false, canAssess: false, hasMore: false, cursor: null, paymentsCollected: false });
+    if (feeRequests && pathname.endsWith("/rest/v1/rpc/submit_job_post_fee_request_command")) {
+      const command = request.postDataJSON().p_command;
+      assert.equal(command.action, "submit"); assert.equal(command.jobPostId, ids.job); assert.equal(command.expectedRevision, 0);
+      captures.feeRequests ||= []; captures.feeRequests.push(command);
+      feeRequest = { category: command.category, explanation: command.explanation, status: "submitted", response: "", revision: 1, updatedAt: new Date().toISOString() };
+      return fulfill({ jobPostId: ids.job, commandId: command.commandId, revision: 1 });
+    }
     if (pathname.includes("/rest/v1/rpc/")) return fulfill(objectResponse ? { id: ids.post } : []);
     if (["POST", "PATCH", "DELETE"].includes(request.method())) return fulfill(objectResponse ? { id: ids.post } : [], 201);
     return fulfill([]);
@@ -816,7 +825,7 @@ try {
   }
   {
     const captures = { posts: [], jobs: [], reviews: [], comments: [] };
-    const context = await contextFor(browser, { captures });
+    const context = await contextFor(browser, { captures, feeRequests: true });
     const page = await context.newPage();
     await open(page, "/commune/rooms/job-post/new");
     await baseComposer(page, "paid_employment", "paid");
@@ -858,6 +867,21 @@ try {
     assert.equal(captures.jobs[0].role_type, "paid_role", "new v2 writes must retain deterministic legacy compatibility");
     assert.equal(captures.jobs[0].private_application_note, undefined, "public-row pseudo-private note must never be written");
     assert.equal(captures.reviews.length, 2, "existing two-record review history must remain intact underneath the joined presentation");
+    await page.getByRole("heading", { name: "Job Post saved", exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Submit for moderation", exact: true }).count(), 0, "a saved opportunity must not offer duplicate creation");
+    await page.getByText("Request a fee waiver or assistance", { exact: true }).click();
+    await page.getByLabel("Short explanation", { exact: true }).fill("PRIVATE synthetic assistance after saving the opportunity.");
+    await page.getByRole("button", { name: "Send private request", exact: true }).click();
+    await page.getByText("submitted", { exact: true }).waitFor();
+    assert.equal(captures.feeRequests.length, 1, "private request must reference the saved structured Job Post");
+    assert(!JSON.stringify([captures.posts, captures.jobs, captures.reviews]).includes("PRIVATE synthetic assistance"), "private assistance leaked into public content or moderation");
+    assert(!await page.evaluate(() => JSON.stringify(localStorage).includes("PRIVATE synthetic assistance")), "private request leaked into local drafts");
+    const submittedExport = page.waitForEvent("download");
+    await page.getByRole("button", { name: "Export submitted draft", exact: true }).click();
+    const exportPath = await (await submittedExport).path();
+    assert(exportPath); assert(!(await fs.readFile(exportPath, "utf8")).includes("PRIVATE synthetic assistance"), "private assistance leaked into exported public draft");
+    await screenshot(page, "20-saved-opportunity-private-assistance");
+
     await context.close();
   }
   {
@@ -948,7 +972,7 @@ try {
     assert(detailLayout.facts.every((item) => item.height < 180), "compact fact cards inherited a long prose-card height");
     assert(detailLayout.narrative.every((item) => item.width >= 500), "long narrative cards should receive wide desktop columns");
     assert.equal(await page.locator(".commune-job-review-controls").count(), 0, "ordinary member must not receive Job Post operator controls");
-    assert.equal(await page.locator(".commune-job-economic-owner").count(), 0, "non-owner member must not receive owner economic UI");
+    assert.equal(await page.locator("#posting-fees").count(), 0, "non-owner member must not receive owner economic UI");
     assert.equal(await page.getByText("Public clarification: use only the stated Private Work With route.", { exact: true }).count(), 1, "ordinary members must retain public read access to the author's public-safe clarification");
     assert.equal(await page.getByLabel(/^Public correction \/ clarification note/).count(), 0, "ordinary members must not receive another author's correction editor");
     const linkItems = page.locator('[aria-label="Links"] li');
@@ -985,7 +1009,7 @@ try {
     assert.equal(await page.getByLabel(/^Public correction \/ clarification note/).count(), 1, "reviewer/admin must retain the public-safe clarification editor");
     assert.equal(await page.getByRole("button", { name: "Save listing status" }).count(), 1, "reviewer/admin listing-status mutation control missing");
     assert.equal(await page.getByRole("button", { name: "Save anti-scam review" }).count(), 1, "reviewer/admin anti-scam mutation control missing");
-    assert.equal(await page.locator(".commune-job-economic-owner").count(), 0, "non-owner admin must not receive another author's economic UI");
+    assert.equal(await page.locator("#posting-fees").count(), 0, "non-owner admin must not receive another author's economic UI");
     await readableScreenshot(page, "desktop", "47-admin-public-detail-operator-controls", page.locator(".commune-job-review-controls"), -220);
     await readableScreenshot(page, "desktop", "47b-admin-public-detail-operator-actions", page.getByRole("button", { name: "Save anti-scam review" }), -360);
     await context.close();
@@ -1000,7 +1024,7 @@ try {
     assert.equal(await page.getByLabel(/^Public correction \/ clarification note/).count(), 1, "the post owner must retain their public-safe clarification editor");
     assert.equal(await page.getByRole("button", { name: "Save listing status" }).count(), 1, "the post owner listing-status mutation control missing");
     assert.equal(await page.getByRole("button", { name: "Save anti-scam review" }).count(), 0, "the post owner must never receive the reviewer anti-scam mutation action");
-    assert.equal(await page.locator(".commune-job-economic-owner").count(), 1, "the post owner must retain only their own listing's economic-condition panel");
+    assert.equal(await page.locator("#posting-fees").count(), 1, "the post owner must retain only their own listing's economic-condition panel");
     await readableScreenshot(page, "desktop", "48-owner-public-detail-listing-controls", page.locator(".commune-job-review-controls"), -220);
     await context.close();
   }
@@ -1010,7 +1034,7 @@ try {
     await open(page, `/commune/posts/${ids.post}`);
     await page.getByRole("heading", { level: 2, name: futureRolePost.title }).waitFor();
     assert.equal(await page.locator(".commune-job-review-controls").count(), 0, "logged-out reader must not receive Job Post operator controls");
-    assert.equal(await page.locator(".commune-job-economic-owner").count(), 0, "logged-out reader must not receive economic UI");
+    assert.equal(await page.locator("#posting-fees").count(), 0, "logged-out reader must not receive economic UI");
     assert.equal(await page.getByLabel(/^Anti-scam review/).count(), 0, "logged-out reader must not receive anti-scam controls");
     assert.equal(await page.getByLabel(/^Public correction \/ clarification note/).count(), 0, "logged-out readers must not receive a public-correction editor");
     assert.equal(await page.getByText("Public clarification: use only the stated Private Work With route.", { exact: true }).count(), 1, "logged-out readers must retain public read access to public-safe clarification text");

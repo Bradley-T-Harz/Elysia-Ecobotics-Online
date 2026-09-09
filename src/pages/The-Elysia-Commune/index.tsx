@@ -192,6 +192,9 @@ import {
 import { communeLinkPresentation, parseCommuneLinksInput, safeCommuneLinkHref } from "../../shared/communeLinks";
 import { groupCommuneFeedPosts, type CommuneFeedRoomDefinition } from "./communeFeedGrouping";
 import JobOpportunityFields from "./JobOpportunityFields";
+import JobPostFeeWorkspace, { JobPostFeeNotice } from "../../shared/economics/JobPostFeeWorkspace";
+import { jobPostFeesPath } from "../../shared/economics/jobPostFeeContracts";
+import { currentBillingApiPublication } from "../../shared/billing/billingClient";
 import type { CodeWorkspaceEditorProps } from "./CodeWorkspaceEditor";
 import {
   JOB_OPPORTUNITY_MODEL_VERSION,
@@ -2432,6 +2435,7 @@ function RoomPage({ roomSlug, roomId, posts, officialUpdates, troubleshootingPos
         {type.backendValue === "code_sharing" && <><Link className="button-link button-link--primary" to={createPath}>Draft Coding Cornucopia Post</Link><Link className="button-link" to="/commune/coding-cornucopia/review#coding-workbench-heading">Open Coding Workbench</Link><Link className="button-link" to="/commune/coding-cornucopia/sandbox-request">Prepare Sandbox Review Request</Link></>}
         {type.backendValue === "community_vote" && (isAdmin ? <Link className="button-link button-link--primary" to={createPath}>Create community vote</Link> : <Link className="button-link button-link--primary" to={postsPath}>Browse guidance votes</Link>)}
         {type.backendValue === "official_update" && (isAdmin ? <Link className="button-link button-link--primary" to={createPath}>Publish Official Update</Link> : <Link className="button-link button-link--primary" to={postsPath}>Read official updates</Link>)}
+        {type.backendValue === "job_post" && <Link className="button-link" to={jobPostFeesPath}>My Job Post fees &amp; requests</Link>}
         {mode !== "posts" && <Link className="button-link" to={postsPath}>View all posts</Link>}
         <Link className="button-link" to="/commune/rooms">Rooms directory</Link>
       </div>
@@ -2633,6 +2637,10 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
   const [audience, setAudience] = useState<CommuneAudienceDraft>(publicCommuneAudience);
   const [file, setFile] = useState<File | null>(null);
   const [jobValidationVisible, setJobValidationVisible] = useState(false);
+  const { userId: composerUserId } = useAuth();
+  const [savedJob, setSavedJob] = useState<{ id: string; postId: string; actor: string | null } | null>(null);
+  const [savingJob, setSavingJob] = useState(false);
+  const savingJobRef = useRef(false);
   const [iterationManifestInput, setIterationManifestInput] = useState("");
   const [iterationImporting, setIterationImporting] = useState(false);
   const submitLabel = audience.postAudience === "circle" ? "Create private room post" : form.postType === "official_update" ? "Publish Official Update" : form.postType === "job_post" ? (isAdmin ? "Submit through governed review" : "Submit for moderation") : isAdmin ? "Publish as admin" : "Submit for moderation";
@@ -3166,6 +3174,9 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
       return;
     }
     if (showJobFields) {
+      if (savingJobRef.current || savedJob?.actor === composerUserId) return;
+      savingJobRef.current = true; setSavingJob(true);
+      try {
       const result = await submitJobPost({
         title: form.title,
         summary: form.summary,
@@ -3188,6 +3199,12 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
         publicCorrectionNote: form.jobPublicCorrectionNote,
         ...audience
       });
+      if (result.id && result.postId) {
+        setSavedJob({ id: result.id, postId: result.postId, actor: composerUserId });
+        setMessage(result.message);
+        await onRefresh?.();
+        return;
+      }
       if (result.ok) {
         setMessage(result.message);
         await onRefresh?.();
@@ -3199,6 +3216,8 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
         return;
       }
       setMessage(cleanCommuneMessage(result.message, "Saved locally in this browser. Job Post backend review queue is not active yet."));
+      } catch { setMessage("The Job Post submission could not be confirmed. Check My Job Post fees & requests before submitting again."); }
+      finally { savingJobRef.current = false; setSavingJob(false); }
       return;
     }
     if (showResearchFields) {
@@ -3304,6 +3323,8 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     setMessage(cleanCommuneMessage(result.message, "Saved locally in this browser. Backend review queue is not active yet."));
   }
 
+  if (savedJob && savedJob.actor === composerUserId) return <section className="section-card commune-composer-card" id="commune-post-composer"><h2>Job Post saved</h2><p role="status" className="message">{message}</p><p>Content review and economic eligibility remain separate. Any upload or review follow-up noted above still needs attention.</p><div className="button-row"><Link className="button-link" to={`/commune/posts/${savedJob.postId}`}>Open my saved opportunity</Link><Link className="button-link" to={jobPostFeesPath}>My Job Post fees &amp; requests</Link></div><div className="button-row"><button type="button" onClick={() => downloadText(`${slug(form.title)}.md`, postMarkdown(build("draft_local")), "text/markdown")}>Export submitted draft</button><button type="button" onClick={() => copyText(postMarkdown(build("draft_local")), setMessage)}>Copy submitted draft</button></div><JobPostFeeWorkspace jobPostId={savedJob.id} /></section>;
+
   return <section className="section-card commune-composer-card commune-draft-desk" id="commune-post-composer">
     <p className="eyebrow">Room post request</p>
     <h2>{showOfficialFields ? "Publish an Official Update" : `Create a ${selectedPostTypeLabel} post`}</h2>
@@ -3331,6 +3352,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
         <label><span>Role title</span><input value={form.roleTitle} onChange={(event) => setForm({ ...form, roleTitle: event.target.value })} /></label>
         <label><span>Organization / project</span><input value={form.organizationProject} onChange={(event) => setForm({ ...form, organizationProject: event.target.value })} /></label>
         <JobOpportunityFields value={form.jobOpportunity} isAdmin={isAdmin} showErrors={jobValidationVisible} onChange={(jobOpportunity) => setForm({ ...form, jobOpportunity })} />
+        <div className="wide-field"><JobPostFeeNotice draft /></div>
         {form.jobOpportunity.opportunityType && <>
         <label><span>Time commitment</span><input value={form.timeCommitment} onChange={(event) => setForm({ ...form, timeCommitment: event.target.value })} /></label>
         <label><span>Deadline</span><input type="date" value={form.deadline} onChange={(event) => setForm({ ...form, deadline: event.target.value })} /></label>
@@ -3438,7 +3460,7 @@ function PostComposer({ defaultType = "media_garden" as CommunePostType, default
     {form.codeText && <section className="commune-code-preview"><div className="addon-card__topline"><strong>{codePreviewTitle}</strong><span>{form.codeFileName || "snippet"}</span></div><CodeWorkspaceEditor value={form.codeText} language={form.codeLanguage} readOnly minHeight="220px" /><p className="boundary-note">{codeSafetyCopy}</p>{showSandboxCapableCodeFields ? <><p className="boundary-note">Code is inert unless it is sent to the governed sandbox runner. Sandbox success is evidence only, not approval, trust, Marketplace readiness, or permission to run code elsewhere.</p><DiagnosticsList diagnostics={runStaticCodingDiagnostics({ language: form.codeLanguage, fileName: form.codeFileName, code: form.codeText })} /></> : <p className="boundary-note">This Media Garden preview is read-only visual material. No run button, sandbox diagnostics, execution status, proposal flow, or trust label is enabled.</p>}</section>}
     {showOfficialFields && form.officialCodeText && <section className="commune-code-preview commune-official-code-preview"><div className="addon-card__topline"><strong>Official code preview</strong><span>{form.officialCodeFileName || "official-snippet"}</span></div><CodeWorkspaceEditor value={form.officialCodeText} language={form.officialCodeLanguage} readOnly minHeight="220px" /><p className="boundary-note">Official code examples are public read-only/copy-only records. No workbench, sandbox run, proposal, install, deploy, or Local Elysia execution controls are exposed.</p></section>}
     <div className="commune-checklist">{routeAcknowledgements.map((item) => <label className="checkbox-line" key={item}><input type="checkbox" checked={Boolean(form.acknowledgements[item])} onChange={(event) => setForm({ ...form, acknowledgements: { ...form.acknowledgements, [item]: event.target.checked } })} /><span>{item}</span></label>)}{showJobFields && <label className="checkbox-line"><input type="checkbox" checked={form.jobOpportunityAcknowledgement} onChange={(event) => setForm({ ...form, jobOpportunityAcknowledgement: event.target.checked })} /><span>I confirm the opportunity type, compensation status, application route, and public-data boundaries are complete and truthful.</span></label>}{showCodeFields && <><label className="checkbox-line"><input type="checkbox" checked={form.stepsCodeAck} onChange={(event) => setForm({ ...form, stepsCodeAck: event.target.checked })} /><span>{showTroubleshootingFields ? "Any troubleshooting code/reproduction snippet is inert redacted text until an explicit sandbox run. It is not execution permission." : showMediaGardenCodeFields ? "Any Media Garden code snippet is visual/read-only material. It is not executed by the website, a trust signal, or execution permission." : "Any code snippet is inert text for discussion only. It is not execution permission."}</span></label>{showSandboxCapableCodeFields && <label className="checkbox-line"><input type="checkbox" checked={form.sandboxRequested} onChange={(event) => setForm({ ...form, sandboxRequested: event.target.checked })} /><span>{showTroubleshootingFields ? "Request sandbox review metadata for this reproduction case. This is not execution permission and does not prove the fix is safe." : "Request sandbox review for repository/code metadata. This is not execution permission."}</span></label>}</>}</div>
-    <div className="button-row"><button type="button" className="button-primary" onClick={() => void submit()}>{submitLabel}</button><button type="button" onClick={() => saveLocal("draft_local")}>Save local draft</button>{!showOfficialFields && <button type="button" onClick={() => saveLocal("pending_moderator_review_local")}>Save local request</button>}<button type="button" onClick={() => downloadText(`${slug(form.title)}.md`, postMarkdown(build("draft_local")), "text/markdown")}>Export Markdown</button>{showIterationFields && <button type="button" onClick={() => downloadText(`${slug(form.title)}-iteration-showcase.json`, iterationManifestJson(buildIterationDraft()), "application/json")}>Export JSON</button>}<button type="button" onClick={() => copyText(postMarkdown(build("draft_local")), setMessage)}>Copy Markdown</button><Link className="button-link" to="/commune">Back to Commune</Link></div>
+    <div className="button-row"><button type="button" className="button-primary" disabled={savingJob} onClick={() => void submit()}>{savingJob ? "Saving Job Post…" : submitLabel}</button><button type="button" onClick={() => saveLocal("draft_local")}>Save local draft</button>{!showOfficialFields && <button type="button" onClick={() => saveLocal("pending_moderator_review_local")}>Save local request</button>}<button type="button" onClick={() => downloadText(`${slug(form.title)}.md`, postMarkdown(build("draft_local")), "text/markdown")}>Export Markdown</button>{showIterationFields && <button type="button" onClick={() => downloadText(`${slug(form.title)}-iteration-showcase.json`, iterationManifestJson(buildIterationDraft()), "application/json")}>Export JSON</button>}<button type="button" onClick={() => copyText(postMarkdown(build("draft_local")), setMessage)}>Copy Markdown</button><Link className="button-link" to="/commune">Back to Commune</Link></div>
     <p className="message">{message}</p>
   </section>;
 }
@@ -4350,7 +4372,7 @@ function JobPostDetail({ post, jobPost, parsedBody, userId, accessToken, isModer
     {isFutureRoleInterest && jobPost?.future_interest_acknowledged && <section className="commune-room-native-field commune-job-future-notice"><h3>Future-role notice</h3><p>Confirmed: no current opening, offer, or promise of work.</p></section>}
     {applicationDestination && <section className="commune-room-native-field commune-job-application-route"><h3>Application route</h3><p>{v2 ? jobApplicationRoutePublicLabel(jobPost?.application_route_type) : "Legacy contact path"}</p>{applicationHref ? <a className="button-link" href={applicationHref} target={applicationHref.startsWith("http") ? "_blank" : undefined} rel={applicationHref.startsWith("http") ? "noreferrer" : undefined}>{jobPost?.application_route_type === "private_work_with" ? "Open Work With Elysia Ecobotics" : applicationDestination}</a> : <p>{applicationDestination}</p>}{jobPost?.application_route_type === "private_work_with" && <p>{jobPrivateApplicationSystemNotice}</p>}<p className="boundary-note">Verify this destination independently. Never pay to apply or send sensitive identity, banking, tax, or account credentials through an unverified route.</p></section>}
     <WarningCallout title="Public application privacy"><p>Do not share SSNs, bank details, identity documents, resumes/CVs, private addresses, private phone numbers, tax forms, contracts, private application packets, Work With uploads, or sensitive personal data in public Job Post comments. Serious applications belong at the stated legitimate route, not in the public thread.</p></WarningCallout>
-    {jobPost && accessToken && userId && post.viewer_is_owner && <JobPostEconomicOwnerPanel jobPostId={jobPost.id} accessToken={accessToken} />}
+    {jobPost && accessToken && userId && post.viewer_is_owner && <><JobPostFeeWorkspace jobPostId={jobPost.id} />{currentBillingApiPublication() === "test" && <JobPostEconomicOwnerPanel jobPostId={jobPost.id} accessToken={accessToken} />}</>}
     <JobPostReviewControls jobPost={jobPost} postId={post.id} isModerator={isModerator} canManageListingStatus={canManageListingStatus} onMessage={onMessage} onChanged={onChanged} />
   </div>;
 }

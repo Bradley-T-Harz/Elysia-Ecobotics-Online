@@ -139,6 +139,8 @@ const readinessPaths = [
   "supabase/migrations/20260908040000_pre_provider_preparation.sql",
 ];
 
+const jobFeeParticipantPaths = ["supabase/migrations/20260909010000_job_post_participant_economic_requests.sql"];
+
 const activePaths = [
   ...baselinePaths,
   ...economicPaths,
@@ -159,6 +161,7 @@ const activePaths = [
   ...adminBadgeSelfManagementPaths,
   ...hostedAllowanceActivationPaths,
   ...readinessPaths,
+  ...jobFeeParticipantPaths,
 ];
 
 const legacyHashes = new Map(Object.entries({
@@ -1013,6 +1016,7 @@ try {
     ...activePaths,
     "scripts/fixtures/stripeReadinessBehavior.sql",
     "scripts/fixtures/preProviderBehavior.sql",
+    "scripts/fixtures/jobPostFeeRequestBehavior.sql",
     "scripts/fixtures/sandboxDatabaseBehavior.sql",
     "scripts/fixtures/codeRevisionProposalBehavior.sql",
     "scripts/fixtures/economicDatabaseBehavior.sql",
@@ -1742,6 +1746,9 @@ try {
   for (const file of readinessPaths) await psql(["-f", `/tmp/${path.basename(file)}`]);
   await psql(["-f", "/tmp/stripeReadinessBehavior.sql"]);
   await psql(["-f", "/tmp/preProviderBehavior.sql"]);
+  for (const file of jobFeeParticipantPaths) await psql(["-f", `/tmp/${path.basename(file)}`]);
+  await psql(["-f", "/tmp/jobPostFeeRequestBehavior.sql"]);
+  console.log("Job Post participant request ownership, private storage, operator separation, idempotency and economic isolation checks passed.");
   console.log("Readiness forward migrations and synthetic attachment/payment/quarantine checks passed.");
 
   const catalogIntegrity = await psql(["-tAc", `
@@ -1764,6 +1771,7 @@ try {
     await psql(["-c", "create extension if not exists plpgsql_check;"]);
     const governedPlpgsqlFunctions = [...new Set([
       "public.attach_own_stewardship_receipt",
+      "private.job_post_request_actor", "public.current_user_job_post_fee_workspace", "public.submit_job_post_fee_request_command",
       "public.command_economic_preparation", "public.get_economic_preparation",
       "private.require_economic_preparation_actor", "private.preparation_exact_keys", "private.preparation_minor",
       "private.preparation_seller_blockers", "private.preparation_settlement_snapshot",

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode, type RefObject } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
 import {
@@ -636,7 +636,9 @@ function ReconciliationForm({ accessToken, onComplete }: { accessToken: string; 
 }
 
 function JobPostEconomicAssessmentForm({ accessToken, onComplete }: { accessToken: string; onComplete: () => Promise<void> }) {
-  const [jobPostId, setJobPostId] = useState("");
+  const [params] = useSearchParams();
+  const requestedJob = params.get("jobPostId") ?? "";
+  const [jobPostId, setJobPostId] = useState(isBillingUuid(requestedJob) ? requestedJob : "");
   const [classification, setClassification] = useState<OperatorJobPostClassification | "">("");
   const [priceCode, setPriceCode] = useState("");
   const [grantId, setGrantId] = useState("");
@@ -789,6 +791,9 @@ function EconomicAccountRequestReviewForm({ accessToken, overview, onComplete }:
 }
 
 function EconomicAssistanceManagement({ accessToken, overview, onComplete }: { accessToken: string; overview: EconomicOperatorOverview; onComplete: () => Promise<void> }) {
+  const [params] = useSearchParams();
+  const requestedJob = params.get("jobPostId") ?? "";
+  const requestedBeneficiary = params.get("beneficiaryUserId") ?? "";
   const statusPrograms = (overview.assistanceProgramQueue ?? []).filter((program) => program.status !== "retired");
   const endableGrants = (overview.assistanceQueue ?? []).filter((grant) => grant.status === "granted" || (grant.scope === "sandbox_credits" && grant.status === "consumed"));
   const consumedJobPostGrants = (overview.assistanceQueue ?? []).filter((grant) => grant.scope === "job_post_fee" && grant.status === "consumed");
@@ -820,8 +825,8 @@ function EconomicAssistanceManagement({ accessToken, overview, onComplete }: { a
   const [programStatusConfirmation, setProgramStatusConfirmation] = useState("");
 
   const [grantProgramCode, setGrantProgramCode] = useState("");
-  const [beneficiaryUserId, setBeneficiaryUserId] = useState("");
-  const [resourceId, setResourceId] = useState("");
+  const [beneficiaryUserId, setBeneficiaryUserId] = useState(isBillingUuid(requestedBeneficiary) ? requestedBeneficiary : "");
+  const [resourceId, setResourceId] = useState(isBillingUuid(requestedJob) ? requestedJob : "");
   const [grantUnits, setGrantUnits] = useState("");
   const [grantExpiresAtLocal, setGrantExpiresAtLocal] = useState("");
   const [sponsorshipAllocationId, setSponsorshipAllocationId] = useState("");
@@ -1215,6 +1220,7 @@ function MarketplaceCommercialTermsForm({ accessToken, onComplete }: { accessTok
 }
 
 export default function EconomicOperationsPage() {
+  const [routeParams] = useSearchParams();
   const { accessToken, loading: authLoading } = useAuth();
   const [overview, setOverview] = useState<EconomicOperatorOverview | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1272,9 +1278,9 @@ export default function EconomicOperationsPage() {
       {hasCapability("economic_reconciliation_manage") && <ReconciliationForm accessToken={accessToken} onComplete={refresh} />}
       {hasCapability("economic_reconciliation_manage") && <EconomicServiceRestrictionForm accessToken={accessToken} onComplete={refresh} />}
       {hasCapability("economic_account_requests_manage") && <EconomicAccountRequestReviewForm accessToken={accessToken} overview={overview} onComplete={refresh} />}
-      {hasCapability("economic_assistance_manage") && <EconomicAssistanceManagement accessToken={accessToken} overview={overview} onComplete={refresh} />}
+      {hasCapability("economic_assistance_manage") && <EconomicAssistanceManagement key={routeParams.toString()} accessToken={accessToken} overview={overview} onComplete={refresh} />}
       <EconomicOrganizationSponsorshipOperations accessToken={accessToken} canManageOrganizations={hasCapability("organization_billing_manage")} canManageSponsorships={hasCapability("sponsorship_manage")} canManageAssistance={hasCapability("economic_assistance_manage")} onComplete={refresh} />
-      {hasCapability("job_fee_assess") && <JobPostEconomicAssessmentForm accessToken={accessToken} onComplete={refresh} />}
+      {hasCapability("job_fee_assess") && <JobPostEconomicAssessmentForm key={routeParams.toString()} accessToken={accessToken} onComplete={refresh} />}
       {hasCapability("marketplace_payout_manage") && <MarketplaceCommercialTermsForm accessToken={accessToken} onComplete={refresh} />}
       {hasCapability("marketplace_payout_manage") && <MarketplacePayoutPreparationForm accessToken={accessToken} onComplete={refresh} />}
       <section className="section-card"><h2>Browser and bootstrap boundaries</h2><p>Only audited test-mode workflows backed by narrow operator endpoints are actionable here. Capability-filtered queue projections remain read-only unless their own reviewed mutation endpoint and deliberate form are present.</p><p className="boundary-note">Never use community role-management APIs, direct browser table writes, profile flags, or provider identifiers to perform financial operations. Economic-operator bootstrap remains an explicit server-side procedure and is not available here.</p></section>

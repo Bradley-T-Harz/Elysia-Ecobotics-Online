@@ -11,6 +11,9 @@ if (extra.length && (extra.length !== 2 || extra[0] !== "--output" || !extra[1])
   throw new Error("Usage: node scripts/runReadinessChecks.mjs <check> [--output <evidence-directory>]");
 }
 const commands = {
+  jobFeesBrowser: ["node", ["scripts/jobPostFeeBrowserTest.mjs"]],
+  jobOpportunityBrowser: ["node", ["scripts/jobOpportunityBrowserSmokeTest.mjs"]],
+  jobFees: ["node", ["--experimental-strip-types", "scripts/jobPostFeeContractTest.mts"]],
   preProvider: ["node", ["scripts/preProviderSmokeTest.mjs"]],
   preProviderBrowser: ["node", ["scripts/preProviderBrowserTest.mjs"]],
   legal: ["node", ["scripts/prepareReadinessLegal.mjs", "--check"]],
@@ -39,7 +42,10 @@ const env = {
   WRANGLER_SEND_METRICS: "false",
   NODE_OPTIONS: `--require=${path.join(root, "scripts/readinessNetworkGuard.cjs")}`,
 };
-if (extra.length) env.ELYSIA_READINESS_EVIDENCE_DIR = path.resolve(extra[1]);
+if (extra.length) {
+  env.ELYSIA_READINESS_EVIDENCE_DIR = path.resolve(extra[1]);
+  if (selected === "jobOpportunityBrowser") env.ELYSIA_JOB_OPPORTUNITY_EVIDENCE_DIR = path.resolve(extra[1]);
+}
 if (["build", "baseline", "publication"].includes(selected)) {
   // Public, synthetic configuration only. Browser fixtures intercept this host.
   env.VITE_SUPABASE_URL = "https://readiness-fixture.supabase.co";

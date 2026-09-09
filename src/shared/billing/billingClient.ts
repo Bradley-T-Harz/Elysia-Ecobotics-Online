@@ -958,7 +958,7 @@ function errorMessageForStatus(status: number, errorCode: string) {
   return "The billing request could not be completed safely. No new payment should be assumed. Please try again or contact support@elysiaecobotics.com.";
 }
 
-function currentBillingApiPublication() {
+export function currentBillingApiPublication() {
   // This Website is a browser-only application. Node-based contract tests do
   // not have a document and exercise the response parser with a mocked Worker;
   // a real rendered document must explicitly publish the separately deployed

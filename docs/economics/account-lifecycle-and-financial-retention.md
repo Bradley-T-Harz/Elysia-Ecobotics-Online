@@ -29,6 +29,8 @@ On completion, the system imposes only the exact `billing` service restriction u
 
 The UI must continue to direct broader privacy, Auth, profile, content, or erasure requests to the appropriate support/privacy route and must not imply that this economic workflow handles them. Staff must verify control of the account, enumerate affected scopes, disclose retained records, and keep private reasons out of public content.
 
+The locally prepared Job Post participant intake adds `private.job_post_economic_requests` to this inventory: Job Post/account references, optional reason category, bounded explanation, latest operator reply, handling state and timestamps. Include the owner's records in any authorized assisted economic export. Its minimal action history is in the existing economic audit events; it is not public profile or content-review data. Withdrawal retains the request and does not erase financial evidence or revoke assistance. Do not infer a retention duration, automatically delete these rows, or promise complete account erasure. The owner workspace provides account-scoped, paginated access while the account remains eligible; wider export/deactivation handling retains the existing assisted privacy route and authorization requirements.
+
 ## Content and licenses
 
 Posts, comments, reviews, moderation evidence, Marketplace publication history, buyer licenses, security revocations, and audit events have separate retention rules. Public identity may be deactivated or anonymized without falsely attributing historical content to another person. A Marketplace refund does not automatically erase a security revocation; a security revocation does not by itself decide the refund.

@@ -1,0 +1,31 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { jobFeeStatus, jobFeeCommandSchema, jobFeeWorkspaceSchema, jobPostFeesPath } from "../src/shared/economics/jobPostFeeContracts.ts";
+const classifications = ["not_assessed", "community_free", "commercial", "waived", "subsidized"] as const;
+const conditions = ["not_assessed", "not_required", "payment_required", "payment_pending", "satisfied", "waived", "subsidized", "refunded", "disputed", "reconciliation_required"] as const;
+for (const classification of classifications) for (const conditionStatus of conditions) {
+  const label = jobFeeStatus({ classification, conditionStatus }).label;
+  const free = (classification === "community_free" && conditionStatus === "not_required") || (classification === "waived" && conditionStatus === "waived") || (classification === "subsidized" && conditionStatus === "subsidized");
+  const commercial = classification === "commercial" && ["payment_required", "payment_pending", "satisfied"].includes(conditionStatus);
+  assert.equal(label, free ? "No fee required" : commercial ? "Commercial fee may apply" : "Economic review required", `${classification}/${conditionStatus}`);
+}
+assert.equal(jobFeeStatus().label, "Economic review required");
+const command = { action: "submit", jobPostId: "f3000000-0000-4000-8000-000000000001", commandId: "f4000000-0000-4000-8000-000000000001", expectedRevision: 0, category: null, explanation: "A short community benefit explanation." };
+assert(jobFeeCommandSchema.safeParse(command).success);
+for (const extra of [{ actorId: "someone" }, { amount: 0 }, { waived: true }, { bankAccount: "forbidden" }, { grantId: command.jobPostId }, { contentApproved: true }, { provider: "stripe" }]) assert(!jobFeeCommandSchema.safeParse({ ...command, ...extra }).success);
+for (const explanation of [" ", "x".repeat(501)]) assert(!jobFeeCommandSchema.safeParse({ ...command, explanation }).success);
+for (const category of [[], {}, "guaranteed_free"]) assert(!jobFeeCommandSchema.safeParse({ ...command, category }).success);
+const review = { action: "review", jobPostId: command.jobPostId, commandId: command.commandId, expectedRevision: 1, response: "Please clarify the public benefit.", status: "needs_information" };
+assert(jobFeeCommandSchema.safeParse(review).success);
+for (const status of ["approved", "waived", "subsidized", "paid", "published", "declined"]) assert(!jobFeeCommandSchema.safeParse({ ...review, status }).success, "Request handling acquired economic or content authority");
+const view = { items: [], hasMore: false, cursor: null, canReview: false, canAssess: false, paymentsCollected: false };
+assert(jobFeeWorkspaceSchema.safeParse(view).success);
+assert(!jobFeeWorkspaceSchema.safeParse({ ...view, paymentsCollected: true }).success);
+assert(!jobFeeWorkspaceSchema.safeParse({ ...view, hasMore: true }).success);
+assert(!jobFeeWorkspaceSchema.safeParse({ ...view, processorSecret: "forbidden" }).success);
+assert.equal(jobPostFeesPath, "/commons-circle/signals/requests-reviews?domain=job_posts#posting-fees");
+const publication = JSON.parse(readFileSync("public/_routes.json", "utf8"));
+assert(publication.include.every((route: string) => !/billing|economic-preparation/.test(route)));
+const html = readFileSync("index.html", "utf8");
+for (const marker of ["elysia-billing-api-publication", "elysia-economic-preparation-publication"]) assert(html.includes(`name="${marker}" content="disabled"`));
+console.log("Job Post fee contracts passed: 50 classification/status combinations, strict private commands, independent handling states, and disabled publication gates.");

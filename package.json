@@ -100,6 +100,7 @@
     "test:commune-links": "node --experimental-strip-types --no-warnings scripts/communeLinksMultilineTest.mjs",
     "test:commune-links-browser:built": "node scripts/communeLinksMultilineBrowserSmokeTest.mjs",
     "test:commune-links-browser": "npm run build && npm run test:commune-links-browser:built",
+    "test:job-post-fees": "node --experimental-strip-types scripts/jobPostFeeContractTest.mts",
     "test:job-opportunity": "node --experimental-strip-types --no-warnings scripts/jobOpportunityModelV2Test.mts",
     "test:job-opportunity-browser:built": "node scripts/jobOpportunityBrowserSmokeTest.mjs",
     "test:job-opportunity-browser:firefox:built": "ELYSIA_BROWSER_ENGINE=firefox node scripts/jobOpportunityBrowserSmokeTest.mjs",

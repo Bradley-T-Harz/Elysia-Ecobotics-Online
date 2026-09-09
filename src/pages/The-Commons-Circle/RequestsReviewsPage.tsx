@@ -1,3 +1,5 @@
+import JobPostFeeWorkspace from "../../shared/economics/JobPostFeeWorkspace";
+import { jobPostFeesPath } from "../../shared/economics/jobPostFeeContracts";
 import { useCallback, useState } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
@@ -123,6 +125,8 @@ export default function RequestsReviewsPage() {
         }}
       />
     </section>
+
+    {domain === "job_posts" ? <JobPostFeeWorkspace /> : <section className="section-card"><h2>Job Post fee &amp; assistance status</h2><p>Private fee requests and economic conditions are separate from the content-review summaries below.</p><Link className="button-link" to={jobPostFeesPath}>My Job Post fees &amp; requests</Link></section>}
 
     {result?.signedIn && <section className="section-card">
       <div className="section-heading section-heading--inline">

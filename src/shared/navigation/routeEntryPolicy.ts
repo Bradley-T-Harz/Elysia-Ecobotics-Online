@@ -26,6 +26,9 @@ const approvedTargetIds = new Set([
   "marketplace-licenses",
   "seller-preparation",
   "seller-records",
+  "posting-fees",
+  "job-post-economic-assessment-title",
+  "economic-assistance-management-title",
 ]);
 
 export function targetIdFromHash(hash: string) {

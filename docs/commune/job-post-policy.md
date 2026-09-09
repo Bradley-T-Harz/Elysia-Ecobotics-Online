@@ -52,3 +52,13 @@ Decision reasons are submitter-visible. Private reviewer notes use RLS-protected
 Existing rows remain `model_version = 1`. No ambiguous legacy value is guessed. Deterministic mappings may describe contract, internship, volunteer, paid/stipend/unpaid/mixed, and remote/hybrid/onsite/field-based values, while unclear legacy rows stay visibly legacy. New rows use `model_version = 2` and dual-write legacy fields for old consumers.
 
 Generic Commune links, media, tags, comments, reports, saves, notifications, moderation, and billing remain shared and unchanged in authority.
+
+## Posting fee and community access (locally prepared, September 9, 2026)
+
+The creation page explains free qualifying paths and possible EcoSyneva-owned commercial posting fees. An unsaved or unassessed opportunity says **Economic review required**. A compensation choice, opportunity type, organization label or assistance request never determines eligibility. Only the existing private Job Post economic assessment supplies the resulting fee status.
+
+After the structured opportunity is saved, the poster can send a private waiver/assistance request: a short explanation (500 characters maximum) and an optional category. No proof, exact income, documents or financial credentials are requested. The explanation is separate from public post metadata, local drafts/exports and content review. The request explicitly shares the Job Post title and explanation with authorized economic operators.
+
+The poster returns through **My Job Post fees & requests** in the Job Post room or through Requests & Reviews, filtered to Job Posts. The owner's opportunity detail also links to the same records. Operators use Economic Operations → Job-post fees. Request replies, economic assessment and content/publication status appear separately; an “answered” request is not an approved waiver.
+
+Waivers and assistance still require the existing governed grant/assessment system. Request intake cannot create grants, waive creator compensation, reduce fees, publish content or perform provider actions. No payment is currently collected. Fee amounts, discretionary eligibility rules, assistance budgets and request-text retention remain owner decisions; this implementation does not adopt them.

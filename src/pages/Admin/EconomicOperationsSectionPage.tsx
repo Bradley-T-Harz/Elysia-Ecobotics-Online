@@ -1,3 +1,4 @@
+import JobPostFeeWorkspace from "../../shared/economics/JobPostFeeWorkspace";
 import { canVisitStaffRoute, useAccountDoorways } from "../../shared/navigation/useAccountDoorways";
 import { useState } from "react";
 import { Link, useParams } from "react-router-dom";
@@ -63,6 +64,7 @@ export default function EconomicOperationsSectionPage() {
     {work.loading && <p role="status">Checking economic preparation authority…</p>}{work.error && <p role="alert" className="validation validation--bad">{work.error}</p>}<p role="status" aria-live="polite">{work.message}</p>
     {!state && !work.loading && <PreparationUnavailable signedIn={work.signedIn} published={work.published} />}
     <LaneContext section={section} />
+    {section === "job-fees" && canVisitStaffRoute("/admin/economic-operations/job-fees", access) && <JobPostFeeWorkspace operator />}
     {state && <>
       <section className="section-card"><PreparationStatus status="TEST" /><h2>Internal preparation · provider actions disabled</h2><p>Financial records here belong to the existing test-only economic kernel. READY means internal prerequisites only. This interface cannot authorize live billing, Connect, payouts, receipt delivery or bank access.</p><button type="button" onClick={() => void work.refresh()} disabled={work.busy}>Refresh private preparation</button>{state.truncated && <p className="boundary-note">This bounded view may omit older records. A missing row is not proof that it does not exist.</p>}</section>
       {section === "readiness" && <section className="section-card"><h2>Preparation lanes</h2><div className="economic-capability-grid">{Object.entries(state.lanes).map(([lane, enabled]) => <article className="economic-summary-card" key={lane}><h3>{lane}</h3><PreparationStatus status={enabled ? "TEST" : "DISABLED"} /><p>{enabled ? "Internal preparation enabled in this test view." : "Internal preparation gate is disabled."}</p></article>)}</div><p>Support is optional. Creator obligations, taxes, refunds and disputes are separate from EcoSyneva operating funds. Continuity Reserve and compensation categories are internal planning concepts; no funded balance or allocation is claimed.</p></section>}
