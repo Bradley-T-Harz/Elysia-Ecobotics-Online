@@ -131,10 +131,27 @@ const reviewedAbuseAuthorityMigrations = new Set([
   "scripts/fixtures/onlineActionRateBehavior.sql",
 ]);
 
+// Exact permission statements and negative privilege assertions, not keys.
+// Keep this narrower than a whole-file exemption: additions to these lines
+// must be reviewed, and every other secret-material check still runs.
+const reviewedJobFeeRoleLines = new Map([
+  ["supabase/migrations/20260909010000_job_post_participant_economic_requests.sql", new Set([
+    "revoke all on private.job_post_economic_requests from public, anon, authenticated, service_role;",
+    "revoke all on function private.job_post_request_actor() from public, anon, authenticated, service_role;",
+    "revoke all on function public.current_user_job_post_fee_workspace(boolean, uuid, uuid) from public, anon, authenticated, service_role;",
+    "revoke all on function public.submit_job_post_fee_request_command(jsonb) from public, anon, authenticated, service_role;",
+  ])],
+  ["scripts/fixtures/jobPostFeeRequestBehavior.sql", new Set([
+    "foreach role_name in array array['anon','authenticated','service_role'] loop",
+    "or has_function_privilege('service_role','public.submit_job_post_fee_request_command(jsonb)','execute')",
+  ])],
+]);
+
 function allowHit(file, line, checkName) {
   const normalized = file.replaceAll(path.sep, "/");
   // Reviewed type names and SQL permission boundaries, never credential values.
   if (checkName === "service role key strings") {
+    if (reviewedJobFeeRoleLines.get(normalized)?.has(line.trim())) return true;
     if (normalized === "functions/api/economic-preparation/_shared/handler.ts"
       && line.trim() === 'export interface PreparationEnv extends Pick<BillingEnv, "SUPABASE_URL" | "SUPABASE_PUBLISHABLE_KEY" | "SUPABASE_SERVICE_ROLE_KEY"> {') return true;
     if (normalized === "supabase/migrations/20260908040000_pre_provider_preparation.sql"
@@ -335,6 +352,13 @@ function allowHit(file, line, checkName) {
   if (["runtime eval", "Function constructor", "process exec", "process spawn", "Node child process"].includes(checkName) && /pattern|grep|scan|scanner|does not execute|will not execute/i.test(line)) return true;
   if (normalized.includes("Legal/legalPolicyPages.ts") && /policy|prohibited|do not|vulnerability|security/i.test(line)) return true;
   return false;
+}
+
+for (const [file, lines] of reviewedJobFeeRoleLines) for (const line of lines) {
+  assert(allowHit(file, line, "service role key strings"), "Reviewed Job Post role statement rejected.");
+  assert(!allowHit(file, line + " unreviewed_suffix", "service role key strings"), "Job Post exception allowed an unreviewed extension.");
+  assert(!allowHit(file, line, "Stripe secret material"), "Job Post role exception bypassed credential scanning.");
+  assert(!allowHit("src/unreviewed-job-fee-file.ts", line, "service role key strings"), "Job Post role exception escaped its reviewed SQL files.");
 }
 
 async function listFiles(dir) {
