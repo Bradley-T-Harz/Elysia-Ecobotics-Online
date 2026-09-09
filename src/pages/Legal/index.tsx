@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { Link, useParams, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useParams, useSearchParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import StatusBadge from "../../shared/components/StatusBadge";
 import {
@@ -169,6 +169,9 @@ export function LegalPolicyPage() {
   const [search] = useSearchParams();
   const requestedVersion = search.get("version");
   const policy = getLegalPolicy(slug, requestedVersion);
+
+  // The retired policy index is a compatibility URL, not a consent version.
+  if (slug === "legal") return <Navigate to="/legal" replace />;
 
   if (!policy) {
     return (

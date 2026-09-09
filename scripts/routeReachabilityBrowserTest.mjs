@@ -99,6 +99,9 @@ async function run(role, mobile = false) {
           assert.equal(await page.getByRole("link", { name: "Owned synthetic draft · 1.0.0" }).count(), 1);
           assert.equal(await page.getByText("Foreign synthetic draft", { exact: false }).count(), 0);
           assert.equal(await page.locator('a[href="/marketplace/addons/owned-synthetic-listing"]').count(), 1, "Published listings must use the canonical catalog slug");
+          const timeline = page.getByRole("link", { name: "Submission timeline · needs information", exact: true });
+          assert.equal(await timeline.getAttribute("href"), "/developer-forge/submissions", "Record links must accurately open the whole timeline");
+          assert.equal(await page.locator('a[href^="/developer-forge/submissions/"]').count(), 0, "Studio must not imply an ID-specific submission view");
           await page.screenshot({ path: path.join(output, `${role}-owned-records.png`), fullPage: true });
         }
         if (actor.offlineDrafts) assert.equal(await page.getByText("Cached draft must stay local", { exact: false }).count(), 0, "Browser cache must not become a cloud-owned Creator Studio record");
@@ -119,6 +122,19 @@ async function run(role, mobile = false) {
       directChecks.push({ route, pass: true });
     }
     if (isCreator) {
+      for (const [label, target] of [["Review outcomes", "/commons-circle/signals/notifications?filter=marketplace"], ["Submission timeline", "/developer-forge/submissions"]]) {
+        await page.goto(origin + "/marketplace/creator-studio", { waitUntil: "networkidle" });
+        const link = page.getByRole("link", { name: label, exact: true });
+        assert.equal(await link.getAttribute("href"), target);
+        await link.focus(); await page.keyboard.press("Enter");
+        await page.waitForURL(origin + target);
+        await page.locator("main h1").first().waitFor();
+        await page.waitForLoadState("networkidle");
+        assert.equal(page.url(), origin + target, "A primary doorway must not settle on an alias redirect");
+        if (label === "Review outcomes") assert.equal(await page.getByRole("tab", { name: "Marketplace & Economic", exact: true }).getAttribute("aria-selected"), "true");
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false);
+        directChecks.push({ route: "/marketplace/creator-studio", label, target, keyboard: "Enter", pass: true });
+      }
       for (const route of ["/marketplace", "/commons-circle/signals", "/marketplace/account"]) {
         await page.goto(origin + route, { waitUntil: "networkidle" });
         const doorway = page.getByRole("link", { name: "Open Creator Studio", exact: true });
@@ -146,6 +162,19 @@ async function run(role, mobile = false) {
       directChecks.push({ route, authTransition: "signed_out", pass: true });
     }
     if (process.argv.includes("--direct-only")) queue.length = 0;
+  }
+  if (process.argv.includes("--qualify")) {
+    for (const alias of ["/legal/legal", "/legal/legal/", "/legal/legal?version=2026-06-09"]) {
+      // This local server deliberately does not interpret Pages _redirects, so
+      // these checks exercise the client-side compatibility redirect as well.
+      await page.goto(origin + alias, { waitUntil: "networkidle" });
+      await page.waitForURL(origin + "/legal");
+      await page.getByRole("heading", { name: "Legal, Safety, and Community Policies", exact: true }).waitFor();
+      assert.equal(await page.getByText("Proposed routes", { exact: true }).count(), 0);
+      assert.equal(await page.getByText("Publication readiness checklist", { exact: true }).count(), 0);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2), false);
+      directChecks.push({ route: alias, target: "/legal", clientRedirect: true, pass: true });
+    }
   }
   async function collect(from) {
     const links = await page.locator("a[href]").evaluateAll(elements => elements.filter(a => a.getClientRects().length && getComputedStyle(a).visibility !== "hidden").map(a => ({ href: a.href, label: a.textContent.trim().replace(/\s+/g, " ").slice(0, 150) })));
