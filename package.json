@@ -187,7 +187,9 @@
     "addon:inspect": "node scripts/elysiaAddonCli.mjs inspect",
     "addon:doctor": "node scripts/elysiaAddonCli.mjs doctor",
     "test:pre-provider": "node scripts/preProviderSmokeTest.mjs",
-    "test:pre-provider-browser:built": "node scripts/preProviderBrowserTest.mjs"
+    "test:pre-provider-browser:built": "node scripts/preProviderBrowserTest.mjs",
+    "test:publisher-ownership": "node scripts/runReadinessChecks.mjs publisher",
+    "test:publisher-ownership-browser": "node scripts/runReadinessChecks.mjs publisherBrowser"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

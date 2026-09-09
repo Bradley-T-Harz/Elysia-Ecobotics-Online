@@ -22,6 +22,8 @@ import {
 import type { ForgeManifest } from "../../The-Developer-Forge/developerForgeValidator";
 import { hasSupabaseConfig } from "../lib/supabase";
 import { evaluateMarketplaceSubmissionReadiness, marketplaceSubmissionBlockerMessage } from "../lib/submissionReadiness";
+import OwnershipAttribution, { ownershipIsReady } from "../../../shared/addons/OwnershipAttribution";
+import { emptyOwnership, type OwnershipSelection } from "../../../shared/addons/publisherOwnership";
 
 type DeveloperSubmissionFormProps = {
   onMessage: (message: string) => void;
@@ -42,10 +44,14 @@ export default function DeveloperSubmissionForm({ onMessage }: DeveloperSubmissi
   const [uploadAccepted, setUploadAccepted] = useState(false);
   const [submitStatus, setSubmitStatus] = useState("Choose a source path or validate the manifest. Nothing is uploaded until you explicitly submit for review.");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [ownership, setOwnership] = useState<OwnershipSelection>(emptyOwnership);
 
   useEffect(() => {
-    void loadForgeState().then(setForgeState);
-  }, [auth.userId]);
+    let current = true;
+    setForgeState(null); setOwnership(emptyOwnership);
+    void loadForgeState().then(next => { if (current) setForgeState(next); });
+    return () => { current = false; };
+  }, [auth.userId, auth.accessToken]);
 
   const validation = useMemo(() => validateManifest(manifestText, forgeState?.permissionCatalog.length ? forgeState.permissionCatalog : defaultPermissionCatalog), [manifestText, forgeState?.permissionCatalog]);
   const blocking = validation.results.some((result) => result.severity === "blocked" || result.severity === "error");
@@ -65,7 +71,7 @@ export default function DeveloperSubmissionForm({ onMessage }: DeveloperSubmissi
     elevatedRiskAccepted: riskAccepted,
     submitting: isSubmitting
   });
-  const canSubmit = readiness.ready;
+  const canSubmit = readiness.ready && ownershipIsReady(ownership);
 
   function updateManifest(patch: Partial<ForgeManifest>) {
     if (!validation.manifest) return;
@@ -80,7 +86,7 @@ export default function DeveloperSubmissionForm({ onMessage }: DeveloperSubmissi
 
   async function submitDraft() {
     if (!canSubmit || !validation.manifest || !forgeState?.profile) {
-      const message = marketplaceSubmissionBlockerMessage(readiness.blockers[0]);
+      const message = !ownershipIsReady(ownership) ? "Enter Creator / Organization and select an authorized Publisher account." : marketplaceSubmissionBlockerMessage(readiness.blockers[0]);
       setSubmitStatus(message);
       onMessage(message);
       return;
@@ -88,7 +94,7 @@ export default function DeveloperSubmissionForm({ onMessage }: DeveloperSubmissi
     setIsSubmitting(true);
     setSubmitStatus("Creating a private Developer Forge draft and pending-review snapshot...");
     try {
-      const created = await createDraftFromManifest(validation.manifest, forgeState.profile.id ?? null);
+      const created = await createDraftFromManifest(validation.manifest, forgeState.profile.id ?? null, ownership);
       if (!created.draft || created.draft.id.startsWith("local-")) {
         const message = created.warnings.join(" ") || "Account-backed draft creation did not complete.";
         setSubmitStatus(message);
@@ -129,10 +135,11 @@ export default function DeveloperSubmissionForm({ onMessage }: DeveloperSubmissi
     <p>Choose a complete local package, ZIP source bundle, folder/repository, or manifest below. You may also paste manifest JSON or attach a Git URL as metadata. Static review never executes uploaded code.</p>
     <p className="boundary-note">{hasSupabaseConfig ? auth.userId ? forgeState?.profile ? "Signed-in Developer Forge profile found. A valid submission creates only a private pending-review record." : "Signed in, but a Developer Forge profile is required before remote submission." : "Sign in to create a remote review submission." : "Remote review storage is not configured. Local intake and validation still work, but no submission will be created."}</p>
     <AddonIntakePanel result={intake} onResult={acceptIntake} onMessage={(message) => { setSubmitStatus(message); onMessage(message); }} />
+    <OwnershipAttribution key={auth.accessToken ?? "local"} value={ownership} onChange={setOwnership} disabled={isSubmitting} />
     <div className="form-grid">
       <label><span>Add-on name</span><input value={validation.manifest?.name ?? ""} onChange={(event) => updateManifest({ name: event.target.value })} /></label>
       <label><span>Add-on ID</span><input value={validation.manifest?.addon_id ?? ""} onChange={(event) => updateManifest({ addon_id: event.target.value })} /></label>
-      <label><span>Publisher name</span><input value={validation.manifest?.publisher?.name ?? validation.manifest?.author?.name ?? ""} onChange={(event) => validation.manifest?.schema_version === "1.1" ? updateManifest({ publisher: { ...validation.manifest?.publisher, name: event.target.value } }) : updateManifest({ author: { ...validation.manifest?.author, name: event.target.value } })} /></label>
+      <label><span>Manifest author / publisher name (declared)</span><input value={validation.manifest?.publisher?.name ?? validation.manifest?.author?.name ?? ""} onChange={(event) => validation.manifest?.schema_version === "1.1" ? updateManifest({ publisher: { ...validation.manifest?.publisher, name: event.target.value } }) : updateManifest({ author: { ...validation.manifest?.author, name: event.target.value } })} /></label>
     </div>
     <section className="submission-source-metadata" aria-labelledby="git-metadata-heading">
       <div><p className="eyebrow">Optional source reference</p><h3 id="git-metadata-heading">Add Git repository URL as review metadata</h3><p>This records a reference only. The website does not clone, fetch, authenticate to, or inspect the repository.</p></div>

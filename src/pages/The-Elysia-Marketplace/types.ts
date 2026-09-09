@@ -69,6 +69,8 @@ export type AddonAction = {
 };
 
 export type AddonManifest = {
+  /** Database add-on key for provenance; display-route id can retain its legacy slug. */
+  canonical_addon_id?: string;
   schema_version: string;
   id: string;
   name: string;

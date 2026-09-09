@@ -473,6 +473,8 @@ export async function updateAddonSubmission(id: string, status: string, develope
   if (!hasSupabaseConfig || !supabase) return supabaseNotConfiguredMessage;
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return "Sign in with a reviewer account first.";
+  const independent = await supabase.rpc("current_user_can_independently_review_addon", { p_submission_id: id });
+  if (independent.error || independent.data !== true) return "Independent Marketplace review authority could not be confirmed. Publisher managers and submission creators cannot review their own publisher's work.";
   const { data: existing, error: existingError } = await supabase.from("addon_submissions").select("addon_draft_id,submitted_by,status,review_item_id").eq("id", id).maybeSingle();
   if (existingError) return sanitize(existingError) ?? "Add-on submission lookup failed.";
   if ((existing as { submitted_by?: string } | null)?.submitted_by === auth.user.id) return "Reviewers cannot review, approve, reject, or hold their own add-on submissions.";
@@ -507,6 +509,8 @@ export async function publishAddonSubmission(id: string, privateNote = "") {
   if (!hasSupabaseConfig || !supabase) return supabaseNotConfiguredMessage;
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return "Sign in with a reviewer account first.";
+  const independent = await supabase.rpc("current_user_can_independently_review_addon", { p_submission_id: id });
+  if (independent.error || independent.data !== true) return "Independent Marketplace publication authority could not be confirmed. Publisher management does not grant self-publication.";
   const { data: submission, error: submissionError } = await supabase.from("addon_submissions").select("*").eq("id", id).maybeSingle();
   if (submissionError || !submission) return sanitize(submissionError) ?? "Add-on submission lookup failed.";
   const submissionRow = submission as AddonSubmissionReview;
@@ -535,7 +539,7 @@ export async function publishAddonSubmission(id: string, privateNote = "") {
   const version = snapshotRow ? (manifestValue(snapshotRow.manifest_snapshot, "version") || marketplaceVersionFromDraft(draftRow)) : marketplaceVersionFromDraft(draftRow);
   const now = new Date().toISOString();
   const { data: listing, error: listingError } = await supabase.from("marketplace_listings").upsert({
-    addon_id: slug,
+    addon_id: manifestValue(manifest, "addon_id") || manifestValue(manifest, "id"),
     developer_profile_id: draftRow.developer_profile_id ?? null,
     source_submission_id: id,
     name: draftRow.addon_name || manifestValue(manifest, "name") || slug,

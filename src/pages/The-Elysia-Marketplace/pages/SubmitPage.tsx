@@ -14,7 +14,7 @@ export default function SubmitPage() {
         </p>
         {demoMode && <p className="demo-banner">Demo mode: source intake and validation run locally in the browser, but no remote review submission or public listing is created.</p>}
         <div className="details-grid">
-          <div><h3>Publisher profile</h3><p>Developer or organization identity, source links, and ownership live in Supabase later.</p></div>
+          <div><h3>Publisher profile</h3><p>Choose an authorized publisher and record Creator / Organization attribution below. Developer identity, publisher management and independent review remain separate.</p></div>
           <div><h3>Review states</h3><div className="tag-row"><TrustBadge label="draft" /><TrustBadge label="pending review" /><TrustBadge label="needs changes" tone="warning" /><TrustBadge label="approved" tone="safe" /><TrustBadge label="security hold" tone="danger" /></div></div>
           <div><h3>Trust tiers</h3><p>Reviewers assign Official, Reviewed, Community, Unreviewed, Deprecated, or Blocked labels.</p></div>
         </div>

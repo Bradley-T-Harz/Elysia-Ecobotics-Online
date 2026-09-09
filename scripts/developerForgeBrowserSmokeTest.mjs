@@ -195,6 +195,18 @@ try {
       viewport,
       isMobile: viewport.width < 600,
     });
+    if (process.env.ELYSIA_ISOLATED_TEST === "1") {
+      // Deterministic signed-out fixture; Chromium must not contact remote services.
+      await context.route("**/*", route => {
+        const request = route.request(), url = new URL(request.url());
+        if (url.origin === origin) return route.continue();
+        if (url.origin === "https://readiness-fixture.supabase.co") {
+          const object = request.headers().accept?.includes("vnd.pgrst.object");
+          return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(url.pathname.endsWith("/user") ? { user: null } : object ? null : []) });
+        }
+        return route.fulfill({ status: 200, body: "" });
+      });
+    }
     const page = await context.newPage();
     const pageErrors = [];
     const consoleErrors = [];
@@ -448,6 +460,7 @@ try {
     currentPhase = "open Marketplace Browse";
     await page.goto(`${origin}/marketplace/browse`, { waitUntil: "networkidle" });
     await page.getByRole("heading", { name: "Browse Elysia add-ons" }).waitFor({ state: "visible" });
+    await page.getByRole("heading", { name: "Codev", exact: true }).waitFor();
     assert(await page.getByRole("heading", { name: "Codev" }).isVisible(), "Codev official release must appear in the static fallback catalog.");
     const codevDownload = page.getByRole("link", { name: "Download Codev VSIX" });
     assert(await codevDownload.isVisible(), "Codev official release must expose its canonical VSIX download.");

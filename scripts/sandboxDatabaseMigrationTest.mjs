@@ -141,6 +141,8 @@ const readinessPaths = [
 
 const jobFeeParticipantPaths = ["supabase/migrations/20260909010000_job_post_participant_economic_requests.sql"];
 
+const publisherOwnershipPaths = ["supabase/migrations/20260909020000_marketplace_publisher_ownership.sql"];
+
 const activePaths = [
   ...baselinePaths,
   ...economicPaths,
@@ -162,6 +164,7 @@ const activePaths = [
   ...hostedAllowanceActivationPaths,
   ...readinessPaths,
   ...jobFeeParticipantPaths,
+  ...publisherOwnershipPaths,
 ];
 
 const legacyHashes = new Map(Object.entries({
@@ -1017,6 +1020,7 @@ try {
     "scripts/fixtures/stripeReadinessBehavior.sql",
     "scripts/fixtures/preProviderBehavior.sql",
     "scripts/fixtures/jobPostFeeRequestBehavior.sql",
+    "scripts/fixtures/publisherOwnershipBehavior.sql",
     "scripts/fixtures/sandboxDatabaseBehavior.sql",
     "scripts/fixtures/codeRevisionProposalBehavior.sql",
     "scripts/fixtures/economicDatabaseBehavior.sql",
@@ -1046,7 +1050,12 @@ try {
     await run(containerRuntime, ["cp", file, `${container}:/tmp/${path.basename(file)}`]);
   }
 
-  const psql = async (args) => run(containerRuntime, ["exec", container, "psql", "-q", "-v", "ON_ERROR_STOP=1", "-U", "supabase_admin", "-d", "postgres", ...args]);
+  const appliedMigrations = new Set();
+  const psql = async (args) => {
+    const result = await run(containerRuntime, ["exec", container, "psql", "-q", "-v", "ON_ERROR_STOP=1", "-U", "supabase_admin", "-d", "postgres", ...args]);
+    if (args[0] === "-f" && activePaths.some(file => path.basename(file) === path.basename(args[1]))) appliedMigrations.add(path.basename(args[1]));
+    return result;
+  };
 
   const invalidOrder = await run(containerRuntime, [
     "exec", container, "psql", "-q", "-v", "ON_ERROR_STOP=1",
@@ -1199,6 +1208,9 @@ try {
     await psql(["-f", `/tmp/${path.basename(file)}`]);
   }
   for (const file of circlePrivatePaths) {
+    await psql(["-f", `/tmp/${path.basename(file)}`]);
+  }
+  for (const file of releaseBoundaryPaths) {
     await psql(["-f", `/tmp/${path.basename(file)}`]);
   }
   for (const file of accountActivationPaths) {
@@ -1750,6 +1762,14 @@ try {
   await psql(["-f", "/tmp/jobPostFeeRequestBehavior.sql"]);
   console.log("Job Post participant request ownership, private storage, operator separation, idempotency and economic isolation checks passed.");
   console.log("Readiness forward migrations and synthetic attachment/payment/quarantine checks passed.");
+  for (const file of publisherOwnershipPaths) await psql(["-f", `/tmp/${path.basename(file)}`]);
+  const publisherBehavior = await psql(["-f", "/tmp/publisherOwnershipBehavior.sql"]);
+  assert(publisherBehavior.stdout.includes("publisher_ownership_behavior_ok"), "Publisher behavior evidence marker missing.");
+  console.log(publisherBehavior.stdout.split("\n").find(line => line.includes("publisher_ownership_behavior_ok"))?.trim());
+  console.log("Publisher entity/manager, independent review, attribution snapshots, role boundaries and financial isolation checks passed.");
+
+  assert(appliedMigrations.size === activePaths.length, `Only ${appliedMigrations.size}/${activePaths.length} inventoried migrations were replayed.`);
+  console.log(`Replayed all ${appliedMigrations.size} current migrations successfully.`);
 
   const catalogIntegrity = await psql(["-tAc", `
     select
@@ -1770,6 +1790,7 @@ try {
   if (plpgsqlCheckAvailable.stdout.trim() === "t") {
     await psql(["-c", "create extension if not exists plpgsql_check;"]);
     const governedPlpgsqlFunctions = [...new Set([
+      "private.publisher_actor", "private.apply_automatic_community_deletion_anonymization", "private.publisher_assert_namespace", "private.establish_marketplace_publisher", "private.authorize_marketplace_publisher_manager", "private.register_external_publisher_release", "public.save_own_marketplace_publisher", "public.current_user_publisher_workspace",
       "public.attach_own_stewardship_receipt",
       "private.job_post_request_actor", "public.current_user_job_post_fee_workspace", "public.submit_job_post_fee_request_command",
       "public.command_economic_preparation", "public.get_economic_preparation",

@@ -147,11 +147,21 @@ const reviewedJobFeeRoleLines = new Map([
   ])],
 ]);
 
+const reviewedPublisherRoleLines = new Map([["supabase/migrations/20260909020000_marketplace_publisher_ownership.sql", new Set([
+  "select private.community_caller_is_service_role() and exists(",
+  "execute format('revoke all on private.%I from public, anon, authenticated, service_role',t);",
+  "revoke insert,update,delete,truncate,references,trigger,maintain on public.publishers from anon,authenticated,service_role;",
+  "revoke insert,update,delete,truncate,references,trigger,maintain on public.addons,public.addon_versions from anon,authenticated,service_role;",
+  "revoke truncate,trigger,references,maintain on public.addon_drafts,public.addon_submissions,public.addon_submission_snapshots,public.marketplace_listings,public.marketplace_addon_versions from anon,authenticated,service_role;",
+  "execute format('revoke all on function %s from public,anon,authenticated,service_role',p.signature);",
+  "revoke all on function public.current_user_can_independently_review_addon(uuid),public.current_user_can_manage_publisher(uuid),public.current_user_publisher_workspace(),public.save_own_marketplace_publisher(text,uuid),public.get_addon_publisher_provenance(text,text,text) from public,anon,authenticated,service_role;"
+])]]);
+
 function allowHit(file, line, checkName) {
   const normalized = file.replaceAll(path.sep, "/");
   // Reviewed type names and SQL permission boundaries, never credential values.
   if (checkName === "service role key strings") {
-    if (reviewedJobFeeRoleLines.get(normalized)?.has(line.trim())) return true;
+    if (reviewedJobFeeRoleLines.get(normalized)?.has(line.trim()) || reviewedPublisherRoleLines.get(normalized)?.has(line.trim())) return true;
     if (normalized === "functions/api/economic-preparation/_shared/handler.ts"
       && line.trim() === 'export interface PreparationEnv extends Pick<BillingEnv, "SUPABASE_URL" | "SUPABASE_PUBLISHABLE_KEY" | "SUPABASE_SERVICE_ROLE_KEY"> {') return true;
     if (normalized === "supabase/migrations/20260908040000_pre_provider_preparation.sql"
@@ -354,7 +364,7 @@ function allowHit(file, line, checkName) {
   return false;
 }
 
-for (const [file, lines] of reviewedJobFeeRoleLines) for (const line of lines) {
+for (const [file, lines] of [...reviewedJobFeeRoleLines, ...reviewedPublisherRoleLines]) for (const line of lines) {
   assert(allowHit(file, line, "service role key strings"), "Reviewed Job Post role statement rejected.");
   assert(!allowHit(file, line + " unreviewed_suffix", "service role key strings"), "Job Post exception allowed an unreviewed extension.");
   assert(!allowHit(file, line, "Stripe secret material"), "Job Post role exception bypassed credential scanning.");

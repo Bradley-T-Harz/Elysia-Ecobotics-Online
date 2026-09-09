@@ -181,7 +181,8 @@ function rowToManifest(row: AddonRow): AddonManifest {
 }
 
 function liveListingToManifest(row: MarketplaceListingRow): AddonManifest {
-  const version = row.marketplace_addon_versions?.find((item) => item.review_status === "published" && !item.revoked_at)
+  const version = row.marketplace_addon_versions?.find((item) => item.version === row.current_version && item.review_status === "published" && !item.revoked_at)
+    ?? row.marketplace_addon_versions?.find((item) => item.review_status === "published" && !item.revoked_at)
     ?? row.marketplace_addon_versions?.find((item) => item.review_status === "approved" && !item.revoked_at)
     ?? row.marketplace_addon_versions?.find((item) => !item.revoked_at);
   const manifest = (version?.manifest_json ?? {}) as Partial<AddonManifest> & { runtime?: { kind?: string }; publisher?: string };
@@ -190,6 +191,7 @@ function liveListingToManifest(row: MarketplaceListingRow): AddonManifest {
   return {
     schema_version: manifest.schema_version ?? "1.0",
     id: row.slug || row.addon_id,
+    canonical_addon_id: row.addon_id,
     name: row.name || manifest.name || row.slug,
     publisher: manifest.publisher || "Reviewed Marketplace publisher",
     version: version?.version || row.current_version || manifest.version || "0.1.0",
@@ -453,36 +455,9 @@ export async function removeSavedAddon(addonId: string): Promise<MarketplaceApiR
   return configuredResult({ removed: !error, addonId }, { warnings: error ? [`Marketplace account storage is not configured yet: ${error.message}`] : [], statusMessage: error ? undefined : "Saved add-on removed." });
 }
 
-export async function submitAddonDraft(payload: unknown): Promise<MarketplaceApiResult<{ submitted: boolean }>> {
-  if (!hasSupabaseConfig || !supabase) return demo({ submitted: false }, ["Demo mode validates locally but does not save drafts."]);
-  const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return configuredResult({ submitted: false }, { warnings: ["Sign in before submitting an add-on for review."] });
-
-  const profileReady = await ensureMarketplaceProfileForUser(auth.user);
-  if (!profileReady.ok) return configuredResult({ submitted: false }, { warnings: profileReady.warnings });
-
-  const submission = payload as { manifest?: AddonManifest; version?: string };
-  const version = submission.version ?? submission.manifest?.version ?? "0.1.0";
-  const { data, error } = await supabase.from("addon_versions").insert({
-    manifest: submission.manifest ?? payload,
-    version,
-    review_status: "submitted",
-    created_by: auth.user.id
-  }).select("id").single();
-  if (error) return configuredResult({ submitted: false }, { warnings: [error.message, ...profileReady.warnings] });
-  const versionId = (data as { id: string }).id;
-  const reviewResult = await createReviewItem({
-    domain: "marketplace",
-    sourceTable: "addon_versions",
-    sourceId: versionId,
-    submittedBy: auth.user.id,
-    title: submission.manifest?.name ?? "Marketplace add-on submission",
-    summary: submission.manifest?.summary ?? "Manifest submitted for Marketplace review."
-  });
-  return configuredResult({ submitted: true }, {
-    warnings: reviewResult.ok ? profileReady.warnings : [`Review routing needs attention: ${reviewResult.warning}`, ...profileReady.warnings],
-    statusMessage: reviewResult.ok ? "Add-on draft submitted for Marketplace review. It is not approved or installable yet." : "Add-on draft saved, but review queue routing needs attention."
-  });
+/** Compatibility entry point: legacy addon_versions intake is retired. */
+export async function submitAddonDraft(_payload: unknown): Promise<MarketplaceApiResult<{ submitted: boolean }>> {
+  return configuredResult({ submitted: false }, { warnings: ["Use Marketplace Submit or Developer Forge to choose an authorized publisher and create a governed review snapshot. Legacy version-row intake no longer accepts new submissions."] });
 }
 
 export async function loadUserSubmissions(): Promise<MarketplaceApiResult<AddonSubmission[]>> {

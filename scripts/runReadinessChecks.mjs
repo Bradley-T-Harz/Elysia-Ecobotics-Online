@@ -11,6 +11,9 @@ if (extra.length && (extra.length !== 2 || extra[0] !== "--output" || !extra[1])
   throw new Error("Usage: node scripts/runReadinessChecks.mjs <check> [--output <evidence-directory>]");
 }
 const commands = {
+  forgeBrowser: ["node", ["scripts/developerForgeBrowserSmokeTest.mjs"]],
+  publisher: ["node", ["--experimental-strip-types", "scripts/publisherOwnershipContractTest.mts"]],
+  publisherBrowser: ["node", ["scripts/publisherOwnershipBrowserTest.mjs"]],
   jobFeesBrowser: ["node", ["scripts/jobPostFeeBrowserTest.mjs"]],
   jobOpportunityBrowser: ["node", ["scripts/jobOpportunityBrowserSmokeTest.mjs"]],
   jobFees: ["node", ["--experimental-strip-types", "scripts/jobPostFeeContractTest.mts"]],

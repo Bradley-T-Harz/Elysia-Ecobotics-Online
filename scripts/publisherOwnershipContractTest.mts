@@ -1,0 +1,18 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { ownershipSelectionSchema, publisherWorkspaceSchema } from "../src/shared/addons/publisherOwnershipContracts.ts";
+const id="f5200000-0000-4000-8000-000000000001";
+assert(ownershipSelectionSchema.safeParse({creatorAttribution:"A creator",publisherId:id}).success);
+for(const bad of [null,"display-name","publisher@example.invalid",""]) assert(!ownershipSelectionSchema.safeParse({creatorAttribution:"A creator",publisherId:bad}).success);
+for(const bad of [" ","a".repeat(201),null]) assert(!ownershipSelectionSchema.safeParse({creatorAttribution:bad,publisherId:id}).success);
+for(const extra of [{ownerId:id},{verified:true},{reviewApproved:true},{sellerAccount:id},{bankAccount:"forbidden"}]) assert(!ownershipSelectionSchema.safeParse({creatorAttribution:"A creator",publisherId:id,...extra}).success);
+const view={publishers:[],commonsDisplayName:null,releaseReferences:[],listings:[]};
+assert(publisherWorkspaceSchema.safeParse(view).success);
+assert(!publisherWorkspaceSchema.safeParse({...view,managerEmail:"private@example.invalid"}).success);
+const ref={id,addonKey:"synthetic.addon",version:"1.0.0",creatorAttribution:"A creator",publisherId:id,publisherDisplayName:"A publisher",packageUrl:"https://example.invalid/a.vsix",packageSha256:"a".repeat(64),releaseReferenceUrl:"https://example.invalid/v1",official:false,distributionKind:"free",recordedAt:"2026-09-09T00:00:00Z",kind:"external_release_reference"};
+assert(publisherWorkspaceSchema.safeParse({...view,releaseReferences:[ref]}).success);
+for(const extra of [{distributionKind:"paid"},{kind:"reviewed"},{packageUrl:"javascript:alert(1)"},{packageSha256:"wrong"}]) assert(!publisherWorkspaceSchema.safeParse({...view,releaseReferences:[{...ref,...extra}]}).success);
+const routes=JSON.parse(readFileSync("public/_routes.json","utf8"));
+assert(!routes.include.some((s:string)=>/billing|economic-preparation/.test(s)));
+for(const name of ["elysia-billing-api-publication","elysia-economic-preparation-publication"]) assert(readFileSync("index.html","utf8").includes(`name="${name}" content="disabled"`));
+console.log("Publisher contracts passed: UUID authority, attribution validation, strict privacy/truth schemas, safe release URLs and disabled financial publication.");

@@ -5,8 +5,8 @@ import { canReviewDomain, loadCurrentRoleState, type AppRole, type ReviewDomain 
 import { economicOperatorCapabilityKeys } from "../billing/billingClient";
 import type { DeveloperProfile } from "../../pages/The-Developer-Forge/developerForgeApi";
 
-type Doorways = { profile: DeveloperProfile | null; roles: AppRole[]; isAdmin: boolean; capabilities: string[] };
-const empty: Doorways = { profile: null, roles: [], isAdmin: false, capabilities: [] };
+type Doorways = { profile: DeveloperProfile | null; publisherManager: boolean; roles: AppRole[]; isAdmin: boolean; capabilities: string[] };
+const empty: Doorways = { profile: null, publisherManager: false, roles: [], isAdmin: false, capabilities: [] };
 
 /** Presentation only. Destination APIs and RLS remain the authority. No local profile fallback. */
 export function useAccountDoorways() {
@@ -19,16 +19,18 @@ export function useAccountDoorways() {
     void (async () => {
       const { data: auth, error } = await client.auth.getUser();
       if (error || auth.user?.id !== userId) throw new Error("Account verification unavailable");
-      const [profile, roles, economic] = await Promise.all([
+      const [profile, roles, economic, publishers] = await Promise.all([
         client.from("developer_profiles").select("id,user_id,developer_slug,display_name,status").eq("user_id", userId).maybeSingle(),
         loadCurrentRoleState(),
-        client.rpc("current_user_economic_operator_overview")
+        client.rpc("current_user_economic_operator_overview"),
+        client.rpc("current_user_publisher_workspace")
       ]);
       const record = profile.data as DeveloperProfile | null;
       const capabilities = !economic.error && economic.data?.authorized === true && Array.isArray(economic.data.capabilities)
         ? economicOperatorCapabilityKeys.filter(key => economic.data.capabilities.includes(key)) : [];
       if (current) setResult({ token: accessToken, data: {
         profile: !profile.error && record?.user_id === userId && record.id ? record : null,
+        publisherManager: !publishers.error && Array.isArray(publishers.data?.publishers) && publishers.data.publishers.length > 0,
         roles: roles.signedIn ? roles.roles : [], isAdmin: roles.signedIn && roles.isAdmin, capabilities
       }, warning: profile.error || economic.error || roles.warnings.length ? "Some account destinations could not be checked. Reload to try again." : "" });
     })().catch(() => { if (current) setResult({ token: accessToken, data: empty, warning: "Account destinations could not be verified. Reload to try again." }); });
@@ -37,7 +39,7 @@ export function useAccountDoorways() {
   // Never render the previous actor's capabilities while a new session is loading.
   const resolved = Boolean(accessToken && result?.token === accessToken);
   const data = resolved ? result!.data : empty;
-  return { ...data, creator: Boolean(data.profile), economic: data.capabilities.length > 0, signedIn: Boolean(userId && accessToken), loading: authLoading || Boolean(accessToken && !resolved), warning: resolved ? result!.warning : "" };
+  return { ...data, creator: Boolean(data.profile) || data.publisherManager, economic: data.capabilities.length > 0, signedIn: Boolean(userId && accessToken), loading: authLoading || Boolean(accessToken && !resolved), warning: resolved ? result!.warning : "" };
 }
 
 const reviewRoutes: Record<string, ReviewDomain> = {

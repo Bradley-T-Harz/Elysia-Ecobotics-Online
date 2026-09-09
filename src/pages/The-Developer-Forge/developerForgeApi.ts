@@ -3,6 +3,7 @@ import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../Th
 import { checkCompatibility, defaultPermissionCatalog, manifestLicenseSpdx, manifestPermissionKeys, staticSafetyScan, validateManifest, validationStatus } from "./developerForgeValidator";
 import type { ForgeManifest, ForgeValidationResult, PermissionDefinition } from "./developerForgeValidator";
 import { inspectArchiveFile, type BrowserArchiveInspectionResult } from "../../shared/addons/browserArchiveInspector";
+import { ownershipSelectionSchema, type OwnershipSelection } from "../../shared/addons/publisherOwnership";
 
 export type DeveloperProfile = {
   id?: string;
@@ -21,6 +22,8 @@ export type DeveloperProfile = {
 
 export type AddonDraft = {
   id: string;
+  publisher_id?: string | null;
+  creator_attribution?: string | null;
   owner_user_id?: string;
   developer_profile_id?: string | null;
   addon_slug: string;
@@ -281,15 +284,17 @@ export async function saveDeveloperProfile(input: DeveloperProfile): Promise<{ p
   return { profile: data as DeveloperProfile, warnings: [] };
 }
 
-export async function createDraftFromManifest(manifest: ForgeManifest, profileId?: string | null): Promise<{ draft: AddonDraft | null; warnings: string[] }> {
+export async function createDraftFromManifest(manifest: ForgeManifest, profileId?: string | null, ownership?: OwnershipSelection, revisionOf?: string): Promise<{ draft: AddonDraft | null; warnings: string[] }> {
   const { userId, warning } = await currentUserId();
   if (!userId || !supabase) {
-    const draft = localDraftFromManifest(manifest);
+    const draft = { ...localDraftFromManifest(manifest), creator_attribution: ownership?.creatorAttribution ?? "", publisher_id: null, revision_of_draft_id: revisionOf ?? null };
     const drafts = [draft, ...readLocal<AddonDraft[]>(localDraftKey, [])];
     writeLocal(localDraftKey, drafts);
     return { draft, warnings: [warning ?? "Saved draft locally in this browser."] };
   }
-  const { data, error } = await supabase.from("addon_drafts").insert(draftPayloadFromManifest(userId, manifest, profileId)).select("*").single();
+  const selected = ownershipSelectionSchema.safeParse(ownership);
+  if (!selected.success) return { draft: null, warnings: ["Enter Creator / Organization and select an authorized Publisher account before saving an account-backed draft."] };
+  const { data, error } = await supabase.from("addon_drafts").insert({ ...draftPayloadFromManifest(userId, manifest, profileId), publisher_id: selected.data.publisherId, creator_attribution: selected.data.creatorAttribution, revision_of_draft_id: revisionOf && !revisionOf.startsWith("local-") ? revisionOf : null }).select("*").single();
   if (error) return { draft: null, warnings: [friendly("Add-on draft", error.message)] };
   await supabase.from("addon_audit_log").insert({ actor_user_id: userId, target_type: "addon_draft", target_id: (data as { id: string }).id, action: "addon_draft_created" });
   return { draft: data as AddonDraft, warnings: [] };
@@ -305,7 +310,12 @@ export async function updateDraft(draft: AddonDraft): Promise<string[]> {
   if (!userId || !supabase) return [warning ?? supabaseNotConfiguredMessage];
   const locked = await draftLockWarning(draft.id, userId);
   if (locked) return [locked];
+  const selected = ownershipSelectionSchema.safeParse({ publisherId: draft.publisher_id, creatorAttribution: draft.creator_attribution });
+  if (!selected.success) return ["Enter Creator / Organization and select an authorized Publisher account before saving to the Marketplace."];
   const payload = {
+    developer_profile_id: draft.developer_profile_id ?? null,
+    publisher_id: selected.data.publisherId,
+    creator_attribution: selected.data.creatorAttribution,
     addon_slug: draft.addon_slug,
     addon_name: draft.addon_name,
     short_summary: draft.short_summary,
@@ -340,8 +350,10 @@ export async function archiveDraft(draftId: string): Promise<string[]> {
 }
 
 export async function duplicateDraft(draft: AddonDraft): Promise<{ draft: AddonDraft | null; warnings: string[] }> {
-  const copy = { ...draft.manifest_json, addon_id: `${draft.manifest_json.addon_id || "developer.copy"}-copy`, name: `${draft.addon_name || "Draft"} Copy` };
-  return createDraftFromManifest(copy, draft.developer_profile_id ?? null);
+  // A revision retains the add-on identity and publisher. It is not a new
+  // product, a transfer, a publication, or an automatic version bump.
+  return createDraftFromManifest({ ...draft.manifest_json }, draft.developer_profile_id ?? null,
+    { creatorAttribution: draft.creator_attribution ?? "", publisherId: draft.publisher_id ?? null }, draft.id);
 }
 
 export async function saveValidationResults(draftId: string, results: ForgeValidationResult[]): Promise<string[]> {
@@ -526,10 +538,15 @@ export async function submitDraftForReview(draft: AddonDraft, termsAccepted: boo
     if (!packages?.length) return ["Prepare package metadata/static scan before submitting local worker or connector add-ons."];
     if ((packages[0] as AddonPackageRow).scan_status === "blocked") return ["Package static scan is blocked. Remove the flagged material before submitting."];
   }
+  // Persist the exact reviewed input before the database atomically locks the
+  // draft and captures publisher provenance at submission creation.
+  const saveWarnings = await updateDraft({ ...draft, developer_profile_id: (profile as { id: string }).id, manifest_json: manifest });
+  if (saveWarnings.length) return saveWarnings;
   const { data: submission, error: submissionError } = await supabase.from("addon_submissions").insert({ addon_draft_id: draft.id, submitted_by: userId, status: "pending", review_summary: draft.short_summary }).select("*").single();
   if (submissionError) return [friendly("Add-on submission", submissionError.message)];
   const submissionId = (submission as AddonSubmission).id;
   const snapshotWarnings = await createSubmissionSnapshot({ submissionId, draft: { ...draft, manifest_json: manifest }, userId, catalog });
+  if (snapshotWarnings.length) return [...snapshotWarnings, "The private submission exists and its draft is locked, but the review snapshot was not confirmed. It cannot be published without an immutable snapshot. Keep this submission for review and prepare a revision if needed."];
   const { data: reviewItem, error: reviewError } = await supabase.from("review_items").insert({ domain: "marketplace", source_table: "addon_submissions", source_id: submissionId, submitted_by: userId, title: draft.addon_name, summary: draft.short_summary, status: "pending_review" }).select("id").single();
   const reviewWarnings: string[] = [];
   if (!reviewError && reviewItem) {
@@ -546,7 +563,6 @@ export async function submitDraftForReview(draft: AddonDraft, termsAccepted: boo
   } else if (reviewError) {
     logDetail("Review item", reviewError.message);
   }
-  await supabase.from("addon_drafts").update({ submission_status: "submitted", review_status: "pending", source_submission_id: submissionId, locked_at: new Date().toISOString(), locked_reason: "submitted_for_marketplace_review", submitted_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", draft.id).eq("owner_user_id", userId);
   await supabase.from("addon_audit_log").insert({ actor_user_id: userId, target_type: "addon_submission", target_id: submissionId, action: "submitted_for_review" });
   return [...snapshotWarnings, ...reviewWarnings, ...(reviewError ? ["The private submission record was created, but the cross-domain review index was unavailable. The submission is not public-listed, and administrator review must use the add-on submissions queue."] : ["Submitted to the private Developer Forge review queue. An immutable review snapshot was created; edit a revision draft for changes."])];
 }

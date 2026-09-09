@@ -1,3 +1,4 @@
+import AddonPublisherProvenance from "../../../shared/addons/AddonPublisherProvenance";
 import type { AddonManifest } from "../types";
 import { permissionLabels, toneForRisk, toneForTrustTier, trustTierDescription, trustTierLabel } from "../lib/securityLabels";
 import TrustBadge from "./TrustBadge";
@@ -50,6 +51,7 @@ export default function AddonDetails({ addon, onPrepareInstall, onOpenLocalInsta
         <div><h3>Security posture</h3><p>Model accessible: {addon.security.model_accessible ? "Yes" : "No"}</p><p>Chat accessible: {addon.security.chat_accessible ? "Yes" : "No"}</p><p>Memory promotion: {addon.security.memory_promotion_allowed ? "Allowed" : "Not allowed"}</p></div>
         <div><h3>Outward boundary</h3><p>{addon.security.outward_sharing_risk ?? "No outward sharing risk surfaced."}</p></div>
       </div>
+      <AddonPublisherProvenance addon={addon} />
       <h3>Permission labels</h3>
       <div className="tag-row">{permissionLabels(addon).map((label) => <TrustBadge key={label} label={label} />)}</div>
       <details className="manifest-preview">
