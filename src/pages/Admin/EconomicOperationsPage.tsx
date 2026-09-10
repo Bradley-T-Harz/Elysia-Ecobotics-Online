@@ -848,7 +848,7 @@ function EconomicAssistanceManagement({ accessToken, overview, onComplete }: { a
   const programCodeValid = (value: string) => /^[a-z][a-z0-9_]{2,100}$/.test(value);
   const versionValid = (value: string) => /^[A-Za-z0-9][A-Za-z0-9._:-]{0,119}$/.test(value);
   const localDateValid = (value: string) => Boolean(value && Number.isFinite(new Date(value).getTime()));
-  const maxGrantsValid = !maxGrants || (/^\d+$/.test(maxGrants) && Number(maxGrants) >= 1 && Number(maxGrants) <= 1_000_000);
+  const maxGrantsValid = (assistanceKind === "waiver" && assistanceScope === "job_post_fee" && !maxGrants) || (/^\d+$/.test(maxGrants) && Number(maxGrants) >= 1 && Number(maxGrants) <= 1_000_000);
   const programDatesValid = localDateValid(startsAtLocal) && (!endsAtLocal || (localDateValid(endsAtLocal) && new Date(endsAtLocal).getTime() > new Date(startsAtLocal).getTime()));
   const canConfigureProgram = programCodeValid(programCode) && Boolean(assistanceKind && assistanceScope) && publicLabel.trim().length >= 2 && publicLabel.trim().length <= 120 && versionValid(termsVersion) && programDatesValid && maxGrantsValid && validReason(programReason) && programConfirmation === "CONFIGURE ECONOMIC ASSISTANCE PROGRAM" && busy === null;
   const selectedStatusProgram = statusPrograms.find((program) => program.programId === statusProgramId);
@@ -953,7 +953,7 @@ function EconomicAssistanceManagement({ accessToken, overview, onComplete }: { a
       <label><span>Neutral public program label</span><input value={publicLabel} onChange={(event) => change(programRequestRef, () => setPublicLabel(event.target.value))} minLength={2} maxLength={120} required /><small>This describes the program only. It must not identify recipients, rank donors, or imply authority.</small></label>
       <label><span>Reviewed terms version</span><input value={termsVersion} onChange={(event) => change(programRequestRef, () => setTermsVersion(event.target.value))} maxLength={120} autoComplete="off" spellCheck={false} required /></label>
       <div className="two-column"><label><span>Starts</span><input type="datetime-local" value={startsAtLocal} onChange={(event) => change(programRequestRef, () => setStartsAtLocal(event.target.value))} required /></label><label><span>Optional end</span><input type="datetime-local" value={endsAtLocal} onChange={(event) => change(programRequestRef, () => setEndsAtLocal(event.target.value))} /></label></div>
-      <label><span>Optional maximum grants</span><input type="number" value={maxGrants} onChange={(event) => change(programRequestRef, () => setMaxGrants(event.target.value))} min={1} max={1_000_000} step={1} /></label>
+      <label><span>Maximum grants (optional only for Job Post fee waivers)</span><input type="number" value={maxGrants} onChange={(event) => change(programRequestRef, () => setMaxGrants(event.target.value))} min={1} max={1_000_000} step={1} /></label>
       <p className="boundary-note">A new program is always saved as a draft. Activation is a separate reviewed action with its own confirmation and server-side prerequisites.</p>
       <label><span>Private audit reason</span><textarea value={programReason} onChange={(event) => change(programRequestRef, () => setProgramReason(event.target.value))} minLength={8} maxLength={1000} rows={3} required /></label>
       <label><span>Type <strong>CONFIGURE ECONOMIC ASSISTANCE PROGRAM</strong> exactly</span><input value={programConfirmation} onChange={(event) => setProgramConfirmation(event.target.value)} autoComplete="off" spellCheck={false} required /></label>

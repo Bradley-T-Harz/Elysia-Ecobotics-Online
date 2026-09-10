@@ -1,0 +1,295 @@
+{
+  "pages": {
+    "community-guidelines": {
+      "slug": "community-guidelines",
+      "route": "/legal/community-guidelines",
+      "title": "Community Guidelines",
+      "status": "Public operating policy",
+      "lastUpdated": "2026-09-10",
+      "version": "2026-09-10-owner-decisions",
+      "contentSha256": "a8f1d094832a881a0b7d3b4e43fbb0b08a73a193dfef2b871f4c92314f2cc193"
+    },
+    "donation-recognition-terms": {
+      "slug": "donation-recognition-terms",
+      "route": "/legal/donation-recognition-terms",
+      "title": "Donation Recognition Terms",
+      "status": "Public operating policy",
+      "lastUpdated": "2026-09-10",
+      "version": "2026-09-10-owner-decisions",
+      "contentSha256": "451640dc14879154415ef5d10b8ae590285af4bafada24ea23a3125c1c166c73"
+    },
+    "marketplace-developer-agreement": {
+      "slug": "marketplace-developer-agreement",
+      "route": "/legal/marketplace-developer-agreement",
+      "title": "Marketplace Developer Agreement",
+      "status": "Public operating policy",
+      "lastUpdated": "2026-09-10",
+      "version": "2026-09-10-owner-decisions",
+      "contentSha256": "6e710e1f09a697326a57626981b5594e94e261c2ee3216d3322f3d6f87782d04"
+    },
+    "privacy-policy": {
+      "slug": "privacy-policy",
+      "route": "/legal/privacy-policy",
+      "title": "Privacy Policy",
+      "status": "Public operating policy",
+      "lastUpdated": "2026-09-10",
+      "version": "2026-09-10-owner-decisions",
+      "contentSha256": "f2ce49e70d8f28e0181bde82ea8ddbeb71df0bde618bcbd7038ec6ac3f9b83ff"
+    },
+    "terms-of-use": {
+      "slug": "terms-of-use",
+      "route": "/legal/terms-of-use",
+      "title": "Terms of Use",
+      "status": "Public operating policy",
+      "lastUpdated": "2026-09-10",
+      "version": "2026-09-10-owner-decisions",
+      "contentSha256": "4731452fcb2fd7a308a5437a92a1178064c0512ad73dce349354a241f2a84888"
+    },
+    "volunteer-contributor-disclaimer": {
+      "slug": "volunteer-contributor-disclaimer",
+      "route": "/legal/volunteer-contributor-disclaimer",
+      "title": "Volunteer / Contributor Disclaimer",
+      "status": "Public operating policy",
+      "lastUpdated": "2026-09-10",
+      "version": "2026-09-10-owner-decisions",
+      "contentSha256": "a62837e5d6d5200a0312c5f713b9e82eac301f16550d7b866c05275daca43402"
+    },
+    "support-and-billing-terms": {
+      "slug": "support-and-billing-terms",
+      "route": "/legal/support-and-billing-terms",
+      "title": "Support and Billing Terms",
+      "status": "Test-mode operating terms",
+      "lastUpdated": "2026-09-10",
+      "version": "2026-09-10-owner-decisions",
+      "contentSha256": "91e854c0cd7ec397024ff44daa0169df8cf5adb4309debf654e3a3a7a57338e0"
+    },
+    "refund-and-cancellation-policy": {
+      "slug": "refund-and-cancellation-policy",
+      "route": "/legal/refund-and-cancellation-policy",
+      "title": "Refund and Cancellation Policy",
+      "status": "Test-mode operating terms",
+      "lastUpdated": "2026-09-10",
+      "version": "2026-09-10-owner-decisions",
+      "contentSha256": "97b687da8bffba3be3bc91dc3691d9e565acce2a1884f4fc54624d9ab68b4aa3"
+    },
+    "sandbox-credit-terms": {
+      "slug": "sandbox-credit-terms",
+      "route": "/legal/sandbox-credit-terms",
+      "title": "Online Sandbox Credit Terms",
+      "status": "Test-mode operating terms",
+      "lastUpdated": "2026-09-10",
+      "version": "2026-09-10-owner-decisions",
+      "contentSha256": "f41d1a85de105ec6110a4ae1d08f514fa8e2d83a6aead3dd2ae607d41fa1efd8"
+    },
+    "job-post-fee-terms": {
+      "slug": "job-post-fee-terms",
+      "route": "/legal/job-post-fee-terms",
+      "title": "Commercial Job Post Fee Terms",
+      "status": "Test-mode operating terms",
+      "lastUpdated": "2026-09-10",
+      "version": "2026-09-10-owner-decisions",
+      "contentSha256": "a724483850a6754fcb2ed51f53f2b94a1037c815ef4710deccedcc7102413e02"
+    },
+    "marketplace-commerce-terms": {
+      "slug": "marketplace-commerce-terms",
+      "route": "/legal/marketplace-commerce-terms",
+      "title": "Marketplace Commerce Terms",
+      "status": "Test-mode operating terms",
+      "lastUpdated": "2026-09-10",
+      "version": "2026-09-10-owner-decisions",
+      "contentSha256": "aeb3bd6fdb60246e9460f86150479ffd4e40f52735af5e23c76f8fd8f9952aa8"
+    },
+    "sponsorship-independence-policy": {
+      "slug": "sponsorship-independence-policy",
+      "route": "/legal/sponsorship-independence-policy",
+      "title": "Sponsorship Independence Policy",
+      "status": "Test-mode operating terms",
+      "lastUpdated": "2026-09-10",
+      "version": "2026-09-10-owner-decisions",
+      "contentSha256": "827d21c5ec0ca4c36b63062d038fe44976d2d89db4e189a64a27db4ca6d8e304"
+    },
+    "organization-services-terms": {
+      "slug": "organization-services-terms",
+      "route": "/legal/organization-services-terms",
+      "title": "Organization Services Terms",
+      "status": "Test-mode operating terms",
+      "lastUpdated": "2026-09-10",
+      "version": "2026-09-10-owner-decisions",
+      "contentSha256": "287b3f44a7de40f082293956a12eb63e95aa12dbd63d079e4dad6214ae0e2164"
+    },
+    "account-closure-financial-retention": {
+      "slug": "account-closure-financial-retention",
+      "route": "/legal/account-closure-financial-retention",
+      "title": "Account Closure and Financial Record Retention",
+      "status": "Test-mode operating terms",
+      "lastUpdated": "2026-09-10",
+      "version": "2026-09-10-owner-decisions",
+      "contentSha256": "b4e5d8f104a1ae68ca8f6d766cfae4089c8251c9e45fe07f5a4dc3b76417cd7d"
+    }
+  },
+  "bundles": {
+    "support_one_time_checkout_bundle": {
+      "version": "2026-09-10-owner-decisions",
+      "path": "/legal/support-and-billing-terms",
+      "documents": {
+        "supportTerms": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/support-and-billing-terms",
+          "contentSha256": "91e854c0cd7ec397024ff44daa0169df8cf5adb4309debf654e3a3a7a57338e0"
+        },
+        "refundPolicy": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/refund-and-cancellation-policy",
+          "contentSha256": "97b687da8bffba3be3bc91dc3691d9e565acce2a1884f4fc54624d9ab68b4aa3"
+        },
+        "privacyDisclosure": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/privacy-policy",
+          "contentSha256": "f2ce49e70d8f28e0181bde82ea8ddbeb71df0bde618bcbd7038ec6ac3f9b83ff"
+        }
+      }
+    },
+    "support_recurring_checkout_bundle": {
+      "version": "2026-09-10-owner-decisions",
+      "path": "/legal/support-and-billing-terms",
+      "documents": {
+        "recurringSupportTerms": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/support-and-billing-terms",
+          "contentSha256": "91e854c0cd7ec397024ff44daa0169df8cf5adb4309debf654e3a3a7a57338e0"
+        },
+        "refundPolicy": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/refund-and-cancellation-policy",
+          "contentSha256": "97b687da8bffba3be3bc91dc3691d9e565acce2a1884f4fc54624d9ab68b4aa3"
+        },
+        "privacyDisclosure": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/privacy-policy",
+          "contentSha256": "f2ce49e70d8f28e0181bde82ea8ddbeb71df0bde618bcbd7038ec6ac3f9b83ff"
+        }
+      }
+    },
+    "sandbox_credits_checkout_bundle": {
+      "version": "2026-09-10-owner-decisions",
+      "path": "/legal/sandbox-credit-terms",
+      "documents": {
+        "sandboxCreditTerms": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/sandbox-credit-terms",
+          "contentSha256": "f41d1a85de105ec6110a4ae1d08f514fa8e2d83a6aead3dd2ae607d41fa1efd8"
+        },
+        "refundPolicy": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/refund-and-cancellation-policy",
+          "contentSha256": "97b687da8bffba3be3bc91dc3691d9e565acce2a1884f4fc54624d9ab68b4aa3"
+        },
+        "privacyDisclosure": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/privacy-policy",
+          "contentSha256": "f2ce49e70d8f28e0181bde82ea8ddbeb71df0bde618bcbd7038ec6ac3f9b83ff"
+        }
+      }
+    },
+    "job_post_fee_checkout_bundle": {
+      "version": "2026-09-10-owner-decisions",
+      "path": "/legal/job-post-fee-terms",
+      "documents": {
+        "jobPostFeeTerms": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/job-post-fee-terms",
+          "contentSha256": "a724483850a6754fcb2ed51f53f2b94a1037c815ef4710deccedcc7102413e02"
+        },
+        "refundPolicy": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/refund-and-cancellation-policy",
+          "contentSha256": "97b687da8bffba3be3bc91dc3691d9e565acce2a1884f4fc54624d9ab68b4aa3"
+        },
+        "privacyDisclosure": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/privacy-policy",
+          "contentSha256": "f2ce49e70d8f28e0181bde82ea8ddbeb71df0bde618bcbd7038ec6ac3f9b83ff"
+        }
+      }
+    },
+    "marketplace_purchase_checkout_bundle": {
+      "version": "2026-09-10-owner-decisions",
+      "path": "/legal/marketplace-commerce-terms",
+      "documents": {
+        "marketplaceBuyerTerms": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/marketplace-commerce-terms",
+          "contentSha256": "aeb3bd6fdb60246e9460f86150479ffd4e40f52735af5e23c76f8fd8f9952aa8"
+        },
+        "refundPolicy": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/refund-and-cancellation-policy",
+          "contentSha256": "97b687da8bffba3be3bc91dc3691d9e565acce2a1884f4fc54624d9ab68b4aa3"
+        },
+        "privacyDisclosure": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/privacy-policy",
+          "contentSha256": "f2ce49e70d8f28e0181bde82ea8ddbeb71df0bde618bcbd7038ec6ac3f9b83ff"
+        }
+      }
+    },
+    "marketplace_free_license_bundle": {
+      "version": "2026-09-10-owner-decisions",
+      "path": "/legal/marketplace-commerce-terms",
+      "documents": {
+        "marketplaceLicenseTerms": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/marketplace-commerce-terms",
+          "contentSha256": "aeb3bd6fdb60246e9460f86150479ffd4e40f52735af5e23c76f8fd8f9952aa8"
+        },
+        "privacyDisclosure": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/privacy-policy",
+          "contentSha256": "f2ce49e70d8f28e0181bde82ea8ddbeb71df0bde618bcbd7038ec6ac3f9b83ff"
+        }
+      }
+    },
+    "organization_service_checkout_bundle": {
+      "version": "2026-09-10-owner-decisions",
+      "path": "/legal/organization-services-terms",
+      "documents": {
+        "organizationServiceTerms": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/organization-services-terms",
+          "contentSha256": "287b3f44a7de40f082293956a12eb63e95aa12dbd63d079e4dad6214ae0e2164"
+        },
+        "refundPolicy": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/refund-and-cancellation-policy",
+          "contentSha256": "97b687da8bffba3be3bc91dc3691d9e565acce2a1884f4fc54624d9ab68b4aa3"
+        },
+        "privacyDisclosure": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/privacy-policy",
+          "contentSha256": "f2ce49e70d8f28e0181bde82ea8ddbeb71df0bde618bcbd7038ec6ac3f9b83ff"
+        }
+      }
+    },
+    "sponsorship_checkout_bundle": {
+      "version": "2026-09-10-owner-decisions",
+      "path": "/legal/sponsorship-independence-policy",
+      "documents": {
+        "sponsorshipTerms": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/sponsorship-independence-policy",
+          "contentSha256": "827d21c5ec0ca4c36b63062d038fe44976d2d89db4e189a64a27db4ca6d8e304"
+        },
+        "refundPolicy": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/refund-and-cancellation-policy",
+          "contentSha256": "97b687da8bffba3be3bc91dc3691d9e565acce2a1884f4fc54624d9ab68b4aa3"
+        },
+        "privacyDisclosure": {
+          "version": "2026-09-10-owner-decisions",
+          "path": "/legal/privacy-policy",
+          "contentSha256": "f2ce49e70d8f28e0181bde82ea8ddbeb71df0bde618bcbd7038ec6ac3f9b83ff"
+        }
+      }
+    }
+  }
+}

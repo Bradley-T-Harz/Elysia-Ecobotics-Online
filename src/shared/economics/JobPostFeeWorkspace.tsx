@@ -13,9 +13,11 @@ export function JobPostFeeNotice({ draft = false }: { draft?: boolean }) {
   return <div className="economic-summary-card">
     {draft && <h3>Posting fee &amp; community access</h3>}
     {draft && <><strong>{jobFeeStatus().label}</strong><p>Fee eligibility will be shown from the assessment of your saved opportunity.</p></>}
-    <p><strong>No payment is currently being collected.</strong> No payment details are requested here.</p>
-    <p>Community, volunteer, public-interest, educational/research and other qualifying opportunities may use free paths. Some commercial Job Posts may carry an EcoSyneva-owned posting fee.</p>
+    <p><strong>No payment is currently being collected.</strong></p>
+    <p>Qualifying community opportunities can be free. Commercial for-profit posts: $10 after content approval, immediately before publication once billing opens.</p>
     <details><summary>Fee waivers, assistance &amp; publication boundaries</summary>
+      <p>Free paths include qualifying volunteer, public-interest, educational/research and other community opportunities. No payment details are requested here.</p>
+      <p>Rejected posts and applicants are never charged. For-profit public-interest posts may request a waiver or reduction; a public-benefit claim alone does not make a post free.</p>
       <p className="boundary-note">Content, safety and publication review remain separate. A payment, waiver, reduction, subsidy or assistance decision never buys or implies publication, ranking, endorsement, moderation preference, trust or authority. Only EcoSyneva’s own posting fee is eligible; nobody else’s compensation can be waived.</p>
       <p>After saving your opportunity, you can request a fee waiver or assistance privately. You can return through <Link to={jobPostFeesPath}>My Job Post fees &amp; requests</Link>. Keep personal circumstances out of your public post and local drafts.</p>
     </details>
@@ -47,7 +49,7 @@ function RequestForm({ item, operator, busy, run }: { item: JobFeeItem; operator
           <label><span>Reason category (optional)</span><select value={category} onChange={event => setCategory(event.target.value as typeof category)}><option value="">Prefer not to categorize</option>{jobFeeCategories.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
           <label><span>Short explanation</span><textarea value={explanation} onChange={event => setExplanation(event.target.value)} maxLength={500} rows={3} required aria-describedby={`job-fee-privacy-${item.jobPostId}`} /></label>
           <p id={`job-fee-privacy-${item.jobPostId}`}>Up to 500 characters; no exact income or proof required. Do not send payment details, identity documents, medical details or other sensitive records. Your Job Post title and request are private to you and authorized economic operators, separate from the public post and content review.</p>
-          <p>Requesting help does not guarantee a waiver or assistance. No fee amount or response deadline is promised.</p>
+          <p>Requesting help does not guarantee a waiver or assistance. The adopted standard commercial fee is $10; no response deadline is promised. Fee reductions and waivers concern only EcoSyneva’s fee, while subsidies that spend cash or compute need a separate bounded budget.</p>
         </>}
         <button type="submit" disabled={!(operator ? response : explanation).trim()}>{busy ? "Saving…" : operator ? "Record private reply" : "Send private request"}</button>
       </fieldset>

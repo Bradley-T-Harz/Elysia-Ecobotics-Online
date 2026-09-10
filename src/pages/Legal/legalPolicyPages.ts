@@ -1,3 +1,6 @@
+import readinessArchive from "./readinessLegalArchive.json" with { type: "json" };
+import ownerPriorArchive from "./ownerDecisionPriorLegalArchive.json" with { type: "json" };
+import { applyOwnerDecisionLegal, ownerDecisionLegalVersion, ownerDecisionLegalSlugs } from "./ownerDecisionLegal.ts";
 import { archivedLegalPolicyPages } from "./economicLegalArchive.ts";
 import { clarifyEconomicPolicy, readinessLegalVersion } from "./readinessLegalClarifications.ts";
 export type LegalPolicyPage = {
@@ -771,9 +774,19 @@ for (const page of legalPolicyPages) {
   }
 }
 
+// New current versions are composed after the immutable September 8 revision.
+for (const page of legalPolicyPages) {
+  if (ownerDecisionLegalSlugs.has(page.slug)) {
+    page.body = applyOwnerDecisionLegal(page.slug, page.body);
+    page.lastUpdated = "2026-09-10";
+  }
+}
+
 export function getLegalPolicy(slug: string | undefined, version?: string | null): LegalPolicyPage | undefined {
-  if (!version || version === readinessLegalVersion) return legalPolicyPages.find((policy) => policy.slug === slug && (!version || policy.lastUpdated === "2026-09-08"));
-  return archivedLegalPolicyPages.find((policy) => policy.slug === slug
+  if (!version) return legalPolicyPages.find(policy => policy.slug === slug);
+  if (version === ownerDecisionLegalVersion || version === "2026-09-10") return legalPolicyPages.find(policy => policy.slug === slug && policy.lastUpdated === "2026-09-10");
+  if (version === readinessLegalVersion || version === "2026-09-08") return readinessArchive.find(policy => policy.slug === slug);
+  return [...archivedLegalPolicyPages, ...ownerPriorArchive].find(policy => policy.slug === slug
     && (version === policy.lastUpdated || (slug === "marketplace-commerce-terms" && version === "stripe-connect-test-2026-07-16")));
 }
 
