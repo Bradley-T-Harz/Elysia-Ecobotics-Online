@@ -11,6 +11,14 @@ if (extra.length && (extra.length !== 2 || extra[0] !== "--output" || !extra[1])
   throw new Error("Usage: node scripts/runReadinessChecks.mjs <check> [--output <evidence-directory>]");
 }
 const commands = {
+  owner: ["node", ["--experimental-strip-types", "scripts/ownerDecisionsContractTest.mts"]],
+  ownerLegal: ["node", ["--experimental-strip-types", "scripts/ownerDecisionLegalCheck.mts"]],
+  ownerBrowser: ["node", ["scripts/ownerDecisionsBrowserTest.mjs"]],
+  doorways: ["node", ["scripts/routeReachabilityBrowserTest.mjs"]],
+  doorwaysMobile: ["node", ["scripts/routeReachabilityBrowserTest.mjs"]],
+  reachability: ["node", ["scripts/routeReachabilityBrowserTest.mjs"]],
+  accessibility: ["npm", ["run", "test:accessibility-browser:built"]],
+  all: ["npm", ["run", "test:all"]],
   forgeBrowser: ["node", ["scripts/developerForgeBrowserSmokeTest.mjs"]],
   publisher: ["node", ["--experimental-strip-types", "scripts/publisherOwnershipContractTest.mts"]],
   publisherBrowser: ["node", ["scripts/publisherOwnershipBrowserTest.mjs"]],
@@ -49,7 +57,7 @@ if (extra.length) {
   env.ELYSIA_READINESS_EVIDENCE_DIR = path.resolve(extra[1]);
   if (selected === "jobOpportunityBrowser") env.ELYSIA_JOB_OPPORTUNITY_EVIDENCE_DIR = path.resolve(extra[1]);
 }
-if (["build", "baseline", "publication"].includes(selected)) {
+if (["build", "baseline", "publication", "all"].includes(selected)) {
   // Public, synthetic configuration only. Browser fixtures intercept this host.
   env.VITE_SUPABASE_URL = "https://readiness-fixture.supabase.co";
   env.VITE_SUPABASE_ANON_KEY = "synthetic-public-anon-fixture";
@@ -58,7 +66,14 @@ if (selected === "integration") {
   env.ELYSIA_SANDBOX_DATABASE_INTEGRATION = "1";
   env.ELYSIA_CONTAINER_RUNTIME = "podman";
 }
-const [command, args] = commands[selected];
+const [command, baseArgs] = commands[selected];
+const args = [...baseArgs];
+if (["reachability", "doorways", "doorwaysMobile"].includes(selected)) {
+  if (!extra.length) throw new Error("Reachability needs an evidence directory.");
+  args.push("--output", path.resolve(extra[1]));
+  if (selected === "reachability") args.push("--direct-only", "--qualify");
+  if (selected === "doorwaysMobile") args.push("--mobile");
+}
 const child = spawn(command, args, { cwd: root, env, shell: false, stdio: "inherit" });
 child.on("error", () => { console.error("Could not start the isolated local check."); process.exitCode = 1; });
 child.on("exit", (code) => { process.exitCode = code ?? 1; });

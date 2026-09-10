@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import fs from "node:fs/promises";
 import crypto from "node:crypto";
-import {legalPolicyPages} from "../src/pages/Legal/legalPolicyPages.ts";
+const legalPolicyPages = JSON.parse(await fs.readFile(new URL("../src/pages/Legal/readinessLegalArchive.json", import.meta.url), "utf8"));
 import {archivedLegalPolicyPages} from "../src/pages/Legal/economicLegalArchive.ts";
 import {readinessLegalVersion as version} from "../src/pages/Legal/readinessLegalClarifications.ts";
 import {serializeEconomicLegalSemanticContent, billingLegalConsentBundleIntegrityExpectations} from "../src/pages/Legal/economicLegalContentManifest.ts";

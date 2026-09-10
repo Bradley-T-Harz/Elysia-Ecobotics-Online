@@ -458,7 +458,7 @@ try {
       assert.equal(await page.getByRole("button", { name: "Search or check" }).isEnabled(), true, "Controlled-beta enrollment must not gate published-profile search.");
       await page.getByRole("button", { name: "Search or check" }).click();
       await page.getByRole("button", { name: /Fixture Colleague/ }).last().click();
-      await page.getByText("This profile is unavailable for a new private conversation.", { exact: true }).waitFor();
+      await page.getByText("Private messaging is unavailable for this profile.", { exact: true }).waitFor();
       assert.equal(observed.searchLoads, 1, "A non-enrolled active account must retain one bounded public-profile search request.");
       assert.equal(observed.resolverLoads, 1, "Selecting a result must still apply the private destination gate once.");
       assert.equal(await page.getByLabel("Subject").count(), 0, "A search-capable but non-enrolled account must not receive the request composer.");
@@ -557,8 +557,11 @@ try {
       assert(observed.tables.has("commune_code_revision_proposals"), "Coding Proposals must load its authoritative proposal source.");
       for (const unrelated of ["work_with_requests", "addon_submissions", "commune_research_notes", "commune_job_posts"]) assert.equal(observed.tables.has(unrelated), false, `Coding Proposals must not load unrelated ${unrelated} rows.`);
     } else if (scenario.kind === "signal-work-with") {
-      await page.getByText("Work With request activity", { exact: true }).waitFor();
-      await page.getByText("private owner status", { exact: false }).waitFor();
+      await page.getByRole("heading", { name: "My Work With requests", exact: true }).waitFor();
+      const application = page.getByRole("link", { name: "View application and follow-up", exact: true });
+      await application.waitFor();
+      assert.equal(await application.getAttribute("href"), "/commons-circle/signals/work-with?request=b9600000-0000-4000-8000-000000000001", "Work With status must lead to the governed source application.");
+      assert.equal(await page.getByRole("button", { name: "Approve", exact: true }).count(), 0, "Applicants must not receive reviewer authority.");
       assert(observed.tables.has("work_with_requests"), "Work With Signals must load safe authoritative request status.");
       for (const unrelated of ["addon_submissions", "marketplace_listings", "commune_code_revision_proposals", "commune_research_notes"]) assert.equal(observed.tables.has(unrelated), false, `Work With Signals must not load unrelated ${unrelated} rows.`);
     } else if (scenario.kind === "signal-marketplace-forge") {

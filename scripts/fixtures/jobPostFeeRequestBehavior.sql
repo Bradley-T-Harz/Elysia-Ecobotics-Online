@@ -120,6 +120,23 @@ do $$ declare v jsonb; begin
  or v->'items'->0->>'contentStatus'<>'pending_review' then raise exception 'existing assessment projection or content separation failed'; end if;
 end $$;
 reset role;
+-- Current owner policy is tested after the forward policy migration as well.
+do $$declare price uuid; condition uuid;begin
+ if to_regclass('private.economic_owner_policy_versions') is null then return;end if;
+ insert into private.economic_prices(price_code,product_key,currency,unit_amount_minor) values('synthetic_adopted_job_fee','job_post_fee','usd',1000) returning id into price;
+ insert into private.economic_price_disclosures(price_id,disclosure_version,configured_by) values(price,'2026-09-10-owner-decisions','f1000000-0000-4000-8000-000000000004');
+ perform set_config('request.jwt.claim.role','service_role',true);
+ perform public.operator_assess_job_post_fee('f1000000-0000-4000-8000-000000000004','f3000000-0000-4000-8000-000000000002','commercial','synthetic_adopted_job_fee',null,null,gen_random_uuid(),'Synthetic adopted fee assessment');
+ select id into condition from private.job_post_economic_conditions where job_post_id='f3000000-0000-4000-8000-000000000002';
+ if private.job_post_checkout_is_eligible(condition) then raise exception 'Checkout before content approval';end if;
+ update public.commune_job_posts set anti_scam_review_status='reviewed_clear' where id='f3000000-0000-4000-8000-000000000002';
+ update public.commune_posts set status='approved' where id='f2000000-0000-4000-8000-000000000002';
+ if not private.job_post_checkout_is_eligible(condition) then raise exception 'Approved commercial condition unavailable';end if;
+ update private.economic_prices set unit_amount_minor=999 where id=price;
+ begin perform public.operator_assess_job_post_fee('f1000000-0000-4000-8000-000000000004','f3000000-0000-4000-8000-000000000003','commercial','synthetic_adopted_job_fee',null,null,gen_random_uuid(),'Synthetic wrong fee rejected');raise exception 'Non-adopted fee accepted';exception when no_data_found then null;end;
+ update public.commune_job_posts set poster_type='business_company' where id='f3000000-0000-4000-8000-000000000003';
+ begin perform public.operator_assess_job_post_fee('f1000000-0000-4000-8000-000000000004','f3000000-0000-4000-8000-000000000003','community_free',null,null,null,gen_random_uuid(),'Synthetic business public benefit');raise exception 'Business self-classified free';exception when invalid_parameter_value then null;end;
+end;$$;
 savepoint synthetic_assistance;
 -- This local-only savepoint tests the existing governed grant attachment.
 -- It never changes production flags or creates a provider object.
@@ -138,6 +155,20 @@ do $$ declare v jsonb; begin
  or v->'items'->0->>'contentStatus'<>'pending_review' then raise exception 'governed waiver did not reach participant independently'; end if;
 end $$;
 reset role;
+do $$begin
+ if to_regclass('private.economic_owner_policy_versions') is not null then
+  -- A separate real subsidy cannot silently use the unbounded waiver programme.
+  update private.economic_assistance_programs set assistance_kind='subsidy' where id='f5000000-0000-4000-8000-000000000001';
+  begin
+   insert into private.economic_assistance_grants(client_request_id,program_id,beneficiary_user_id,scope,resource_id,granted_by,private_reason)
+   values(gen_random_uuid(),'f5000000-0000-4000-8000-000000000001','f1000000-0000-4000-8000-000000000001','job_post_fee','f3000000-0000-4000-8000-000000000004','f1000000-0000-4000-8000-000000000004','Synthetic unbudgeted subsidy');
+   raise exception 'Unbudgeted actual subsidy accepted';
+  exception when object_not_in_prerequisite_state then null;end;
+  update private.economic_assistance_programs set assistance_kind='waiver' where id='f5000000-0000-4000-8000-000000000001';
+  if (select waived_value_minor from private.economic_assistance_grants where id='f6000000-0000-4000-8000-000000000001')<>1000 then raise exception 'Waived value missing';end if;
+  if (select max_grants from private.economic_assistance_programs where id='f5000000-0000-4000-8000-000000000001') is not null then raise exception 'Artificial foregone-fee budget';end if;
+ end if;
+end;$$;
 -- Inconsistent/revoked assistance must never retain the reassuring free label.
 update private.economic_assistance_grants set status='revoked',revoked_at=now(),revoked_by='f1000000-0000-4000-8000-000000000004' where id='f6000000-0000-4000-8000-000000000001';
 set local role authenticated;

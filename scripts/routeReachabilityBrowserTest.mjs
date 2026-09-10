@@ -77,6 +77,7 @@ async function run(role, mobile = false) {
       assert.equal(url.searchParams.get("submitted_by"), `eq.${userId}`);
       return fulfill([{ id: "a2900000-0000-4000-8000-000000000012", submitted_by: userId, addon_draft_id: "a2900000-0000-4000-8000-000000000010", status: "needs_information" }]);
     }
+    if(url.pathname.endsWith("/current_user_publisher_workspace"))return fulfill({publishers:actor.recordData?[{id:"a2800000-0000-4000-8000-000000000001",displayName:"Synthetic governed publisher",entityKind:"individual",legalName:null,verified:false}]:[],commonsDisplayName:"Synthetic Commons",releaseReferences:[],listings:actor.recordData?[{id:"a2900000-0000-4000-8000-000000000013",addonKey:"synthetic.owned-listing",slug:"owned-synthetic-listing",name:"Owned synthetic listing",version:"1.0.0",status:"published",creatorAttribution:"Synthetic creator",publisherId:"a2800000-0000-4000-8000-000000000001",publisherDisplayName:"Synthetic governed publisher"}]:[]});
     if (url.pathname === "/rest/v1/marketplace_listings" && actor.recordData && url.searchParams.has("developer_profile_id")) {
       assert.equal(url.searchParams.get("developer_profile_id"), "eq.a2900000-0000-4000-8000-000000000002");
       return fulfill([{ id: "a2900000-0000-4000-8000-000000000013", addon_id: "legacy-record-reference", slug: "owned-synthetic-listing", name: "Owned synthetic listing", current_version: "1.0.0", listing_status: "published" }]);
@@ -112,7 +113,7 @@ async function run(role, mobile = false) {
         assert.equal(await visibleLink("/admin/economic-operations/readiness"), economic, `${role}: independently assigned economic doorway`);
         assert.equal(await visibleLink("/marketplace/creator-studio"), isCreator, `${role}: creator doorway`);
       }
-      if (route === "/admin/review" || route === "/admin/review/marketplace") assert.equal(await page.getByRole("heading", { name: "Review access required", exact: true }).count(), isReviewer ? 0 : 1, `${role}: direct reviewer URL boundary`);
+      if (route === "/admin/review" || route === "/admin/review/marketplace") assert.equal(await page.getByRole("heading", { name: "Review access required", exact: true }).count(), (route === "/admin/review" ? isReviewer : actor.roles.includes("marketplace_reviewer")) ? 0 : 1, `${role}: direct reviewer URL boundary`);
       if (["/admin/roles", "/admin/badges"].includes(route)) assert.equal(await page.getByRole("heading", { name: "Review access required", exact: true }).count(), isAdmin ? 0 : 1, `${role}: direct administrator URL boundary`);
       if (route.startsWith("/admin/economic-operations")) {
         assert.equal(await page.getByRole("navigation", { name: "Economic Operations sections" }).count(), economic ? 1 : 0);

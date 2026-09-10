@@ -45,7 +45,7 @@ const policy = legalPolicyPages.find((entry) => entry.slug === policySlug);
 const group = legalPolicyGroups.find((entry) => entry.category === "Research, Reference, and External Resources");
 const groupedSlugs = legalPolicyGroups.flatMap((entry) => entry.slugs);
 
-assert.equal(legalPolicyPages.length, 24, "the Legal data model should contain 23 public policy cards plus its ungrouped index record");
+assert.equal(legalPolicyPages.length, 23, "Only current public policy cards belong in the Legal model; /legal/legal is a compatibility redirect.");
 assert.equal(legalPolicyGroups.length, 8, "the new research/external-resources section must be a top-level Legal group");
 assert.equal(groupedSlugs.length, 23, "every public policy card must be represented exactly once in Legal grouping");
 assert.equal(new Set(groupedSlugs).size, groupedSlugs.length, "Legal groups must not duplicate policy cards");

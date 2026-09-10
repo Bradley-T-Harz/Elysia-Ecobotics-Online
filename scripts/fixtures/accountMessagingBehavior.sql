@@ -465,6 +465,15 @@ select pg_catalog.set_config('request.jwt.claims', '{"sub":"b1000000-0000-4000-8
 do $account_messaging_decline_cooldown_enforced$
 declare v_destination jsonb;
 begin
+  if to_regprocedure('public.current_economic_owner_policy()') is not null then
+    if public.current_user_conversation(pg_catalog.current_setting('fixture.account_cooldown_conversation_id')::uuid,100,null,null)::text like '%declined%' then
+      raise exception 'sender direct detail leaked decline state';
+    end if;
+    if public.current_user_notification_items('all',100,null,null)::text like '%declined%' then raise exception 'Sender notification reveals decline';end if;
+    if public.current_user_conversations('all',30,null,null)::text like '%declined%' then
+      raise exception 'sender list leaked decline state';
+    end if;
+  end if;
   v_destination := public.resolve_account_messaging_destination('@message-unrelated');
   if v_destination <> '{"state":"unavailable"}'::jsonb then
     raise exception 'account_messaging_decline_cooldown_oracle: %', v_destination;

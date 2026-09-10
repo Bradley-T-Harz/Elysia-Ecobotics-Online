@@ -509,7 +509,7 @@ async function loadWorkbench(browser, browserName, viewport, comprehensive, scen
   assert.equal(await allowancePage.getByText("1.5 units", { exact: true }).count(), 1);
   assert.equal(await allowancePage.getByText("Next renewal", { exact: true }).count(), 0, "A non-renewing allowance must not invent a renewal date.");
   assert.equal(await allowancePage.getByText("Local Elysia is unaffected", { exact: true }).count(), 1);
-  assert.equal(await allowancePage.getByText("Not available while payment-system activation remains externally gated. Voluntary support is a separate choice.", { exact: true }).count(), 1);
+  assert.equal(await allowancePage.getByText("No paid top-up is offered. The current free starter allowance is provided once, without scheduled renewal or expiration. Voluntary support does not grant personal units or priority.", { exact: true }).count(), 1);
   assert.equal(await allowancePage.getByText("Recent allowance receipts", { exact: true }).count(), 1);
   await allowancePage.close();
 

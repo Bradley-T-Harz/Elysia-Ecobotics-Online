@@ -157,11 +157,42 @@ const reviewedPublisherRoleLines = new Map([["supabase/migrations/20260909020000
   "revoke all on function public.current_user_can_independently_review_addon(uuid),public.current_user_can_manage_publisher(uuid),public.current_user_publisher_workspace(),public.save_own_marketplace_publisher(text,uuid),public.get_addon_publisher_provenance(text,text,text) from public,anon,authenticated,service_role;"
 ])]]);
 
+// Exact reviewed permission boundaries and isolated test roles, never credential values.
+const reviewedOwnerDecisionRoleLines = new Map([
+  ["supabase/migrations/20260910020000_work_with_lifecycle_and_profile_boundaries.sql", new Set([
+  "execute 'revoke all on function '||f||' from public,anon,authenticated,service_role';",
+  "revoke all on function private.guard_work_with_review_write() from public,anon,authenticated,service_role;",
+  "revoke all on public.marketplace_account_profiles from public,anon,authenticated,service_role;",
+  "perform pg_catalog.set_config('request.jwt.claim.role', coalesce(v_saved_role, 'service_role'), true);"
+])],
+  ["supabase/migrations/20260910030000_adopted_economic_policy_and_messaging_privacy.sql", new Set([
+  "grant execute on function public.current_economic_owner_policy() to anon,authenticated,service_role;",
+  "revoke all on function private.enforce_adopted_fee_policy() from public,anon,authenticated,service_role;",
+  "revoke all on function private.record_job_fee_waived_value() from public,anon,authenticated,service_role;",
+  "revoke all on function public.current_economic_owner_policy() from public,anon,authenticated,service_role;",
+  "revoke all on private.economic_owner_policy_versions from public,anon,authenticated,service_role;"
+])],
+  ["supabase/migrations/20260910040000_stewardship_proof_retention.sql", new Set([
+  "revoke all on private.stewardship_proof_tombstones from public,anon,authenticated,service_role;",
+  "execute 'alter function '||f||' owner to postgres';execute 'revoke all on function '||f||' from public,anon,authenticated,service_role';execute 'grant execute on function '||f||' to authenticated';",
+  "execute 'alter function '||f||' owner to postgres';execute 'revoke all on function '||f||' from public,anon,authenticated,service_role';execute 'grant execute on function '||f||' to service_role';",
+  "if not private.economic_caller_is_service_role() then raise exception using errcode='42501',message='Retention worker required.';end if;",
+  "revoke all on function private.stewardship_storage_access(text,boolean) from public,anon,authenticated,service_role;",
+  "revoke all on function private.track_stewardship_final_review() from public,anon,authenticated,service_role;",
+  "revoke all on private.stewardship_proof_lifecycle from public,anon,authenticated,service_role;"
+])],
+  ["scripts/fixtures/stewardshipRetentionBehavior.sql", new Set([
+  "grant select,insert on proof_jobs to service_role;",
+  "select set_config('request.jwt.claim.role','service_role',true);",
+  "set local role service_role;"
+])]
+]);
+
 function allowHit(file, line, checkName) {
   const normalized = file.replaceAll(path.sep, "/");
   // Reviewed type names and SQL permission boundaries, never credential values.
   if (checkName === "service role key strings") {
-    if (reviewedJobFeeRoleLines.get(normalized)?.has(line.trim()) || reviewedPublisherRoleLines.get(normalized)?.has(line.trim())) return true;
+    if (reviewedOwnerDecisionRoleLines.get(normalized)?.has(line.trim()) || reviewedJobFeeRoleLines.get(normalized)?.has(line.trim()) || reviewedPublisherRoleLines.get(normalized)?.has(line.trim())) return true;
     if (normalized === "functions/api/economic-preparation/_shared/handler.ts"
       && line.trim() === 'export interface PreparationEnv extends Pick<BillingEnv, "SUPABASE_URL" | "SUPABASE_PUBLISHABLE_KEY" | "SUPABASE_SERVICE_ROLE_KEY"> {') return true;
     if (normalized === "supabase/migrations/20260908040000_pre_provider_preparation.sql"

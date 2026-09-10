@@ -143,6 +143,8 @@ const jobFeeParticipantPaths = ["supabase/migrations/20260909010000_job_post_par
 
 const publisherOwnershipPaths = ["supabase/migrations/20260909020000_marketplace_publisher_ownership.sql"];
 
+const ownerDecisionPaths = ["supabase/migrations/20260910010000_scoped_review_capabilities.sql", "supabase/migrations/20260910020000_work_with_lifecycle_and_profile_boundaries.sql", "supabase/migrations/20260910030000_adopted_economic_policy_and_messaging_privacy.sql", "supabase/migrations/20260910040000_stewardship_proof_retention.sql", "supabase/migrations/20260910050000_owner_decision_legal_versions.sql"];
+
 const activePaths = [
   ...baselinePaths,
   ...economicPaths,
@@ -165,6 +167,7 @@ const activePaths = [
   ...readinessPaths,
   ...jobFeeParticipantPaths,
   ...publisherOwnershipPaths,
+  ...ownerDecisionPaths,
 ];
 
 const legacyHashes = new Map(Object.entries({
@@ -1021,6 +1024,8 @@ try {
     "scripts/fixtures/preProviderBehavior.sql",
     "scripts/fixtures/jobPostFeeRequestBehavior.sql",
     "scripts/fixtures/publisherOwnershipBehavior.sql",
+    "scripts/fixtures/ownerDecisionsBehavior.sql",
+    "scripts/fixtures/stewardshipRetentionBehavior.sql",
     "scripts/fixtures/sandboxDatabaseBehavior.sql",
     "scripts/fixtures/codeRevisionProposalBehavior.sql",
     "scripts/fixtures/economicDatabaseBehavior.sql",
@@ -1150,6 +1155,7 @@ try {
       bucket_id text not null references storage.buckets(id),
       name text not null,
       owner_id uuid,
+      metadata jsonb,
       created_at timestamptz not null default now(),
       unique (bucket_id, name)
     );
@@ -1768,6 +1774,13 @@ try {
   console.log(publisherBehavior.stdout.split("\n").find(line => line.includes("publisher_ownership_behavior_ok"))?.trim());
   console.log("Publisher entity/manager, independent review, attribution snapshots, role boundaries and financial isolation checks passed.");
 
+  for (const file of ownerDecisionPaths) await psql(["-f", `/tmp/${path.basename(file)}`]);
+  const ownerBehavior = await psql(["-f", "/tmp/ownerDecisionsBehavior.sql"]);
+  console.log(ownerBehavior.stdout);
+  console.log((await psql(["-f", "/tmp/stewardshipRetentionBehavior.sql"])).stdout);
+  await psql(["-f", "/tmp/accountMessagingBehavior.sql"]);
+  await psql(["-f", "/tmp/jobPostFeeRequestBehavior.sql"]);
+
   assert(appliedMigrations.size === activePaths.length, `Only ${appliedMigrations.size}/${activePaths.length} inventoried migrations were replayed.`);
   console.log(`Replayed all ${appliedMigrations.size} current migrations successfully.`);
 
@@ -1789,7 +1802,9 @@ try {
   const plpgsqlCheckAvailable = await psql(["-tAc", "select exists (select 1 from pg_catalog.pg_available_extensions where name = 'plpgsql_check');"]);
   if (plpgsqlCheckAvailable.stdout.trim() === "t") {
     await psql(["-c", "create extension if not exists plpgsql_check;"]);
+    const ownerFunctionSources = await Promise.all(ownerDecisionPaths.map(file => fs.readFile(file, "utf8")));
     const governedPlpgsqlFunctions = [...new Set([
+      ...ownerFunctionSources.flatMap(sql => [...sql.matchAll(/create (?:or replace )?function ((?:public|private)\.[a-z_]+)\(/gi)].map(match => match[1])),
       "private.publisher_actor", "private.apply_automatic_community_deletion_anonymization", "private.publisher_assert_namespace", "private.establish_marketplace_publisher", "private.authorize_marketplace_publisher_manager", "private.register_external_publisher_release", "public.save_own_marketplace_publisher", "public.current_user_publisher_workspace",
       "public.attach_own_stewardship_receipt",
       "private.job_post_request_actor", "public.current_user_job_post_fee_workspace", "public.submit_job_post_fee_request_command",
