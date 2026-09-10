@@ -4,7 +4,7 @@ import FeatureCard from "../../shared/components/FeatureCard";
 import PageHero from "../../shared/components/PageHero";
 import WarningCallout from "../../shared/components/WarningCallout";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
-import { createReviewItem } from "../../shared/review/reviewClient";
+import { submitWorkWith } from "../../shared/workWith/workWithClient";
 
 type RequestStatus = "draft_local" | "pending_admin_review_local" | "pending_review";
 
@@ -66,7 +66,6 @@ const initialForm = {
   understandsReview: false
 };
 
-const resumeBucketName = "work-with-attachments";
 const maxResumeSizeBytes = 10 * 1024 * 1024;
 const acceptedResumeExtensions = new Set(["pdf", "doc", "docx", "odt", "txt", "md"]);
 const acceptedResumeMimeTypes = new Set([
@@ -99,16 +98,6 @@ function validateResumeFile(file: File | null): ResumeValidation {
     return { ok: false, message: `Resume/CV MIME type is not accepted: ${file.type}` };
   }
   return { ok: true };
-}
-
-function sanitizeFilename(name: string) {
-  const cleaned = name.normalize("NFKD").replace(/[^a-zA-Z0-9._-]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "");
-  return cleaned.slice(0, 120) || "resume-cv";
-}
-
-function newRequestId() {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return `request-${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
 function readRequests(): WorkRequest[] {
@@ -153,7 +142,7 @@ function formatMarkdown(request: Omit<WorkRequest, "id" | "createdAt" | "status"
     "## Confirmations",
     `Volunteer/collaborator understanding: ${request.understandsVolunteer ? "yes" : "no"}`,
     `Public/privacy boundary understood: ${request.understandsPublicPrivacy ? "yes" : "no"}`,
-    `Administrator review understood: ${request.understandsReview ? "yes" : "no"}`
+    `Scoped Work With review understood: ${request.understandsReview ? "yes" : "no"}`
   ].join("\n");
 }
 
@@ -184,7 +173,7 @@ export default function WorkWithPage() {
     setRequests(next);
     writeRequests(next);
     setMessage(status === "pending_admin_review_local"
-      ? "Request saved locally as a pending administrator-review draft. Sign in to a Website Account to save it for administrator review."
+      ? "Request saved locally as a pending Work With review draft. Sign in to a Website Account to save it for Work With review."
       : "Request draft saved locally in this browser.");
   }
 
@@ -195,7 +184,7 @@ export default function WorkWithPage() {
     }
     const { data: auth, error: authError } = await supabase.auth.getUser();
     if (authError || !auth.user) {
-      setMessage("Sign in to a Website Account before uploading a resume or CV or submitting a request for administrator review. No review submission was created.");
+      setMessage("Sign in to a Website Account before uploading a resume or CV or submitting a request for Work With review. No review submission was created.");
       return;
     }
 
@@ -205,18 +194,15 @@ export default function WorkWithPage() {
       return;
     }
 
-    const requestId = newRequestId();
     setUploadBusy(true);
     const acknowledgements = {
       volunteer_understanding: form.understandsVolunteer,
       public_privacy_boundary: form.understandsPublicPrivacy,
-      administrator_review_required: form.understandsReview,
-      resume_cv_private_admin_review: Boolean(resumeFile)
+      scoped_review_required: form.understandsReview,
+      private_cv: Boolean(resumeFile)
     };
-
-    const { error: requestError } = await supabase.from("work_with_requests").insert({
-      id: requestId,
-      user_id: auth.user.id,
+    try {
+      await submitWorkWith({
       name: form.name.trim() || null,
       preferred_contact: form.contact.trim() || null,
       commons_username: form.commonsUsername.trim() || null,
@@ -230,61 +216,13 @@ export default function WorkWithPage() {
       portfolio_url: form.portfolio.trim() || null,
       linkedin_url: form.linkedin.trim() || null,
       acknowledgements,
-      source_context: "standalone",
-      status: "pending_review"
-    });
-
-    if (requestError) {
-      setUploadBusy(false);
-      setMessage(`Could not save request for administrator review: ${requestError.message}`);
-      return;
-    }
-
-    if (resumeFile) {
-      const safeName = sanitizeFilename(resumeFile.name);
-      const storagePath = `${auth.user.id}/${requestId}/${Date.now()}-${safeName}`;
-      const uploadResult = await supabase.storage.from(resumeBucketName).upload(storagePath, resumeFile, {
-        cacheControl: "3600",
-        contentType: resumeFile.type || undefined,
-        upsert: false
-      });
-      if (uploadResult.error) {
-        setUploadBusy(false);
-        setMessage(`Request row was created, but the private resume/CV upload failed: ${uploadResult.error.message}. The file was not saved.`);
-        return;
-      }
-
-      const { error: fileError } = await supabase.from("work_with_request_files").insert({
-        request_id: requestId,
-        user_id: auth.user.id,
-        bucket: resumeBucketName,
-        storage_path: storagePath,
-        original_filename: resumeFile.name,
-        mime_type: resumeFile.type || null,
-        size_bytes: resumeFile.size,
-        file_role: "resume_cv"
-      });
-      if (fileError) {
-        setUploadBusy(false);
-        setMessage(`Private resume/CV uploaded, but file metadata could not be saved: ${fileError.message}. Do not assume the attachment is reviewable yet.`);
-        return;
-      }
-    }
-
-    const reviewResult = await createReviewItem({
-      domain: "work_with",
-      sourceTable: "work_with_requests",
-      sourceId: requestId,
-      submittedBy: auth.user.id,
-      title: `${form.requestType} request from ${form.name.trim() || form.commonsUsername.trim() || "Website member"}`,
-      summary: form.message.trim().slice(0, 280)
-    });
-
-    setUploadBusy(false);
-    setMessage(reviewResult.ok
-      ? "Request saved for administrator review."
-      : `Request saved, but review queue routing needs attention: ${reviewResult.warning}`);
-    setResumeFile(null);
+      source_context: "standalone"
+      }, auth.user.id, "standalone", resumeFile);
+      setMessage("Application submitted for Work With review. Open My Work With to view it, follow up or withdraw.");
+      setResumeFile(null);
+      setForm(initialForm);
+    } catch (error) { setMessage(error instanceof Error ? error.message : "Submission could not be confirmed. Check My Work With and retry safely."); }
+    finally { setUploadBusy(false); }
   }
 
   function exportMarkdown() {
@@ -313,19 +251,20 @@ export default function WorkWithPage() {
         <p>Elysia Ecobotics is still early. Current roles are volunteer, contributor, or collaborator roles unless a role is explicitly marked paid.</p>
         <p>Most opportunities are currently volunteer, contributor, or collaborator roles. Paid roles will only be listed when they actually exist.</p>
       </PageHero>
+      <div className="button-row"><Link className="button-link" to="/commons-circle/signals/work-with">My Work With requests</Link></div>
 
       {message && <section className="message" aria-live="polite">{message}</section>}
 
       <section className="section-card">
         <h2>How to think about this page</h2>
         <p>This is a doorway for people who want to help with software, documentation, design, research, security review, ecological knowledge, testing, and community care. It is not a promise of employment.</p>
-        <p className="boundary-note">This request does not guarantee a role, paid work, membership tier, or reviewer authority. Requests will require administrator review.</p>
+        <p className="boundary-note">This request does not guarantee a role, paid work, membership tier, or reviewer authority. Requests will require Work With review.</p>
       </section>
 
       <section className="section-card work-job-post-bridge">
         <p className="eyebrow">Public opportunities</p>
         <h2>Job Posts are the public board; Work With is the private intake path.</h2>
-        <p>Browse public, admin-approved Job Posts in the Commune for open opportunities and public questions. Use this Work With page for private applications, resumes/CVs, and administrator-review requests.</p>
+        <p>Browse public, admin-approved Job Posts in the Commune for open opportunities and public questions. Use this Work With page for private applications, resumes/CVs, and private Work With review requests.</p>
         <p className="boundary-note">Do not post resumes, CVs, SSNs, identity documents, bank details, private addresses, private phone numbers, contracts, or private application packets in public Job Post comments.</p>
         <div className="button-row"><Link className="button-link" to="/commune/rooms/job-post/posts">Browse public Job Posts</Link><Link className="button-link" to="/commune/rooms/job-post/new">Submit public Job Post for admin approval</Link></div>
       </section>
@@ -364,20 +303,20 @@ export default function WorkWithPage() {
               return;
             }
             setResumeFile(nextFile);
-            if (nextFile) setMessage(`Selected private resume/CV attachment: ${nextFile.name}. It will upload only when you save for administrator review while signed in.`);
+            if (nextFile) setMessage(`Selected private resume/CV attachment: ${nextFile.name}. It will upload only when you save for Work With review while signed in.`);
           }} /></label>
           <div className="wide-field boundary-note resume-upload-note">
-            <strong>Resume or CV, optional.</strong> Upload a PDF, DOC, DOCX, ODT, TXT, or Markdown resume/CV for administrator review. This file is private, not public, and is only for reviewing your Work With request. {signedInUserId ? "You are signed in; upload will occur only when you save for administrator review." : "Sign in to a Website Account before uploading a resume or CV."}
+            <strong>Resume or CV, optional.</strong> Upload a PDF, DOC, DOCX, ODT, TXT, or Markdown resume/CV for Work With review. This file is private, not public, and is only for reviewing your Work With request. {signedInUserId ? "You are signed in; upload will occur only when you save for Work With review." : "Sign in to a Website Account before uploading a resume or CV."}
             <br />Resume/CV uploads are private administrator-review materials. Do not upload identity documents, financial records, medical records, passwords, API keys, .env files, private local Elysia data, or unredacted third-party personal data.
             {resumeFile && <span className="inline-status">Selected file: {resumeFile.name} ({Math.ceil(resumeFile.size / 1024)} KB)</span>}
           </div>
         </div>
         <div className="work-confirm-grid">
           <label className="checkbox-line"><input type="checkbox" checked={form.understandsVolunteer} onChange={(event) => setForm({ ...form, understandsVolunteer: event.target.checked })} /><span>I understand current opportunities are generally volunteer, contributor, or collaborator roles unless explicitly marked paid.</span></label>
-          <label className="checkbox-line"><input type="checkbox" checked={form.understandsPublicPrivacy} onChange={(event) => setForm({ ...form, understandsPublicPrivacy: event.target.checked })} /><span>I understand this is a public website request and I should not include secrets, private Elysia memory, credentials, .env files, private logs, or sensitive personal/customer data.</span></label>
-          <label className="checkbox-line"><input type="checkbox" checked={form.understandsReview} onChange={(event) => setForm({ ...form, understandsReview: event.target.checked })} /><span>I understand this request requires administrator review and does not automatically grant a role, badge, membership tier, moderator authority, reviewer authority, or paid position.</span></label>
+          <label className="checkbox-line"><input type="checkbox" checked={form.understandsPublicPrivacy} onChange={(event) => setForm({ ...form, understandsPublicPrivacy: event.target.checked })} /><span>I understand this is a private Work With application on the website and I should not include secrets, private Elysia memory, credentials, .env files, private logs, or sensitive personal/customer data.</span></label>
+          <label className="checkbox-line"><input type="checkbox" checked={form.understandsReview} onChange={(event) => setForm({ ...form, understandsReview: event.target.checked })} /><span>I understand this request requires Work With review and does not automatically grant a role, badge, membership tier, moderator authority, reviewer authority, or paid position.</span></label>
         </div>
-        <div className="button-row"><button type="button" onClick={() => saveRequest("draft_local")}>Save request draft locally</button><button type="button" className="button-primary" onClick={() => void submitForAdministratorReview()} disabled={uploadBusy || !hasSupabaseConfig || !signedInUserId}>{uploadBusy ? "Saving for review..." : !hasSupabaseConfig ? "Review submission unavailable" : !signedInUserId ? "Sign in to submit for review" : "Submit for administrator review"}</button><button type="button" onClick={exportMarkdown}>Export request as Markdown</button><button type="button" onClick={() => void copyRequest()}>Copy request</button></div>
+        <div className="button-row"><button type="button" onClick={() => saveRequest("draft_local")}>Save request draft locally</button><button type="button" className="button-primary" onClick={() => void submitForAdministratorReview()} disabled={uploadBusy || !hasSupabaseConfig || !signedInUserId}>{uploadBusy ? "Saving for review..." : !hasSupabaseConfig ? "Review submission unavailable" : !signedInUserId ? "Sign in to submit for review" : "Submit for Work With review"}</button><button type="button" onClick={exportMarkdown}>Export request as Markdown</button><button type="button" onClick={() => void copyRequest()}>Copy request</button></div>
         <p className="boundary-note">Local drafts remain only in this browser. A remote administrator-review submission is available only when Supabase is configured and you are signed in; it is written to private review storage and does not grant a role, badge, authority, or paid position.</p>
       </section>
 
@@ -385,7 +324,7 @@ export default function WorkWithPage() {
         <article className="section-card">
           <p className="eyebrow">Commons Circle connection</p>
           <h2>Recognition is reviewed separately</h2>
-          <p>Commons Circle membership and contribution recognition are handled through administrator review. Creating a request here does not automatically raise your tier.</p>
+          <p>Commons Circle membership and contribution recognition are handled through Work With review. Creating a request here does not automatically raise your tier.</p>
           <Link className="button-link" to="/commons-circle">Open Commons Circle</Link>
         </article>
         <article className="section-card">

@@ -22,7 +22,7 @@ export default function AccountPage() {
         <p className="eyebrow">Marketplace Account</p>
         <h1>Cloud profile here. Local account stays local.</h1>
         <p>
-          The marketplace account is for saving add-ons, managing public profile fields,
+          The marketplace account is for saving add-ons, managing Marketplace account fields,
           developer submissions, and future catalog sync. It is separate from the local Elysia account.
         </p>
         <p className={supabaseConfigured ? "status-strip" : "demo-banner"}>
@@ -31,7 +31,7 @@ export default function AccountPage() {
             : "Supabase env vars are not configured. Account panels show demo-mode behavior only."}
         </p>
         <div className="details-grid">
-          <div><h3>Marketplace account</h3><p>Supabase Auth handles website sign-in, saved add-ons, submissions, and public profile data.</p></div>
+          <div><h3>Marketplace account</h3><p>Supabase Auth handles website sign-in, saved add-ons, submissions, and private Marketplace profile data.</p></div>
           <div><h3>Local Elysia account</h3><p>Stays on the private machine. The website does not ask for it and does not share passwords.</p></div>
           <div><h3>Future linking</h3><p>A short-lived pairing code can later link accounts after explicit local approval.</p></div>
         </div>

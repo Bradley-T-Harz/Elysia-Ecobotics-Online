@@ -66,7 +66,7 @@ export function canVisitStaffRoute(route: string, access: Pick<Doorways, "roles"
     return !sectionCapabilities[section] || sectionCapabilities[section].some(key => access.capabilities.includes(key));
   }
   if (["/admin/roles", "/admin/badges", "/commons-circle/admin/messaging-access"].includes(pathname)) return access.isAdmin;
-  if (reviewRoutes[pathname]) return access.isAdmin || canReviewDomain(access.roles, reviewRoutes[pathname]);
+  if (reviewRoutes[pathname]) return canReviewDomain(access.roles, reviewRoutes[pathname]);
   if (pathname === "/commons-circle/admin-communications") return access.isAdmin || access.roles.some(role => ["moderator", "commune_moderator"].includes(role));
   if (pathname.startsWith("/admin") || pathname === "/commons-circle/admin-console") return access.isAdmin || access.roles.length > 0;
   return true;

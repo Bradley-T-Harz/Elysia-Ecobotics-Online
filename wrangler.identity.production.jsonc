@@ -47,6 +47,7 @@
     }
   ],
   "vars": {
+    "STEWARDSHIP_PROOF_RETENTION_ENABLED": "true",
     "IDENTITY_ENABLED": "true",
     "IDENTITY_ALLOWED_ORIGINS": "https://elysiaecobotics.com,https://elysiaartisancollective.pages.dev,https://artisans.elysiaecobotics.com",
     "IDENTITY_ADULT_BETA_ENABLED": "false",

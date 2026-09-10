@@ -4,7 +4,7 @@ import {
   type LivingLibrarySource,
 } from "../The-Living-Library/livingLibraryCatalog";
 import type { FeaturedPublicLink, MarketplaceProfile } from "../The-Elysia-Marketplace/types";
-import { loadCurrentProfile } from "../The-Elysia-Marketplace/lib/marketplaceApi";
+import { loadCommonsIdentityProfile } from "../The-Elysia-Marketplace/lib/marketplaceApi";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
 import { DEFAULT_COMMONS_BACKGROUND_STYLE, normalizeCommonsBackgroundStyle } from "../../shared/commonsBackgroundStyles";
 import {
@@ -1208,7 +1208,7 @@ function safePublicLinks(value: unknown): FeaturedPublicLink[] {
 
 export async function loadCommonsHomebase(): Promise<CommonsHomebaseData> {
   const warnings: string[] = [];
-  const profileResult = await loadCurrentProfile();
+  const profileResult = await loadCommonsIdentityProfile();
   warnings.push(...profileResult.warnings.map((warning) => missingTablePattern.test(warning) || /permission denied|row-level security/i.test(warning) ? friendlyBackendMessage("Commons Profile", warning) : warning));
   const profile = profileResult.data as ProfileWithSetup | null;
   const localLiving = localLivingSnapshot();

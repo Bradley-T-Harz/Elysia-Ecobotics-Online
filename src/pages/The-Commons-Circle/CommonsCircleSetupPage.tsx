@@ -1,10 +1,11 @@
+import { submitWorkWith } from "../../shared/workWith/workWithClient";
 import { prepareProofFile, proofFileError } from "../../shared/stewardshipEvidence";
 import { FundingLink } from "../../shared/billing/FundingExplanation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import AuthPanel from "../The-Elysia-Marketplace/components/AuthPanel";
 import CommonsAvatarViewer from "../../shared/components/CommonsAvatarViewer";
-import { loadCurrentProfile } from "../The-Elysia-Marketplace/lib/marketplaceApi";
+import { loadCommonsIdentityProfile } from "../The-Elysia-Marketplace/lib/marketplaceApi";
 import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
 import { createReviewItem } from "../../shared/review/reviewClient";
 import type { MarketplaceProfile, MarketplaceProfileDraft } from "../The-Elysia-Marketplace/types";
@@ -294,7 +295,7 @@ export default function CommonsCircleSetupPage() {
       setValidationMessage("");
     }
 
-    const result = await loadCurrentProfile();
+    const result = await loadCommonsIdentityProfile();
     if (refreshSequence !== refreshSequenceRef.current) return;
     result.warnings.forEach(pushMessage);
     const loaded = result.demoMode ? null : result.data as ProfileWithSetup | null;
@@ -444,10 +445,7 @@ export default function CommonsCircleSetupPage() {
     const validation = validateResumeFile(resumeFile);
     if (validation) throw new Error(validation);
 
-    const requestId = newRequestId();
-    const { error: requestError } = await supabase.from("work_with_requests").insert({
-      id: requestId,
-      user_id: userId,
+    await submitWorkWith({
       name: profileDraft.display_name.trim() || profileDraft.username.trim() || null,
       preferred_contact: null,
       commons_username: profileDraft.username.trim() || null,
@@ -465,46 +463,11 @@ export default function CommonsCircleSetupPage() {
         volunteer_understanding: workWithDraft.understandsVolunteer,
         public_privacy_boundary: workWithDraft.understandsPublicPrivacy,
         administrator_review_required: workWithDraft.understandsReview,
-        resume_cv_private_admin_review: Boolean(resumeFile),
+        resume_cv_private_scoped_review: Boolean(resumeFile),
         created_during_commons_setup: true
-      },
-      status: "pending_review"
-    });
-    if (requestError) throw new Error(setupBackendMessage("Work With request", requestError.message));
-
-    const reviewResult = await createReviewItem({
-      domain: "work_with",
-      sourceTable: "work_with_requests",
-      sourceId: requestId,
-      submittedBy: userId,
-      title: `${workWithDraft.requestType} request from ${profileDraft.username.trim() || "Commons setup"}`,
-      summary: workWithDraft.message.trim().slice(0, 280)
-    });
-    if (!reviewResult.ok) throw new Error(setupBackendMessage("Work With review routing", reviewResult.warning ?? "review routing failed"));
-
-    if (resumeFile) {
-      const safeName = sanitizeFilename(resumeFile.name);
-      const storagePath = `${userId}/${requestId}/${Date.now()}-${safeName}`;
-      const uploadResult = await supabase.storage.from(resumeBucketName).upload(storagePath, resumeFile, {
-        cacheControl: "3600",
-        contentType: resumeFile.type || undefined,
-        upsert: false
-      });
-      if (uploadResult.error) throw new Error(setupBackendMessage("Private resume/CV upload", uploadResult.error.message));
-
-      const { error: fileError } = await supabase.from("work_with_request_files").insert({
-        request_id: requestId,
-        user_id: userId,
-        bucket: resumeBucketName,
-        storage_path: storagePath,
-        original_filename: resumeFile.name,
-        mime_type: resumeFile.type || null,
-        size_bytes: resumeFile.size,
-        file_role: "resume_cv"
-      });
-      if (fileError) throw new Error(setupBackendMessage("Private resume/CV metadata", fileError.message));
-    }
-    return "Work With request saved for administrator review.";
+      }
+    }, userId, "commons_profile_onboarding", resumeFile);
+    return "Work With application saved. View status, follow-up and upload recovery in My Work With.";
   }
 
   async function persistStewardshipRequest(userId: string): Promise<string | null> {
@@ -692,7 +655,7 @@ export default function CommonsCircleSetupPage() {
       <PageHero eyebrow="Commons Circle setup" title="Create your Commons Profile">
         <p>Website Account first, Commons Profile draft next, then optional stewardship and Work With steps before the profile is finalized.</p>
         <p>This setup flow does not connect to private local Elysia memory, files, logs, vaults, passwords, or credentials.</p>
-      </PageHero>
+      </PageHero><div className="button-row"><Link to="/commons-circle/signals/work-with">My Work With requests</Link><Link to="/commons-circle/signals/requests-reviews#stewardship-proof">My stewardship requests &amp; proof</Link></div>
 
       {messages.length > 0 && <section className="message-stack" aria-live="polite">{messages.map((message, index) => <div className="message" key={`${message}-${index}`}>{message}</div>)}</section>}
 

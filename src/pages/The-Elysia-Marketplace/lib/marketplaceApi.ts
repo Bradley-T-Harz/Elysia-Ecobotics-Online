@@ -346,7 +346,7 @@ export async function loadPublishedAddons(): Promise<MarketplaceApiResult<AddonM
   });
 }
 
-export async function loadCurrentProfile(): Promise<MarketplaceApiResult<MarketplaceProfile | null>> {
+export async function loadCommonsIdentityProfile(): Promise<MarketplaceApiResult<MarketplaceProfile | null>> {
   if (!hasSupabaseConfig || !supabase) return demo(demoProfile);
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return configuredResult(null, { statusMessage: "Supabase is configured. Sign in to load or create a Marketplace profile." });
@@ -370,44 +370,32 @@ export async function loadCurrentProfile(): Promise<MarketplaceApiResult<Marketp
   });
 }
 
+export async function loadCurrentProfile(): Promise<MarketplaceApiResult<MarketplaceProfile | null>> {
+  const identity = await loadCommonsIdentityProfile();
+  if (!supabase || !identity.data?.id) return identity;
+  const { data, error } = await supabase.from("marketplace_account_profiles").select("*").eq("user_id", identity.data.id).maybeSingle();
+  if (error) return configuredResult(null, { warnings: ["Marketplace profile could not be loaded. Commons identity has not been changed."] });
+  // Never fall back to mutable Commons presentation fields after separation.
+  const market = data ?? { username: "", display_name: "", bio: "", interests: "", website_url: "", github_url: "", organization: "", is_developer: false };
+  return configuredResult({ ...identity.data, ...market, id: identity.data.id }, { statusMessage: "Marketplace profile loaded." });
+}
+
 export async function upsertMarketplaceProfile(draft: MarketplaceProfileDraft): Promise<MarketplaceApiResult<MarketplaceProfile | null>> {
   if (!hasSupabaseConfig || !supabase) return demo(demoProfile, ["Demo mode does not save Marketplace profiles remotely."]);
-
   const { data: auth } = await supabase.auth.getUser();
-  if (!auth.user) return configuredResult(null, { warnings: ["Sign in before creating a Marketplace profile."] });
-
-  const { data: existingProfile } = await supabase
-    .from("profiles")
-    .select("is_admin")
-    .eq("id", auth.user.id)
-    .maybeSingle();
-
+  if (!auth.user) return configuredResult(null, { warnings: ["Sign in before saving a Marketplace profile."] });
   const safeDraft = {
-    id: auth.user.id,
-    username: draft.username.trim(),
-    display_name: draft.display_name.trim(),
-    headline: draft.headline?.trim() || null,
-    bio: draft.bio.trim(),
-    interests: draft.interests?.trim() || null,
-    website_url: draft.website_url?.trim() || null,
-    github_url: draft.github_url?.trim() || null,
-    organization: draft.organization?.trim() || null,
-    featured_public_links: draft.featured_public_links ?? [],
-    is_developer: draft.is_developer,
-    is_admin: Boolean((existingProfile as { is_admin?: boolean } | null)?.is_admin)
+    user_id: auth.user.id,
+    username: draft.username.trim(), display_name: draft.display_name.trim(),
+    bio: draft.bio.trim(), interests: draft.interests?.trim() || "",
+    website_url: draft.website_url?.trim() || "", github_url: draft.github_url?.trim() || "",
+    organization: draft.organization?.trim() || "", is_developer: draft.is_developer,
+    updated_at: new Date().toISOString()
   };
-
-  if (!safeDraft.username) return configuredResult(null, { warnings: ["Username is required."] });
-
-  const { data, error } = await supabase
-    .from("profiles")
-    .upsert(safeDraft, { onConflict: "id" })
-    .select("*")
-    .single();
-
-  if (error) return configuredResult(null, { warnings: [error.message] });
-  const profile = data as MarketplaceProfile;
-  return configuredResult({ ...profile, saved_addon_ids: profile.saved_addon_ids ?? [] }, { statusMessage: "Marketplace profile saved." });
+  if (!safeDraft.username) return configuredResult(null, { warnings: ["Marketplace username is required."] });
+  const { error } = await supabase.from("marketplace_account_profiles").upsert(safeDraft, { onConflict: "user_id" });
+  if (error) return configuredResult(null, { warnings: ["Marketplace profile was not saved. Please reload and retry."] });
+  return loadCurrentProfile();
 }
 
 export async function saveAddonForUser(addonId: string): Promise<MarketplaceApiResult<{ saved: boolean; addonId: string }>> {

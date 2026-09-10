@@ -48,6 +48,7 @@ function stateLabel(conversation: ConversationSummary) {
   if (conversation.incomingRequest) return "Waiting for your decision";
   if (conversation.outgoingRequest) return "Request sent";
   if (conversation.state === "active") return conversation.unreadCount ? `${conversation.unreadCount} unread` : "Active";
+  if (conversation.state === "closed") return "Private messaging is unavailable for this profile.";
   if (conversation.state === "nonreplyable") return "Notice · replies closed";
   return conversation.state.replace(/_/g, " ");
 }

@@ -1,3 +1,4 @@
+import WorkWithWorkspace from "../../shared/workWith/WorkWithWorkspace";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
@@ -290,8 +291,7 @@ function renderSection(section: SignalSectionKey, data: SignalConsoleData) {
     const links: Array<[string, string, boolean?]> = [["Open Work With private intake", "/work-with-elysia-ecobotics", true], ["Track my Work With requests", "/commons-circle/signals/requests-reviews?domain=work_with"]];
     if (data.canOpenReviewCenter) links.push(["Open role-gated Review Center", "/admin/review/work-with"]);
     return <>
-      <section className="section-card"><p className="eyebrow">Exact owner count</p><h2>{data.workWithTotal} Work With request{data.workWithTotal === 1 ? "" : "s"}</h2><p>{data.workWithHasMore ? "Showing the 40 most recently updated requests. Continue in Requests & Reviews for paginated history." : "All request status rows currently visible to this account are shown below."}</p></section>
-      <SignalLane eyebrow="Your source-backed status" title="Work With request activity" description="Safe owner status comes directly from Work With source records; private intake contents are excluded." empty="No Work With requests are connected to this Website Account." count={data.workWithActivity.length}>{data.workWithActivity.map((row) => <WorkWithSignalCard signal={row} key={row.id} />)}</SignalLane>
+      <WorkWithWorkspace />
       <DestinationCard eyebrow="Private intake boundary" title="Work With remains authoritative" links={links}><p>Requested account actions belong in Inbox, informational outcomes belong in Notifications, submitted status belongs in Requests &amp; Reviews, and staff decisions remain in Review Center.</p></DestinationCard>
     </>;
   }

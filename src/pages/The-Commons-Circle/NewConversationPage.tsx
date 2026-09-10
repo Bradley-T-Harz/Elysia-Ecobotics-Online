@@ -39,7 +39,7 @@ function destinationMessage(destination: MessagingDestination) {
   if (destination.state === "existing_pending_outbound") return "Opening the request that is awaiting a response.";
   if (destination.state === "existing_pending_inbound") return "Opening the incoming request so you can accept or decline it.";
   if (destination.state === "can_request") return "This published Commons Profile can receive a conversation request.";
-  return "This profile is unavailable for a new private conversation.";
+  return "Private messaging is unavailable for this profile.";
 }
 
 function profileLabel(profile: MessagingPublicProfileSearchItem) {

@@ -16,7 +16,7 @@ import {
   type JobReviewerFlag
 } from "../../pages/The-Elysia-Commune/jobOpportunityModel";
 
-export type AppRole = "administrator" | "moderator" | "reviewer" | "marketplace_reviewer" | "source_reviewer" | "commune_moderator" | "guardian_reviewer";
+export type AppRole = "work_with_reviewer" | "stewardship_reviewer" | "administrator" | "moderator" | "reviewer" | "marketplace_reviewer" | "source_reviewer" | "commune_moderator" | "guardian_reviewer";
 export type ReviewStatus = "draft" | "pending_review" | "in_review" | "needs_information" | "approved" | "rejected" | "withdrawn" | "archived";
 export type ReviewDomain = "commune" | "work_with" | "stewardship" | "contribution" | "living_library_source" | "living_library_broken_link" | "marketplace";
 export type ReviewQueueFilter = "active" | "history" | "moderated" | "all" | "approved" | "rejected" | "archived";
@@ -118,13 +118,13 @@ export const domainLabels: Record<ReviewDomain, string> = {
 };
 
 const domainRoles: Record<ReviewDomain, AppRole[]> = {
-  work_with: ["administrator", "reviewer", "guardian_reviewer"],
-  stewardship: ["administrator", "reviewer", "guardian_reviewer"],
+  work_with: ["work_with_reviewer"],
+  stewardship: ["stewardship_reviewer"],
   contribution: ["administrator", "reviewer", "guardian_reviewer"],
   commune: ["administrator", "moderator", "commune_moderator", "guardian_reviewer"],
   living_library_source: ["administrator", "source_reviewer", "guardian_reviewer"],
   living_library_broken_link: ["administrator", "source_reviewer", "marketplace_reviewer", "moderator", "guardian_reviewer"],
-  marketplace: ["administrator", "marketplace_reviewer", "guardian_reviewer"]
+  marketplace: ["marketplace_reviewer"]
 };
 
 function friendlyReviewWarning(message: string) {
@@ -492,7 +492,7 @@ export async function loadStewardshipReceiptEvidence(
   }
 
   const role = await loadCurrentRoleState();
-  if (!role.userId || (!role.isAdmin && !canReviewDomain(role.roles, "stewardship"))) {
+  if (!role.userId || !canReviewDomain(role.roles, "stewardship")) {
     return { evidence: null, warning: "Stewardship reviewer authority is required to open private proof." };
   }
 
@@ -987,6 +987,11 @@ export async function updateReviewStatus(item: ReviewItem, nextStatus: ReviewSta
   if (!hasSupabaseConfig || !supabase) return { ok: false, warning: supabaseNotConfiguredMessage };
   const { data: auth } = await supabase.auth.getUser();
   if (!auth.user) return { ok: false, warning: "Sign in with a reviewer account first." };
+  if (item.domain === "stewardship" && item.source_table === "stewardship_recognition_requests") {
+    const { error } = await supabase.rpc("review_stewardship_request", { p_request_id: item.source_id, p_status: nextStatus, p_note: note, p_expected_status: item.status });
+    return { ok: !error, warning: error ? "Stewardship decision not saved. Reload and check the current status, explanation and scoped authority." : undefined };
+  }
+  if (item.domain === "work_with") return { ok: false, warning: "Use the source-backed Work With review controls." };
   const governedJobPostReview = await reviewJobPostFromReviewItem(item, nextStatus, note, auth.user.id);
   if (governedJobPostReview.handled) return { ok: governedJobPostReview.ok, warning: governedJobPostReview.warning, message: governedJobPostReview.message };
   const reviewed = ["approved", "rejected", "archived"].includes(nextStatus);

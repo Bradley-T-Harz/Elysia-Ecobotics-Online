@@ -1,3 +1,4 @@
+import { processStewardshipRetention } from "./_shared/stewardshipRetention.ts";
 import { requireRateLimit } from "./_shared/abuse.ts";
 import {
   authenticateIdentityRequest,
@@ -1931,6 +1932,15 @@ export async function processAutomaticDeletionFinalization(
 
 /** Scheduled planes are isolated: disabled providers and one outage never starve the other plane. */
 export async function handleIdentityScheduledMaintenance(env: IdentityEnv): Promise<void> {
+  if (env.STEWARDSHIP_PROOF_RETENTION_ENABLED === "true") {
+    try {
+      const result = await processStewardshipRetention(createIdentityServerClient(env));
+      console.info(JSON.stringify({ event: "identity.stewardship_proof_retention", ...result }));
+    } catch {
+      console.info(JSON.stringify({ event: "identity.stewardship_proof_retention", outcome: "failed" }));
+    }
+  }
+
   try {
     const result = await processAutomaticDeletionFinalization(env);
     console.info(JSON.stringify({ event: "identity.owner_deletion_finalizer", outcome: "completed", ...result }));
