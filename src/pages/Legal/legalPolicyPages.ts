@@ -1,3 +1,4 @@
+import { applyWordingCleanupLegal, wordingCleanupLegalSlugs, wordingCleanupLegalVersion } from "./wordingCleanupLegal.ts";
 import readinessArchive from "./readinessLegalArchive.json" with { type: "json" };
 import ownerPriorArchive from "./ownerDecisionPriorLegalArchive.json" with { type: "json" };
 import { applyOwnerDecisionLegal, ownerDecisionLegalVersion, ownerDecisionLegalSlugs } from "./ownerDecisionLegal.ts";
@@ -782,11 +783,22 @@ for (const page of legalPolicyPages) {
   }
 }
 
+// Snapshot the already composed revisions before applying the wording-only revision.
+// Their source text and semantic hashes are frozen by the legal integrity checks.
+const priorWordingCleanupPages = legalPolicyPages.map(page => ({ ...page }));
+for (const page of legalPolicyPages) {
+  if (wordingCleanupLegalSlugs.has(page.slug)) {
+    page.body = applyWordingCleanupLegal(page.slug, page.body);
+    page.lastUpdated = "2026-09-10";
+  }
+}
+
 export function getLegalPolicy(slug: string | undefined, version?: string | null): LegalPolicyPage | undefined {
   if (!version) return legalPolicyPages.find(policy => policy.slug === slug);
-  if (version === ownerDecisionLegalVersion || version === "2026-09-10") return legalPolicyPages.find(policy => policy.slug === slug && policy.lastUpdated === "2026-09-10");
+  if (version === wordingCleanupLegalVersion) return legalPolicyPages.find(policy => policy.slug === slug && wordingCleanupLegalSlugs.has(policy.slug));
+  if (version === ownerDecisionLegalVersion || version === "2026-09-10") return priorWordingCleanupPages.find(policy => policy.slug === slug && ownerDecisionLegalSlugs.has(policy.slug));
   if (version === readinessLegalVersion || version === "2026-09-08") return readinessArchive.find(policy => policy.slug === slug);
-  return [...archivedLegalPolicyPages, ...ownerPriorArchive].find(policy => policy.slug === slug
+  return [...archivedLegalPolicyPages, ...ownerPriorArchive, ...priorWordingCleanupPages.filter(policy => wordingCleanupLegalSlugs.has(policy.slug))].find(policy => policy.slug === slug
     && (version === policy.lastUpdated || (slug === "marketplace-commerce-terms" && version === "stripe-connect-test-2026-07-16")));
 }
 

@@ -1,0 +1,166 @@
+{
+  "version": "2026-09-10-wording-cleanup",
+  "pages": [
+    {
+      "slug": "acceptable-use-policy",
+      "priorVersion": "2026-08-08",
+      "priorSha256": "9edda510229435abea9445e3ea44366a4c43dcc5eeb74a0c587d08f664a562ac",
+      "currentSha256": "01e2ab3fb0ed421961933634e73ed7d5bfdbc9fcf35e6f23e42a832be32b57c6",
+      "changed": true
+    },
+    {
+      "slug": "add-on-submission-policy",
+      "priorVersion": "2026-08-15",
+      "priorSha256": "bc46eb43bce04900da4b2508d4c32d67ee405a9742967dc77aef6f61f456c97d",
+      "currentSha256": "4dd1c303cd6c28ceba71ca385becb3727409e5935945b140e21da021afc25b6b",
+      "changed": true
+    },
+    {
+      "slug": "code-of-conduct",
+      "priorVersion": "2026-06-09",
+      "priorSha256": "933215a77806e3db22c5373132c97462402437645a163d7b2597690bcae47547",
+      "currentSha256": "1ec654076ca9706cf373af73930dc2f4c48897755c321d4394a5a00ae2a2af04",
+      "changed": true
+    },
+    {
+      "slug": "community-guidelines",
+      "priorVersion": "2026-09-10",
+      "priorSha256": "a8f1d094832a881a0b7d3b4e43fbb0b08a73a193dfef2b871f4c92314f2cc193",
+      "currentSha256": "a8f1d094832a881a0b7d3b4e43fbb0b08a73a193dfef2b871f4c92314f2cc193",
+      "changed": false
+    },
+    {
+      "slug": "dmca-copyright-policy",
+      "priorVersion": "2026-06-09",
+      "priorSha256": "c63d0915b5b8398b651437ad565f67e617e5d274034b2b64c75d163a02bf1616",
+      "currentSha256": "07938609b807914dd7a552facf8cb873e0108bb7a56282f625ec0983ab65f7f9",
+      "changed": true
+    },
+    {
+      "slug": "donation-recognition-terms",
+      "priorVersion": "2026-09-10",
+      "priorSha256": "451640dc14879154415ef5d10b8ae590285af4bafada24ea23a3125c1c166c73",
+      "currentSha256": "451640dc14879154415ef5d10b8ae590285af4bafada24ea23a3125c1c166c73",
+      "changed": false
+    },
+    {
+      "slug": "marketplace-developer-agreement",
+      "priorVersion": "2026-09-10",
+      "priorSha256": "6e710e1f09a697326a57626981b5594e94e261c2ee3216d3322f3d6f87782d04",
+      "currentSha256": "6e710e1f09a697326a57626981b5594e94e261c2ee3216d3322f3d6f87782d04",
+      "changed": false
+    },
+    {
+      "slug": "privacy-policy",
+      "priorVersion": "2026-09-10",
+      "priorSha256": "f2ce49e70d8f28e0181bde82ea8ddbeb71df0bde618bcbd7038ec6ac3f9b83ff",
+      "currentSha256": "d109e58a33fa221959a0c487c1af90f48c070df246c99cd2637f58326900585c",
+      "changed": true
+    },
+    {
+      "slug": "security-review-policy",
+      "priorVersion": "2026-06-09",
+      "priorSha256": "f27b4dd152ec095e60c5ebb25e400ebb64097c1d0b38a2c58f6ca2d754615628",
+      "currentSha256": "8dd6832b9265318c5b20b1a1bff78ac1ce169bd498d552715afa39534696c12c",
+      "changed": true
+    },
+    {
+      "slug": "terms-of-use",
+      "priorVersion": "2026-09-10",
+      "priorSha256": "4731452fcb2fd7a308a5437a92a1178064c0512ad73dce349354a241f2a84888",
+      "currentSha256": "617c1c476905bc2a3b0b0a6a69a2200ee40593634b0d2487b6a1b78a863ff6dd",
+      "changed": true
+    },
+    {
+      "slug": "volunteer-contributor-disclaimer",
+      "priorVersion": "2026-09-10",
+      "priorSha256": "a62837e5d6d5200a0312c5f713b9e82eac301f16550d7b866c05275daca43402",
+      "currentSha256": "a62837e5d6d5200a0312c5f713b9e82eac301f16550d7b866c05275daca43402",
+      "changed": false
+    },
+    {
+      "slug": "vulnerability-disclosure-policy",
+      "priorVersion": "2026-06-09",
+      "priorSha256": "49f10890e871fc3b727ce505b9b12c8adc75fe4d3f29f2e31e617a65b98c9dec",
+      "currentSha256": "89919bac764486cade0472ef0561eec3c83c1a2d4c9a61bf89a47b4898ae44aa",
+      "changed": true
+    },
+    {
+      "slug": "trademark-notice",
+      "priorVersion": "2026-06-10",
+      "priorSha256": "3a6b568eafd4fca523e5004da6a33668191bd1c291066bf727c981c6b0f0dfcd",
+      "currentSha256": "3a6b568eafd4fca523e5004da6a33668191bd1c291066bf727c981c6b0f0dfcd",
+      "changed": false
+    },
+    {
+      "slug": "support-and-billing-terms",
+      "priorVersion": "2026-09-10",
+      "priorSha256": "91e854c0cd7ec397024ff44daa0169df8cf5adb4309debf654e3a3a7a57338e0",
+      "currentSha256": "91e854c0cd7ec397024ff44daa0169df8cf5adb4309debf654e3a3a7a57338e0",
+      "changed": false
+    },
+    {
+      "slug": "refund-and-cancellation-policy",
+      "priorVersion": "2026-09-10",
+      "priorSha256": "97b687da8bffba3be3bc91dc3691d9e565acce2a1884f4fc54624d9ab68b4aa3",
+      "currentSha256": "97b687da8bffba3be3bc91dc3691d9e565acce2a1884f4fc54624d9ab68b4aa3",
+      "changed": false
+    },
+    {
+      "slug": "sandbox-credit-terms",
+      "priorVersion": "2026-09-10",
+      "priorSha256": "f41d1a85de105ec6110a4ae1d08f514fa8e2d83a6aead3dd2ae607d41fa1efd8",
+      "currentSha256": "f41d1a85de105ec6110a4ae1d08f514fa8e2d83a6aead3dd2ae607d41fa1efd8",
+      "changed": false
+    },
+    {
+      "slug": "job-post-fee-terms",
+      "priorVersion": "2026-09-10",
+      "priorSha256": "a724483850a6754fcb2ed51f53f2b94a1037c815ef4710deccedcc7102413e02",
+      "currentSha256": "a724483850a6754fcb2ed51f53f2b94a1037c815ef4710deccedcc7102413e02",
+      "changed": false
+    },
+    {
+      "slug": "marketplace-commerce-terms",
+      "priorVersion": "2026-09-10",
+      "priorSha256": "aeb3bd6fdb60246e9460f86150479ffd4e40f52735af5e23c76f8fd8f9952aa8",
+      "currentSha256": "aeb3bd6fdb60246e9460f86150479ffd4e40f52735af5e23c76f8fd8f9952aa8",
+      "changed": false
+    },
+    {
+      "slug": "sponsorship-independence-policy",
+      "priorVersion": "2026-09-10",
+      "priorSha256": "827d21c5ec0ca4c36b63062d038fe44976d2d89db4e189a64a27db4ca6d8e304",
+      "currentSha256": "827d21c5ec0ca4c36b63062d038fe44976d2d89db4e189a64a27db4ca6d8e304",
+      "changed": false
+    },
+    {
+      "slug": "organization-services-terms",
+      "priorVersion": "2026-09-10",
+      "priorSha256": "287b3f44a7de40f082293956a12eb63e95aa12dbd63d079e4dad6214ae0e2164",
+      "currentSha256": "287b3f44a7de40f082293956a12eb63e95aa12dbd63d079e4dad6214ae0e2164",
+      "changed": false
+    },
+    {
+      "slug": "account-closure-financial-retention",
+      "priorVersion": "2026-09-10",
+      "priorSha256": "b4e5d8f104a1ae68ca8f6d766cfae4089c8251c9e45fe07f5a4dc3b76417cd7d",
+      "currentSha256": "b4e5d8f104a1ae68ca8f6d766cfae4089c8251c9e45fe07f5a4dc3b76417cd7d",
+      "changed": false
+    },
+    {
+      "slug": "living-library-third-party-resources",
+      "priorVersion": "2026-08-07",
+      "priorSha256": "f033897d8c1da882825a5b6f1dc0803a0c52be75a346178fb01c89b1869029ff",
+      "currentSha256": "f033897d8c1da882825a5b6f1dc0803a0c52be75a346178fb01c89b1869029ff",
+      "changed": false
+    },
+    {
+      "slug": "third-party-media-credits",
+      "priorVersion": "2026-08-24",
+      "priorSha256": "3a912cf6a95ac5d987c5d71ce06862e1fc0a5a9bcf0b930cc944e1a3818896b8",
+      "currentSha256": "3a912cf6a95ac5d987c5d71ce06862e1fc0a5a9bcf0b930cc944e1a3818896b8",
+      "changed": false
+    }
+  ]
+}

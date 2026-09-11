@@ -307,7 +307,7 @@ export default function WorkWithPage() {
           }} /></label>
           <div className="wide-field boundary-note resume-upload-note">
             <strong>Resume or CV, optional.</strong> Upload a PDF, DOC, DOCX, ODT, TXT, or Markdown resume/CV for Work With review. This file is private, not public, and is only for reviewing your Work With request. {signedInUserId ? "You are signed in; upload will occur only when you save for Work With review." : "Sign in to a Website Account before uploading a resume or CV."}
-            <br />Resume/CV uploads are private administrator-review materials. Do not upload identity documents, financial records, medical records, passwords, API keys, .env files, private local Elysia data, or unredacted third-party personal data.
+            <br />Resume/CV uploads are private to you and authorized Work With reviewers. Do not upload identity documents, financial records, medical records, passwords, API keys, .env files, private local Elysia data, or unredacted third-party personal data.
             {resumeFile && <span className="inline-status">Selected file: {resumeFile.name} ({Math.ceil(resumeFile.size / 1024)} KB)</span>}
           </div>
         </div>
@@ -317,7 +317,7 @@ export default function WorkWithPage() {
           <label className="checkbox-line"><input type="checkbox" checked={form.understandsReview} onChange={(event) => setForm({ ...form, understandsReview: event.target.checked })} /><span>I understand this request requires Work With review and does not automatically grant a role, badge, membership tier, moderator authority, reviewer authority, or paid position.</span></label>
         </div>
         <div className="button-row"><button type="button" onClick={() => saveRequest("draft_local")}>Save request draft locally</button><button type="button" className="button-primary" onClick={() => void submitForAdministratorReview()} disabled={uploadBusy || !hasSupabaseConfig || !signedInUserId}>{uploadBusy ? "Saving for review..." : !hasSupabaseConfig ? "Review submission unavailable" : !signedInUserId ? "Sign in to submit for review" : "Submit for Work With review"}</button><button type="button" onClick={exportMarkdown}>Export request as Markdown</button><button type="button" onClick={() => void copyRequest()}>Copy request</button></div>
-        <p className="boundary-note">Local drafts remain only in this browser. A remote administrator-review submission is available only when Supabase is configured and you are signed in; it is written to private review storage and does not grant a role, badge, authority, or paid position.</p>
+        <p className="boundary-note">Local drafts remain only in this browser. A remote Work With review submission is available only when Supabase is configured and you are signed in; it is written to private review storage and does not grant a role, badge, authority, or paid position.</p>
       </section>
 
       <section className="two-column work-review-panels">

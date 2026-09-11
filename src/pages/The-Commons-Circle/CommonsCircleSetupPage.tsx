@@ -409,7 +409,7 @@ export default function CommonsCircleSetupPage() {
     }
     setValidationMessage("");
     updateStewardshipDraft({ ...stewardshipDraft, skipped: false, status: "draft_local" });
-    pushMessage("Stewardship recognition draft prepared locally for the setup summary. Receipt upload is not enabled yet.");
+    pushMessage("Stewardship recognition draft prepared locally for the setup summary. Any selected proof is uploaded only at final signed-in confirmation when backend storage is available.");
     go("work-with");
   }
 
@@ -552,7 +552,7 @@ export default function CommonsCircleSetupPage() {
       const { data: attached, error: attachmentError } = await supabase.rpc("attach_own_stewardship_receipt", { p_request_id: requestId, p_file_id: fileId });
       if (attachmentError || attached !== true) throw new Error("Your recognition request was saved, but its proof attachment was not confirmed. Contact privacy@elysiaecobotics.com before submitting it again; do not send the file by email.");
     }
-    return receiptFile ? "Stewardship recognition request and private receipt/proof saved for administrator review." : "Stewardship recognition request saved for administrator review.";
+    return receiptFile ? "Stewardship recognition request and private proof saved for authorized stewardship reviewers." : "Stewardship recognition request saved for authorized stewardship reviewers.";
   }
 
   async function finalizeProfile() {
@@ -631,7 +631,7 @@ export default function CommonsCircleSetupPage() {
       if (workWithMessage) pushMessage(workWithMessage);
       writeStorage(localStorageKeys.onboarding, { completed: true, welcomed: true, membershipTier: "Free Member", completedAt: now });
       notifyCommonsCircle();
-      pushMessage("Commons Profile onboarding completed. Free Member recognition is granted from this account-backed completion; optional higher recognition still requires its own administrator review.");
+      pushMessage("Commons Profile onboarding completed. Free Member recognition is granted from this account-backed completion; optional higher recognition still requires separate review and authorization.");
       navigate("/commons-circle");
     } catch (error) {
       pushMessage(error instanceof Error ? error.message : "Could not finish Commons Profile setup.");
@@ -723,8 +723,8 @@ export default function CommonsCircleSetupPage() {
       {step === "stewardship" && <section className="section-card commons-setup-panel">
         <p className="eyebrow">Step 2: Stewardship & Donation Options</p>
         <h2>Optional stewardship support</h2><div className="button-row"><FundingLink /></div>
-        <WarningCallout title="Optional and direct"><p>Donations are optional and made directly to independent organizations. Elysia Ecobotics does not process these donations. Stewardship recognition may be requested, but it requires administrator review and does not grant authority, paid status, moderator access, reviewer access, or administrator access.</p></WarningCallout>
-        <p className="boundary-note">Receipt/proof uploads are private administrator-review materials sent to private hosted storage only after final confirmation. Remove unnecessary addresses, QR codes, transaction-access links and sensitive identifiers. Do not upload identity documents, medical records, passwords, API keys, .env files, bank account numbers, full card numbers, or unredacted third-party personal data.</p>
+        <WarningCallout title="Optional and direct"><p>Donations are optional and made directly to independent organizations. Elysia Ecobotics does not process these donations. Stewardship recognition may be requested, but it requires authorized stewardship review and does not grant authority, paid status, moderator access, reviewer access, or administrator access.</p></WarningCallout>
+        <p className="boundary-note">Proof uploads are private to you and authorized stewardship reviewers, and are sent to private hosted storage only after final confirmation. Remove unnecessary addresses, QR codes, transaction-access links and sensitive identifiers. Do not upload identity documents, medical records, passwords, API keys, .env files, bank account numbers, full card numbers, or unredacted third-party personal data.</p>
         {Object.entries(groupedOrganizations).map(([category, orgs]) => <section className="commons-org-category" key={category}>
           <div className="section-heading section-heading--inline"><h3>{category}</h3><span className="trust-badge">{orgs.length} organizations</span></div>
           <div className="commons-org-grid">
@@ -756,7 +756,7 @@ export default function CommonsCircleSetupPage() {
             setReceiptFile(nextFile);
           }} /></label>
           <div className="wide-field boundary-note">{receiptFile ? `Selected private receipt/proof: ${receiptFile.name} (${Math.ceil(receiptFile.size / 1024)} KB).` : "No receipt/proof selected. You may request recognition without uploading a file."}</div>
-          <label className="checkbox-line wide-field"><input type="checkbox" checked={stewardshipDraft.redactionConfirmed} onChange={(event) => updateStewardshipDraft({ ...stewardshipDraft, redactionConfirmed: event.target.checked })} /><span>I understand this file will be stored privately in Elysia Ecobotics Online's Supabase backend for administrator review, I have redacted unnecessary sensitive information, and stewardship recognition does not grant authority, paid status, moderation access, reviewer access, administrator access, or employment.</span></label>
+          <label className="checkbox-line wide-field"><input type="checkbox" checked={stewardshipDraft.redactionConfirmed} onChange={(event) => updateStewardshipDraft({ ...stewardshipDraft, redactionConfirmed: event.target.checked })} /><span>I understand this file will be stored privately in Elysia Ecobotics Online's Supabase backend for authorized stewardship reviewers, I have redacted unnecessary sensitive information, and stewardship recognition does not grant authority, paid status, moderation access, reviewer access, administrator access, or employment.</span></label>
         </div>
         {validationSlot}
         <div className="button-row"><button type="button" onClick={prepareStewardship}>Prepare stewardship recognition</button><button type="button" onClick={skipStewardship}>Skip stewardship for now</button><button type="button" className="button-primary" onClick={() => go("work-with")}>Continue to Work With Elysia Ecobotics</button></div>
@@ -765,7 +765,7 @@ export default function CommonsCircleSetupPage() {
       {step === "work-with" && <section className="section-card commons-setup-panel">
         <p className="eyebrow">Step 3: Work With Elysia Ecobotics</p>
         <h2>Optional help and collaboration request</h2>
-        <WarningCallout title="Administrator review required"><p>Helping Elysia Ecobotics is optional. Volunteer, contributor, developer, reviewer, moderator, and guardian roles require administrator review. No role is self-assigned.</p></WarningCallout>
+        <WarningCallout title="Review and role authorization"><p>Helping Elysia Ecobotics is optional. Authorized Work With reviewers review applications. Role assignments require a separate authorized administrator decision. No role is self-assigned.</p></WarningCallout>
         <div className="commons-form-grid">
           <label><span>Request type</span><select value={workWithDraft.requestType} onChange={(event) => updateWorkWithDraft({ ...workWithDraft, requestType: event.target.value })}>{requestTypes.map((type) => <option key={type}>{type}</option>)}</select></label>
           <label><span>Availability</span><select value={workWithDraft.availability} onChange={(event) => updateWorkWithDraft({ ...workWithDraft, availability: event.target.value })}>{["occasional", "weekly", "project-based", "not sure yet"].map((option) => <option key={option}>{option}</option>)}</select></label>
@@ -791,7 +791,7 @@ export default function CommonsCircleSetupPage() {
           <div className="wide-field boundary-note">Resume/CV upload uses the existing private Work With storage path only after final confirmation, while signed in. It never creates a public URL. {resumeFile ? `Selected: ${resumeFile.name} (${Math.ceil(resumeFile.size / 1024)} KB).` : "No resume/CV selected."}</div>
           <label className="checkbox-line wide-field"><input type="checkbox" checked={workWithDraft.understandsVolunteer} onChange={(event) => updateWorkWithDraft({ ...workWithDraft, understandsVolunteer: event.target.checked })} /><span>I understand current opportunities are generally volunteer, contributor, or collaborator roles unless explicitly marked paid.</span></label>
           <label className="checkbox-line wide-field"><input type="checkbox" checked={workWithDraft.understandsPublicPrivacy} onChange={(event) => updateWorkWithDraft({ ...workWithDraft, understandsPublicPrivacy: event.target.checked })} /><span>I will not include secrets, private Elysia memory, credentials, .env files, private logs, or sensitive personal/customer data.</span></label>
-          <label className="checkbox-line wide-field"><input type="checkbox" checked={workWithDraft.understandsReview} onChange={(event) => updateWorkWithDraft({ ...workWithDraft, understandsReview: event.target.checked })} /><span>I understand this request requires administrator review and does not automatically grant a role, badge, membership tier, moderator authority, reviewer authority, or paid position.</span></label>
+          <label className="checkbox-line wide-field"><input type="checkbox" checked={workWithDraft.understandsReview} onChange={(event) => updateWorkWithDraft({ ...workWithDraft, understandsReview: event.target.checked })} /><span>I understand this request requires authorized Work With review and does not automatically grant a role, badge, membership tier, moderator authority, reviewer authority, or paid position.</span></label>
         </div>
         {validationSlot}
         <div className="button-row"><button type="button" onClick={prepareWorkWith}>Prepare Work With request</button><button type="button" onClick={skipWorkWith}>Skip for now</button><button type="button" className="button-primary" onClick={() => go("confirm")}>Continue to final confirmation</button></div>
@@ -800,7 +800,7 @@ export default function CommonsCircleSetupPage() {
       {step === "confirm" && <section className="section-card commons-setup-panel">
         <p className="eyebrow">Final confirmation</p>
         <h2>Your Commons Profile is ready</h2>
-        <p>Review your profile setup. When you click Create Commons Profile, your public Commons Profile will be created or updated. Optional stewardship and Work With requests will be saved for administrator review only if their backend persistence is available.</p>
+        <p>Review your profile setup. When you click Create Commons Profile, your public Commons Profile will be created or updated. Optional stewardship and Work With requests will be saved for their separately authorized reviewers only if their backend persistence is available.</p>
         <dl className="mini-facts">
           <div><dt>Username</dt><dd>{profileDraft.username || "Not set"}</dd></div>
           <div><dt>Display name</dt><dd>{profileDraft.display_name || "Not set"}</dd></div>
@@ -809,7 +809,7 @@ export default function CommonsCircleSetupPage() {
           <div><dt>Work With request</dt><dd>{workWithDraft.skipped ? "Skipped" : workWithDraft.prepared ? "Prepared" : "Not prepared"}</dd></div>
           <div><dt>Resume/CV</dt><dd>{resumeFile ? `Private upload after final confirmation: ${resumeFile.name}` : "None selected"}</dd></div>
         </dl>
-        <p className="boundary-note">When final confirmation successfully records this signed-in Commons Profile's onboarding completion, Free Member recognition is granted. A browser-local flag or minimal Marketplace profile alone does not qualify. Existing legitimate awards remain preserved. Steward, Contributor, Guardian / Reviewer, Founding Steward, moderator, administrator, developer trust, or paid roles require their own administrator review and cannot be self-assigned.</p>
+        <p className="boundary-note">When final confirmation successfully records this signed-in Commons Profile's onboarding completion, Free Member recognition is granted. A browser-local flag or minimal Marketplace profile alone does not qualify. Existing legitimate awards remain preserved. Steward, Contributor, Guardian / Reviewer, Founding Steward, moderator, administrator, developer trust, or paid roles require separate review and authorization and cannot be self-assigned.</p>
         <div className="button-row"><button type="button" onClick={() => go("profile")}>Back to profile draft</button><button type="button" className="button-primary" onClick={() => void finalizeProfile()} disabled={busy}>{busy ? "Creating profile..." : "Create Commons Profile"}</button></div>
       </section>}
     </div>
