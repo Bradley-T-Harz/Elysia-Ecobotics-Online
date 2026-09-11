@@ -3,16 +3,6 @@ import FeatureCard from "../../shared/components/FeatureCard";
 import PageBrandMark from "../../shared/components/PageBrandMark";
 import StatusBadge from "../../shared/components/StatusBadge";
 
-const subsystems = [
-  { name: "Verdante", detail: "Plants, gardens, restoration, and practical green care." },
-  { name: "Sylphora", detail: "Animals, wildlife, pollinators, care, and interspecies understanding." },
-  { name: "Ecotiva", detail: "Ecosystems, habitats, interdependence, and the living weave of place." },
-  { name: "Aurania", detail: "Air, atmosphere, climate, weather, and the moving patterns above us." },
-  { name: "Terraflux", detail: "Soil, land, terrain, hazards, and changing ground conditions." },
-  { name: "Aquaria", detail: "Water, wetlands, watersheds, streams, and careful monitoring." },
-  { name: "Aetheria", detail: "Space, planetary awareness, wider systems, and the long horizon of intelligence." }
-];
-
 export default function OnlineMainPage() {
   return (
     <div className="page-stack home-garden">
@@ -36,7 +26,7 @@ export default function OnlineMainPage() {
       </section>
       <section className="feature-grid feature-grid--three home-polish-grid">
         <FeatureCard title="What is Elysia?"><p>Elysia is a free, local-first AI companion application built around privacy, user approval, readable traces, and useful governed tools.</p></FeatureCard>
-        <FeatureCard title="What is Elysia Ecobotics?"><p>An EcoSyneva Commons LLC initiative for ecological intelligence, careful robotics, public-service science, and tools that help people care for the living world.</p></FeatureCard>
+        <FeatureCard title="What is Elysia Ecobotics?"><p>An EcoSyneva Commons LLC initiative for local-first intelligence and broadly useful tools, grounded in ecological care, careful robotics, and public-service science.</p></FeatureCard>
         <FeatureCard title="What is this website?"><p>The public account ecosystem: a home for the Archive, Marketplace, Products, Lab, Developer Forge, Living Library, Commune, Commons Circle, Story, About, and Mission.</p></FeatureCard>
       </section>
       <section className="section-card home-section-card">
@@ -49,11 +39,6 @@ export default function OnlineMainPage() {
           <FeatureCard title="Developer Forge"><p>A calm builder doorway for add-on docs, manifest validation, packaging preparation, and Marketplace submission.</p><Link to="/developer-forge">Visit Forge</Link></FeatureCard>
           <FeatureCard title="Living Library"><p>A curated directory for data, research, tools, source ethics, and ecological intelligence foundations.</p><Link to="/living-library">Browse library</Link></FeatureCard>
         </div>
-      </section>
-      <section className="section-card home-section-card">
-        <p className="eyebrow">Ecological subsystem cards</p>
-        <h2>Seven names for a living technical imagination.</h2>
-        <div className="subsystem-grid home-subsystem-grid">{subsystems.map((item) => <article key={item.name}><h3>{item.name}</h3><p>{item.detail}</p></article>)}</div>
       </section>
       <section className="feature-grid feature-grid--three home-polish-grid">
         <FeatureCard title="Products"><p>Future physical products stay separate from digital Marketplace add-ons, with broad directions in environmental robotics, sensing tools, repairable hardware, and field-support technology.</p><Link to="/products">See products</Link></FeatureCard>

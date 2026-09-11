@@ -10,6 +10,7 @@ export default function TrustPage() {
         <p>
           Elysia Marketplace separates public catalog discovery from private local execution.
           Trust labels identify review evidence, declared permissions, and unsafe or unavailable states.
+          Ecological imagery, names, and metaphors are not evidence of environmental impact; environmental claims require supporting evidence.
         </p>
       </section>
       <SecurityTrustPanel />
