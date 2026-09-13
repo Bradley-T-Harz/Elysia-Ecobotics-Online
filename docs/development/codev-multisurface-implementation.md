@@ -334,3 +334,36 @@ coordinate manifest and compatibility version updates; regenerate and sign VSIX,
 installers and frozen archives only after approval. A compatible feature release
 would warrant 1.1.0; no version changes are made now. Existing Elysia/Codev 1.0.0,
 Add-on repository, historical copies and release artifacts remain untouched.
+
+### Production model qualification follow-up — 13 September 2026
+
+The preceding sections are historical checkpoints. Production remains deployed
+from `e8fa5cad8f4fbf80beb2abf8e9c0496a3b534915` as Pages deployment
+`60239324-be2b-46dd-bd74-5157584ba8c3`; the applied pairing migration is unchanged.
+The subsequent timeout correction is in Elysia's shared native runtime and desktop
+transport. This documentation update changes no website runtime or database code
+and requires no additional deployment or migration.
+
+The rebuilt Elysia 1.0.0 package (public source `ddc94ec`) passed real production
+model-generated review/apply on both pages using the unchanged installed Codev
+VSIX, real account sessions, separate selected-file grants and local
+`granite3.3:8b`. The full CPU run completed Marketplace reasoning/proposal in
+186.522s/203.338s and Forge in 188.700s/206.650s. A normal automatic-compute repeat
+completed proposals in 182.689s/64.215s. Both runs verified exact current revisions,
+one-use approvals, backups, unselected LICENSE/binary preservation, account
+isolation and native revocation during actual inference. Neither intercepted
+provider/API responses nor supplied replacement JSON. Both reported `passed: true`
+and zero page errors. GPU execution/performance and large-workspace latency are
+not inferred from these bounded Quick-request results.
+
+Evidence: `/tmp/codev-implementation-20260913/production-model-full-budget-cpu/results.json`
+and `/tmp/codev-implementation-20260913/production-model-proposals-automatic/results.json`.
+The owner implementation evidence report includes request/patch receipts, exact
+revision hashes, manually inspected production screenshots, tests, package hashes,
+publication state and operational QA cleanup status.
+
+The approved native public source is now pushed in
+https://github.com/Bradley-T-Harz/Elysia/pull/2. GitHub's existing independent-review
+requirement still prevents merging to main; source publication is no longer
+waiting for the earlier payload-specific approval. Codev Add-on, archives and all
+Elysia/Codev 1.0.0 product versions remain unchanged.
