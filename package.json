@@ -190,7 +190,9 @@
     "test:pre-provider-browser:built": "node scripts/preProviderBrowserTest.mjs",
     "test:publisher-ownership": "node scripts/runReadinessChecks.mjs publisher",
     "test:publisher-ownership-browser": "node scripts/runReadinessChecks.mjs publisherBrowser",
-    "test:owner-decisions": "node scripts/runReadinessChecks.mjs owner && node scripts/runReadinessChecks.mjs ownerLegal"
+    "test:owner-decisions": "node scripts/runReadinessChecks.mjs owner && node scripts/runReadinessChecks.mjs ownerLegal",
+    "test:browser-workspace": "node scripts/browserWorkspaceContractTest.mjs",
+    "test:browser-workspace-recovery": "node scripts/browserWorkspaceRecoveryBrowserTest.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.3",

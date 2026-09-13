@@ -11,6 +11,8 @@ export type AddonIntakeFile = {
   size: number;
   kind: "text" | "binary" | "script" | "dependency" | "manifest" | "license";
   text?: string;
+  /** Exact included bytes; placeholders and decoded previews never become package content. */
+  bytes?: Uint8Array;
 };
 
 export type AddonIntakeExcludedGroup = {
@@ -130,12 +132,15 @@ async function readEntry(path: string, bytes: Uint8Array, errors: BrowserArchive
   const kind = fileKind(path);
   let text: string | undefined;
   if (isTextPath(path) && bytes.byteLength <= addonIntakeLimits.maxTextBytes) {
-    text = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
-    scanText(path, text, errors, warnings);
+    try {
+      text = new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+      if (text.includes("\0")) text = undefined;
+    } catch { text = undefined; }
+    if (text !== undefined) scanText(path, text, errors, warnings);
   }
   if (kind === "script") warnings.push({ code: "script_file", message: "Script file requires explicit reviewer attention. It was not executed.", path });
   if (/\.(app|dll|dylib|exe|msi|so|wasm)$/i.test(path)) warnings.push({ code: "binary_or_executable", message: "Binary or executable-like payload requires explicit reviewer attention.", path });
-  return { path, size: bytes.byteLength, kind, text };
+  return { path, size: bytes.byteLength, kind, text, bytes };
 }
 
 function addOnce(target: BrowserArchiveIssue[], issue: BrowserArchiveIssue) {
