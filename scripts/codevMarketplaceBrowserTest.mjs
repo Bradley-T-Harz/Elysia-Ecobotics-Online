@@ -1,3 +1,4 @@
+import { runCodevForgeBrowserScenarios } from "./codevForgeBrowserScenarios.mjs";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
@@ -140,6 +141,11 @@ async function serve(route, { session, controls }) {
           pairing_id: data.pairing_id,
           action: data.action,
         });
+    if (url.pathname.endsWith("/create") && controls.delayPairCreate) {
+      const delay = controls.delayPairCreate;
+      controls.delayPairCreate = null;
+      await delay;
+    }
     return route.fulfill({
       contentType: "application/json",
       body: JSON.stringify(result),
@@ -298,11 +304,9 @@ try {
     await f.page
       .locator("[data-codev-slot]")
       .evaluate((value) => value.remove());
-    await f.page
-      .locator(".submission-card")
-      .screenshot({
-        path: path.join(output, "after-minus-sync-submission.png"),
-      });
+    await f.page.locator(".submission-card").screenshot({
+      path: path.join(output, "after-minus-sync-submission.png"),
+    });
     assert.deepEqual(
       await fs.readFile(path.join(output, "before-sync-submission.png")),
       await fs.readFile(path.join(output, "after-minus-sync-submission.png")),
@@ -338,13 +342,11 @@ try {
   zip.file("LICENSE", license);
   zip.file("src/main.ts", "export const answer = 1;\n");
   zip.file("assets/data.bin", new Uint8Array([0, 255, 128, 42]));
-  await f.page
-    .getByLabel("Import .elysia-addon")
-    .setInputFiles({
-      name: "codev-fixture.elysia-addon",
-      mimeType: "application/zip",
-      buffer: await zip.generateAsync({ type: "nodebuffer" }),
-    });
+  await f.page.getByLabel("Import .elysia-addon").setInputFiles({
+    name: "codev-fixture.elysia-addon",
+    mimeType: "application/zip",
+    buffer: await zip.generateAsync({ type: "nodebuffer" }),
+  });
   await f.page.getByText("Included file tree", { exact: false }).waitFor();
   await f.page
     .getByLabel("Add-on name", { exact: true })
@@ -704,6 +706,20 @@ try {
     .getByRole("button", { name: "Disconnect Codev", exact: true })
     .click();
   await mobile.context.close();
+  if (process.env.ELYSIA_CODEV_FORGE_BROWSER === "1")
+    await runCodevForgeBrowserScenarios({
+      fixture,
+      command,
+      origin,
+      output,
+      capture,
+      allowLoopback,
+      clickFinish,
+      evidence,
+      setActivePage: (page) => {
+        activePage = page;
+      },
+    });
   assert.deepEqual(pageErrors, []);
   assert.deepEqual(forbidden, []);
   const result = {

@@ -22,6 +22,7 @@ export type CodevSyncAttempt = {
   key: ScopedKey;
   pairing: PairingView;
   manualCode: string;
+  authorityEpoch: number;
 };
 type StoredPairing = {
   contract: "codev-browser-session-1";
@@ -39,6 +40,14 @@ const restoring = new Map<string, Promise<CodevConnection | null>>();
 const connections = new Map<string, CodevConnection>();
 const pending = new Set<CodevBrokerClient>();
 const pendingKeys = new Map<string, OnlineScope>();
+let authorityEpoch = 0;
+let observedAuth: string | null | undefined;
+function assertEpoch(epoch: number) {
+  if (epoch !== authorityEpoch)
+    throw new Error(
+      "The website account changed during this operation. Sync Codev again.",
+    );
+}
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(databaseName, 1);
@@ -188,6 +197,7 @@ async function online(
 export async function beginCodevSync(
   surface: "marketplace" | "forge",
 ): Promise<CodevSyncAttempt> {
+  const epoch = authorityEpoch;
   const { session, login } = await currentLogin();
   const previousSlot = slotKey({
     accountId: session.user.id,
@@ -233,6 +243,7 @@ export async function beginCodevSync(
   await storeKey(key);
   pendingKeys.set(codevScopeKey(scope), scope);
   try {
+    assertEpoch(epoch);
     const result = await online(scope, "create", {
       surface,
       browser_session_id: browserSessionId,
@@ -242,7 +253,13 @@ export async function beginCodevSync(
     if (!/^EC1\.[AW]\.[A-Za-z0-9_-]{43}$/.test(result.manual_code ?? ""))
       throw new Error("A valid manual pairing code was not returned.");
     // The constructor is intentionally deferred until the native public key is confirmed.
-    return { key, pairing, manualCode: result.manual_code! };
+    assertEpoch(epoch);
+    return {
+      key,
+      pairing,
+      manualCode: result.manual_code!,
+      authorityEpoch: epoch,
+    };
   } catch (error) {
     pendingKeys.delete(codevScopeKey(scope));
     await deleteKey(codevScopeKey(scope)).catch(() => {});
@@ -255,12 +272,14 @@ export async function finishCodevSync(
   beforeRefresh: () => Promise<void>,
 ): Promise<void> {
   const { scope } = attempt.key;
+  assertEpoch(attempt.authorityEpoch);
   const response = await online(scope, "browser", {
     pairing_id: attempt.pairing.pairing_id,
     surface: scope.surface,
     browser_session_id: scope.browserSessionId,
     action: "status",
   });
+  assertEpoch(attempt.authorityEpoch);
   const approved = validatePairing(
     response.pairing,
     scope,
@@ -272,6 +291,7 @@ export async function finishCodevSync(
     );
   const client = new CodevBrokerClient(attempt.key, approved, async () => {
     await checkScope(scope);
+    assertEpoch(attempt.authorityEpoch);
   });
   pending.add(client);
   try {
@@ -302,6 +322,7 @@ export async function finishCodevSync(
     };
     // The caller verifies the persisted revision. No asynchronous gap follows it.
     await beforeRefresh();
+    assertEpoch(attempt.authorityEpoch);
     client.assertActive();
     sessionStorage.setItem(slotKey(scope), JSON.stringify(record));
     pendingKeys.delete(record.keyId);
@@ -346,6 +367,7 @@ async function restoreStored(
   login: string,
   scopeKey: string,
 ): Promise<CodevConnection | null> {
+  const epoch = authorityEpoch;
   const raw = sessionStorage.getItem(scopeKey);
   if (!raw) return null;
   const record = JSON.parse(raw) as StoredPairing;
@@ -373,6 +395,7 @@ async function restoreStored(
   )
     return null;
   const key = await loadKey(record.keyId);
+  assertEpoch(epoch);
   if (
     !key ||
     key.privateKey.extractable ||
@@ -390,10 +413,12 @@ async function restoreStored(
     browser_session_id: record.scope.browserSessionId,
     action: "status",
   });
+  assertEpoch(epoch);
   const paired = validatePairing(response.pairing, record.scope, key.publicKey);
   if (paired.intent.status !== "paired") return null;
   const client = new CodevBrokerClient(key, paired, async () => {
     await checkScope(record.scope);
+    assertEpoch(epoch);
   });
   pending.add(client);
   try {
@@ -404,6 +429,7 @@ async function restoreStored(
       grant_epochs: Record<string, number>;
     }>("workspace/reset", {});
     await checkScope(record.scope);
+    assertEpoch(epoch);
     client.assertActive();
     const result = {
       client,
@@ -442,31 +468,32 @@ export async function disconnectCodev(connection: CodevConnection) {
   } catch {
     /* In-memory authority is already closed. */
   }
+  void deleteKey(codevScopeKey(connection.key.scope)).catch(() => {});
+  await revokePreviousNative(connection.key, connection.pairing);
+  await cancelCodevSync(connection);
+}
+// This helper has one fixed operation. Revocation must still work after the
+// website account changes; it cannot submit source, grant scope or run cognition.
+async function revokePreviousNative(key: ScopedKey, pairing: PairingView) {
   let revoker: CodevBrokerClient | null = null;
   try {
-    revoker = new CodevBrokerClient(
-      connection.key,
-      connection.pairing,
-      async () => {
-        await checkScope(connection.key.scope);
-      },
-    );
-    pending.add(revoker);
+    revoker = new CodevBrokerClient(key, pairing, async () => {});
     await revoker.request("revoke", {});
   } catch {
-    /* The native process may already be closed or the session expired. */
+    /* Existing local authority is closed even if its process is offline. */
   } finally {
-    if (revoker) {
-      pending.delete(revoker);
-      revoker.disconnect();
-    }
+    revoker?.disconnect();
   }
-  await cancelCodevSync(connection);
 }
 // Auth events clear authority immediately; no source/recovery database is touched.
 if (supabase)
   supabase.auth.onAuthStateChange((_event, session) => {
     const login = session ? codevLoginSessionId(session.access_token) : null;
+    const identity =
+      session && login ? JSON.stringify([session.user.id, login]) : null;
+    if (observedAuth !== undefined && observedAuth !== identity)
+      authorityEpoch++;
+    observedAuth = identity;
     for (const [id, connection] of connections) {
       if (
         !session ||
@@ -479,7 +506,47 @@ if (supabase)
           sessionStorage.removeItem(id);
         } catch {}
         void deleteKey(codevScopeKey(connection.key.scope)).catch(() => {});
+        void revokePreviousNative(connection.key, connection.pairing);
       }
+    }
+    // Also invalidate a saved connection whose restoration was still awaiting
+    // IndexedDB or HTTPS when authentication changed. This reads keys only to
+    // revoke the previous pairing; it never reads another account's source.
+    try {
+      for (let index = sessionStorage.length - 1; index >= 0; index--) {
+        const id = sessionStorage.key(index);
+        if (!id?.startsWith(prefix)) continue;
+        try {
+          const record = JSON.parse(
+            sessionStorage.getItem(id)!,
+          ) as StoredPairing;
+          if (
+            session &&
+            record.scope.accountId === session.user.id &&
+            record.scope.loginSessionId === login
+          )
+            continue;
+          sessionStorage.removeItem(id);
+          if (
+            record.keyId !== codevScopeKey(record.scope) ||
+            id !== slotKey(record.scope)
+          )
+            continue;
+          void loadKey(record.keyId)
+            .then((key) => {
+              if (key && codevScopeKey(key.scope) === record.keyId)
+                return revokePreviousNative(key, record.pairing);
+            })
+            .catch(() => {})
+            .finally(() => {
+              void deleteKey(record.keyId).catch(() => {});
+            });
+        } catch {
+          sessionStorage.removeItem(id);
+        }
+      }
+    } catch {
+      /* In-memory authorities are still invalidated below. */
     }
     for (const [id, scope] of pendingKeys) {
       if (
@@ -496,7 +563,9 @@ if (supabase)
         !session ||
         client.key.scope.accountId !== session.user.id ||
         client.key.scope.loginSessionId !== login
-      )
+      ) {
         client.disconnect();
+        void revokePreviousNative(client.key, client.pairing);
+      }
     }
   });

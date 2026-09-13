@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
 import { createServer } from 'node:http';
-const result = await build({ stdin: { contents: `import * as model from './src/shared/codev/workspace'; import * as recovery from './src/shared/codev/workspaceRecovery'; import * as patch from './src/shared/codev/patchRecovery'; window.workspaceFixture = { ...model, ...recovery, ...patch };`, resolveDir: process.cwd(), loader: 'ts' }, bundle: true, platform: 'browser', format: 'iife', write: false });
+const result = await build({ stdin: { contents: `import * as model from './src/shared/codev/workspace'; import * as recovery from './src/shared/codev/workspaceRecovery'; import * as patch from './src/shared/codev/patchRecovery'; import * as receipts from './src/shared/codev/browserReceipts'; window.workspaceFixture = { ...model, ...recovery, ...patch, ...receipts };`, resolveDir: process.cwd(), loader: 'ts' }, bundle: true, platform: 'browser', format: 'iife', write: false });
 const server = createServer((request,response)=>{
   response.setHeader('Cache-Control','no-store');
   if(request.url==='/fixture.js'){response.setHeader('Content-Type','application/javascript');response.end(result.outputFiles[0].contents)}
@@ -72,14 +72,18 @@ try {
     await f.restoreCodevPatch(model,backup,()=>{});const restored=await model.capture();
     let replayBlocked=false;try{await f.restoreCodevPatch(model,backup,()=>{});}catch{replayBlocked=true;}
     await f.clearCodevPatchBackup(owner,backup.id);
-    return {ownerRecords:owned.length,otherRecords:other.length,otherDraftRecords:otherDraft.length,otherClearBlocked,authorityRaceBlocked,
+    await f.saveBrowserReceipt(owner,{operation_id:'fixture_receipt',request_id:'fixture_request',workspace_id:original.workspaceId,status:'completed',summary:'Exact synthetic browser mutation',files_changed:['main.py'],created_at:new Date().toISOString()});
+    const ownTrace=(await f.loadBrowserReceipts(owner)).length,otherTrace=(await f.loadBrowserReceipts({...owner,accountId:'account-B'})).length;
+    await f.clearBrowserReceipts({...owner,accountId:'account-B'});const ownTraceAfterOtherClear=(await f.loadBrowserReceipts(owner)).length;
+    await f.clearBrowserReceipts(owner);
+    return {ownTrace,otherTrace,ownTraceAfterOtherClear,ownerRecords:owned.length,otherRecords:other.length,otherDraftRecords:otherDraft.length,otherClearBlocked,authorityRaceBlocked,
       refusedHashUnchanged:afterRefusal.contentHash===original.contentHash,refusedRevisionUnchanged:afterRefusal.revision===original.revision,
       acceptedRevision:accepted.revision,restoredRevision:restored.revision,restoredHash:restored.contentHash===original.contentHash,
       binaryUnchanged:accepted.files.find(file=>file.path==='assets/data.bin').content_hash===original.files.find(file=>file.path==='assets/data.bin').content_hash,
       licenseUnchanged:accepted.files.find(file=>file.path==='LICENSE').content_hash===original.files.find(file=>file.path==='LICENSE').content_hash,
       tamperedRecoveryBlocked,replayBlocked,remaining:(await f.listCodevPatchBackups(owner)).length};
   });
-  assert.deepEqual(patches,{ownerRecords:1,otherRecords:0,otherDraftRecords:0,otherClearBlocked:true,authorityRaceBlocked:true,
+  assert.deepEqual(patches,{ownTrace:1,otherTrace:0,ownTraceAfterOtherClear:1,ownerRecords:1,otherRecords:0,otherDraftRecords:0,otherClearBlocked:true,authorityRaceBlocked:true,
     refusedHashUnchanged:true,refusedRevisionUnchanged:true,acceptedRevision:1,restoredRevision:2,restoredHash:true,binaryUnchanged:true,licenseUnchanged:true,tamperedRecoveryBlocked:true,replayBlocked:true,remaining:0});
   console.log('PASS: real Chromium IndexedDB owner isolation, reload recovery, cross-tab compare-and-swap conflicts, dirty-buffer preservation stale-delete refusal, exact patch backups/restoration, account-scoped recovery and authority revocation during hashing. No external network.');
   await context.close();

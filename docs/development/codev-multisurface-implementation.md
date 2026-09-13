@@ -173,3 +173,56 @@ Evidence is under `/tmp/codev-implementation-20260913/marketplace-codev-browser-
 and the sibling phase-7 logs. No remote migration, push or deployment has occurred.
 Forge mounting, complete cross-surface qualification and production verification
 remain subsequent gates. Codev Add-on and product versions remain unchanged.
+
+## Phase 8 — Forge client and cross-surface lifecycle (local qualification)
+
+Forge mounts the same compact Sync slot only on its drafts routes. A context
+registration binds the existing workbench controller to the shared drawer; no
+second agent, credential store, broker or pairing protocol was introduced. The
+original draft lock and pending operation counter gate Codev editing and the
+required refresh. The current draft, exact source revision, full LICENSE/binary
+bytes, active file, new-draft name and ownership selection survive sync. View
+recovery is short-lived, account/browser scoped metadata; it creates no source,
+publisher, workspace or execution authority.
+
+Forge can narrow a multi-file proposal by reviewing only one file or rejecting a
+file. Every narrowed selection receives a new canonical plan and needs fresh exact
+approval. A request for revision returns to the same conversation. The panel
+shows the active file and current deterministic validation findings. Locked drafts
+cannot request or accept edits; the existing Duplicate draft for revision flow
+preserves source without inheriting the old draft's Codev grant.
+
+Safe operation receipts now have bounded account/workspace-local IndexedDB
+persistence, independently of private keys and patch recovery. They remain
+informational; they cannot authorize replay. Account changes synchronously close
+browser authority and use the old key only for one fixed signed native revocation.
+A monotonically changing authentication epoch invalidates delayed operations even
+across A → B → A. Saved or pending restoration records are also retired without
+reading another account's source. Ordinary access-token refresh preserves the
+same account/login-bound workspace and connection.
+
+Qualification passed against the real built Marketplace and Forge pages, normal
+Chromium 151.0.7922.34 security, and the real signed Python broker. Identity,
+installation and provider adapters remained synthetic. Evidence includes:
+
+- Both unsynced page DOMs and screenshot bytes matched their saved pre-Sync
+  checkpoints after removing only their one Sync slot.
+- New-draft form state, dirty README/full package contents, selected draft and
+  active file survived the required refresh. Pairing shared no workspace.
+- File-specific rejection produced a new exact plan; only the accepted source
+  changed, and inert export included those accepted current bytes. Full README,
+  LICENSE and binary bytes survived Save draft and revision duplication.
+- Existing submitted locks refused proposals/edits. Revision copies required a
+  new explicit grant. Account switching removed active native source grants;
+  returning to A did not reconnect. A delayed intent across A → B → A was withheld.
+- Real IndexedDB receipt/recovery account isolation and the existing Forge/
+  Marketplace save, transfer, conflict and account regression passed. Frontend
+  types, isolated build and full signed browser suites passed.
+- Desktop Forge proposal/lock/scope and mobile connected views were visually
+  inspected, with no horizontal overflow.
+
+Evidence: `/tmp/codev-implementation-20260913/website-codev-browser-phase8/` and
+sibling phase-8 logs. These results do not attest a real production installation,
+provider or signed-in production account. Final native/platform/security/build,
+publication, migration, deployment and production verification remain phase 9.
+No remote mutation, version bump or Codev Add-on change occurred in this phase.

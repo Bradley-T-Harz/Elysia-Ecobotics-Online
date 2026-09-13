@@ -6,6 +6,7 @@ export type CodevWorkspaceBinding = {
   beforeRefresh: () => Promise<void>;
   diagnostics?: () => string[];
   sourceDescription?: () => string;
+  activeFilePath?: () => string;
   onChanged?: (message: string) => void;
 };
 export const CodevBindingContext = createContext<

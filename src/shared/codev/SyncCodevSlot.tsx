@@ -21,14 +21,16 @@ const describe = (error: unknown) =>
 export default function SyncCodevSlot({
   surface,
   binding,
+  preserveView,
 }: {
   surface: "marketplace" | "forge";
   binding?: CodevWorkspaceBinding | null;
+  preserveView?: () => void;
 }) {
   const auth = useAuth();
   const login = auth.accessToken ? codevLoginSessionId(auth.accessToken) : null;
-  const current = useRef({ userId: auth.userId, login, binding });
-  current.current = { userId: auth.userId, login, binding };
+  const current = useRef({ userId: auth.userId, login, binding, preserveView });
+  current.current = { userId: auth.userId, login, binding, preserveView };
   const [connection, setConnection] = useState<CodevConnection | null>(null);
   const [attempt, setAttempt] = useState<CodevSyncAttempt | null>(null);
   const [opened, setOpened] = useState(false);
@@ -144,6 +146,7 @@ export default function SyncCodevSlot({
           throw new Error("The active account or page changed. Sync again.");
         const value = current.current.binding;
         if (value) await value.beforeRefresh();
+        current.current.preserveView?.();
         if (!isCurrent(version, userId, sessionId))
           throw new Error(
             "The active account or page changed. Your work was preserved.",

@@ -1,3 +1,8 @@
+import {
+  clearBrowserReceipts,
+  loadBrowserReceipts,
+  saveBrowserReceipt,
+} from "./browserReceipts";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import type {
   ChangePlan,
@@ -95,7 +100,10 @@ function BoundPanel({
     !shared.grant.revoked &&
     Date.parse(shared.grant.expires_at) > now &&
     shared.revision === workspace.revision;
-  const canPropose = !!currentShare && shared.grant.scopes?.includes("propose");
+  const canPropose =
+    !!currentShare &&
+    shared.grant.scopes?.includes("propose") &&
+    binding.canEdit();
   const label =
     shared && Date.parse(shared.grant.expires_at) <= now
       ? "Workspace access expired"
@@ -110,6 +118,22 @@ function BoundPanel({
   useEffect(() => {
     mounted.current = true;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    void loadBrowserReceipts(workspace.owner)
+      .then((value) => {
+        if (mounted.current)
+          setReceipts((current) =>
+            [
+              ...current,
+              ...value.filter(
+                (old) =>
+                  !current.some(
+                    (item) => item.operation_id === old.operation_id,
+                  ),
+              ),
+            ].slice(0, 40),
+          );
+      })
+      .catch(() => {});
     void listCodevPatchBackups(workspace.owner)
       .then((value) => {
         if (mounted.current) setBackups(value);
@@ -182,6 +206,13 @@ function BoundPanel({
   }, [connection, workspace.id, shared]);
   function remember(receipt: OperationReceipt) {
     setReceipts((previous) => [receipt, ...previous].slice(0, 40));
+    void saveBrowserReceipt(workspace.owner, receipt).catch((reason) => {
+      if (mounted.current)
+        setError(
+          "The receipt remains in this open panel, but its local trace could not be saved: " +
+            errorText(reason),
+        );
+    });
   }
   function assertEditable() {
     connection.client.assertActive();
@@ -244,7 +275,7 @@ function BoundPanel({
         current_revision: capture.revision,
         content_hash: capture.contentHash,
         files,
-        scopes: propose ? ["read", "propose"] : ["read"],
+        scopes: propose && binding.canEdit() ? ["read", "propose"] : ["read"],
         expected_epoch: connection.grantEpochs[capture.workspaceId] ?? 0,
         explicitly_approved: true,
       },
@@ -335,6 +366,36 @@ function BoundPanel({
     assertEditable();
     setPlan(result.plan);
     setTab("review");
+  }
+  async function reviewSubset(paths: string[]) {
+    if (!plan) return;
+    const context = assertShare();
+    assertEditable();
+    if (
+      plan.base_revision !== workspace.revision ||
+      plan.grant_epoch !== context.grant.epoch
+    )
+      throw new Error(
+        "This proposal is stale. Share the current revision before requesting a new review.",
+      );
+    if (!paths.length) {
+      setPlan(null);
+      return;
+    }
+    const edits = Object.fromEntries(
+      (plan.changes ?? [])
+        .filter((change) => paths.includes(change.path))
+        .map((change) => [change.path, change.new_text]),
+    );
+    await proposeResponse(
+      JSON.stringify({
+        summary: "Review selected files: " + plan.summary.slice(0, 200),
+        edits,
+      }),
+    );
+    setNotice(
+      "This selection has a new exact plan. Review its diff before applying.",
+    );
   }
   async function apply() {
     if (!plan) return;
@@ -439,6 +500,21 @@ function BoundPanel({
       assertEditable,
     );
     await controller.persist();
+    remember({
+      operation_id: "restore:" + backup.planId,
+      request_id: "restore:" + backup.planId,
+      workspace_id: workspace.id,
+      status: "completed",
+      summary: "Original browser text restored by explicit user action.",
+      base_revision: backup.afterRevision,
+      resulting_revision: changed.revision,
+      files_changed: backup.files.map((file) => file.path),
+      verification: "passed",
+      tests_run: [],
+      network_used: false,
+      audit_written: false,
+      created_at: new Date().toISOString(),
+    });
     setNotice(
       `Original browser text restored at revision ${changed.revision}. Validation and transfer must use this new revision.`,
     );
@@ -463,7 +539,12 @@ function BoundPanel({
     setMessage(
       prompt +
         " using only the shared development context. Do not claim to have run checks or approved publication." +
-        findings,
+        findings +
+        (prompt === "Explain this file"
+          ? "\nActive browser file: " +
+            (binding.activeFilePath?.() ?? "none selected") +
+            ". Its contents are available only if explicitly shared."
+          : ""),
     );
   }
   const shortcuts =
@@ -475,7 +556,15 @@ function BoundPanel({
           "Review package inventory",
           "Summarize submission readiness",
         ]
-      : ["Explain this project", "Find likely bugs", "Plan a focused refactor"];
+      : [
+          "Explain this file",
+          "Review manifest consistency",
+          "Explain validation findings",
+          "Review requested permissions",
+          "Review package inventory",
+          "Find likely bugs",
+          "Summarize draft readiness",
+        ];
   return (
     <div className="codev-workspace-panel">
       <div className="codev-scope-heading">
@@ -483,6 +572,9 @@ function BoundPanel({
         <small>
           Revision {workspace.revision} · {label}
         </small>
+        {binding.activeFilePath && (
+          <small>Active file: {binding.activeFilePath() || "No file selected"}</small>
+        )}
       </div>
       <nav className="codev-panel-tabs" aria-label="Codev panel sections">
         {(["scope", "conversation", "review", "trace"] as const).map(
@@ -744,6 +836,45 @@ function BoundPanel({
                     {labelHash(change.new_hash)}
                   </summary>
                   <pre>{change.diff}</pre>
+                  {connection.key.scope.surface === "forge" &&
+                    (plan.changes?.length ?? 0) > 1 && (
+                      <div className="codev-row codev-file-review">
+                        <button
+                          type="button"
+                          disabled={
+                            busy ||
+                            !canPropose ||
+                            !binding.canEdit() ||
+                            plan.base_revision !== workspace.revision
+                          }
+                          onClick={() =>
+                            void run(() => reviewSubset([change.path]))
+                          }
+                        >
+                          Review only this file
+                        </button>
+                        <button
+                          type="button"
+                          disabled={
+                            busy ||
+                            !canPropose ||
+                            !binding.canEdit() ||
+                            plan.base_revision !== workspace.revision
+                          }
+                          onClick={() =>
+                            void run(() =>
+                              reviewSubset(
+                                (plan.changes ?? [])
+                                  .filter((item) => item.path !== change.path)
+                                  .map((item) => item.path),
+                              ),
+                            )
+                          }
+                        >
+                          Reject this file
+                        </button>
+                      </div>
+                    )}
                   <details>
                     <summary>
                       Complete replacement ·{" "}
@@ -782,6 +913,24 @@ function BoundPanel({
                   onClick={() => setPlan(null)}
                 >
                   Reject proposal
+                </button>
+                <button
+                  type="button"
+                  disabled={busy || !currentShare}
+                  onClick={() => {
+                    setMessage(
+                      "Revise the proposal for " +
+                        (plan.changes ?? [])
+                          .map((change) => change.path)
+                          .join(", ") +
+                        ": " +
+                        plan.summary +
+                        "\nReturn a new focused proposal against the current shared revision. My requested adjustment: ",
+                    );
+                    setTab("conversation");
+                  }}
+                >
+                  Request revision
                 </button>
               </div>
               {plan.base_revision !== workspace.revision && (
@@ -831,6 +980,20 @@ function BoundPanel({
               ))}
             </article>
           ))}
+          {receipts.length > 0 && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                void run(async () => {
+                  await clearBrowserReceipts(workspace.owner);
+                  setReceipts([]);
+                })
+              }
+            >
+              Clear local trace
+            </button>
+          )}
           <h3>Browser patch recovery</h3>
           <p>
             Recovery records contain original file text and remain scoped to
