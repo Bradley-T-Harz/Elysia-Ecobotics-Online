@@ -1,3 +1,4 @@
+import SyncCodevSlot from "../../../shared/codev/SyncCodevSlot";
 import { useBrowserWorkspace } from "../../../shared/codev/useBrowserWorkspace";
 import { browserWorkspaceId } from "../../../shared/codev/workspaceRecovery";
 import { intakeFormMetadata, intakeWorkspaceFiles, workspaceManifest } from "../../../shared/codev/workspaceAdapters";
@@ -95,6 +96,19 @@ function AccountSubmissionForm({ onMessage }: DeveloperSubmissionFormProps) {
     submitting: isSubmitting
   });
   const canSubmit = ready && readiness.ready && ownershipIsReady(ownership);
+  const codevPolicy = useRef({ ready, isSubmitting, validation, intake }); codevPolicy.current = { ready, isSubmitting, validation, intake };
+  const codevBinding = useMemo(() => ({ controller,
+    sourceDescription: () => "Browser-selected " + (codevPolicy.current.intake?.sourceKind ?? "manifest"),
+    diagnostics: () => codevPolicy.current.validation.results.map(result => `${result.severity}: ${result.message}`).concat((codevPolicy.current.intake?.errors ?? []).map(issue => issue.message)),
+    canEdit: () => alive.current && codevPolicy.current.ready && !codevPolicy.current.isSubmitting,
+    beforeRefresh: async () => {
+      if (!alive.current || !codevPolicy.current.ready || codevPolicy.current.isSubmitting) throw new Error("Wait for the current submission operation before refreshing.");
+      const revision = await controller.persist();
+      if (!alive.current || codevPolicy.current.isSubmitting) throw new Error("The page changed during recovery. Your source remains open.");
+      controller.model.assertRevision(revision);
+    },
+    onChanged: (message: string) => { if (alive.current) onMessage(message); }
+  }), [controller, onMessage]);
 
   function updateManifest(patch: Partial<ForgeManifest>) {
     if (!validation.manifest) return;
@@ -145,6 +159,7 @@ function AccountSubmissionForm({ onMessage }: DeveloperSubmissionFormProps) {
   }
 
   return <section className="submission-card" id="submit">
+    <SyncCodevSlot surface="marketplace" binding={codevBinding}/>
     <p className="eyebrow">Developer Submission</p>
     <h2>Submit a complete add-on source for review</h2>
     <p>Choose a complete local package, ZIP source bundle, folder/repository, or manifest below. You may also paste manifest JSON or attach a Git URL as metadata. Static review never executes uploaded code.</p>

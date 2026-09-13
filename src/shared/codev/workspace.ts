@@ -163,7 +163,8 @@ export class BrowserWorkspace {
     return Promise.all(stored.map(async file => ({ path: file.path, text: file.text, availability: file.availability,
       size_bytes: file.sizeBytes, provenance: file.provenance, content_hash: file.bytes ? await browserHash(file.bytes) : null } satisfies WorkspaceFile)));
   }
-  async applyReviewedPatch(input: { planId: string; revision: number; contentHash: string; owner: WorkspaceOwner; explicitlyApproved: boolean; changes: Array<{ path: string; baseHash: string; newHash: string; text: string }> }) {
+  async applyReviewedPatch(input: { planId: string; revision: number; contentHash: string; owner: WorkspaceOwner; explicitlyApproved: boolean; assertAuthority?: () => void; changes: Array<{ path: string; baseHash: string; newHash: string; text: string }> }) {
+    input.assertAuthority?.();
     this.assertOwner(input.owner); this.assertRevision(input.revision);
     if (!input.explicitlyApproved || this.usedPlans.has(input.planId) || !input.changes.length || input.changes.length > 20) throw new Error("A fresh exact patch approval is required.");
     const captured = await this.capture();
@@ -177,6 +178,7 @@ export class BrowserWorkspace {
         || bytes.length > workspaceLimits.textBytes || new TextDecoder().decode(bytes) !== change.text || change.text.includes("\0") || await browserHash(bytes) !== change.newHash || unsafeWorkspaceText(change.text)) throw new WorkspaceConflict("An exact file hash, available text source, or safe patch is missing.");
       changed.set(change.path, { path: change.path, text: change.text, provenance: "codev_patch" });
     }
+    input.assertAuthority?.();
     this.assertRevision(input.revision); this.assertOwner(input.owner);
     this.files = this.admit([...this.files.values()].map(file => changed.get(file.path) ?? this.input(file)));
     if (this.usedPlans.size >= 128) this.usedPlans.delete(this.usedPlans.values().next().value!);

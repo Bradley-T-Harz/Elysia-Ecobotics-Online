@@ -118,3 +118,58 @@ security tests and frontend/Functions typechecks passed. Actual production schem
 was inventoried using the owner's explicitly approved admin connection solely
 inside enforced READ ONLY transactions; credentials were not exposed. No migration
 has been applied remotely and no push or deployment has occurred in this phase.
+
+## Phase 7 — Marketplace connected client (local qualification)
+
+The submission page adds one compact Sync Codev slot. There is no loopback request
+or private-key storage before explicit Sync. Authenticated intent creation exposes
+only a short-lived manual code; native installation and confirmation are required
+before the browser verifies a signed broker response. The current canonical draft
+is persisted and checked before the required reload. A fresh document restores
+only its scoped, nonextractable IndexedDB key; copied sessionStorage in a new tab
+is discarded, including before a later reload. Refresh explicitly revokes previous
+source shares while preserving their grant-epoch tombstones. Disconnect closes
+browser authority synchronously before attempting native/cloud cleanup.
+
+The shared drawer defaults to no selected source and no workspace grant. Explicit
+sharing discloses source kind, inventory/content counts, bytes, direction, scope
+and retention. Conversations use the canonical governed native cognition path.
+Read-only sharing cannot authorize proposals. Reviewed patches require the exact
+server plan, one-use approval, current browser revision/hashes, current editability
+and durable owner-scoped original-text recovery before mutation. Authority is
+rechecked after asynchronous hashing. Recovery restore also requires the exact
+post-patch revision/hash. Validation derives from the changed canonical buffers;
+review, package transfer, publisher authority and submission remain separate.
+
+CSP now permits only the dedicated literal `http://127.0.0.1:47321` broker in
+`connect-src`; the existing upgrade/script/frame protections remain. The permission
+policy permits same-origin loopback permission and denies general local-network
+access. The allowance covers the SPA document because entry from another route
+must retain its original document policy. It grants no broker authority. Pages
+publishes only `/api/codev/*` in addition to its existing allowed routes; financial
+API publication is unchanged. No native API bearer, source or private key enters
+the pairing endpoint.
+
+Qualification at this checkpoint:
+
+- Actual built Marketplace page + real Python broker/signatures + Chromium
+  151.0.7922.34, with normal browser security. Identities, installation and provider
+  responses are explicitly synthetic; this is not live production qualification.
+- Logged-out/unsynced zero-probe behavior, missing installation refusal, separate
+  native approval, required refresh, zero initial source, read/proposal scopes,
+  full LICENSE/binary recovery, exact manifest/source patch, stale proposal refusal,
+  cloned-tab isolation (including reload), restoration and existing explicit private
+  transfer passed. No Codev action wrote to publisher/draft/storage fixtures.
+- Unsynced submission DOM and rendered screenshot were byte-identical to the saved
+  phase-6 baseline after removing only the Sync slot. Desktop and 390px mobile
+  Sync/drawer/diff/recovery screenshots were inspected; no horizontal overflow.
+- 21 native/broker/full-browser checks passed. Real IndexedDB tests also passed
+  owner/draft isolation, compare-and-swap, stale restore/delete refusal, original
+  text restoration and authority revocation during asynchronous hashing.
+- Existing Forge/Marketplace integration regression, workspace contract checks,
+  pairing endpoint security, frontend/Functions types and isolated build passed.
+
+Evidence is under `/tmp/codev-implementation-20260913/marketplace-codev-browser-phase7/`
+and the sibling phase-7 logs. No remote migration, push or deployment has occurred.
+Forge mounting, complete cross-surface qualification and production verification
+remain subsequent gates. Codev Add-on and product versions remain unchanged.

@@ -51,7 +51,7 @@ export function validatePairing(value: unknown, scope: OnlineScope, publicKey: B
     || !Number.isFinite(Date.parse(intent.expires_at)) || Date.parse(intent.expires_at)>Date.now()+960000) throw new Error("Codev pairing identity changed.");
   return pairing;
 }
-const paths = new Set(["status","revoke","workspace/share","workspace/revoke","workspace/status","chat","chat/cancel","patch/plan","patch/authorize","receipts"]);
+const paths = new Set(["status","revoke","workspace/share","workspace/revoke","workspace/status","workspace/reset","chat","chat/cancel","patch/plan","patch/authorize","receipts"]);
 export class CodevBrokerClient {
   private closed=false;
   private pending=new Set<AbortController>();
@@ -63,6 +63,9 @@ export class CodevBrokerClient {
     if (!pairing.native_public_key || !["native_approved","paired"].includes(pairing.intent.status??"")) throw new Error("Approve this connection in local Elysia first.");
   }
   disconnect() {this.closed=true;for(const abort of this.pending)abort.abort();this.pending.clear();}
+  assertActive() {
+    if (this.closed || Date.parse(this.pairing.intent.expires_at)<=Date.now()) throw new Error("Codev connection expired or disconnected. Sync again.");
+  }
   async request<T>(route: string,payload: object,signal?: AbortSignal): Promise<T> {
     if (!paths.has(route)) throw new Error("Codev operation is unavailable.");
     await this.checkAccount();

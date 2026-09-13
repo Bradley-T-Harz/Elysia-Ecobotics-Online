@@ -1,0 +1,350 @@
+.codev-sync-slot {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 12px;
+  font-size: 13px;
+}
+.codev-sync-slot .codev-sync-button {
+  padding: 7px 12px;
+  border: 1px solid #315552;
+  border-radius: 20px;
+  background: transparent;
+  color: #8dddd5;
+  font: inherit;
+  cursor: pointer;
+}
+.codev-connected-control {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border: 1px solid #315552;
+  border-radius: 12px;
+  padding: 8px 11px;
+  max-width: 100%;
+}
+.codev-connected-control span {
+  display: grid;
+  gap: 2px;
+}
+.codev-connected-control strong {
+  color: #98ddd4;
+  font-size: 12px;
+}
+.codev-connected-control small {
+  font-size: 11px;
+  color: #aabcc5;
+}
+.codev-connected-control button {
+  font: inherit;
+  padding: 5px 10px;
+}
+.codev-dialog {
+  color: #d3dee5;
+  background: #0d151c;
+  border: 1px solid #34514f;
+  border-radius: 18px;
+  padding: 0;
+  width: min(580px, calc(100vw - 28px));
+  max-height: calc(100dvh - 32px);
+  box-shadow: 0 24px 90px #0009;
+  font:
+    14px/1.5 system-ui,
+    sans-serif;
+}
+.codev-dialog::backdrop {
+  background: #03080bc7;
+  backdrop-filter: blur(3px);
+}
+.codev-dialog * {
+  box-sizing: border-box;
+}
+.codev-dialog-body {
+  padding: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 17px;
+}
+.codev-dialog header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  border-bottom: 1px solid #2a3a43;
+  padding-bottom: 14px;
+}
+.codev-dialog h2 {
+  margin: 4px 0 0;
+  font-size: 24px;
+  letter-spacing: -0.03em;
+}
+.codev-dialog h3 {
+  margin: 0;
+  font-size: 15px;
+}
+.codev-dialog p {
+  margin: 0;
+}
+.codev-dialog small {
+  color: #a5b9c5;
+  font-size: 11px;
+}
+.codev-dialog .codev-eyebrow {
+  color: #bbae8d;
+  letter-spacing: 0.13em;
+  font-size: 10px;
+  text-transform: uppercase;
+}
+.codev-dialog button {
+  font: inherit;
+  font-size: 12px;
+  color: #cde2e5;
+  background: #172a32;
+  border: 1px solid #3c535d;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.codev-dialog button:hover:not(:disabled) {
+  background: #25414a;
+  border-color: #7fd3cb;
+}
+.codev-dialog button:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
+}
+.codev-dialog .codev-primary {
+  background: #9adbd3;
+  color: #10282b;
+  border-color: #9adbd3;
+  font-weight: 650;
+}
+.codev-dialog .codev-primary:hover:not(:disabled) {
+  background: #b5e8e1;
+}
+.codev-dialog :focus-visible,
+.codev-sync-slot :focus-visible {
+  outline: 2px solid #97ddd6;
+  outline-offset: 3px;
+}
+.codev-dialog label {
+  display: grid;
+  gap: 6px;
+  font-weight: 400;
+}
+.codev-dialog input:not([type="checkbox"]),
+.codev-dialog textarea,
+.codev-dialog select {
+  width: 100%;
+  color: #d3dee5;
+  background: #081117;
+  border: 1px solid #34474e;
+  border-radius: 8px;
+  padding: 10px;
+  font:
+    13px/1.5 ui-monospace,
+    monospace;
+}
+.codev-dialog textarea {
+  resize: vertical;
+  min-height: 90px;
+}
+.codev-dialog input[type="checkbox"] {
+  accent-color: #8bd8ce;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  max-width: 16px;
+  flex: 0 0 16px;
+  padding: 0;
+  margin: 2px 0 0;
+}
+.codev-sync-steps,
+.codev-panel-section {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.codev-sync-steps > p,
+.codev-panel-section > p {
+  color: #adbdc7;
+  font-size: 12px;
+}
+.codev-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.codev-message {
+  border: 1px solid #35574f;
+  background: #132e2b80;
+  border-radius: 9px;
+  padding: 10px 12px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.codev-error {
+  color: #ffb9ae;
+}
+.codev-message.codev-error {
+  background: #3b201f;
+  border-color: #74514d;
+}
+.codev-dialog.codev-drawer {
+  margin: 16px 16px 16px auto;
+  width: min(630px, calc(100vw - 32px));
+  height: calc(100dvh - 32px);
+  max-height: calc(100dvh - 32px);
+}
+.codev-drawer .codev-dialog-body {
+  min-height: 100%;
+}
+.codev-workspace-panel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.codev-scope-heading {
+  display: grid;
+  gap: 3px;
+  overflow-wrap: anywhere;
+}
+.codev-panel-tabs {
+  display: flex;
+  gap: 3px;
+  border-bottom: 1px solid #2a3a43;
+  padding-bottom: 8px;
+  flex-wrap: wrap;
+}
+.codev-panel-tabs button {
+  background: transparent;
+  border-color: transparent;
+  padding: 6px 8px;
+}
+.codev-panel-tabs button[aria-pressed="true"] {
+  color: #abece4;
+  background: #183433;
+  border-color: #38605a;
+}
+.codev-file-selection {
+  max-height: 280px;
+  overflow: auto;
+  border: 1px solid #2a3a43;
+  border-radius: 10px;
+  padding: 6px 10px;
+}
+.codev-file-selection label {
+  display: flex;
+  gap: 9px;
+  padding: 6px 0;
+  align-items: start;
+  font-size: 12px;
+}
+.codev-file-selection span {
+  flex: 1;
+  display: grid;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.codev-dialog .codev-check {
+  display: flex;
+  gap: 9px;
+  align-items: start;
+  font-size: 12px;
+}
+.codev-conversation-log {
+  display: grid;
+  gap: 16px;
+}
+.codev-conversation-log article {
+  border-left: 2px solid #3a615b;
+  padding: 0 0 0 12px;
+  min-width: 0;
+}
+.codev-conversation-log pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font:
+    13px/1.65 system-ui,
+    sans-serif;
+  margin: 8px 0;
+}
+.codev-conversation-log article > small {
+  display: block;
+  margin-bottom: 6px;
+}
+.codev-quick-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.codev-quick-actions button {
+  font-size: 11px;
+  padding: 6px 8px;
+}
+.codev-diff {
+  border: 1px solid #35514f;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.codev-diff summary {
+  cursor: pointer;
+  padding: 10px;
+  font:
+    11px/1.5 ui-monospace,
+    monospace;
+  overflow-wrap: anywhere;
+}
+.codev-diff pre {
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  max-height: 360px;
+  background: #081015;
+  color: #bbe0d2;
+  font:
+    12px/1.55 ui-monospace,
+    monospace;
+}
+.codev-receipt {
+  border: 1px solid #2e4249;
+  border-radius: 10px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.codev-receipt strong {
+  font-size: 12px;
+}
+.codev-connection-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  gap: 12px;
+  border-top: 1px solid #2a3a43;
+  padding-top: 14px;
+  margin-top: auto;
+}
+@media (max-width: 600px) {
+  .codev-dialog-body {
+    padding: 15px;
+  }
+  .codev-dialog.codev-drawer {
+    margin: 8px;
+    width: calc(100vw - 16px);
+    height: calc(100dvh - 16px);
+    max-height: calc(100dvh - 16px);
+  }
+  .codev-connected-control {
+    gap: 8px;
+  }
+  .codev-panel-tabs button {
+    font-size: 11px;
+    padding: 7px 6px;
+  }
+}

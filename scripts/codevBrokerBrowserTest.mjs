@@ -19,7 +19,7 @@ try {
  assert((await next()).fixture_ready);
  const source=await build({stdin:{contents:'import * as client from "./src/shared/codev/brokerClient.ts"; import * as workspace from "./src/shared/codev/workspace.ts"; window.codevFixture={...client,...workspace};',resolveDir:root},bundle:true,write:false,format:"iife",platform:"browser",target:"es2020"});
  const headers=await readFile(path.join(root,"public/_headers"),"utf8");
- const original=headers.match(/^\s*Content-Security-Policy:\s*(.+)$/m)[1];
+ const original=headers.match(/^\s*Content-Security-Policy:\s*(.+)$/m)[1].replace(" http://127.0.0.1:47321", "");
  const csp=original.replace("connect-src 'self'","connect-src 'self' http://127.0.0.1:47321");
  const origin="https://elysiaecobotics.com";browser=await chromium.launch({headless:true});const evidence=[];
  for(const scenario of [{name:"original-csp",permission:"granted",csp:original,success:false},{name:"permission-denied",permission:"denied",csp,success:false},{name:"signed-connection",permission:"granted",csp,success:true}]){

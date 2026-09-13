@@ -1,5 +1,13 @@
 {
   "version": 1,
-  "include": ["/api/sandbox/*", "/api/identity/*", "/api/public/profile-avatars/*", "/api/public/profile-banners/*"],
-  "exclude": ["/api/sandbox/_shared/*"]
+  "include": [
+    "/api/sandbox/*",
+    "/api/identity/*",
+    "/api/public/profile-avatars/*",
+    "/api/public/profile-banners/*",
+    "/api/codev/*"
+  ],
+  "exclude": [
+    "/api/sandbox/_shared/*"
+  ]
 }

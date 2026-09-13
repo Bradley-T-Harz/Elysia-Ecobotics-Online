@@ -3,7 +3,7 @@ import { BrowserWorkspace, WorkspaceConflict, workspaceOwnerKey, type BrowserFil
 import { loadWorkspaceRecovery, saveWorkspaceRecovery, type RecoveryHandle } from "./workspaceRecovery";
 
 type ControllerState = { workspace: WorkspaceState; ready: boolean; recoveryError: string | null };
-class WorkspaceController {
+export class WorkspaceController {
   model: BrowserWorkspace;
   private listeners = new Set<() => void>();
   private handle: RecoveryHandle;
