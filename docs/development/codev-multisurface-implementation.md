@@ -286,3 +286,25 @@ date and routes all outbound requests to a synthetic worker; success, cross-orig
 suite also covers all five redirect statuses. These checks run in the normal Codev
 pairing gate and full readiness suite. No binding, permission or database change
 was needed. Corrected deployment and live qualification follow this checkpoint.
+
+
+### Original baseline and degraded local reasoning
+
+An independent comparison now uses the actual initial `9fecc07` build, rather
+than only the intermediate pre-Sync builds. Marketplace Submit and Forge's new
+Draft view have identical ordinary DOM and screenshot bytes after removal of the
+sole Sync slot in all eight Chromium/Firefox desktop/mobile cases. Evidence is
+in `original-unsynced-comparison/results.json` with paired HTML/PNG artifacts.
+
+Corrected production deployment `685093b0-b647-4340-8d48-c98cf3aa6f62` from `ca9ca6d`
+completed real installed/native-approved Marketplace Sync and refresh with zero
+initial workspace grants. Real account B was refused access to account A's
+pairing (403), invalid native codes were refused, one selected synthetic file was
+shared read-only, and disconnect returned the slot to Sync. The real model call
+exceeded the browser's 240-second wait. The separate packaged-native test already
+completed real `granite3.3:8b` reasoning, reviewed file mutation and fixed Git
+verification; earlier cold runs also timed out. Do not treat the website model
+attempt as passed. The timeout now gives an actionable message and requests exact
+actor-bound cancellation. Both real browser engines verified the timeout and
+matching cancellation ID against the signed broker. No fallback cloud provider,
+resource governor override, model download or permission change was introduced.

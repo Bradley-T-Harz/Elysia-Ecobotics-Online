@@ -905,7 +905,9 @@ function BoundPanel({
                   }
                   onClick={() => void run(apply)}
                 >
-                  Apply these {plan.changes?.length ?? 0} changes
+                  {(plan.changes?.length ?? 0) === 1
+                    ? "Apply this change"
+                    : `Apply these ${plan.changes?.length ?? 0} changes`}
                 </button>
                 <button
                   type="button"

@@ -74,14 +74,33 @@ try {
       const wrong=structuredClone(window.fixturePair);wrong.native_public_key=(await f.createCodevKey(scope)).publicKey;
       let impostorBlocked=false;try{await new f.CodevBrokerClient(window.fixtureKey,wrong,async()=>{}).verifyConnection();}catch{impostorBlocked=true;}
       let privateExportBlocked=false;try{await crypto.subtle.exportKey("jwk",window.fixtureKey.privateKey);}catch{privateExportBlocked=true;}
+      // Exercise the real browser AbortSignal path without waiting four minutes
+      // or invoking a provider. Cancellation itself reaches the real broker.
+      const requestId="codev_"+crypto.randomUUID().replace(/-/g,"");
+      const realFetch=window.fetch,realTimeout=window.setTimeout;let timeoutMessage="",cancelledId=null;
+      try{
+        window.setTimeout=(callback,ms,...args)=>realTimeout(callback,ms===240000?30:ms,...args);
+        window.fetch=(url,init)=>{
+          if(String(url).endsWith("/chat"))return new Promise((_,reject)=>{
+            const stop=()=>reject(new DOMException("Synthetic stalled provider","AbortError"));
+            if(init.signal.aborted)stop();else init.signal.addEventListener("abort",stop,{once:true});
+          });
+          if(String(url).endsWith("/chat/cancel"))cancelledId=JSON.parse(JSON.parse(init.body).payload_json).request_id;
+          return realFetch(url,init);
+        };
+        try{await client.request("chat",{...revision,request_id:requestId,message:"Synthetic stall",requested_gear:"quick"});}catch(error){timeoutMessage=error.message;}
+        for(let i=0;i<50 && cancelledId===null;i++)await new Promise(resolve=>realTimeout(resolve,10));
+      }finally{window.fetch=realFetch;window.setTimeout=realTimeout;}
+      const timeoutExplained=timeoutMessage.startsWith("Local Codev did not respond in time.");
+      const exactCancellationRequested=cancelledId===requestId;
       window.fixtureAccount=false;let accountBlocked=false;try{await client.verifyConnection();}catch{accountBlocked=true;}
       return {shared:share.shared_files,revision:changed.revision,originalRevision:original.revision,text:changed.files.find(file=>file.path==="main.py").text,
         licenseUnchanged:changed.files.find(file=>file.path==="LICENSE").content_hash===original.files.find(file=>file.path==="LICENSE").content_hash,
         binaryUnchanged:changed.files.find(file=>file.path==="binary.bin").content_hash===original.files.find(file=>file.path==="binary.bin").content_hash,
-        replayBlocked,impostorBlocked,privateExportBlocked,accountBlocked};
+        replayBlocked,impostorBlocked,privateExportBlocked,accountBlocked,timeoutExplained,exactCancellationRequested};
     });
     assert.deepEqual(result.shared,["main.py"]);assert.equal(result.text,"answer = 43\n");assert.equal(result.revision,result.originalRevision+1);
-    for(const flag of ["licenseUnchanged","binaryUnchanged","replayBlocked","impostorBlocked","privateExportBlocked","accountBlocked"])assert(result[flag],flag);
+    for(const flag of ["licenseUnchanged","binaryUnchanged","replayBlocked","impostorBlocked","privateExportBlocked","accountBlocked","timeoutExplained","exactCancellationRequested"])assert(result[flag],flag);
     evidence.push({scenario:scenario.name,permissionName,...result});
   }else evidence.push({scenario:scenario.name,permissionName,brokerRequests:after.requests-before.requests});
   await context.close();

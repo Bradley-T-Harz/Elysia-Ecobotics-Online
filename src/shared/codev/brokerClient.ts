@@ -82,7 +82,8 @@ export class CodevBrokerClient {
     const abort=new AbortController();this.pending.add(abort);
     const stop=()=>abort.abort();signal?.addEventListener("abort",stop,{once:true});
     if(signal?.aborted)abort.abort();
-    const timeout=window.setTimeout(stop,route==="chat"?240000:20000);
+    let timedOut=false;
+    const timeout=window.setTimeout(()=>{timedOut=true;stop();},route==="chat"?240000:20000);
     try {
       await this.checkAccount();if(this.closed)throw new Error("Codev disconnected.");
       const init: RequestInit & {targetAddressSpace: "loopback"} = {method:"POST",headers:{"content-type":"application/json"},
@@ -109,6 +110,16 @@ export class CodevBrokerClient {
       const result=JSON.parse(envelope.payload_json);
       if(result.ok!==true)throw new Error(typeof result.error==="string"?result.error:"Codev could not complete the operation.");
       return result.data as T;
+    } catch(error) {
+      // A lost response must not leave an admitted model request running merely
+      // because the browser has stopped waiting. This remains actor-bound and
+      // cannot cancel another session's work or grant any additional authority.
+      const requestId=(payload as {request_id?:unknown}).request_id;
+      if(route==="chat" && typeof requestId==="string" && /^codev_[a-f0-9]{32}$/.test(requestId))
+        void this.request("chat/cancel",{request_id:requestId}).catch(()=>{});
+      if(timedOut)throw new Error("Local Codev did not respond in time. Your browser files are unchanged. Retry when local reasoning is available.");
+      if(abort.signal.aborted)throw new Error("This Codev request was cancelled. Your browser files are unchanged.");
+      throw error;
     } finally {window.clearTimeout(timeout);signal?.removeEventListener("abort",stop);this.pending.delete(abort);}
   }
   async verifyConnection(): Promise<PairingSession> {
