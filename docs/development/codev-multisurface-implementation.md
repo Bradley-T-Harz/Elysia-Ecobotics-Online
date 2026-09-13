@@ -308,3 +308,29 @@ attempt as passed. The timeout now gives an actionable message and requests exac
 actor-bound cancellation. Both real browser engines verified the timeout and
 matching cancellation ID against the signed broker. No fallback cloud provider,
 resource governor override, model download or permission change was introduced.
+
+### Final connected-page regression and deferred release work
+
+After the timeout correction and singular patch-approval label, both complete
+Marketplace/Forge flows passed again in Chromium and Firefox (2 passed, 66.48s),
+this time against the original `9fecc07` build. Exact review, browser revision
+checks, LICENSE/binary preservation, recovery and account/locked-draft boundaries
+remain covered. The fixture's four singular-action selectors now match the UI.
+
+The separate packaged native qualification passed with the unchanged real Codev
+VSIX, real local account/profile, real selected-file edit and backup, one-use
+replay refusal, the fixed Git check and local `granite3.3:8b` reasoning. The native
+public source checkout passes source/history hygiene and its own tests, but its
+public push was rejected by automatic approval review pending payload-specific
+owner approval. This does not authorize a force-push or publication of private
+local history.
+
+Deferred until a later Add-on/release pass: migrate the VS Code client to the
+canonical generated contracts; introduce a neutral receipt producer and tested
+legacy migration/uninstall/repair; qualify stronger installation attestation if
+required; remove duplicate legacy client seams only after compatibility checks;
+qualify additional isolated command/network/Git workers before enabling them;
+coordinate manifest and compatibility version updates; regenerate and sign VSIX,
+installers and frozen archives only after approval. A compatible feature release
+would warrant 1.1.0; no version changes are made now. Existing Elysia/Codev 1.0.0,
+Add-on repository, historical copies and release artifacts remain untouched.

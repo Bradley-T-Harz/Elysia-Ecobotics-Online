@@ -296,11 +296,11 @@ export async function runCodevForgeBrowserScenarios({
     .getByRole("button", { name: "Reject this file", exact: true })
     .click();
   await f.page
-    .getByRole("button", { name: "Apply these 1 changes", exact: true })
+    .getByRole("button", { name: "Apply this change", exact: true })
     .waitFor();
   assert.equal(await f.page.locator("details.codev-diff").count(), 1);
   await f.page
-    .getByRole("button", { name: "Apply these 1 changes", exact: true })
+    .getByRole("button", { name: "Apply this change", exact: true })
     .click();
   await f.page
     .getByText("Accepted changes are in the browser workspace.", {
@@ -342,7 +342,7 @@ export async function runCodevForgeBrowserScenarios({
   });
   await proposal(f, "Propose a README-only revision.");
   await f.page
-    .getByRole("button", { name: "Apply these 1 changes", exact: true })
+    .getByRole("button", { name: "Apply this change", exact: true })
     .waitFor();
   await f.page
     .getByRole("button", { name: "Close Codev", exact: true })
@@ -363,7 +363,7 @@ export async function runCodevForgeBrowserScenarios({
   await open(f);
   assert(
     await f.page
-      .getByRole("button", { name: "Apply these 1 changes", exact: true })
+      .getByRole("button", { name: "Apply this change", exact: true })
       .isDisabled(),
   );
   await capture(f, "forge-submitted-draft-refuses-codev-patch");
