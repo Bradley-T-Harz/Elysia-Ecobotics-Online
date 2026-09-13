@@ -93,7 +93,9 @@ export async function handleCodevPairing(request: Request, env: CodevPagesBindin
       || project.port || project.username || project.password || project.search || project.hash || project.pathname !== "/"
       || !env.SUPABASE_PUBLISHABLE_KEY) return fail(503, "codev_pairing_unavailable");
     // JWT and live login/session authorization are checked by PostgREST + the narrow database RPC.
-    const upstream = await fetch(new URL(`/rest/v1/rpc/${rpc}`, project), { method: "POST", redirect: "error",
+    // Workers supports manual redirects; reject every redirect below before any
+    // second request can forward the account token or pairing secret hashes.
+    const upstream = await fetch(new URL(`/rest/v1/rpc/${rpc}`, project), { method: "POST", redirect: "manual",
       headers: { apikey: env.SUPABASE_PUBLISHABLE_KEY, "content-type": "application/json", ...(native ? {} : { authorization: authorization! }) },
       body: JSON.stringify(params), signal: AbortSignal.timeout(8000) });
     if (!upstream.ok) { await upstream.body?.cancel(); return fail(upstream.status === 401 || upstream.status === 403 ? 403 : 409, "codev_pairing_unavailable"); }

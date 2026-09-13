@@ -29,7 +29,7 @@ try {
   assert.equal(created.status, 200); const output = await created.json() as {manual_code: string;pairing: unknown};
   assert.match(output.manual_code, /^EC1\.A\.[A-Za-z0-9_-]{43}$/);
   assert.deepEqual(output.pairing, view);
-  assert.equal(calls.length, 1); assert.equal(calls[0].redirect, "error");
+  assert.equal(calls.length, 1); assert.equal(calls[0].redirect, "manual");
   assert.equal(calls[0].headers.get("apikey"), env.SUPABASE_PUBLISHABLE_KEY);
   assert.equal(calls[0].headers.get("authorization"), `Bearer ${jwt}`);
   assert(!JSON.stringify(calls).includes(output.manual_code));
@@ -57,8 +57,15 @@ try {
   assert.equal((await handleCodevPairing(request("create",value),env)).status,403);
   responseData=view;status=403;
   assert.equal((await handleCodevPairing(request("create",value),env)).status,403);
+  for (const redirect of [301, 302, 303, 307, 308]) {
+    status=redirect; const size=calls.length;
+    assert.equal((await handleCodevPairing(request("create",value),env)).status,409);
+    assert.equal(calls.length,size+1,"redirect caused a second upstream request");
+  }
   for(const invalid of ["http://127.0.0.1:54321","https://attacker.invalid","https://name:password@synthetic-fixture.supabase.co","https://synthetic-fixture.supabase.co?destination=evil"]){
     const size=calls.length;assert.equal((await handleCodevPairing(request("create",value),{...env,SUPABASE_URL:invalid})).status,503);assert.equal(calls.length,size);
   }
   console.log("Codev endpoint origin, account token, key curve, input/output bounds, secret hashing and destination isolation checks passed.");
 } finally {globalThis.fetch=realFetch;}
+// Node-only fetch mocks cannot qualify Cloudflare's redirect/runtime semantics.
+await import("./codevPairingRuntimeTest.mjs");

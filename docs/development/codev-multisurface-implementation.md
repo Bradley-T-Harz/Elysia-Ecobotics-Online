@@ -270,3 +270,19 @@ no email, role elevation or CAPTCHA policy change was performed. These tests do
 not qualify interactive CAPTCHA. Exact-account cleanup is required after live
 verification. Push, production build/deployment and live Codev verification follow
 this checkpoint.
+
+
+### Production runtime correction
+
+Initial deployment `cc04d973-a43f-464f-bdf1-3b312f73ac7e` (source `f5b06ef`)
+served ordinary pages and passed the production auth/CAPTCHA-rendering audit, but
+real Sync returned 503. The same ordinary QA session succeeded against the narrow
+RPC and the Node handler with the exact deployed public bindings. Local workerd
+reproduced the failure: it rejects `fetch` with `redirect: "error"`.
+The handler now uses `manual` and rejects every non-success response before any
+second request. A persisted real-workerd regression uses the deployed compatibility
+date and routes all outbound requests to a synthetic worker; success, cross-origin
+302 refusal, same-origin 307 refusal and strict response validation pass. The Node
+suite also covers all five redirect statuses. These checks run in the normal Codev
+pairing gate and full readiness suite. No binding, permission or database change
+was needed. Corrected deployment and live qualification follow this checkpoint.
