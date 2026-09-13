@@ -377,3 +377,22 @@ export function formatAddonIntakeBytes(bytes: number) {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+/** Reassess current buffers; an original archive is never a current package. */
+export function reassessAddonWorkspace(previous: Partial<AddonIntakeResult> | null, current: readonly { path: string; text: string | null; sizeBytes: number }[]): AddonIntakeResult {
+  const repairable = new Set(["missing_manifest", "invalid_manifest_json", "manifest_not_readable", "undeclared_network_behavior", "secret_api_key", "secret_private_key", "private_absolute_path", "excluded_content_requires_repack"]);
+  const errors = (previous?.errors ?? []).filter(issue => !repairable.has(issue.code));
+  const warnings: BrowserArchiveIssue[] = [];
+  const files = current.map(file => ({ path: file.path, size: file.sizeBytes, kind: fileKind(file.path), text: file.text ?? undefined }));
+  for (const file of files) {
+    if (file.text !== undefined) scanText(file.path, file.text, errors, warnings);
+    if (file.kind === "script") warnings.push({ code: "script_file", message: "Script file requires explicit reviewer attention. It was not executed.", path: file.path });
+    if (/\.(app|dll|dylib|exe|msi|so|wasm)$/i.test(file.path)) warnings.push({ code: "binary_or_executable", message: "Binary or executable-like payload requires explicit reviewer attention.", path: file.path });
+  }
+  return summarize(previous?.sourceKind ?? "manifest", previous?.label ?? "Current browser workspace", files, errors, warnings, null, {
+    selectedFileCount: previous?.selectedFileCount ?? files.length,
+    selectedTotalBytes: previous?.selectedTotalBytes ?? files.reduce((sum, file) => sum + file.size, 0),
+    excludedDirectoryGroups: previous?.excludedDirectoryGroups ?? [], deferredFileCount: previous?.deferredFileCount ?? 0,
+    deferredTotalBytes: previous?.deferredTotalBytes ?? 0,
+  });
+}

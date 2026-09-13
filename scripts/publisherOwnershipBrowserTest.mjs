@@ -48,6 +48,7 @@ async function fixture(role,{mobile=false,noProfile=false,unavailable=false}={})
  await context.route("**/*",async route=>{
   const request=route.request(),url=new URL(request.url());
   if(/\/api\/(billing|economic-preparation)(\/|$)|stripe\.com|connect\.stripe/.test(url.href)){forbidden.push(url.href);return route.abort();}
+  if(url.origin!==origin&&/^(localhost|127\.|\[::1\])/.test(url.hostname)){forbidden.push(url.origin);return route.abort();}
   if(url.origin===origin)return route.continue();
   if(url.origin!=="https://readiness-fixture.supabase.co")return route.fulfill({status:200,body:""});
   const fulfill=(body,status=200)=>route.fulfill({status,headers,body:JSON.stringify(body)});
@@ -76,7 +77,7 @@ async function fixture(role,{mobile=false,noProfile=false,unavailable=false}={})
     const draft={id:`f5500000-0000-4000-8000-${String(drafts.length+1).padStart(12,"0")}`,submission_status:"draft",review_status:"not_submitted",risk_level:"unknown",validation_status:"not_validated",package_status:"not_uploaded",created_at:new Date().toISOString(),...body};drafts.push(draft);return fulfill(obj?draft:[draft]);
    }
    const id=url.searchParams.get("id")?.replace("eq.",""),draft=drafts.find(d=>d.id===id);
-   if(request.method()==="PATCH"){const body=request.postDataJSON();writes.push({table:name,method:"PATCH",body});if(draft)Object.assign(draft,body);return fulfill(obj?draft??null:[]);}
+   if(request.method()==="PATCH"){const body=request.postDataJSON();writes.push({table:name,method:"PATCH",body});const expected=url.searchParams.get("updated_at")?.replace("eq.",""); if(expected&&draft?.updated_at!==expected)return fulfill([]); if(draft)Object.assign(draft,body);return fulfill(obj?draft??null:draft?[draft]:[]);}
    return fulfill(obj?draft??null:id?draft?[draft]:[]:drafts);
   }
   if(!["GET","HEAD"].includes(request.method())&&!url.pathname.includes("/rpc/"))writes.push({table:name,method:request.method()});
@@ -118,7 +119,7 @@ try{
   await f.page.waitForFunction(()=>document.body.textContent.includes("Draft saved")||document.body.textContent.includes("saved"));
   assert.equal(f.drafts[0].creator_attribution,"Synthetic revised attribution");
   await f.page.getByRole("button",{name:"Duplicate draft for revision"}).click();
-  await f.page.getByText("Revision draft created as an editable duplicate. Submit it when changes are ready.",{exact:true}).waitFor();
+  await f.page.getByText("Revision draft created with the current workspace files. Its version was preserved.",{exact:true}).waitFor();
   await f.page.getByRole("link",{name:"Drafts",exact:true}).click();
   await f.page.locator(`a[href="/developer-forge/drafts/${f.drafts[1].id}"]`).first().click();
   assert.equal(f.drafts[1].revision_of_draft_id,f.drafts[0].id);assert.equal(f.drafts[1].version,f.drafts[0].version);assert.equal(f.drafts[1].manifest_json.addon_id,f.drafts[0].manifest_json.addon_id);

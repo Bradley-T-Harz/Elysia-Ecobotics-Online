@@ -7,7 +7,7 @@ export const workspaceLimits = { files: 1000, bytes: 75 * 1024 * 1024, textBytes
 export type WorkspaceOwner = { accountId: string | null; browserId: string; surface: "marketplace" | "forge"; draftId: string | null };
 export type BrowserFileInput = { path: string; bytes?: Uint8Array; text?: string; availability?: WorkspaceFile["availability"]; provenance: WorkspaceFile["provenance"]; sizeBytes?: number };
 export type BrowserFileView = Readonly<{ path: string; text: string | null; availability: WorkspaceFile["availability"]; sizeBytes: number; provenance: WorkspaceFile["provenance"]; mimeType: "text/plain" | "application/octet-stream"; encoding: "utf-8" | null }>;
-export type WorkspaceState = Readonly<{ id: string; owner: WorkspaceOwner; label: string; baseRevision: number; revision: number; manifestRevision: number; savedRevision: number | null; validationRevision: number | null; packageRevision: number | null; packageHash: string | null; dirty: boolean; files: readonly BrowserFileView[] }>;
+export type WorkspaceState = Readonly<{ id: string; owner: WorkspaceOwner; label: string; baseRevision: number; revision: number; manifestRevision: number; savedRevision: number | null; validationRevision: number | null; packageRevision: number | null; packageHash: string | null; dirty: boolean; metadata: Readonly<Record<string, unknown>>; files: readonly BrowserFileView[] }>;
 export type WorkspaceCapture = { workspaceId: string; owner: WorkspaceOwner; revision: number; baseRevision: number; baseHash: string; contentHash: string; files: WorkspaceFile[] };
 export type WorkspaceRecovery = { contract: "browser-workspace-1"; state: WorkspaceState; files: BrowserFileInput[]; baseHash: string; contentHash: string; savedAt: string };
 type StoredFile = BrowserFileView & { bytes: Uint8Array | null };
@@ -55,6 +55,23 @@ export function unsafeWorkspaceText(text: string) {
     || /BEGIN [A-Z ]*PRIVATE KEY/i.test(text) || containsPrivateAbsolutePath(text);
 }
 
+function safeWorkspaceMetadata(value: Record<string, unknown>): Readonly<Record<string, unknown>> {
+  const text = JSON.stringify(value);
+  if (new TextEncoder().encode(text).length > 65536 || unsafeWorkspaceText(text)) throw new Error("Workspace form recovery exceeds the safe metadata limit.");
+  const copy = JSON.parse(text);
+  if (!copy || typeof copy !== "object" || Array.isArray(copy)) throw new Error("Workspace metadata must be an object.");
+  const inspect = (item: unknown) => {
+    if (!item || typeof item !== "object") return;
+    for (const [key, child] of Object.entries(item)) {
+      if (/token|password|credential|secret|approval|grant|consent|accepted|risk_acknowledged/i.test(key)) throw new Error("Authorization or credential state cannot be persisted as workspace metadata.");
+      inspect(child);
+    }
+    Object.freeze(item);
+  };
+  inspect(copy);
+  return copy;
+}
+
 function storeFile(input: BrowserFileInput): StoredFile {
   const path = canonicalWorkspacePath(input.path);
   if (workspacePathDenied(path)) throw new Error("This file class cannot enter a browser development workspace.");
@@ -77,10 +94,10 @@ export class BrowserWorkspace {
   private usedPlans = new Set<string>();
   private disposed = false;
   private baseHash: Promise<string>;
-  constructor(owner: WorkspaceOwner, label: string, inputs: BrowserFileInput[], id = `workspace_${crypto.randomUUID().replace(/-/g, "")}`) {
+  constructor(owner: WorkspaceOwner, label: string, inputs: BrowserFileInput[], id = `workspace_${crypto.randomUUID().replace(/-/g, "")}`, metadata: Record<string, unknown> = {}) {
     this.files = this.admit(inputs);
     this.state = Object.freeze({ id, owner: Object.freeze({ ...owner }), label: label.slice(0, 120), baseRevision: 0, revision: 0, manifestRevision: 0,
-      savedRevision: null, validationRevision: null, packageRevision: null, packageHash: null, dirty: false, files: this.views() });
+      savedRevision: null, validationRevision: null, packageRevision: null, packageHash: null, dirty: false, metadata: safeWorkspaceMetadata(metadata), files: this.views() });
     this.baseHash = this.captureFiles([...this.files.values()]).then(browserWorkspaceHash);
   }
   private admit(inputs: BrowserFileInput[]) {
@@ -102,9 +119,9 @@ export class BrowserWorkspace {
     this.state = Object.freeze({ ...this.state, ...update, files: this.views() });
     this.listeners.forEach(listener => listener());
   }
-  private changed(manifestChanged: boolean) {
+  private changed(manifestChanged: boolean, update: Partial<WorkspaceState> = {}) {
     const revision = this.state.revision + 1;
-    this.publish({ revision, manifestRevision: manifestChanged ? revision : this.state.manifestRevision, dirty: true, validationRevision: null, packageRevision: null, packageHash: null });
+    this.publish({ ...update, revision, manifestRevision: manifestChanged ? revision : this.state.manifestRevision, dirty: true, validationRevision: null, packageRevision: null, packageHash: null });
   }
   getSnapshot = () => this.state;
   subscribe = (callback: () => void) => { this.listeners.add(callback); return () => { this.listeners.delete(callback); }; };
@@ -121,11 +138,16 @@ export class BrowserWorkspace {
     this.files = this.admit([...this.files.values()].map(file => file.path === path ? { path, text, provenance: "editor" } : this.input(file)));
     this.changed(path === "manifest.json");
   }
+  updateMetadata(metadata: Record<string, unknown>) {
+    const safe = safeWorkspaceMetadata(metadata);
+    if (JSON.stringify(safe) === JSON.stringify(this.state.metadata)) return;
+    this.changed(false, { metadata: safe });
+  }
   private input(file: StoredFile): BrowserFileInput { return { path: file.path, bytes: file.bytes ?? undefined, text: file.text ?? undefined, availability: file.availability, provenance: file.provenance, sizeBytes: file.sizeBytes }; }
-  importFiles(inputs: BrowserFileInput[], expectedRevision = this.state.revision) {
+  importFiles(inputs: BrowserFileInput[], expectedRevision = this.state.revision, replace = false) {
     this.assertRevision(expectedRevision);
     const imported = this.admit(inputs);
-    const existing = [...this.files.values()].filter(file => !imported.has(file.path)).map(file => this.input(file));
+    const existing = replace ? [] : [...this.files.values()].filter(file => !imported.has(file.path)).map(file => this.input(file));
     this.files = this.admit([...existing, ...inputs]);
     this.changed(imported.has("manifest.json"));
   }
@@ -178,7 +200,7 @@ export class BrowserWorkspace {
     restored.baseHash = Promise.resolve(recovery.baseHash);
     if (!Number.isSafeInteger(state.revision) || state.revision < 0 || state.manifestRevision > state.revision || state.baseRevision > state.revision) throw new WorkspaceConflict("Invalid recovery revision.");
     restored.publish({ baseRevision: state.baseRevision, revision: state.revision, manifestRevision: state.manifestRevision,
-      savedRevision: state.savedRevision, dirty: state.dirty, validationRevision: null, packageRevision: null, packageHash: null });
+      savedRevision: state.savedRevision, dirty: state.dirty, metadata: safeWorkspaceMetadata(state.metadata ?? {}), validationRevision: null, packageRevision: null, packageHash: null });
     return restored;
   }
   async preparePackage(name: string): Promise<{ file: File; snapshot: WorkspaceCapture; packageHash: string }> {

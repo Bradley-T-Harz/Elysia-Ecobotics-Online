@@ -14,14 +14,20 @@ function openDatabase(): Promise<IDBDatabase> {
     request.onblocked = () => reject(new Error("Close the older workspace tab before upgrading browser recovery storage."));
   });
 }
+let volatileBrowserId: string | null = null;
 export function browserWorkspaceId(): string {
   // Stable within this browser; account/surface/draft remain independent key fields.
   const key = "elysia.browserWorkspaceId.v1";
+  try {
   const stored = localStorage.getItem(key);
   if (stored && /^browser_[a-f0-9]{32}$/.test(stored)) return stored;
   const value = `browser_${crypto.randomUUID().replace(/-/g, "")}`;
   localStorage.setItem(key, value);
   return value;
+  } catch {
+    volatileBrowserId ??= `browser_${crypto.randomUUID().replace(/-/g, "")}`;
+    return volatileBrowserId;
+  }
 }
 export async function loadWorkspaceRecovery(owner: WorkspaceOwner): Promise<{ workspace: BrowserWorkspace | null; handle: RecoveryHandle }> {
   const database = await openDatabase();

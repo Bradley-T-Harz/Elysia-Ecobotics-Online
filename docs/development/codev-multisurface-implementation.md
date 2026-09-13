@@ -21,7 +21,7 @@ TypeScript here. Pairing grants zero workspaces. Browser clients cannot grant
 native mutation/commands. Actor/account/surface/revision/expiry/epoch bindings
 are enforced by the shared domain, with v1 compatibility retained beneath it.
 
-## Browser workspace core checkpoint (Phase 5 in progress)
+## Browser workspace checkpoint (Phase 5)
 
 `src/shared/codev/workspace.ts` owns actual included bytes separately from editor
 text and metadata-only files. It tracks original/current revisions, dirty state,
@@ -42,9 +42,42 @@ newer save. Recovery rechecks content hashes and does not restore approvals,
 validation success or package readiness. Secret-looking text/private paths prevent
 recovery persistence. This is browser-local storage, not remote source storage.
 
-Validation so far: byte-level package/patch/recovery contracts passed; real
-Chromium IndexedDB tests passed account isolation, reload recovery, cross-tab
-conflicts, dirty-buffer preservation and stale-delete refusal with external
-network blocked. Frontend typecheck, existing intake contracts and Local Elysia
-manifest convergence passed. The core is not yet connected to either page; page
-save/export/transfer and account lifecycle integration is the next Phase 5 gate.
+Both pages now use this store. Full repository/archive imports replace the selected
+source tree; manifest-only imports update that file without borrowing a different
+package identity. Edits invalidate current validation/package readiness. Exact
+LICENSE contents are independent of SPDX metadata. Workspace export preserves the
+reviewed manifest contract, including legacy declarations; the existing explicit
+template-export flow remains a separate canonical-template conversion. This avoids
+silently changing permissions, execution declarations, or source behind the editor.
+
+Browser recovery includes bounded form metadata but refuses credential, approval,
+grant, consent, and acknowledgement state. Account/browser/surface/draft keys keep
+recovery separate; legacy unowned v1 local records are not automatically attached
+to an authenticated account. Debounced local recovery preserves dirty files across
+reload, and the existing Save draft action distinguishes browser files from remote
+metadata. Access-token refresh and route navigation preserve the workspace. Remote
+metadata writes compare a saved content fingerprint and the current database
+`updated_at` value. A late successful save updates only the baseline and preserves
+newer unsaved edits.
+
+Private transfer rebuilds current bytes, verifies every archive entry against its
+workspace receipt, and records the exact package ID/revision/hash. Review uses that
+specific package rather than whichever row is newest. Upload, scan, metadata, or
+account failures stop dependent submission steps. The Supabase client is pinned to
+the initiating account and login session for every request. An account change while
+a transfer is awaiting an API response prevents any further source transmission.
+No pairing, native probe, or connected Codev UI is exposed by this phase.
+
+Validation: frontend and Functions typechecks; production-shaped synthetic build;
+byte-level workspace/metadata/patch/recovery contracts; existing intake, manifest
+convergence, submission-boundary, publisher-authority and public-bundle security
+checks. Real Chromium tests covered IndexedDB reload, cross-tab generation conflicts,
+stale-delete refusal, full LICENSE/source/binary preservation through save and ZIP
+export, same-session token refresh, navigation, remote metadata conflicts, newer
+edits during an awaited save, failed upload stopping submission, exact uploaded bytes
+and package snapshots, and account changes during pending transfer. Existing Forge
+CSP regression passed desktop/mobile; publisher regression passed 24 desktop/mobile
+and role views without browser exceptions or provider requests. Focused screenshots
+were inspected; local Chromium evidence is under the task's private `/tmp` directory.
+These are synthetic browser/API checks, not a claim of production pairing or live
+review submission. Database/pairing/deployment qualification remains ahead.

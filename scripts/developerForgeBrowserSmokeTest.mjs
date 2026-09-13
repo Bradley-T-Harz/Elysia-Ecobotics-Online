@@ -291,7 +291,7 @@ try {
     await captureVisual(page.locator(".forge-intake-map"), "developer-forge-new-intake-map", viewport);
     await page.getByRole("button", { name: "Create blank manifest draft" }).click();
     await page.waitForFunction(() => {
-      try { return (JSON.parse(localStorage.getItem("developerForge.localDrafts.v1") ?? "[]")?.length ?? 0) > 0; }
+      try { return (JSON.parse(localStorage.getItem(`developerForge.localDrafts.v2:${JSON.stringify([null, localStorage.getItem("elysia.browserWorkspaceId.v1")])}`) ?? "[]")?.length ?? 0) > 0; }
       catch { return false; }
     });
     currentPhase = "open draft workbench";
@@ -324,25 +324,21 @@ try {
     const exportedArchive = await JSZip.loadAsync(firstExportBytes);
     const exportedManifest = JSON.parse(await exportedArchive.file("manifest.json").async("string"));
     assert.equal(exportedManifest.addon_id, "developer.browser-intake", "Exported package must preserve the imported add-on manifest.");
-    assert.equal(exportedManifest.schema_version, "1.1", "New browser exports must use Local Elysia's canonical manifest schema.");
-    assert.equal(exportedManifest.compatibility.addon_api_version, "1", "New browser exports must use the canonical add-on API contract.");
-    assert(Object.keys(exportedManifest.entrypoints).length > 0, "New browser exports must contain a named package entrypoint.");
-    assert.equal(exportedManifest.bridge.execution_enabled, false, "A browser export must never self-enable execution.");
-    assert.equal(exportedManifest.network_policy.default, "deny", "A browser export must retain deny-by-default network authority.");
-    assert.equal(exportedManifest.memory_policy.default, "deny", "A browser export must retain deny-by-default memory authority.");
-    assert.equal(exportedManifest.execution.requested, false, "Legacy drafts must normalize to inert packages, not execution requests.");
+    // Workspace export preserves the reviewed source contract. Template export
+    // remains a separate explicit conversion path; it must not silently rewrite
+    // permissions or execution declarations behind the current editor buffer.
+    assert.equal(exportedManifest.schema_version, "1.0", "Workspace export must preserve the current manifest schema.");
+    assert.equal(exportedManifest.compatibility.addon_api_version, "0.1");
+    assert.deepEqual(exportedManifest.permissions, ["public_docs_read"]);
+    assert.equal(exportedManifest.runtime.requires_network, false);
+    assert.equal(exportedManifest.version, "0.1.0");
     const checksumManifest = JSON.parse(await exportedArchive.file("checksums.json").async("string"));
     for (const [filePath, expectedHash] of Object.entries(checksumManifest.files)) {
       const contents = await exportedArchive.file(filePath).async("nodebuffer");
       assert.equal(createHash("sha256").update(contents).digest("hex"), expectedHash, `Exported checksum must match ${filePath}.`);
     }
-    for (const filePath of Object.keys(exportedArchive.files).filter((filePath) => !exportedArchive.files[filePath].dir && filePath !== "manifest.json")) {
-      assert(exportedManifest.checksums.files[filePath], `Canonical manifest must checksum ${filePath}.`);
-      const contents = await exportedArchive.file(filePath).async("nodebuffer");
-      assert.equal(createHash("sha256").update(contents).digest("hex"), exportedManifest.checksums.files[filePath], `Canonical manifest checksum must match ${filePath}.`);
-    }
     await packageInput.setInputFiles(firstExportPath);
-    await page.getByText("6 files selected locally", { exact: false }).first().waitFor({ state: "visible" });
+    await page.getByText(`${Object.keys(exportedArchive.files).length} files selected locally`, { exact: false }).first().waitFor({ state: "visible" });
     assert.equal(await page.locator(".addon-intake-summary").getByText("needs manifest", { exact: true }).count(), 0, "Re-imported Forge package must retain its root manifest.");
     assert(await page.locator("label.checkbox-line").filter({ hasText: "files I selected will leave my computer" }).locator('input[type="checkbox"]').isEnabled(), "A clean re-imported Forge export must remain eligible for explicit private transfer; manifest and documentation URLs are metadata, not undeclared runtime network behavior.");
     currentPhase = "refuse credential-bearing package";

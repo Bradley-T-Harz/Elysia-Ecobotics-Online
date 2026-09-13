@@ -135,6 +135,7 @@ export function ForgeWorkbenchSurface({
     return [...groups.values()].slice(0, 8);
   }, [diagnostics]);
   const visibleTabs = [active, ...files.filter((file) => file.path !== active?.path)].filter(Boolean).slice(0, 6) as ForgeWorkspaceFile[];
+  if (!active) return <p className="forge-empty">No files were included in this selection. Import a supported package or manifest to continue.</p>;
   return <div className="forge-workbench-surface">
     <aside className="forge-file-tree" aria-label="Add-on workspace files">
       <div className="forge-file-tree__heading"><strong>Repository explorer</strong><span>{repositoryStats ? `${repositoryStats.includedFileCount} scanned · ${repositoryStats.excludedFileCount} excluded` : `${files.length} workspace files`}</span></div>

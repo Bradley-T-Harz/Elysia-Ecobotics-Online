@@ -1,9 +1,12 @@
 
-import { hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
+import { accountBoundSupabase, hasSupabaseConfig, supabase, supabaseNotConfiguredMessage } from "../The-Elysia-Marketplace/lib/supabase";
 import { checkCompatibility, defaultPermissionCatalog, manifestLicenseSpdx, manifestPermissionKeys, staticSafetyScan, validateManifest, validationStatus } from "./developerForgeValidator";
 import type { ForgeManifest, ForgeValidationResult, PermissionDefinition } from "./developerForgeValidator";
 import { inspectArchiveFile, type BrowserArchiveInspectionResult } from "../../shared/addons/browserArchiveInspector";
 import { ownershipSelectionSchema, type OwnershipSelection } from "../../shared/addons/publisherOwnership";
+
+import { browserWorkspaceHash, type WorkspaceCapture } from "../../shared/codev/workspace";
+import { browserWorkspaceId } from "../../shared/codev/workspaceRecovery";
 
 export type DeveloperProfile = {
   id?: string;
@@ -25,6 +28,8 @@ export type AddonDraft = {
   publisher_id?: string | null;
   creator_attribution?: string | null;
   owner_user_id?: string;
+  browser_owner_key?: string;
+  browser_base_metadata_hash?: string;
   developer_profile_id?: string | null;
   addon_slug: string;
   addon_name: string;
@@ -120,8 +125,12 @@ export type ForgeState = {
   warnings: string[];
 };
 
-const localDraftKey = "developerForge.localDrafts.v1";
-const localProfileKey = "developerForge.localProfile.v1";
+const localDraftKey = "developerForge.localDrafts.v2";
+const localProfileKey = "developerForge.localProfile.v2";
+function localKey(base: string, userId: string | null) {
+  return `${base}:${JSON.stringify([userId, browserWorkspaceId()])}`;
+}
+
 const lockedSubmissionStates = new Set(["submitted", "pending", "in_review", "approved", "published", "revoked", "security_hold"]);
 
 export function isDraftLockedForEditing(draft: Pick<AddonDraft, "submission_status" | "review_status" | "locked_at">) {
@@ -167,7 +176,7 @@ function normalizeSlug(value: string) {
 function localDraftFromManifest(manifest: ForgeManifest): AddonDraft {
   const now = new Date().toISOString();
   return {
-    id: `local-${Date.now()}`,
+    id: `local-${crypto.randomUUID()}`,
     addon_slug: normalizeSlug(manifest.addon_id?.split(".").pop() || manifest.name || "draft-addon"),
     addon_name: manifest.name || "Draft add-on",
     short_summary: manifest.description || "Local Developer Forge draft.",
@@ -185,6 +194,23 @@ function localDraftFromManifest(manifest: ForgeManifest): AddonDraft {
     created_at: now,
     updated_at: now
   };
+}
+
+const draftMetadataFields = ["developer_profile_id", "publisher_id", "creator_attribution", "addon_slug", "addon_name", "short_summary", "long_description", "version", "license", "homepage_url", "source_url", "support_url", "category", "tags", "manifest_json", "compatibility_targets", "permission_summary"] as const;
+
+function stableJson(value: unknown): string {
+  const sort = (item: unknown): unknown => Array.isArray(item) ? item.map(sort) : item && typeof item === "object"
+    ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([key, child]) => [key, sort(child)])) : item;
+  return JSON.stringify(sort(value));
+}
+async function draftMetadataHash(draft: AddonDraft): Promise<string> {
+  const comparable = Object.fromEntries(draftMetadataFields.map(key => [key, draft[key] ?? (key === "tags" ? [] : null)]));
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(stableJson(comparable)));
+  return Array.from(new Uint8Array(digest), value => value.toString(16).padStart(2, "0")).join("");
+}
+
+async function withDraftBaseline(draft: AddonDraft): Promise<AddonDraft> {
+  return { ...draft, browser_base_metadata_hash: await draftMetadataHash(draft) };
 }
 
 function draftPayloadFromManifest(userId: string, manifest: ForgeManifest, profileId?: string | null) {
@@ -216,22 +242,23 @@ export async function currentUserId() {
   return { userId: data.user?.id ?? null, warning: data.user ? undefined : "Sign in to use account-backed Developer Forge drafts." };
 }
 
-async function draftLockWarning(draftId: string, userId: string) {
-  if (!supabase || draftId.startsWith("local-")) return null;
-  const { data, error } = await supabase.from("addon_drafts").select("submission_status,review_status,locked_at").eq("id", draftId).eq("owner_user_id", userId).maybeSingle();
+async function draftLockWarning(draftId: string, userId: string, client = supabase) {
+  if (!client || draftId.startsWith("local-")) return null;
+  const { data, error } = await client.from("addon_drafts").select("submission_status,review_status,locked_at").eq("id", draftId).eq("owner_user_id", userId).maybeSingle();
   if (error) return friendly("Draft lock", error.message);
-  if (data && isDraftLockedForEditing(data as AddonDraft)) return "This submitted add-on draft is locked for review. Duplicate it or create a revision draft before changing files, permissions, packages, or validation data.";
+  if (!data) return "This draft is unavailable for the current account.";
+  if (isDraftLockedForEditing(data as AddonDraft)) return "This submitted add-on draft is locked for review. Duplicate it or create a revision draft before changing files, permissions, packages, or validation data.";
   return null;
 }
 
 export async function loadForgeState({ allowLocalFallback = true }: { allowLocalFallback?: boolean } = {}): Promise<ForgeState> {
   const warnings: string[] = [];
   if (!hasSupabaseConfig || !supabase) {
-    return { signedIn: false, userId: null, profile: (allowLocalFallback ? readLocal<DeveloperProfile | null>(localProfileKey, null) : null), drafts: (allowLocalFallback ? readLocal<AddonDraft[]>(localDraftKey, []) : []), submissions: [], permissionCatalog: defaultPermissionCatalog, warnings: [supabaseNotConfiguredMessage] };
+    return { signedIn: false, userId: null, profile: (allowLocalFallback ? readLocal<DeveloperProfile | null>(localKey(localProfileKey, null), null) : null), drafts: (allowLocalFallback ? readLocal<AddonDraft[]>(localKey(localDraftKey, null), []) : []), submissions: [], permissionCatalog: defaultPermissionCatalog, warnings: [supabaseNotConfiguredMessage] };
   }
   const { data: auth, error: authError } = await supabase.auth.getUser();
   if (authError) warnings.push(friendly("Website Account", authError.message));
-  if (!auth.user) return { signedIn: false, userId: null, profile: null, drafts: (allowLocalFallback ? readLocal<AddonDraft[]>(localDraftKey, []) : []), submissions: [], permissionCatalog: defaultPermissionCatalog, warnings };
+  if (!auth.user) return { signedIn: false, userId: null, profile: null, drafts: (allowLocalFallback ? readLocal<AddonDraft[]>(localKey(localDraftKey, null), []) : []), submissions: [], permissionCatalog: defaultPermissionCatalog, warnings };
   const userId = auth.user.id;
   const [profileResult, draftResult, submissionResult, catalogResult] = await Promise.all([
     supabase.from("developer_profiles").select("*").eq("user_id", userId).maybeSingle(),
@@ -260,58 +287,77 @@ export async function loadForgeState({ allowLocalFallback = true }: { allowLocal
   return {
     signedIn: true,
     userId,
-    profile: (profileResult.data as DeveloperProfile | null) ?? (allowLocalFallback ? readLocal<DeveloperProfile | null>(localProfileKey, null) : null),
-    drafts: ((draftResult.data as AddonDraft[] | null) ?? (allowLocalFallback ? readLocal<AddonDraft[]>(localDraftKey, []) : [])),
+    profile: (profileResult.data as DeveloperProfile | null) ?? (allowLocalFallback ? readLocal<DeveloperProfile | null>(localKey(localProfileKey, userId), null) : null),
+    drafts: await Promise.all(((draftResult.data as AddonDraft[] | null) ?? (allowLocalFallback ? readLocal<AddonDraft[]>(localKey(localDraftKey, userId), []) : [])).map(withDraftBaseline)),
     submissions,
     permissionCatalog: (catalogResult.data as PermissionDefinition[] | null)?.length ? catalogResult.data as PermissionDefinition[] : defaultPermissionCatalog,
     warnings
   };
 }
 
-export async function saveDeveloperProfile(input: DeveloperProfile): Promise<{ profile: DeveloperProfile | null; warnings: string[] }> {
+export async function saveDeveloperProfile(input: DeveloperProfile, expectedUserId?: string | null): Promise<{ profile: DeveloperProfile | null; warnings: string[] }> {
   const { userId, warning } = await currentUserId();
+  if (expectedUserId !== undefined && userId !== expectedUserId) return { profile: null, warnings: ["The website account changed. Restart profile saving."] };
   const localProfile = { ...input, status: input.status ?? "requested" };
   if (!userId || !supabase) {
-    writeLocal(localProfileKey, localProfile);
+    writeLocal(localKey(localProfileKey, userId), localProfile);
     return { profile: localProfile, warnings: [warning ?? "Saved locally in this browser. Sign in to save a developer profile."] };
   }
+  const client = await accountBoundSupabase(userId).catch(() => null);
+  if (!client) return { profile: null, warnings: ["The website login changed. Restart profile saving."] };
   const payload = { ...localProfile, user_id: userId, status: localProfile.status === "draft" ? "draft" : "requested", updated_at: new Date().toISOString() };
-  const { data, error } = await supabase.from("developer_profiles").upsert(payload, { onConflict: "user_id" }).select("*").single();
+  const { data, error } = await client.from("developer_profiles").upsert(payload, { onConflict: "user_id" }).select("*").single();
   if (error) {
-    writeLocal(localProfileKey, localProfile);
+    writeLocal(localKey(localProfileKey, userId), localProfile);
     return { profile: localProfile, warnings: [friendly("Developer profile", error.message)] };
   }
   return { profile: data as DeveloperProfile, warnings: [] };
 }
 
-export async function createDraftFromManifest(manifest: ForgeManifest, profileId?: string | null, ownership?: OwnershipSelection, revisionOf?: string): Promise<{ draft: AddonDraft | null; warnings: string[] }> {
+export async function createDraftFromManifest(manifest: ForgeManifest, profileId?: string | null, ownership?: OwnershipSelection, revisionOf?: string, expectedUserId?: string | null): Promise<{ draft: AddonDraft | null; warnings: string[] }> {
   const { userId, warning } = await currentUserId();
+  if (expectedUserId !== undefined && userId !== expectedUserId) return { draft: null, warnings: ["The website account changed. Restart draft creation."] };
   if (!userId || !supabase) {
-    const draft = { ...localDraftFromManifest(manifest), creator_attribution: ownership?.creatorAttribution ?? "", publisher_id: null, revision_of_draft_id: revisionOf ?? null };
-    const drafts = [draft, ...readLocal<AddonDraft[]>(localDraftKey, [])];
-    writeLocal(localDraftKey, drafts);
+    const draft = { ...localDraftFromManifest(manifest), creator_attribution: ownership?.creatorAttribution ?? "", publisher_id: null, revision_of_draft_id: revisionOf ?? null, browser_owner_key: localKey(localDraftKey, userId) };
+    const drafts = [draft, ...readLocal<AddonDraft[]>(localKey(localDraftKey, userId), [])];
+    writeLocal(localKey(localDraftKey, userId), drafts);
     return { draft, warnings: [warning ?? "Saved draft locally in this browser."] };
   }
+  const client = await accountBoundSupabase(userId).catch(() => null);
+  if (!client) return { draft: null, warnings: ["The website account changed. Restart draft creation."] };
   const selected = ownershipSelectionSchema.safeParse(ownership);
   if (!selected.success) return { draft: null, warnings: ["Enter Creator / Organization and select an authorized Publisher account before saving an account-backed draft."] };
-  const { data, error } = await supabase.from("addon_drafts").insert({ ...draftPayloadFromManifest(userId, manifest, profileId), publisher_id: selected.data.publisherId, creator_attribution: selected.data.creatorAttribution, revision_of_draft_id: revisionOf && !revisionOf.startsWith("local-") ? revisionOf : null }).select("*").single();
+  const { data, error } = await client.from("addon_drafts").insert({ ...draftPayloadFromManifest(userId, manifest, profileId), publisher_id: selected.data.publisherId, creator_attribution: selected.data.creatorAttribution, revision_of_draft_id: revisionOf && !revisionOf.startsWith("local-") ? revisionOf : null }).select("*").single();
   if (error) return { draft: null, warnings: [friendly("Add-on draft", error.message)] };
-  await supabase.from("addon_audit_log").insert({ actor_user_id: userId, target_type: "addon_draft", target_id: (data as { id: string }).id, action: "addon_draft_created" });
-  return { draft: data as AddonDraft, warnings: [] };
+  await client.from("addon_audit_log").insert({ actor_user_id: userId, target_type: "addon_draft", target_id: (data as { id: string }).id, action: "addon_draft_created" });
+  return { draft: await withDraftBaseline({ ...data as AddonDraft, owner_user_id: userId }), warnings: [] };
 }
 
-export async function updateDraft(draft: AddonDraft): Promise<string[]> {
-  if (draft.id.startsWith("local-")) {
-    const drafts = readLocal<AddonDraft[]>(localDraftKey, []).map((item) => item.id === draft.id ? { ...draft, updated_at: new Date().toISOString() } : item);
-    writeLocal(localDraftKey, drafts);
-    return ["Saved locally in this browser. Account sync is unavailable until Developer Forge tables/policies are active."];
-  }
+export async function saveDraftMetadata(draft: AddonDraft): Promise<{ draft: AddonDraft | null; warnings: string[] }> {
   const { userId, warning } = await currentUserId();
-  if (!userId || !supabase) return [warning ?? supabaseNotConfiguredMessage];
-  const locked = await draftLockWarning(draft.id, userId);
-  if (locked) return [locked];
+  if (draft.id.startsWith("local-")) {
+    const key = localKey(localDraftKey, userId);
+    if (draft.browser_owner_key !== key) return { draft: null, warnings: ["This local draft belongs to another account or browser scope. It was not saved."] };
+    const saved = await withDraftBaseline({ ...draft, updated_at: new Date().toISOString() });
+    const drafts = readLocal<AddonDraft[]>(key, []);
+    const previous = drafts.find(item => item.id === draft.id);
+    if (previous && draft.browser_base_metadata_hash && await draftMetadataHash(previous) !== draft.browser_base_metadata_hash) return { draft: null, warnings: ["Another tab changed this local draft. Browser files were preserved."] };
+    if (!previous) return { draft: null, warnings: ["This scoped local draft is no longer available."] };
+    writeLocal(key, drafts.map(item => item.id === draft.id ? saved : item));
+    return { draft: saved, warnings: ["Draft metadata saved in this browser. No account upload occurred."] };
+  }
+  if (!userId || !supabase || (draft.owner_user_id && draft.owner_user_id !== userId)) return { draft: null, warnings: [warning ?? "The website account changed. Restart this save."] };
+  const client = await accountBoundSupabase(userId).catch(() => null);
+  if (!client) return { draft: null, warnings: ["The website login changed. Restart this save."] };
+  const remoteResult = await client.from("addon_drafts").select("*").eq("id", draft.id).eq("owner_user_id", userId).maybeSingle();
+  if (remoteResult.error || !remoteResult.data) return { draft: null, warnings: ["The remote draft could not be verified for this account."] };
+  const remote = remoteResult.data as AddonDraft;
+  if (isDraftLockedForEditing(remote)) return { draft: null, warnings: ["This submitted draft is locked. Create a revision before changing it."] };
+  const sourceChanged = draft.browser_base_metadata_hash ? await draftMetadataHash(remote) !== draft.browser_base_metadata_hash
+    : Boolean(draft.updated_at && draft.updated_at !== remote.updated_at);
+  if (sourceChanged) return { draft: null, warnings: ["The remote draft metadata changed. Browser files are preserved; compare the remote draft or create a revision before saving again."] };
   const selected = ownershipSelectionSchema.safeParse({ publisherId: draft.publisher_id, creatorAttribution: draft.creator_attribution });
-  if (!selected.success) return ["Enter Creator / Organization and select an authorized Publisher account before saving to the Marketplace."];
+  if (!selected.success) return { draft: null, warnings: ["Enter Creator / Organization and select an authorized Publisher account before saving to the Marketplace."] };
   const payload = {
     developer_profile_id: draft.developer_profile_id ?? null,
     publisher_id: selected.data.publisherId,
@@ -332,59 +378,79 @@ export async function updateDraft(draft: AddonDraft): Promise<string[]> {
     permission_summary: manifestPermissionKeys(draft.manifest_json).join(", "),
     updated_at: new Date().toISOString()
   };
-  const { error } = await supabase.from("addon_drafts").update(payload).eq("id", draft.id).eq("owner_user_id", userId);
-  if (error) return [friendly("Add-on draft", error.message)];
-  await supabase.from("addon_audit_log").insert({ actor_user_id: userId, target_type: "addon_draft", target_id: draft.id, action: "addon_draft_updated" });
-  return [];
+  let query = client.from("addon_drafts").update(payload).eq("id", draft.id).eq("owner_user_id", userId);
+  if (remote.updated_at) query = query.eq("updated_at", remote.updated_at);
+  const { data, error } = await query.select("*").maybeSingle();
+  if (error) return { draft: null, warnings: [friendly("Add-on draft", error.message)] };
+  if (!data) return { draft: null, warnings: ["The remote draft changed or is no longer editable. Your browser files are preserved; compare the remote draft or create a revision before saving again."] };
+  const audit = await client.from("addon_audit_log").insert({ actor_user_id: userId, target_type: "addon_draft", target_id: draft.id, action: "addon_draft_updated" });
+  return { draft: await withDraftBaseline({ ...data as AddonDraft, owner_user_id: userId }), warnings: audit.error ? ["Draft metadata was saved, but its audit record could not be confirmed."] : [] };
+}
+
+export async function updateDraft(draft: AddonDraft): Promise<string[]> {
+  return (await saveDraftMetadata(draft)).warnings;
 }
 
 export async function archiveDraft(draftId: string): Promise<string[]> {
-  if (draftId.startsWith("local-")) {
-    writeLocal(localDraftKey, readLocal<AddonDraft[]>(localDraftKey, []).filter((draft) => draft.id !== draftId));
-    return ["Local draft removed from this browser."];
-  }
   const { userId, warning } = await currentUserId();
+  if (draftId.startsWith("local-")) {
+    const key = localKey(localDraftKey, userId);
+    writeLocal(key, readLocal<AddonDraft[]>(key, []).filter(draft => draft.id !== draftId));
+    return ["Local draft removed from this account's browser scope."];
+  }
   if (!userId || !supabase) return [warning ?? supabaseNotConfiguredMessage];
-  const { error } = await supabase.from("addon_drafts").update({ archived_at: new Date().toISOString(), submission_status: "archived", updated_at: new Date().toISOString() }).eq("id", draftId).eq("owner_user_id", userId);
+  const client = await accountBoundSupabase(userId).catch(() => null);
+  if (!client) return ["The website account changed. Restart this operation."];
+  const { error } = await client.from("addon_drafts").update({ archived_at: new Date().toISOString(), submission_status: "archived", updated_at: new Date().toISOString() }).eq("id", draftId).eq("owner_user_id", userId);
   return error ? [friendly("Archive draft", error.message)] : [];
 }
 
 export async function duplicateDraft(draft: AddonDraft): Promise<{ draft: AddonDraft | null; warnings: string[] }> {
+  const { userId } = await currentUserId();
+  if (draft.id.startsWith("local-") ? draft.browser_owner_key !== localKey(localDraftKey, userId) : draft.owner_user_id !== userId) return { draft: null, warnings: ["This draft belongs to a different account or browser scope."] };
   // A revision retains the add-on identity and publisher. It is not a new
   // product, a transfer, a publication, or an automatic version bump.
   return createDraftFromManifest({ ...draft.manifest_json }, draft.developer_profile_id ?? null,
-    { creatorAttribution: draft.creator_attribution ?? "", publisherId: draft.publisher_id ?? null }, draft.id);
+    { creatorAttribution: draft.creator_attribution ?? "", publisherId: draft.publisher_id ?? null }, draft.id, userId);
 }
 
-export async function saveValidationResults(draftId: string, results: ForgeValidationResult[]): Promise<string[]> {
+export async function saveValidationResults(draftId: string, results: ForgeValidationResult[], expectedUserId?: string): Promise<string[]> {
   if (draftId.startsWith("local-")) return [];
   const { userId, warning } = await currentUserId();
   if (!userId || !supabase) return [warning ?? supabaseNotConfiguredMessage];
-  const locked = await draftLockWarning(draftId, userId);
+  if (expectedUserId && expectedUserId !== userId) return ["The website account changed. Restart this operation."];
+  const client = await accountBoundSupabase(userId).catch(() => null);
+  if (!client) return ["The website session changed. Restart this operation."];
+  const locked = await draftLockWarning(draftId, userId, client);
   if (locked) return [locked];
   const status = validationStatus(results);
-  await supabase.from("addon_validation_results").delete().eq("addon_draft_id", draftId);
+  const removal = await client.from("addon_validation_results").delete().eq("addon_draft_id", draftId);
+  if (removal.error) return [friendly("Replace draft records", removal.error.message)];
   if (results.length) {
-    const { error } = await supabase.from("addon_validation_results").insert(results.map((result) => ({ addon_draft_id: draftId, ...result })));
+    const { error } = await client.from("addon_validation_results").insert(results.map((result) => ({ addon_draft_id: draftId, ...result })));
     if (error) return [friendly("Validation results", error.message)];
   }
-  const { error: draftError } = await supabase.from("addon_drafts").update({ validation_status: status, submission_status: ["blocked", "errors"].includes(status) ? "draft" : "ready_to_submit", updated_at: new Date().toISOString() }).eq("id", draftId).eq("owner_user_id", userId);
+  const { error: draftError } = await client.from("addon_drafts").update({ validation_status: status, submission_status: ["blocked", "errors"].includes(status) ? "draft" : "ready_to_submit", updated_at: new Date().toISOString() }).eq("id", draftId).eq("owner_user_id", userId);
   if (draftError) return [friendly("Validation status", draftError.message)];
-  await supabase.from("addon_audit_log").insert({ actor_user_id: userId, target_type: "addon_draft", target_id: draftId, action: "manifest_validated", metadata: { status } });
+  await client.from("addon_audit_log").insert({ actor_user_id: userId, target_type: "addon_draft", target_id: draftId, action: "manifest_validated", metadata: { status } });
   return [];
 }
 
-export async function saveDraftPermissions(draftId: string, permissions: DraftPermission[]): Promise<string[]> {
+export async function saveDraftPermissions(draftId: string, permissions: DraftPermission[], expectedUserId?: string): Promise<string[]> {
   if (draftId.startsWith("local-")) return [];
   const { userId, warning } = await currentUserId();
   if (!userId || !supabase) return [warning ?? supabaseNotConfiguredMessage];
-  const locked = await draftLockWarning(draftId, userId);
+  if (expectedUserId && expectedUserId !== userId) return ["The website account changed. Restart this operation."];
+  const client = await accountBoundSupabase(userId).catch(() => null);
+  if (!client) return ["The website session changed. Restart this operation."];
+  const locked = await draftLockWarning(draftId, userId, client);
   if (locked) return [locked];
-  await supabase.from("addon_draft_permissions").delete().eq("addon_draft_id", draftId);
+  const removal = await client.from("addon_draft_permissions").delete().eq("addon_draft_id", draftId);
+  if (removal.error) return [friendly("Replace draft records", removal.error.message)];
   if (!permissions.length) return [];
-  const { error } = await supabase.from("addon_draft_permissions").insert(permissions.map((permission) => ({ addon_draft_id: draftId, ...permission })));
+  const { error } = await client.from("addon_draft_permissions").insert(permissions.map((permission) => ({ addon_draft_id: draftId, ...permission })));
   if (error) return [friendly("Draft permissions", error.message)];
-  await supabase.from("addon_audit_log").insert({ actor_user_id: userId, target_type: "addon_draft", target_id: draftId, action: "permissions_updated" });
+  await client.from("addon_audit_log").insert({ actor_user_id: userId, target_type: "addon_draft", target_id: draftId, action: "permissions_updated" });
   return [];
 }
 
@@ -398,11 +464,27 @@ function safeFileName(name: string) {
   return name.replace(/[^A-Za-z0-9._-]/g, "_").slice(0, 120) || "addon.elysia-addon";
 }
 
-export async function uploadPackageMetadata(draft: AddonDraft, file: File): Promise<{ packageRow: AddonPackageRow | null; scan: ForgeValidationResult[]; warnings: string[] }> {
+export type WorkspacePackageProof = { snapshot: WorkspaceCapture; packageHash: string; packageId?: string };
+
+async function matchingWorkspaceManifest(draft: AddonDraft, proof: WorkspacePackageProof): Promise<boolean> {
+  try {
+    const manifestText = proof.snapshot.files.find(entry => entry.path === "manifest.json")?.text;
+    return Boolean(manifestText && stableJson(JSON.parse(manifestText)) === stableJson(draft.manifest_json)
+      && await browserWorkspaceHash(proof.snapshot.files) === proof.snapshot.contentHash);
+  } catch { return false; }
+}
+
+export async function uploadPackageMetadata(draft: AddonDraft, file: File, proof?: WorkspacePackageProof): Promise<{ packageRow: AddonPackageRow | null; scan: ForgeValidationResult[]; warnings: string[] }> {
   if (!/\.(elysia-addon|zip)$/i.test(file.name)) {
     return { packageRow: null, scan: [{ severity: "blocked", code: "unsupported_package_type", message: "Private package transfer accepts only .elysia-addon or ZIP-compatible source bundles." }], warnings: ["Package was not transferred."] };
   }
+  const { userId, warning } = await currentUserId();
+  if (!userId || !supabase || draft.id.startsWith("local-")) return { packageRow: null, scan: [], warnings: [warning ?? "Save an account-backed draft before private transfer."] };
+  if (draft.owner_user_id !== userId || (proof && proof.snapshot.owner.accountId !== userId)) return { packageRow: null, scan: [], warnings: ["The package belongs to a different website account."] };
+  const client = await accountBoundSupabase(userId).catch(() => null);
+  if (!client) return { packageRow: null, scan: [], warnings: ["The website session changed. Restart private transfer."] };
   const sha256 = await calculateBrowserSha256(file);
+  if (proof && proof.packageHash !== sha256) return { packageRow: null, scan: [], warnings: ["Package bytes no longer match the reviewed workspace revision."] };
   const scan = staticSafetyScan({ fileName: file.name, fileSize: file.size, manifestText: JSON.stringify(draft.manifest_json) });
   let archiveInspection: BrowserArchiveInspectionResult | null = null;
   if (/\.(elysia-addon|zip)$/i.test(file.name)) {
@@ -413,53 +495,59 @@ export async function uploadPackageMetadata(draft: AddonDraft, file: File): Prom
       scan.push({ severity: archiveInspection.status === "pass" ? "info" : archiveInspection.status === "warning" ? "warning" : "blocked", code: "archive_inspection_summary", message: archiveInspection.summary });
     } catch (error) {
       if (import.meta.env.DEV) console.warn("[developer forge archive inspection]", error);
-      scan.push({ severity: "warning", code: "archive_inspection_unavailable", message: "Archive inspection could not complete in this browser. Reviewers should inspect with the local CLI." });
+      scan.push({ severity: "blocked", code: "archive_inspection_unavailable", message: "Archive inspection could not complete. No package was transferred." });
+    }
+  }
+  if (proof) {
+    const inventory = archiveInspection?.file_inventory.filter(entry => entry.kind === "file" && entry.path !== "checksums.json") ?? [];
+    if (!await matchingWorkspaceManifest(draft, proof) || inventory.length !== proof.snapshot.files.length || proof.snapshot.files.some(expected => !inventory.some(actual => actual.path === expected.path && actual.sha256 === expected.content_hash && actual.size === expected.size_bytes))) {
+      scan.push({ severity: "blocked", code: "workspace_package_mismatch", message: "The actual archive files, manifest, or hashes do not match the reviewed workspace revision." });
     }
   }
   const scanStatus = scan.some((item) => item.severity === "blocked" || item.severity === "error") ? "blocked" : scan.some((item) => item.severity === "warning" || item.severity === "needs_reviewer") ? "warning" : "passed";
   if (scanStatus === "blocked") return { packageRow: null, scan, warnings: ["Blocking static/archive findings prevented private package transfer."] };
-  if (draft.id.startsWith("local-")) return { packageRow: null, scan, warnings: ["Package scan ran locally. Sign in and save an account-backed draft before uploading private package metadata."] };
-  const { userId, warning } = await currentUserId();
-  if (!userId || !supabase) return { packageRow: null, scan, warnings: [warning ?? supabaseNotConfiguredMessage] };
-  const locked = await draftLockWarning(draft.id, userId);
+  const locked = await draftLockWarning(draft.id, userId, client);
   if (locked) return { packageRow: null, scan, warnings: [locked] };
-  const storagePath = `${userId}/${draft.id}/${Date.now()}-${safeFileName(file.name)}`;
-  let storedPath: string | null = null;
-  const upload = await supabase.storage.from("addon-packages").upload(storagePath, file, { upsert: false, contentType: file.type || "application/octet-stream" });
-  if (upload.error) logDetail("Package private upload", upload.error.message); else storedPath = storagePath;
+  const storagePath = `${userId}/${draft.id}/${crypto.randomUUID()}-${safeFileName(file.name)}`;
+  const upload = await client.storage.from("addon-packages").upload(storagePath, file, { upsert: false, contentType: file.type || "application/octet-stream" });
+  if (upload.error) return { packageRow: null, scan, warnings: [friendly("Private package transfer", upload.error.message), "No package transfer was confirmed."] };
+  const storedPath = storagePath;
   const scanSummary = archiveInspection ? `${archiveInspection.summary} Risk: ${archiveInspection.risk_level}. Files inspected: ${archiveInspection.file_inventory.length}.` : scan.map((item) => `${item.severity}: ${item.code}`).join("; ").slice(0, 500);
-  const { data, error } = await supabase.from("addon_packages").insert({ addon_draft_id: draft.id, version: draft.version, storage_path: storedPath, file_name: file.name, file_size: file.size, sha256, scan_status: scanStatus, scan_summary: scanSummary || null, archive_inspection_json: archiveInspection ?? {}, signature_status: "unsigned" }).select("*").single();
-  if (error) return { packageRow: null, scan, warnings: [friendly("Package metadata", error.message)] };
-  await supabase.from("addon_drafts").update({ package_status: storedPath ? "uploaded" : "metadata_only", updated_at: new Date().toISOString() }).eq("id", draft.id).eq("owner_user_id", userId);
-  await supabase.from("addon_audit_log").insert({ actor_user_id: userId, target_type: "addon_draft", target_id: draft.id, action: "package_scanned", metadata: { scanStatus, privateUploadStored: Boolean(storedPath) } });
-  return { packageRow: data as AddonPackageRow, scan, warnings: storedPath ? [] : ["Private package storage was unavailable. Package metadata was saved, but no package was transferred and no public URL was created."] };
+  const { data, error } = await client.from("addon_packages").insert({ addon_draft_id: draft.id, version: draft.version, storage_path: storedPath, file_name: file.name, file_size: file.size, sha256, scan_status: scanStatus, scan_summary: scanSummary || null, archive_inspection_json: { ...archiveInspection, ...(proof ? { workspace_receipt: { workspace_id: proof.snapshot.workspaceId, revision: proof.snapshot.revision, content_hash: proof.snapshot.contentHash, manifest_hash: proof.snapshot.files.find(entry => entry.path === "manifest.json")?.content_hash, package_hash: sha256 } } : {}) }, signature_status: "unsigned" }).select("*").single();
+  if (error) return { packageRow: null, scan, warnings: [friendly("Package metadata", error.message), "Bytes reached private storage, but the package record was not confirmed. Submission was not attempted."] };
+  const statusResult = await client.from("addon_drafts").update({ package_status: storedPath ? "uploaded" : "metadata_only", updated_at: new Date().toISOString() }).eq("id", draft.id).eq("owner_user_id", userId);
+  const auditResult = await client.from("addon_audit_log").insert({ actor_user_id: userId, target_type: "addon_draft", target_id: draft.id, action: "package_scanned", metadata: { scanStatus, privateUploadStored: Boolean(storedPath) } });
+  return { packageRow: data as AddonPackageRow, scan, warnings: [...(statusResult.error ? ["The package was privately stored, but draft package status could not be confirmed."] : []), ...(auditResult.error ? ["The package was privately stored, but its audit record could not be confirmed."] : [])] };
 }
 
 export async function validateAndSaveDraft(draft: AddonDraft, catalog: PermissionDefinition[]): Promise<{ results: ForgeValidationResult[]; warnings: string[] }> {
   const { results, manifest } = validateManifest(draft.manifest_json, catalog);
   const scan = staticSafetyScan({ manifestText: JSON.stringify(draft.manifest_json), declaredDomains: manifest?.security?.network_domains ?? [] }).filter((item) => item.code !== "static_scan_initial_pass");
   const allResults = [...results, ...scan];
-  const warnings = await saveValidationResults(draft.id, allResults);
+  const warnings = await saveValidationResults(draft.id, allResults, draft.owner_user_id);
   const compatibility = checkCompatibility(manifest);
-  if (supabase && !draft.id.startsWith("local-") && compatibility.status !== "unknown") {
-    await supabase.from("addon_compatibility_results").insert({ addon_draft_id: draft.id, elysia_version: manifest?.compatibility?.elysia_min_version ?? null, addon_api_version: manifest?.compatibility?.addon_api_version ?? null, status: compatibility.status, warnings: compatibility.warnings, errors: compatibility.errors });
+  if (supabase && draft.owner_user_id && !warnings.length && !draft.id.startsWith("local-") && compatibility.status !== "unknown") {
+    const client = await accountBoundSupabase(draft.owner_user_id);
+    const saved = await client.from("addon_compatibility_results").insert({ addon_draft_id: draft.id, elysia_version: manifest?.compatibility?.elysia_min_version ?? null, addon_api_version: manifest?.compatibility?.addon_api_version ?? null, status: compatibility.status, warnings: compatibility.warnings, errors: compatibility.errors });
+    if (saved.error) warnings.push(friendly("Compatibility results", saved.error.message));
   }
   return { results: allResults, warnings };
 }
 
-async function createSubmissionSnapshot(input: { submissionId: string; draft: AddonDraft; userId: string; catalog: PermissionDefinition[] }) {
+async function createSubmissionSnapshot(input: { submissionId: string; draft: AddonDraft; userId: string; catalog: PermissionDefinition[]; proof?: WorkspacePackageProof; client: NonNullable<typeof supabase> }) {
   if (!supabase) return ["Submission snapshot unavailable: Supabase is not configured."];
-  const { draft, submissionId, userId, catalog } = input;
+  const { draft, submissionId, userId, catalog, proof, client } = input;
   const [{ data: permissions, error: permissionError }, { data: packages, error: packageError }, { data: validationRows, error: validationError }] = await Promise.all([
-    supabase.from("addon_draft_permissions").select("permission_key,reason,scope_json,risk_acknowledged").eq("addon_draft_id", draft.id),
-    supabase.from("addon_packages").select("*").eq("addon_draft_id", draft.id).order("created_at", { ascending: false }).limit(1),
-    supabase.from("addon_validation_results").select("severity,code,message,field_path,fix_suggestion").eq("addon_draft_id", draft.id).order("created_at", { ascending: false })
+    client.from("addon_draft_permissions").select("permission_key,reason,scope_json,risk_acknowledged").eq("addon_draft_id", draft.id),
+    proof?.packageId ? client.from("addon_packages").select("*").eq("addon_draft_id", draft.id).eq("id", proof.packageId) : Promise.resolve({ data: [], error: null }),
+    client.from("addon_validation_results").select("severity,code,message,field_path,fix_suggestion").eq("addon_draft_id", draft.id).order("created_at", { ascending: false })
   ]);
   const warnings = [permissionError, packageError, validationError].map((error, index) => {
     if (!error) return null;
     return friendly(["Draft permissions", "Package metadata", "Validation results"][index], error.message);
   }).filter(Boolean) as string[];
   const latestPackage = Array.isArray(packages) ? packages[0] as AddonPackageRow | undefined : undefined;
+  if (warnings.length || (proof && (!latestPackage?.storage_path || latestPackage.sha256 !== proof.packageHash))) return [...warnings, "The exact reviewed package snapshot could not be confirmed."];
   const validationSnapshot = ((validationRows ?? []) as ForgeValidationResult[]).length
     ? (validationRows ?? []) as ForgeValidationResult[]
     : validateManifest(draft.manifest_json, catalog).results;
@@ -498,13 +586,13 @@ async function createSubmissionSnapshot(input: { submissionId: string; draft: Ad
     package_size_bytes: latestPackage?.file_size ?? null,
     signature_status: latestPackage?.signature_status ?? "unsigned"
   };
-  const { error } = await supabase.from("addon_submission_snapshots").insert(snapshot);
+  const { error } = await client.from("addon_submission_snapshots").insert(snapshot);
   if (error) warnings.push(friendly("Submission snapshot", error.message));
-  else await supabase.from("addon_audit_log").insert({ actor_user_id: userId, target_type: "addon_submission", target_id: submissionId, action: "immutable_submission_snapshot_created", metadata: { package_sha256: latestPackage?.sha256 ?? null, signature_status: latestPackage?.signature_status ?? "unsigned" } });
+  else await client.from("addon_audit_log").insert({ actor_user_id: userId, target_type: "addon_submission", target_id: submissionId, action: "immutable_submission_snapshot_created", metadata: { package_sha256: latestPackage?.sha256 ?? null, signature_status: latestPackage?.signature_status ?? "unsigned" } });
   return warnings;
 }
 
-export async function submitDraftForReview(draft: AddonDraft, termsAccepted: boolean, catalog: PermissionDefinition[]): Promise<string[]> {
+export async function submitDraftForReview(draft: AddonDraft, termsAccepted: boolean, catalog: PermissionDefinition[], proof?: WorkspacePackageProof): Promise<string[]> {
   if (!termsAccepted) return ["Accept the Developer Forge submission terms before submitting."];
   const { manifest, results } = validateManifest(draft.manifest_json, catalog);
   if (!manifest || blockingValidation(results)) return ["Fix blocking manifest errors before submitting for Marketplace review."];
@@ -514,16 +602,19 @@ export async function submitDraftForReview(draft: AddonDraft, termsAccepted: boo
   if (draft.id.startsWith("local-")) return ["Create an account-backed draft before submitting for Marketplace review."];
   const { userId, warning } = await currentUserId();
   if (!userId || !supabase) return [warning ?? supabaseNotConfiguredMessage];
-  const locked = await draftLockWarning(draft.id, userId);
+  if (draft.owner_user_id !== userId || (proof && proof.snapshot.owner.accountId !== userId)) return ["The draft belongs to a different website account."];
+  const client = await accountBoundSupabase(userId).catch(() => null);
+  if (!client) return ["The website session changed. Restart submission."];
+  const locked = await draftLockWarning(draft.id, userId, client);
   if (locked) return [locked];
-  const { data: profile, error: profileError } = await supabase.from("developer_profiles").select("id,status").eq("user_id", userId).maybeSingle();
+  const { data: profile, error: profileError } = await client.from("developer_profiles").select("id,status").eq("user_id", userId).maybeSingle();
   if (profileError) return [friendly("Developer profile", profileError.message)];
   const profileStatus = (profile as { status?: string } | null)?.status;
   if (!profileStatus) return ["Create or request a Developer Forge profile before submitting add-ons for review."];
   if (["suspended", "revoked"].includes(profileStatus)) return ["This developer profile cannot submit add-ons while suspended or revoked."];
   const requiredPermissions = manifestPermissionKeys(manifest);
   if (requiredPermissions.length) {
-    const { data: permissionRows, error: permissionError } = await supabase.from("addon_draft_permissions").select("permission_key,reason,risk_acknowledged").eq("addon_draft_id", draft.id);
+    const { data: permissionRows, error: permissionError } = await client.from("addon_draft_permissions").select("permission_key,reason,risk_acknowledged").eq("addon_draft_id", draft.id);
     if (permissionError) return [friendly("Draft permissions", permissionError.message)];
     const permissionMap = new Map(((permissionRows ?? []) as DraftPermission[]).map((row) => [row.permission_key, row]));
     const missingReasons = requiredPermissions.filter((permission) => {
@@ -532,26 +623,29 @@ export async function submitDraftForReview(draft: AddonDraft, termsAccepted: boo
     });
     if (missingReasons.length) return [`Save permission reasons and risk acknowledgements before submitting: ${missingReasons.join(", ")}.`];
   }
-  if (["local_worker", "connector"].includes(manifest.runtime?.kind ?? "")) {
-    const { data: packages, error: packageError } = await supabase.from("addon_packages").select("id,scan_status").eq("addon_draft_id", draft.id).order("created_at", { ascending: false }).limit(1);
-    if (packageError) return [friendly("Package metadata", packageError.message)];
-    if (!packages?.length) return ["Prepare package metadata/static scan before submitting local worker or connector add-ons."];
-    if ((packages[0] as AddonPackageRow).scan_status === "blocked") return ["Package static scan is blocked. Remove the flagged material before submitting."];
+  if (proof) {
+    if (!await matchingWorkspaceManifest(draft, proof)) return ["The manifest no longer matches the transferred workspace revision."];
+    if (!proof.packageId) return ["Transfer this exact workspace revision privately before submission."];
+    const { data: row, error } = await client.from("addon_packages").select("*").eq("addon_draft_id", draft.id).eq("id", proof.packageId).maybeSingle();
+    const receipt = (row?.archive_inspection_json as { workspace_receipt?: Record<string, unknown> } | undefined)?.workspace_receipt;
+    if (error || !row?.storage_path || row.sha256 !== proof.packageHash || row.scan_status === "blocked" || receipt?.content_hash !== proof.snapshot.contentHash || receipt?.revision !== proof.snapshot.revision) return ["The private package receipt does not match this workspace revision. Review and transfer the current package first."];
+  } else if (["local_worker", "connector"].includes(manifest.runtime?.kind ?? "")) {
+    return ["Local-worker and connector review requires an exact, privately stored workspace package."];
   }
   // Persist the exact reviewed input before the database atomically locks the
   // draft and captures publisher provenance at submission creation.
   const saveWarnings = await updateDraft({ ...draft, developer_profile_id: (profile as { id: string }).id, manifest_json: manifest });
   if (saveWarnings.length) return saveWarnings;
-  const { data: submission, error: submissionError } = await supabase.from("addon_submissions").insert({ addon_draft_id: draft.id, submitted_by: userId, status: "pending", review_summary: draft.short_summary }).select("*").single();
+  const { data: submission, error: submissionError } = await client.from("addon_submissions").insert({ addon_draft_id: draft.id, submitted_by: userId, status: "pending", review_summary: draft.short_summary }).select("*").single();
   if (submissionError) return [friendly("Add-on submission", submissionError.message)];
   const submissionId = (submission as AddonSubmission).id;
-  const snapshotWarnings = await createSubmissionSnapshot({ submissionId, draft: { ...draft, manifest_json: manifest }, userId, catalog });
+  const snapshotWarnings = await createSubmissionSnapshot({ submissionId, draft: { ...draft, manifest_json: manifest }, userId, catalog, proof, client });
   if (snapshotWarnings.length) return [...snapshotWarnings, "The private submission exists and its draft is locked, but the review snapshot was not confirmed. It cannot be published without an immutable snapshot. Keep this submission for review and prepare a revision if needed."];
-  const { data: reviewItem, error: reviewError } = await supabase.from("review_items").insert({ domain: "marketplace", source_table: "addon_submissions", source_id: submissionId, submitted_by: userId, title: draft.addon_name, summary: draft.short_summary, status: "pending_review" }).select("id").single();
+  const { data: reviewItem, error: reviewError } = await client.from("review_items").insert({ domain: "marketplace", source_table: "addon_submissions", source_id: submissionId, submitted_by: userId, title: draft.addon_name, summary: draft.short_summary, status: "pending_review" }).select("id").single();
   const reviewWarnings: string[] = [];
   if (!reviewError && reviewItem) {
     const reviewItemId = (reviewItem as { id: string }).id;
-    const linkResult = await supabase.rpc("link_own_addon_submission_review_item", {
+    const linkResult = await client.rpc("link_own_addon_submission_review_item", {
       p_submission_id: submissionId,
       p_review_item_id: reviewItemId
     });
@@ -559,10 +653,10 @@ export async function submitDraftForReview(draft: AddonDraft, termsAccepted: boo
       logDetail("Submission review link", linkResult.error?.message ?? "governed link returned false");
       reviewWarnings.push("The private Marketplace review item was created, but its governed submission link could not be confirmed. Administrator review must use the cross-domain review queue.");
     }
-    await supabase.from("review_events").insert({ review_item_id: reviewItemId, actor_id: userId, event_type: "submitted", to_status: "pending_review", metadata: { visibility: "submitter_visible", source: "developer_forge" } });
+    await client.from("review_events").insert({ review_item_id: reviewItemId, actor_id: userId, event_type: "submitted", to_status: "pending_review", metadata: { visibility: "submitter_visible", source: "developer_forge" } });
   } else if (reviewError) {
     logDetail("Review item", reviewError.message);
   }
-  await supabase.from("addon_audit_log").insert({ actor_user_id: userId, target_type: "addon_submission", target_id: submissionId, action: "submitted_for_review" });
+  await client.from("addon_audit_log").insert({ actor_user_id: userId, target_type: "addon_submission", target_id: submissionId, action: "submitted_for_review" });
   return [...snapshotWarnings, ...reviewWarnings, ...(reviewError ? ["The private submission record was created, but the cross-domain review index was unavailable. The submission is not public-listed, and administrator review must use the add-on submissions queue."] : ["Submitted to the private Developer Forge review queue. An immutable review snapshot was created; edit a revision draft for changes."])];
 }
