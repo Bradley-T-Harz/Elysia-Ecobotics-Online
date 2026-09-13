@@ -5,7 +5,7 @@ import { createInterface } from "node:readline";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { build } from "esbuild";
-import { chromium } from "playwright";
+import { chromium, firefox } from "playwright";
 import JSZip from "jszip";
 import {
   createWorkspacePageFixture,
@@ -18,6 +18,8 @@ assert(
 const root = process.cwd(),
   dist = path.join(root, "dist"),
   origin = "https://elysiaecobotics.com";
+const browserFamily = process.env.ELYSIA_CODEV_BROWSER_FAMILY || "chromium";
+assert(["chromium", "firefox"].includes(browserFamily), "Unsupported Codev qualification browser");
 const output =
   process.env.ELYSIA_CODEV_MARKETPLACE_EVIDENCE ||
   "/tmp/elysia-codev-marketplace-browser";
@@ -58,6 +60,7 @@ const child = spawn(
   {
     cwd: path.resolve(root, "../Elysia"),
     env: process.env,
+    shell: false,
     stdio: ["pipe", "pipe", "pipe"],
   },
 );
@@ -174,6 +177,7 @@ async function serve(route, { session, controls }) {
   });
 }
 async function allowLoopback(f) {
+  if (browserFamily === "firefox") return; // Qualify Firefox's default security posture.
   const cdp = await f.context.newCDPSession(f.page);
   const browserContextId = (await cdp.send("Target.getTargetInfo")).targetInfo
     .browserContextId;
@@ -229,7 +233,7 @@ async function clickFinish(f) {
 }
 try {
   assert((await next()).fixture_ready);
-  browser = await chromium.launch({ headless: true });
+  browser = await ({ chromium, firefox }[browserFamily]).launch({ headless: true });
   const fixture = createWorkspacePageFixture({
     browser,
     origin,

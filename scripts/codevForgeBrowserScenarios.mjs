@@ -42,7 +42,8 @@ export async function runCodevForgeBrowserScenarios({
     await input.waitFor({ state: "attached" });
     await input.focus();
     await input.press("ControlOrMeta+A");
-    await f.page.keyboard.insertText(text);
+    // Real keyboard events keep Monaco's Firefox input bookkeeping in sync.
+    await f.page.keyboard.type(text);
     await f.page.waitForTimeout(80);
   }
   async function exported(f) {
@@ -236,6 +237,7 @@ export async function runCodevForgeBrowserScenarios({
     .getByRole("button", { name: "Disconnect Codev", exact: true })
     .click();
   await editor(f, "README.md", readme);
+  assert.equal(await (await exported(f)).file("README.md").async("string"), readme);
   const beforeDirtySync = f.writes.length;
   await sync(f);
   assert.equal(

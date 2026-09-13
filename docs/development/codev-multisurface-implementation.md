@@ -226,3 +226,47 @@ sibling phase-8 logs. These results do not attest a real production installation
 provider or signed-in production account. Final native/platform/security/build,
 publication, migration, deployment and production verification remain phase 9.
 No remote mutation, version bump or Codev Add-on change occurred in this phase.
+
+## Phase 9 qualification and applied migration
+
+The existing website full-suite gates passed across the initial run and its
+focused continuation. Reviewed assertions now recognize the exact fifth Pages
+route and literal loopback CSP source, while retaining the existing secret,
+publication, sandbox and origin checks. The route-entry fixture now supplies a
+browser-scoped v2 local draft instead of relying on automatic import of unscoped
+v1 data. Route-entry, badge administration, abuse administration and the public
+bundle audit passed in the continuation; the latter checked 228 artifacts.
+Frontend/Functions types and the isolated build passed. No synthetic build is
+authorized for production deployment.
+
+Codev's signed transport and both full website flows passed in Chromium
+151.0.7922.34 and Firefox 153.0. Both engines used normal security settings, real
+loopback transport and explicitly synthetic account/installation/provider
+adapters. Both proved unchanged unsynced DOM and screenshot bytes after removal
+of the sole Sync slot. The same runs covered explicit native confirmation,
+refresh/dirty-draft preservation, no initial workspace grant, exact reviewed
+edits, per-file rejection, stale revision refusal, account/session revocation,
+cloned-tab isolation, full LICENSE/binary preservation, locked drafts and local
+recovery. Firefox desktop/mobile connected views were manually inspected. The
+Monaco input driver uses real keyboard events and checks export bytes before Sync.
+
+The exact production migration transaction was rehearsed in a network-disabled
+Supabase Postgres container, including duplicate application refusal and all 67
+migrations' behavior checks. `plpgsql_check` found no error-level findings across
+576 governed function names. Migration `20260913010000` was then applied remotely
+with SHA-256 `d931217ae703ab97ae464a56db9aaedfe7ae9465e7d46c57b42a96b281508193`.
+The independent READ ONLY inventory confirms two new private forced-RLS tables,
+nine functions, one trigger and one history row; no existing policies or objects
+were removed or altered. Pairing stores no source, file/workspace permissions,
+publisher roles or native API credentials.
+
+The live Pages project remains a direct-upload project. Its existing production
+bindings were inventoried without secret values, including the enabled governed
+sandbox and identity service. The current public lifecycle Turnstile widget was
+read from the live bundle for exact build configuration. Production password
+authentication correctly refused automated login without CAPTCHA. Two temporary
+tagged QA accounts use admin-issued one-time links for later live pairing tests;
+no email, role elevation or CAPTCHA policy change was performed. These tests do
+not qualify interactive CAPTCHA. Exact-account cleanup is required after live
+verification. Push, production build/deployment and live Codev verification follow
+this checkpoint.

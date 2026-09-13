@@ -5,10 +5,12 @@ import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
-import { chromium } from "playwright";
+import { chromium, firefox } from "playwright";
+const browserFamily=process.env.ELYSIA_CODEV_BROWSER_FAMILY||"chromium";
+assert(["chromium","firefox"].includes(browserFamily),"Unsupported Codev qualification browser");
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),"..");
 assert(process.env.ELYSIA_QA_ROOT?.startsWith("/tmp/elysia-pass10d-i-"),"Run through Elysia's disposable-XDG backend test runner.");
-const child=spawn(process.env.ELYSIA_TEST_PYTHON||"python",["-u","-m","tests.codev_browser_fixture"],{cwd:path.resolve(root,"../Elysia"),env:process.env,stdio:["pipe","pipe","pipe"]});
+const child=spawn(process.env.ELYSIA_TEST_PYTHON||"python",["-u","-m","tests.codev_browser_fixture"],{cwd:path.resolve(root,"../Elysia"),env:process.env,shell:false,stdio:["pipe","pipe","pipe"]});
 let stderr="";child.stderr.on("data",chunk=>stderr+=chunk);
 const queued=[];const waiters=[];
 createInterface({input:child.stdout}).on("line",line=>{if(!line.startsWith("{"))return;const value=JSON.parse(line);if(value.disposable_xdg)return;const waiter=waiters.shift();if(waiter)waiter(value);else queued.push(value);});
@@ -21,13 +23,18 @@ try {
  const headers=await readFile(path.join(root,"public/_headers"),"utf8");
  const original=headers.match(/^\s*Content-Security-Policy:\s*(.+)$/m)[1].replace(" http://127.0.0.1:47321", "");
  const csp=original.replace("connect-src 'self'","connect-src 'self' http://127.0.0.1:47321");
- const origin="https://elysiaecobotics.com";browser=await chromium.launch({headless:true});const evidence=[];
- for(const scenario of [{name:"original-csp",permission:"granted",csp:original,success:false},{name:"permission-denied",permission:"denied",csp,success:false},{name:"signed-connection",permission:"granted",csp,success:true}]){
+ const origin="https://elysiaecobotics.com";browser=await ({chromium,firefox}[browserFamily]).launch({headless:true});const evidence=[];
+ const scenarios=[{name:"original-csp",permission:"granted",csp:original,success:false},{name:"signed-connection",permission:"granted",csp,success:true}];
+ if(browserFamily==="chromium")scenarios.splice(1,0,{name:"permission-denied",permission:"denied",csp,success:false});
+ for(const scenario of scenarios){
   const context=await browser.newContext();const page=await context.newPage();
-  const cdp=await context.newCDPSession(page);const browserContextId=(await cdp.send("Target.getTargetInfo")).targetInfo.browserContextId;
-  let permissionName;
-  for(const name of ["loopback-network","local-network-access"]){try{await cdp.send("Browser.setPermission",{permission:{name},setting:scenario.permission,origin,browserContextId});permissionName=name;break;}catch{}}
-  assert(permissionName,"Browser permission descriptor required; no security flags disabled.");
+  let permissionName="Firefox normal security; no permission override";
+  if(browserFamily==="chromium"){
+   const cdp=await context.newCDPSession(page);const browserContextId=(await cdp.send("Target.getTargetInfo")).targetInfo.browserContextId;
+   permissionName=null;
+   for(const name of ["loopback-network","local-network-access"]){try{await cdp.send("Browser.setPermission",{permission:{name},setting:scenario.permission,origin,browserContextId});permissionName=name;break;}catch{}}
+   assert(permissionName,"Browser permission descriptor required; no security flags disabled.");
+  }
   await page.exposeFunction("nativePair",key=>command(key));
   await context.route(origin+"/**",route=>route.request().url().endsWith("/fixture.js")
     ?route.fulfill({status:200,contentType:"application/javascript",body:source.outputFiles[0].text})
@@ -79,7 +86,7 @@ try {
   }else evidence.push({scenario:scenario.name,permissionName,brokerRequests:after.requests-before.requests});
   await context.close();
  }
- const result={marker:"actual_browser_signed_codev_broker_ok",browser:browser.version(),syntheticIdentityAndProvider:true,realLoopbackSockets:true,browserSecurityFlagsDisabled:false,evidence};
+ const result={marker:"actual_browser_signed_codev_broker_ok",browserFamily,browser:browser.version(),syntheticIdentityAndProvider:true,realLoopbackSockets:true,browserSecurityFlagsDisabled:false,evidence};
  if(process.env.ELYSIA_CODEV_BROWSER_EVIDENCE)await writeFile(process.env.ELYSIA_CODEV_BROWSER_EVIDENCE,JSON.stringify(result,null,2));
  console.log(JSON.stringify(result));
 }finally{await browser?.close();child.stdin.write('{"op":"stop"}\n');child.stdin.end();await new Promise(resolve=>{const timer=setTimeout(()=>{child.kill();resolve();},3000);child.once("exit",()=>{clearTimeout(timer);resolve();});});}

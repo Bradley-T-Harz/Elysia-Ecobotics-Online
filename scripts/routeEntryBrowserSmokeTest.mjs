@@ -101,7 +101,7 @@ async function capture(page, filename) {
 }
 
 const forgeDraft = {
-  id: "route-entry-browser-fixture",
+  id: "local-route-entry-browser-fixture",
   addon_slug: "route-entry-browser-fixture",
   addon_name: "Route Entry Browser Fixture",
   short_summary: "Synthetic browser-local inert Forge fixture.",
@@ -143,7 +143,10 @@ try {
   for (const [viewportName, viewport] of Object.entries({ desktop: { width: 1440, height: 1000 }, mobile: { width: 390, height: 844 } })) {
     const context = await browser.newContext({ viewport, colorScheme: "dark" });
     await context.addInitScript(({ draft }) => {
-      localStorage.setItem("developerForge.localDrafts.v1", JSON.stringify([draft]));
+      const browserId = "browser_" + "f".repeat(32);
+      const ownerKey = `developerForge.localDrafts.v2:${JSON.stringify([null, browserId])}`;
+      localStorage.setItem("elysia.browserWorkspaceId.v1", browserId);
+      localStorage.setItem(ownerKey, JSON.stringify([{ ...draft, browser_owner_key: ownerKey }]));
     }, { draft: forgeDraft });
     const page = await context.newPage();
 

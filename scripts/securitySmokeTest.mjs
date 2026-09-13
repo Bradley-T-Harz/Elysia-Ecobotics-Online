@@ -34,13 +34,30 @@ assert(!staticHeaders.includes("Access-Control-Allow-Origin: *"), "Static Pages 
 
 const pagesRoutes = JSON.parse(await fs.readFile("public/_routes.json", "utf8"));
 assert(
-  pagesRoutes.include.length === 4
+  pagesRoutes.include.length === 5
     && pagesRoutes.include[0] === "/api/sandbox/*"
     && pagesRoutes.include[1] === "/api/identity/*"
     && pagesRoutes.include[2] === "/api/public/profile-avatars/*"
-    && pagesRoutes.include[3] === "/api/public/profile-banners/*",
-  "Pages Functions must remain limited to the sandbox and private identity-service proxies."
+    && pagesRoutes.include[3] === "/api/public/profile-banners/*"
+    && pagesRoutes.include[4] === "/api/codev/*",
+  "Pages Functions must remain limited to the existing proxies and the reviewed Codev pairing metadata route."
 );
+
+const connectSources = staticHeaders.match(/connect-src ([^;]+);/)?.[1].split(/\s+/);
+assert(JSON.stringify(connectSources) === JSON.stringify(["'self'", "http://127.0.0.1:47321", "https://*.supabase.co", "wss://*.supabase.co", "https://challenges.cloudflare.com"]), "Codev may add only its literal fixed loopback broker to the reviewed connection sources.");
+assert(staticHeaders.includes("upgrade-insecure-requests") && staticHeaders.includes("loopback-network=(self), local-network=()"), "Codev must preserve upgrade protection and deny general local-network access.");
+const reviewedCodevSpawns = new Set();
+for(const file of ["scripts/codevBrokerBrowserTest.mjs", "scripts/codevMarketplaceBrowserTest.mjs"]){
+  const source=await fs.readFile(file,"utf8");
+  assert(source.includes("ELYSIA_QA_ROOT") && source.includes("/tmp/elysia-pass10d-i-") && /\[\s*"-u",\s*"-m",\s*"tests\.codev_browser_fixture"\s*\]/.test(source) && /shell:\s*false/.test(source), "Codev browser qualification may spawn only its fixed disposable-XDG native fixture without a shell.");
+  reviewedCodevSpawns.add(file);
+}
+const reviewedCodevRoleLines = new Map([["supabase/migrations/20260913010000_codev_pairing_sessions.sql", new Set([
+  "revoke all on private.codev_pairings from public,anon,authenticated,service_role;",
+  "revoke all on private.codev_pairing_events from public,anon,authenticated,service_role;",
+  "from public,anon,authenticated,service_role;",
+  "public.codev_native_pairing(uuid,text,text) from public,anon,authenticated,service_role;"
+])]]);
 
 const checks = [
   { name: "service role key strings", pattern: /SERVICE_ROLE|SUPABASE_SERVICE|SUPABASE_SERVICE_ROLE|service_role/ },
@@ -191,8 +208,10 @@ const reviewedOwnerDecisionRoleLines = new Map([
 function allowHit(file, line, checkName) {
   const normalized = file.replaceAll(path.sep, "/");
   // Reviewed type names and SQL permission boundaries, never credential values.
+  if (reviewedCodevSpawns.has(normalized) && ["Node child process", "process spawn"].includes(checkName) && /node:child_process|(?:const child\s*=\s*)spawn\(/.test(line)) return true;
+  if (normalized === "src/shared/codev/workspace.ts" && checkName === "service role key strings" && line.trim() === 'return /\\b(sk-[A-Za-z0-9_-]{8,}|ghp_[A-Za-z0-9_]{8,}|github_pat_[A-Za-z0-9_]{8,}|AWS_ACCESS_KEY_ID|SUPABASE_SERVICE_ROLE|service_role)\\b/i.test(text)') return true;
   if (checkName === "service role key strings") {
-    if (reviewedOwnerDecisionRoleLines.get(normalized)?.has(line.trim()) || reviewedJobFeeRoleLines.get(normalized)?.has(line.trim()) || reviewedPublisherRoleLines.get(normalized)?.has(line.trim())) return true;
+    if (reviewedCodevRoleLines.get(normalized)?.has(line.trim()) || reviewedOwnerDecisionRoleLines.get(normalized)?.has(line.trim()) || reviewedJobFeeRoleLines.get(normalized)?.has(line.trim()) || reviewedPublisherRoleLines.get(normalized)?.has(line.trim())) return true;
     if (normalized === "functions/api/economic-preparation/_shared/handler.ts"
       && line.trim() === 'export interface PreparationEnv extends Pick<BillingEnv, "SUPABASE_URL" | "SUPABASE_PUBLISHABLE_KEY" | "SUPABASE_SERVICE_ROLE_KEY"> {') return true;
     if (normalized === "supabase/migrations/20260908040000_pre_provider_preparation.sql"
@@ -395,7 +414,7 @@ function allowHit(file, line, checkName) {
   return false;
 }
 
-for (const [file, lines] of [...reviewedJobFeeRoleLines, ...reviewedPublisherRoleLines]) for (const line of lines) {
+for (const [file, lines] of [...reviewedJobFeeRoleLines, ...reviewedPublisherRoleLines, ...reviewedCodevRoleLines]) for (const line of lines) {
   assert(allowHit(file, line, "service role key strings"), "Reviewed Job Post role statement rejected.");
   assert(!allowHit(file, line + " unreviewed_suffix", "service role key strings"), "Job Post exception allowed an unreviewed extension.");
   assert(!allowHit(file, line, "Stripe secret material"), "Job Post role exception bypassed credential scanning.");

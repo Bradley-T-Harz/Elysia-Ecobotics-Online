@@ -145,12 +145,13 @@ for (const directive of [
 
 const routes = JSON.parse(routesText);
 assert(
-  routes.include.length === 4
+  routes.include.length === 5
     && routes.include[0] === "/api/sandbox/*"
     && routes.include[1] === "/api/identity/*"
     && routes.include[2] === "/api/public/profile-avatars/*"
-    && routes.include[3] === "/api/public/profile-banners/*",
-  "Pages Function invocation must remain limited to the governed sandbox, private identity proxy, and safe public-profile derivative proxies."
+    && routes.include[3] === "/api/public/profile-banners/*"
+    && routes.include[4] === "/api/codev/*",
+  "Pages Function invocation must remain limited to the reviewed sandbox, identity/profile proxies and Codev pairing metadata route."
 );
 assert(routes.exclude.includes("/api/sandbox/_shared/*"), "Pages Function source internals must remain excluded.");
 

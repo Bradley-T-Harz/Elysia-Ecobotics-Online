@@ -265,4 +265,3 @@ export type WorkspaceGrant = {
   expires_at: string;
   revoked?: boolean;
 };
-
