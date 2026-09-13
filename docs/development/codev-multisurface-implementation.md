@@ -81,3 +81,40 @@ and role views without browser exceptions or provider requests. Focused screensh
 were inspected; local Chromium evidence is under the task's private `/tmp` directory.
 These are synthetic browser/API checks, not a claim of production pairing or live
 review submission. Database/pairing/deployment qualification remains ahead.
+
+## Phase 6 pairing foundation (not deployed)
+
+The additive `20260913010000_codev_pairing_sessions.sql` migration stores private
+pairing identity and lifecycle metadata only. RLS, explicit function ownership,
+empty search paths and narrow RPC grants keep the tables inaccessible to API
+roles. Browser RPCs require an authenticated JWT and an existing matching
+`auth.sessions` row, plus the existing ordinary-account lifecycle gate. Native
+RPCs require unpredictable, separate, single-purpose secrets. Neither publisher,
+reviewer, financial, draft nor storage authority is granted. Login deletion
+cascades to revoke pairing. Expired metadata is pruned on subsequent pairing
+creation, with per-account attempt limits; no source or workspace contents enter
+these tables.
+
+Pages uses only its existing public Supabase bindings. The new narrow route
+handler validates exact origin/method/keys/body/destination, hashes manual/native
+secrets, rejects redirects, validates public keys on P-256, and filters the complete
+output shape. Browser private keys and native API credentials never enter Pages.
+Binding types were generated with Wrangler from the clearly marked types-only
+config; that config is not a production deployment configuration.
+
+The shared browser transport signs exact UTF-8 payloads, pins the native key from
+the HTTPS intent, and verifies request-bound responses. It has no startup probe
+or port scan. It is not yet mounted on either page. Normal-security Chromium with
+synthetic HTTPS identity and the actual Python broker passed signed status,
+selected-file sharing and an exact browser patch; the original CSP and denied
+loopback permission each caused zero broker requests. Source LICENSE/binary hashes
+were preserved; replay, impostor key, private-key export and account change were
+rejected. Browser identity/provider adapters were synthetic.
+
+All 67 migrations replayed in disposable network-disabled PostgreSQL; pairing
+identity, role isolation, expiry, replay and logout checks passed. The database
+linter found no error-level findings across 576 governed function names. Endpoint
+security tests and frontend/Functions typechecks passed. Actual production schema
+was inventoried using the owner's explicitly approved admin connection solely
+inside enforced READ ONLY transactions; credentials were not exposed. No migration
+has been applied remotely and no push or deployment has occurred in this phase.

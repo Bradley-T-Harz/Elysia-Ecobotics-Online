@@ -67,6 +67,43 @@
       "title": "Actor",
       "type": "object"
     },
+    "BrokerPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "clock_skew_seconds": {
+          "const": 30,
+          "default": 30,
+          "title": "Clock Skew Seconds",
+          "type": "integer"
+        },
+        "host": {
+          "const": "127.0.0.1:47321",
+          "default": "127.0.0.1:47321",
+          "title": "Host",
+          "type": "string"
+        },
+        "max_body_bytes": {
+          "const": 2097152,
+          "default": 2097152,
+          "title": "Max Body Bytes",
+          "type": "integer"
+        },
+        "origin": {
+          "const": "http://127.0.0.1:47321",
+          "default": "http://127.0.0.1:47321",
+          "title": "Origin",
+          "type": "string"
+        },
+        "port": {
+          "const": 47321,
+          "default": 47321,
+          "title": "Port",
+          "type": "integer"
+        }
+      },
+      "title": "BrokerPolicy",
+      "type": "object"
+    },
     "BrokerProof": {
       "additionalProperties": false,
       "properties": {
@@ -115,6 +152,216 @@
       "title": "BrokerProof",
       "type": "object"
     },
+    "BrokerRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "payload_json": {
+          "maxLength": 2097152,
+          "title": "Payload Json",
+          "type": "string"
+        },
+        "proof": {
+          "$ref": "#/$defs/BrokerProof"
+        }
+      },
+      "required": [
+        "proof",
+        "payload_json"
+      ],
+      "title": "BrokerRequest",
+      "type": "object"
+    },
+    "BrokerResponse": {
+      "additionalProperties": false,
+      "properties": {
+        "payload_json": {
+          "maxLength": 2097152,
+          "title": "Payload Json",
+          "type": "string"
+        },
+        "signature": {
+          "pattern": "^[A-Za-z0-9_-]{86}$",
+          "title": "Signature",
+          "type": "string"
+        }
+      },
+      "required": [
+        "payload_json",
+        "signature"
+      ],
+      "title": "BrokerResponse",
+      "type": "object"
+    },
+    "BrowserApproveRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "content_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "explicitly_approved": {
+          "default": false,
+          "title": "Explicitly Approved",
+          "type": "boolean"
+        },
+        "grant_epoch": {
+          "minimum": 1,
+          "title": "Grant Epoch",
+          "type": "integer"
+        },
+        "plan_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Plan Hash",
+          "type": "string"
+        },
+        "plan_id": {
+          "maxLength": 128,
+          "minLength": 16,
+          "title": "Plan Id",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "workspace_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Workspace Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "revision",
+        "content_hash",
+        "grant_epoch",
+        "plan_id",
+        "plan_hash"
+      ],
+      "title": "BrowserApproveRequest",
+      "type": "object"
+    },
+    "BrowserCancelRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "request_id": {
+          "pattern": "^codev_[a-f0-9]{32}$",
+          "title": "Request Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id"
+      ],
+      "title": "BrowserCancelRequest",
+      "type": "object"
+    },
+    "BrowserChatRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "content_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "grant_epoch": {
+          "minimum": 1,
+          "title": "Grant Epoch",
+          "type": "integer"
+        },
+        "message": {
+          "maxLength": 16000,
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "request_id": {
+          "pattern": "^codev_[a-f0-9]{32}$",
+          "title": "Request Id",
+          "type": "string"
+        },
+        "requested_gear": {
+          "default": "standard",
+          "title": "Requested Gear",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "workspace_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Workspace Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "revision",
+        "content_hash",
+        "grant_epoch",
+        "message",
+        "request_id"
+      ],
+      "title": "BrowserChatRequest",
+      "type": "object"
+    },
+    "BrowserPatchRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "content_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "edits": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "maxProperties": 20,
+          "minProperties": 1,
+          "title": "Edits",
+          "type": "object"
+        },
+        "grant_epoch": {
+          "minimum": 1,
+          "title": "Grant Epoch",
+          "type": "integer"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "summary": {
+          "maxLength": 2000,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        },
+        "workspace_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Workspace Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "revision",
+        "content_hash",
+        "grant_epoch",
+        "summary",
+        "edits"
+      ],
+      "title": "BrowserPatchRequest",
+      "type": "object"
+    },
     "BrowserPublicKey": {
       "additionalProperties": false,
       "properties": {
@@ -148,6 +395,40 @@
       "title": "BrowserPublicKey",
       "type": "object"
     },
+    "BrowserRevisionRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "content_hash": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Content Hash",
+          "type": "string"
+        },
+        "grant_epoch": {
+          "minimum": 1,
+          "title": "Grant Epoch",
+          "type": "integer"
+        },
+        "revision": {
+          "minimum": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "workspace_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Workspace Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "workspace_id",
+        "revision",
+        "content_hash",
+        "grant_epoch"
+      ],
+      "title": "BrowserRevisionRequest",
+      "type": "object"
+    },
     "BrowserWorkspaceShare": {
       "additionalProperties": false,
       "properties": {
@@ -178,6 +459,12 @@
           ],
           "default": null,
           "title": "Draft Id"
+        },
+        "expected_epoch": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Expected Epoch",
+          "type": "integer"
         },
         "explicitly_approved": {
           "title": "Explicitly Approved",
@@ -1262,8 +1549,32 @@
     "approval": {
       "$ref": "#/$defs/ExactApproval"
     },
+    "broker_policy": {
+      "$ref": "#/$defs/BrokerPolicy"
+    },
     "broker_proof": {
       "$ref": "#/$defs/BrokerProof"
+    },
+    "broker_request": {
+      "$ref": "#/$defs/BrokerRequest"
+    },
+    "broker_response": {
+      "$ref": "#/$defs/BrokerResponse"
+    },
+    "browser_approve": {
+      "$ref": "#/$defs/BrowserApproveRequest"
+    },
+    "browser_cancel": {
+      "$ref": "#/$defs/BrowserCancelRequest"
+    },
+    "browser_chat": {
+      "$ref": "#/$defs/BrowserChatRequest"
+    },
+    "browser_patch": {
+      "$ref": "#/$defs/BrowserPatchRequest"
+    },
+    "browser_revision": {
+      "$ref": "#/$defs/BrowserRevisionRequest"
     },
     "browser_share": {
       "$ref": "#/$defs/BrowserWorkspaceShare"
@@ -1300,7 +1611,15 @@
     "pairing_intent",
     "pairing_session",
     "broker_proof",
-    "browser_share"
+    "broker_policy",
+    "broker_request",
+    "broker_response",
+    "browser_share",
+    "browser_revision",
+    "browser_chat",
+    "browser_cancel",
+    "browser_patch",
+    "browser_approve"
   ],
   "title": "CodevContracts",
   "type": "object"

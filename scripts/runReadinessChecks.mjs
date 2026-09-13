@@ -11,6 +11,7 @@ if (extra.length && (extra.length !== 2 || extra[0] !== "--output" || !extra[1])
   throw new Error("Usage: node scripts/runReadinessChecks.mjs <check> [--output <evidence-directory>]");
 }
 const commands = {
+  codevPairing: ["node", ["--experimental-strip-types", "scripts/codevPairingEndpointTest.mts"]],
   owner: ["node", ["--experimental-strip-types", "scripts/ownerDecisionsContractTest.mts"]],
   ownerLegal: ["node", ["--experimental-strip-types", "scripts/ownerDecisionLegalCheck.mts"]],
   ownerBrowser: ["node", ["scripts/ownerDecisionsBrowserTest.mjs"]],

@@ -145,6 +145,8 @@ const publisherOwnershipPaths = ["supabase/migrations/20260909020000_marketplace
 
 const ownerDecisionPaths = ["supabase/migrations/20260910010000_scoped_review_capabilities.sql", "supabase/migrations/20260910020000_work_with_lifecycle_and_profile_boundaries.sql", "supabase/migrations/20260910030000_adopted_economic_policy_and_messaging_privacy.sql", "supabase/migrations/20260910040000_stewardship_proof_retention.sql", "supabase/migrations/20260910050000_owner_decision_legal_versions.sql"];
 
+const codevPairingPaths = ["supabase/migrations/20260913010000_codev_pairing_sessions.sql"];
+
 const activePaths = [
   ...baselinePaths,
   ...economicPaths,
@@ -168,6 +170,7 @@ const activePaths = [
   ...jobFeeParticipantPaths,
   ...publisherOwnershipPaths,
   ...ownerDecisionPaths,
+  ...codevPairingPaths,
 ];
 
 const legacyHashes = new Map(Object.entries({
@@ -1025,6 +1028,7 @@ try {
     "scripts/fixtures/jobPostFeeRequestBehavior.sql",
     "scripts/fixtures/publisherOwnershipBehavior.sql",
     "scripts/fixtures/ownerDecisionsBehavior.sql",
+    "scripts/fixtures/codevPairingBehavior.sql",
     "scripts/fixtures/stewardshipRetentionBehavior.sql",
     "scripts/fixtures/sandboxDatabaseBehavior.sql",
     "scripts/fixtures/codeRevisionProposalBehavior.sql",
@@ -1781,6 +1785,12 @@ try {
   await psql(["-f", "/tmp/accountMessagingBehavior.sql"]);
   await psql(["-f", "/tmp/jobPostFeeRequestBehavior.sql"]);
 
+  // Test-only auth fixture: these production columns were inventoried read-only.
+  await psql(["-c", "create table if not exists auth.sessions (id uuid primary key, user_id uuid not null references auth.users(id) on delete cascade, not_after timestamptz);"]);
+  await psql(["-c", "alter table auth.sessions add column if not exists not_after timestamptz;"]);
+  for (const file of codevPairingPaths) await psql(["-f", `/tmp/${path.basename(file)}`]);
+  console.log((await psql(["-f", "/tmp/codevPairingBehavior.sql"])).stdout);
+
   assert(appliedMigrations.size === activePaths.length, `Only ${appliedMigrations.size}/${activePaths.length} inventoried migrations were replayed.`);
   console.log(`Replayed all ${appliedMigrations.size} current migrations successfully.`);
 
@@ -1802,7 +1812,7 @@ try {
   const plpgsqlCheckAvailable = await psql(["-tAc", "select exists (select 1 from pg_catalog.pg_available_extensions where name = 'plpgsql_check');"]);
   if (plpgsqlCheckAvailable.stdout.trim() === "t") {
     await psql(["-c", "create extension if not exists plpgsql_check;"]);
-    const ownerFunctionSources = await Promise.all(ownerDecisionPaths.map(file => fs.readFile(file, "utf8")));
+    const ownerFunctionSources = await Promise.all([...ownerDecisionPaths, ...codevPairingPaths].map(file => fs.readFile(file, "utf8")));
     const governedPlpgsqlFunctions = [...new Set([
       ...ownerFunctionSources.flatMap(sql => [...sql.matchAll(/create (?:or replace )?function ((?:public|private)\.[a-z_]+)\(/gi)].map(match => match[1])),
       "private.publisher_actor", "private.apply_automatic_community_deletion_anonymization", "private.publisher_assert_namespace", "private.establish_marketplace_publisher", "private.authorize_marketplace_publisher_manager", "private.register_external_publisher_release", "public.save_own_marketplace_publisher", "public.current_user_publisher_workspace",
