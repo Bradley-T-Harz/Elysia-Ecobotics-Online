@@ -194,7 +194,7 @@
     "test:browser-workspace": "node scripts/browserWorkspaceContractTest.mjs",
     "test:browser-workspace-recovery": "node scripts/browserWorkspaceRecoveryBrowserTest.mjs",
     "test:browser-workspace-integration": "node scripts/browserWorkspaceIntegrationBrowserTest.mjs",
-    "test:codev-pairing": "node --experimental-strip-types scripts/codevPairingEndpointTest.mts",
+    "test:codev-pairing": "node scripts/codevVersionCompatibilityTest.mjs && node --experimental-strip-types scripts/codevPairingEndpointTest.mts",
     "types:codev-pages": "wrangler types functions/codev-bindings.d.ts --config scripts/config/codev-pages-types.jsonc --env-file /dev/null --include-runtime false --env-interface CodevPagesBindings --strict-vars false"
   },
   "dependencies": {
