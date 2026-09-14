@@ -80,6 +80,7 @@ function BoundPanel({
     "scope",
   );
   const [message, setMessage] = useState("");
+  const [requestKind, setRequestKind] = useState<"conversation" | "edit_proposal">("conversation");
   const [gear, setGear] = useState("standard");
   const [messages, setMessages] = useState<
     Array<{ role: string; text: string; result?: ChatResult }>
@@ -115,6 +116,17 @@ function BoundPanel({
   useEffect(() => {
     onScopeChange(label);
   }, [label, onScopeChange]);
+  useEffect(() => {
+    const available = new Set(
+      workspace.files
+        .filter((file) => file.text !== null && file.sizeBytes <= 131072 && !unsafeWorkspaceText(file.text))
+        .map((file) => file.path),
+    );
+    setSelected((previous) => {
+      const retained = previous.filter((path) => available.has(path));
+      return retained.length === previous.length ? previous : retained;
+    });
+  }, [workspace.files]);
   useEffect(() => {
     mounted.current = true;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);
@@ -310,11 +322,20 @@ function BoundPanel({
   async function chat(text = message) {
     const context = assertShare();
     if (!text.trim()) return;
+    if (requestKind === "edit_proposal") {
+      assertEditable();
+      if (!context.grant.scopes?.includes("propose"))
+        throw new Error("Share selected files with proposal permission first.");
+      if (!connection.client.supportsEditProposals)
+        throw new Error("Update local Codev Core to request structured edit proposals.");
+    }
+    const responseKind = requestKind;
     const requestId = "codev_" + crypto.randomUUID().replace(/-/g, "");
     setRunning(requestId);
     runningRef.current = requestId;
     setMessages((previous) => [...previous, { role: "You", text }]);
     setMessage("");
+    setRequestKind("conversation");
     try {
       const result = await connection.client.request<ChatResult>("chat", {
         workspace_id: workspace.id,
@@ -323,6 +344,7 @@ function BoundPanel({
         grant_epoch: context.grant.epoch,
         message: text,
         requested_gear: gear,
+        ...(responseKind === "edit_proposal" ? { response_kind: responseKind } : {}),
         request_id: requestId,
       });
       assertShare();
@@ -531,6 +553,7 @@ function BoundPanel({
   }
   const diagnostics = binding.diagnostics?.() ?? [];
   function shortcut(prompt: string) {
+    setRequestKind("conversation");
     const findings =
       prompt === "Explain validation findings"
         ? "\nCurrent browser validation findings (not an execution result):\n" +
@@ -795,7 +818,7 @@ function BoundPanel({
                 disabled={!currentShare || busy || !message.trim()}
                 onClick={() => void run(() => chat())}
               >
-                Send to local Codev
+                {requestKind === "edit_proposal" ? "Request proposed edit" : "Send to local Codev"}
               </button>
             )}
           </div>
@@ -803,11 +826,12 @@ function BoundPanel({
             <button
               type="button"
               disabled={busy}
-              onClick={() =>
+              onClick={() => {
+                setRequestKind("edit_proposal");
                 setMessage(
-                  "Propose a focused improvement to the selected existing files. Return one fenced JSON object with exactly summary (a short string) and edits (a map from each selected existing relative path to its complete replacement text). Do not apply anything or claim tests ran.",
-                )
-              }
+                  "Propose a focused improvement to the selected existing files. Preserve unrelated content. Do not apply anything or claim tests ran.",
+                );
+              }}
             >
               Prepare an edit request
             </button>

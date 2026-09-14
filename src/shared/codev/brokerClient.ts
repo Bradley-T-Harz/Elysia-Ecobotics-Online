@@ -53,6 +53,7 @@ export function validatePairing(value: unknown, scope: OnlineScope, publicKey: B
 }
 const paths = new Set(["status","revoke","workspace/share","workspace/revoke","workspace/status","workspace/reset","chat","chat/cancel","patch/plan","patch/authorize","receipts"]);
 export class CodevBrokerClient {
+  supportsEditProposals = false;
   private closed=false;
   private pending=new Set<AbortController>();
   readonly key: ScopedKey;
@@ -130,6 +131,7 @@ export class CodevBrokerClient {
       || value.actor.surface!==this.key.scope.surface || value.actor.client_kind!=="browser"
       || value.browser_session_id!==this.key.scope.browserSessionId || !value.installation.installed || !value.installation.usable
       || value.installation.version!=="1.0.0" || !Array.isArray(value.workspace_grants) || value.workspace_grants.length)throw new Error("Installed Codev could not be verified for this connection.");
+    this.supportsEditProposals = value.installation.capabilities?.some(capability => capability.id === "structured_edit_proposal" && capability.available === true) ?? false;
     return value;
   }
 }

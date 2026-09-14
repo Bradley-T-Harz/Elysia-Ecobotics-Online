@@ -74,9 +74,10 @@ export async function runCodevForgeBrowserScenarios({
     await f.page
       .getByRole("button", { name: "Conversation", exact: true })
       .click();
+    await f.page.getByRole("button", { name: "Prepare an edit request", exact: true }).click();
     await f.page.getByLabel("Ask Codev", { exact: true }).fill(text);
     await f.page
-      .getByRole("button", { name: "Send to local Codev", exact: true })
+      .getByRole("button", { name: "Request proposed edit", exact: true })
       .click();
     await f.page
       .getByRole("button", { name: "Review proposed edits", exact: true })
@@ -208,6 +209,11 @@ export async function runCodevForgeBrowserScenarios({
     })
     .waitFor();
   const firstDraft = f.drafts[0];
+  await open(f);
+  for (const name of ["manifest.json", "docs/review-boundary.md"])
+    await f.page.locator(".codev-file-selection label")
+      .filter({ hasText: name }).locator("input").check();
+  await f.page.getByRole("button", { name: "Close Codev", exact: true }).click();
   const license =
     "Synthetic Forge full license\nAll exact license lines must survive.\nNo warranty.\n";
   const readme = "# Forge fixture\n\nUnsaved README edits before Sync.\n";
@@ -233,6 +239,11 @@ export async function runCodevForgeBrowserScenarios({
     .first()
     .waitFor();
   await open(f);
+  await f.page.getByRole("button", { name: "Share selected context (1)", exact: true }).waitFor();
+  assert.equal(await f.page.locator(".codev-file-selection input:checked").count(), 1,
+    "Import must forget a selected file that no longer exists, while retaining an available selection");
+  assert.equal(await f.page.locator(".codev-file-selection label")
+    .filter({ hasText: "docs/review-boundary.md" }).count(), 0);
   await f.page
     .getByRole("button", { name: "Disconnect Codev", exact: true })
     .click();
@@ -286,6 +297,7 @@ export async function runCodevForgeBrowserScenarios({
     },
   });
   await proposal(f, "Propose focused changes to these two selected files.");
+  assert.equal((await command({ op: "counts" })).model_contexts.at(-1).edit_proposal, true);
   await f.page
     .getByRole("button", { name: "Apply these 2 changes", exact: true })
     .waitFor();
