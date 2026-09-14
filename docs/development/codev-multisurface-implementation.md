@@ -1,7 +1,7 @@
 # Codev multi-surface implementation evidence
 
 This implementation follows the four owner-supplied Codev directives. Elysia and
-Codev remain v1.0.0. The current Codev Add-on repository is read-only. Installation,
+Codev remain v1.0.0. The original cycle kept the Codev Add-on read-only; the later portability directive authorizes its required runtime-discovery correction. Installation,
 explicit Sync Codev, native confirmation, refresh, and separate workspace grants
 remain mandatory before any connected website interface is exposed.
 
@@ -367,3 +367,11 @@ https://github.com/Bradley-T-Harz/Elysia/pull/2. GitHub's existing independent-r
 requirement still prevents merging to main; source publication is no longer
 waiting for the earlier payload-specific approval. Codev Add-on, archives and all
 Elysia/Codev 1.0.0 product versions remain unchanged.
+
+## Portable Core contract and Sync presentation correction
+
+The shared schema now represents neutral Core installation, runtime readiness, local session state, installation generation, workspace authority and network pairing as separate dimensions. The website remains an explicit client of the same governed Core through the signed broker; no automatic installation probe or initial source grant was added.
+
+The compact Sync Codev control now has a distinct code mark, stronger teal contrast, increased padding, a restrained glow and visible keyboard focus. It occupies the existing slot on both Marketplace Submit and Forge drafts. The connected control continues to replace that slot only after explicit pairing and refresh.
+
+Recovery verification includes the complete isolated readiness suite, frontend/Functions typechecks, workerd pairing boundaries, browser workspace byte/revision and IndexedDB recovery tests. The readiness suite explicitly skips real disposable database execution unless enabled, and does not substitute for the separate workspace/Codev browser suites or live production qualification. Production deployment and actual installed-Core pairing evidence for this correction remain pending until recorded below. No new migration is required by these contract/presentation changes.

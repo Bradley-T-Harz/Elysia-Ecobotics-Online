@@ -201,6 +201,7 @@ export default function SyncCodevSlot({
           className="codev-sync-button"
           onClick={() => void begin()}
         >
+          <span className="codev-sync-mark" aria-hidden="true">{"</>"}</span>
           Sync Codev
         </button>
       )}

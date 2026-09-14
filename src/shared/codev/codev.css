@@ -5,13 +5,44 @@
   font-size: 13px;
 }
 .codev-sync-slot .codev-sync-button {
-  padding: 7px 12px;
-  border: 1px solid #315552;
-  border-radius: 20px;
-  background: transparent;
-  color: #8dddd5;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 42px;
+  padding: 9px 16px;
+  border: 1px solid #7de2cc;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #204d46, #122d36);
+  color: #e3fff5;
   font: inherit;
+  font-weight: 750;
+  letter-spacing: 0.015em;
+  box-shadow: 0 0 0 1px #a5f8dd0c, 0 4px 20px #4dd6b72b, inset 0 1px 0 #ffffff12;
   cursor: pointer;
+  transition: background 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+.codev-sync-slot .codev-sync-button:hover {
+  background: linear-gradient(135deg, #2b6256, #193e46);
+  border-color: #b5ffe5;
+  box-shadow: 0 0 0 1px #a5f8dd26, 0 5px 25px #4dd6b747;
+}
+.codev-sync-slot .codev-sync-button:focus-visible {
+  outline: 3px solid #b8ffe6;
+  outline-offset: 4px;
+}
+.codev-sync-mark {
+  display: grid;
+  place-items: center;
+  width: 25px;
+  height: 25px;
+  border-radius: 7px;
+  background: #9cf0d9;
+  color: #102c29;
+  font: 800 13px/1 ui-monospace, monospace;
+  letter-spacing: -0.08em;
+}
+@media (prefers-reduced-motion: reduce) {
+  .codev-sync-slot .codev-sync-button { transition: none; }
 }
 .codev-connected-control {
   display: flex;
