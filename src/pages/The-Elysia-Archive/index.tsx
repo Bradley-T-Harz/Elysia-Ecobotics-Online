@@ -17,7 +17,7 @@ export default function ArchivePage() {
   return (
     <div className="page-stack">
       <PageHero eyebrow="Downloads" title="The Elysia Archive" brandMark="standard">
-        <p>Elysia v1.0.0 is the stable, free, local-first release of Elysia by EcoSyneva Commons LLC.</p>
+        <p>Elysia v{releaseManifest.version} is the stable, free, local-first release of Elysia by EcoSyneva Commons LLC.</p>
         <p>Download Linux packages, public source, Codev, checksums, the signed release manifest, SBOMs, provenance, notices, requirements, and release notes from the exact official records below.</p>
         <p>Canonical downloads come only from this Archive and the linked <a href={releaseManifest.repositories.elysia_release} target="_blank" rel="noreferrer">Elysia</a> and <a href={releaseManifest.repositories.codev_release} target="_blank" rel="noreferrer">Codev</a> GitHub Releases. Treat third-party mirrors, reposted installers, and unofficial checksums as unverified.</p>
       </PageHero>
@@ -39,7 +39,7 @@ export default function ArchivePage() {
           <p>Release date: {releaseManifest.release_date}. Channel: {releaseManifest.channel}. Live availability is authoritative at the canonical external release surfaces.</p>
         </div>
         <div className="feature-grid feature-grid--three">
-          <FeatureCard title="Stable release" tone="safe"><p>Elysia and Codev are published as version {releaseManifest.version} from their canonical public repositories.</p><StatusBadge label="v1.0 stable" tone="safe" /></FeatureCard>
+          <FeatureCard title="Stable release" tone="safe"><p>Elysia and Codev are published as version {releaseManifest.version} from their canonical public repositories.</p><StatusBadge label={`v${releaseManifest.version} stable`} tone="safe" /></FeatureCard>
           <FeatureCard title="Public source"><p><a href={releaseManifest.repositories.elysia} target="_blank" rel="noreferrer">Elysia source</a></p><p><a href={releaseManifest.repositories.codev} target="_blank" rel="noreferrer">Codev source</a></p><p>Website and Artisan source remain private.</p></FeatureCard>
           <FeatureCard title="Signed and inspectable"><p>Every exact payload is SHA-256 bound. The release manifest is signed by the governed Elysia updater authority, and SBOM/provenance/license material is public.</p><StatusBadge label="Fail-closed verification" tone="safe" /></FeatureCard>
         </div>
@@ -48,10 +48,10 @@ export default function ArchivePage() {
       <section className="section-card" id="release-downloads" aria-labelledby="release-downloads-title">
         <p className="eyebrow">Exact official bytes</p>
         <h2 id="release-downloads-title" tabIndex={-1}>Downloads</h2>
-        <p>The supported qualification baseline is Ubuntu 24.04 on x86-64. Core is CPU-capable. Optional profiles may require additional disk, memory, models, containers, or qualified CUDA resources.</p>
+        <p>The supported package baselines are Debian 13 and Ubuntu 24.04 LTS on amd64 (x86-64). Core is CPU-capable. Optional profiles may require additional disk, memory, models, containers, or qualified CUDA resources.</p>
         <div className="feature-grid feature-grid--three">
           {visibleArtifacts.map((artifact) => (
-            <article className="feature-card" key={artifact.filename}>
+            <article className="feature-card" key={artifact.filename} id={artifact.filename.startsWith("codev-core-") ? "codev-core" : undefined}>
               <p className="eyebrow">{artifact.product} · {artifact.artifact_type}</p>
               <h3>{artifact.label}</h3>
               <p>{artifact.description}</p>
@@ -64,6 +64,13 @@ export default function ArchivePage() {
             </article>
           ))}
         </div>
+      </section>
+
+      <section className="section-card" aria-labelledby="release-history-title">
+        <h2 id="release-history-title">Supported formats and release history</h2>
+        <p>Install Elysia, then add Codev Core when you want the development workroom. Either installation order is supported. The VS Code adapter is an optional client of Core.</p>
+        <p>AppImage 1.1.0 is not offered: its exact native-notice verification did not pass. ARM, Wayland, Windows and macOS are not qualified by this release.</p>
+        <p>Original 1.0.0 downloads, including its AppImage, remain unchanged: <a href={releaseManifest.history[0].elysia_release}>Elysia 1.0.0</a>, <a href={releaseManifest.history[0].codev_release}>Codev 1.0.0</a>, and the <a href={releaseManifest.history[0].manifest_url}>historical checksum index</a>.</p>
       </section>
 
       <section className="section-card" aria-labelledby="verify-release-title">
@@ -94,7 +101,7 @@ export default function ArchivePage() {
       <section className="section-card">
         <h2>Release status and safety notes</h2>
         <div className="table-grid">
-          <div><strong>Public release:</strong> Elysia and Codev v1.0.0 stable.</div>
+          <div><strong>Public release:</strong> Elysia and Codev v{releaseManifest.version} stable.</div>
           <div><strong>Checksums:</strong> exact SHA-256 values are public here and in the release checksum file.</div>
           <div><strong>Signatures:</strong> the detached Ed25519 signature verifies the exact release manifest.</div>
           <div><strong>Mirrors:</strong> no unofficial mirror is endorsed as a source of truth.</div>

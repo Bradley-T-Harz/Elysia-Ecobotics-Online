@@ -759,37 +759,87 @@ assert(
 assert(safeInternalActionPath.includes('value.startsWith("//")') && safeInternalActionPath.includes("parsed.origin"), "Database-backed notification actions must be constrained to safe internal paths.");
 assert(notificationsPage.includes("Marketplace & Economic") && notificationsPage.includes("safeInternalActionPath"), "Notifications must categorize economic notices and constrain their actions after the Signals split.");
 assert(commons.includes('to="/commons-circle/support-billing"') && commons.includes("Private economic account room"), "Commons Circle must expose the private Support & Billing room without changing membership.");
-assert(archive.includes("Elysia v1.0.0 is the stable") && archive.includes("Download exact file") && archive.includes("signed release manifest"), "Archive must expose the stable exact release and its verification path.");
+assert(archive.includes("Elysia v{releaseManifest.version} is the stable") && archive.includes("Download exact file") && archive.includes("signed release manifest"), "Archive must expose the stable exact release and its verification path.");
 assert(!archive.includes("No public installer exists yet") && !archive.includes("not available yet") && !archive.includes("Coming soon"), "Archive still describes the stable release as unavailable or forthcoming.");
 assert(archiveReleaseManifest === publicReleaseManifest, "Rendered and machine-readable Archive release manifests must remain byte-identical.");
 const exactArchiveRelease = JSON.parse(archiveReleaseManifest);
-assert(exactArchiveRelease.version === "1.0.0" && exactArchiveRelease.artifacts.length === 14 && exactArchiveRelease.artifacts.filter((item) => item.archive_visible).length === 7, "Archive release manifest has the wrong stable identity or payload count.");
+assert(exactArchiveRelease.version === "1.1.0", "Archive stable identity must match the coordinated release.");
 const exactArchiveArtifacts = {
-  "elysia-setup-1.0.0-linux-x86_64.sh": [9303, "d937d7c3398494195d6110a4183bcc34abc76665077f7473005b0c0a9ee2a39c"],
-  "elysia-1.0.0-linux-x86_64.AppImage": [147655160, "0f4518edbff4b7f21721272e1e7ec776168d7ddef6a5f2504897ce53aeb335b2"],
-  "elysia-1.0.0-linux-amd64.deb": [72202702, "8a1e99a037f235df166a5f1a75e81e91155479b28e33f4f2b859ef4fd2771e43"],
-  "elysia-core-1.0.0-linux-x86_64": [60318296, "cbd4389cf27773a3913f83b19911ae2295ce93313c7ebb16ca9144126f6b2e87"],
-  "elysia-1.0.0-source.tar.gz": [12295261, "8076bfe89faa88f3e28df6853c1027537362b958b052d63e8d39ddff3e22d0bb"],
-  "elysia-codev-1.0.0.vsix": [162207, "5cbb9298e0d9f56797b95854e4cf07db84fe2d7fc00deb7bc3364d503451f6ff"],
-  "elysia-codev-1.0.0-source.tar.gz": [149581, "d89c9c163799e2be6e8fe4f299d7e9995f9bf1bd6870fa22411303e36d69d0ad"],
-  "elysia-1.0.0-acquisition-manifests.yaml": [9262, "781b00de4e512ef6d8b8a8dea8afcc3f2c65d26150a485130d0990362577ebd0"],
-  "elysia-1.0.0-component-graph.yaml": [14920, "cce0c77b36043e52e3b8adcff94729ac1dc548b953bdf9bc9dc5818afe8e1e3a"],
-  "elysia-1.0.0-install-profiles.yaml": [8780, "8d50de95392d2e52cfb36ee40ae63ef8102acf023a4f785800d4079e922cc7ee"],
-  "elysia-1.0.0-model-acquisitions.yaml": [8278, "39306ea3b30ba784653a91ced4894ce7a1a926e952368d15ee323b8a8d17c3ec"],
-  "elysia-1.0.0-release-identity.json": [1331, "5ea278b2bfdb5fb9eef7840c1333d335ee1bafd50554aea0ea649e278dec886c"],
-  "elysia-1.0.0-update-trust.yaml": [823, "dfb1b28021feba1fea06069f1122b55e5e7901c4ea070e4e2986bc3609744cc4"],
-  "elysia-codev-1.0.0-compatibility-manifest.json": [1196, "c1c0b518c20b0a211f07cf8ced7ae848b9a41cd421fae2eb036e47f5c9e9f11e"],
+  "elysia-setup-1.1.0-linux-x86_64.sh": [
+    9607,
+    "6d4bd10a892791b0d1f850979356553988eb67e087e12dcb598a9130ed57b9e5"
+  ],
+  "elysia-1.1.0-linux-amd64.deb": [
+    72392008,
+    "87810f71a9014c1897969e6699d2e8d88fb12dd081ae88af2055f5cab027e7b4"
+  ],
+  "elysia-core-1.1.0-linux-x86_64": [
+    60434504,
+    "8db9d24d1ff9f23b3c6b1e4b7828bc9f12a90c390554952cfe6eddffa20c1660"
+  ],
+  "elysia-1.1.0-source.tar.gz": [
+    12430334,
+    "b670dd91e423e9758fa5d5ffa741798e467981a330570fdc20ad4cd1e9ed71bd"
+  ],
+  "elysia-codev-1.1.0.vsix": [
+    174807,
+    "dfa341da797f71499e410688a951147888b2470130d7c728ccdf02710b34e350"
+  ],
+  "elysia-codev-1.1.0-source.tar.gz": [
+    163696,
+    "3af50408330581a419c83dc4c94a95a6b90591d0a983b6c5893ef740e55295a4"
+  ],
+  "elysia-1.1.0-acquisition-manifests.yaml": [
+    9235,
+    "4f762c8e0387988fab28377159d38eeae498fee48e44b9769bc02ac496b08c23"
+  ],
+  "elysia-1.1.0-component-graph.yaml": [
+    14834,
+    "a597faf48f0896de038c1bc7602b5d3efad4ed50cbef4fbcb526bae2d26a944c"
+  ],
+  "elysia-1.1.0-install-profiles.yaml": [
+    8780,
+    "d92116ba1d7e52db0cd089c2eba0f6f30ad505c8aa6d7fd6d2d9bf9a46d3b1f5"
+  ],
+  "elysia-1.1.0-model-acquisitions.yaml": [
+    8278,
+    "39306ea3b30ba784653a91ced4894ce7a1a926e952368d15ee323b8a8d17c3ec"
+  ],
+  "elysia-1.1.0-release-identity.json": [
+    1342,
+    "87ac73e9080074e095ef7cf01c04141b8eae98a98e9dc0340fc9b0dbbae27a21"
+  ],
+  "elysia-1.1.0-update-trust.yaml": [
+    823,
+    "dfb1b28021feba1fea06069f1122b55e5e7901c4ea070e4e2986bc3609744cc4"
+  ],
+  "elysia-codev-1.1.0-compatibility-manifest.json": [
+    1234,
+    "64a2a62ca74cf4b97c3881064b0e53e578a4ddd24999552d8b3a9b2a026647d9"
+  ],
+  "codev-core-1.1.0-linux-amd64.deb": [
+    60459192,
+    "f38e72be655de4159cb40945e1fedb32db51d809e08f08363fd4a9cef4c068e7"
+  ]
 };
+assert(exactArchiveRelease.artifacts.length === Object.keys(exactArchiveArtifacts).length, "Unexpected release inventory.");
 for (const item of exactArchiveRelease.artifacts) {
-  const exact = exactArchiveArtifacts[item.filename];
-  assert(exact && item.size_bytes === exact[0] && item.sha256 === exact[1], `Archive exact RC15 binding is stale for ${item.filename}.`);
+ const exact = exactArchiveArtifacts[item.filename];
+ assert(exact && item.size_bytes === exact[0] && item.sha256 === exact[1], `Stale final artifact binding: ${item.filename}`);
+ assert(item.download_url.includes("/releases/download/v1.1.0/"), "Current download must use the final release.");
 }
+const history = JSON.parse(await read("public/releases/1.0.0.json"));
+assert(history.version === "1.0.0" && history.artifacts.find(x => x.filename === "elysia-1.0.0-linux-amd64.deb")?.sha256 === "8a1e99a037f235df166a5f1a75e81e91155479b28e33f4f2b859ef4fd2771e43", "Original release evidence must remain intact.");
+assert(!exactArchiveRelease.artifacts.some(x => x.filename.endsWith(".AppImage")), "Unqualified AppImage must not be offered.");
+assert(archive.includes("codev-core") && marketplaceCard.includes("Get required Codev Core") && marketplaceDetails.includes("Get required Codev Core"), "Core and optional adapter must be distinguished.");
 assert(archive.includes("unofficial mirror") || archive.includes("unofficial mirrors"), "Archive unofficial mirror warning missing.");
 assert(archive.includes("Signatures") && archive.includes("detached Ed25519 signature"), "Archive signature verification copy missing.");
 assert(archive.includes("Downloads remain independent of payment") && archive.includes("require no Website Account"), "Archive must preserve free local downloads independently of support.");
 assert(marketplaceHome.includes("Static official-release fallback") && marketplaceHome.includes("does not install, enable, or grant local authority"), "Marketplace official-release fallback clarity missing.");
 assert(marketplaceCard.includes("Download Codev VSIX") && marketplaceCard.includes("does not install it") && marketplaceCard.includes("create a local install intent"), "Marketplace Codev release card must preserve download/install-authority separation.");
 assert(listingTruth.includes("Signed release manifest") && listingTruth.includes("Unsigned or unverified package"), "Marketplace cards must distinguish manifest-bound release verification from unsigned package claims.");
+assert(listingTruth.includes("Official v${addon.version} release"), "Official release badges must derive from the exact listing version.");
+assert(JSON.stringify(JSON.parse(await read("public/catalog-preview.json")).addons[0]).includes(exactArchiveArtifacts["elysia-codev-1.1.0.vsix"][1]), "The static catalog must bind the same adapter bytes as Archive.");
 assert(!marketplaceDetails.includes("Install intent unavailable") && !marketplaceDetails.includes(".elysia-addon package preview only"), "Marketplace details must hide unproven install-looking controls.");
 assert(marketplaceDetails.includes("This website does not install this add-on locally"), "Marketplace details local-install boundary copy missing.");
 assert(publicNavigation.includes('label: "Get Elysia"') && publicNavigation.includes('to: "/archive"') && publicNavigation.includes('to: "/products"') && publicNavigation.includes('to: "/lab"') && publicNavigation.includes('to: "/commune"'), "Established public surfaces must remain in canonical navigation.");
@@ -801,7 +851,7 @@ assert(app.includes('path="admin" element={<Navigate replace to="/admin/addon-su
 assert(webManifest.includes('"start_url": "/"') && webManifest.includes('"/favicon.svg"'), "Public web-app manifest must identify the canonical root and icon.");
 assert(securityTxt.includes("Contact: mailto:security@elysiaecobotics.com") && securityTxt.includes("Canonical: https://elysiaecobotics.com/.well-known/security.txt"), "Canonical security.txt is missing its safe contact or URL.");
 for (const staleListing of ["Advanced PDF Parser", "Ollama Local Models", "SearXNG Research"]) assert(!marketplaceSeeds.includes(staleListing), `Static Marketplace catalog still includes stale listing: ${staleListing}`);
-assert(marketplaceSeeds.includes("Codev") && marketplaceSeeds.includes('version: "1.0.0"') && marketplaceSeeds.includes('status: "available"') && marketplaceSeeds.includes('listing_stage: "official_release"') && marketplaceSeeds.includes("5cbb9298e0d9f56797b95854e4cf07db84fe2d7fc00deb7bc3364d503451f6ff"), "Codev must be a truthful exact official v1.0 release record.");
+assert(marketplaceSeeds.includes("Codev") && marketplaceSeeds.includes('version: "1.1.0"') && marketplaceSeeds.includes('status: "available"') && marketplaceSeeds.includes('listing_stage: "official_release"') && marketplaceSeeds.includes("dfa341da797f71499e410688a951147888b2470130d7c728ccdf02710b34e350"), "Codev must be a truthful exact official v1.1 release record.");
 for (const staleId of ["advanced-pdf-parser", "ollama-local-models", "searxng-research"]) assert(marketplaceApi.includes(staleId), `Remote catalog suppression is missing ${staleId}.`);
 assert(marketplaceSubmission.includes("Submit private pending review") && marketplaceSubmission.includes("will leave my computer") && marketplaceSubmission.includes("Git repository URL (metadata only)") && marketplaceSubmission.includes("Paste or edit manifest JSON"), "Marketplace Submit must expose governed source intake, upload disclosure, and non-fetching Git metadata.");
 for (const intakePath of ["Import .elysia-addon", "Import ZIP / source bundle", "Import folder / repository", "Import manifest.json"]) assert(addonIntakePanel.includes(intakePath), `Browser add-on intake path is missing: ${intakePath}`);

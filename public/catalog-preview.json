@@ -1,6 +1,6 @@
 {
   "schema_version": "0.1",
-  "generated_from": "src/data/seedAddons.ts",
+  "generated_from": "src/pages/The-Elysia-Marketplace/data/seedAddons.ts",
   "note": "Static official-release metadata. The Website provides the exact Codev download but does not install, enable, approve repositories, or grant local authority. Local Elysia and VS Code enforce their own boundaries.",
   "addons": [
     {
@@ -8,25 +8,25 @@
       "id": "elysia-codev",
       "name": "Codev",
       "publisher": "EcoSyneva Commons LLC / Elysia Ecobotics",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "category": "Developer Tools",
-      "summary": "Official v1.0 VS Code extension for Elysia's governed local developer workflows.",
-      "description": "Codev is the official Developer-profile VS Code companion for approved repository context, patch proposals, exact approved mutations, and bounded command/test checks. The Website provides the exact release download; Local Elysia and VS Code retain installation, workspace-trust, repository-approval, and execution authority.",
+      "summary": "Optional Codev 1.1.0 VS Code adapter for the installed neutral Codev Core.",
+      "description": "Codev is one local development subsystem with Elysia, website and optional VS Code clients. Install Codev Core 1.1.0 independently of VS Code; this download is its VS Code adapter for approved repository context, patch proposals, exact approved mutations, and bounded command/test checks. The Website provides the exact release download; Local Elysia and VS Code retain installation, workspace-trust, repository-approval, and execution authority.",
       "trust_tier": "official",
       "local_only": true,
       "network_access": false,
       "dependencies": [],
       "actions": [
         {
-          "action_key": "developer_profile_review",
-          "action_label": "Review Developer profile requirements",
+          "action_key": "codev_core_review",
+          "action_label": "Review Codev Core requirements",
           "action_kind": "manual_instruction",
           "allowed": true,
           "risk_level": "high",
           "requires_local_operator_password": true,
           "network_access": false,
           "notes": [
-            "Requires the Elysia Developer profile and a compatible local Codev extension.",
+            "Requires Codev Core 1.1.0. VS Code is optional for Elysia and explicit website pairing.",
             "Repository access is explicit and bounded to an approved root.",
             "Patch mutation and command checks require exact approval and receipts.",
             "No hidden shell, silent push, silent publish, or cloud upload authority."
@@ -44,18 +44,18 @@
       },
       "tags": [
         "official-release",
-        "developer-profile",
+        "neutral-core",
         "vscode",
         "codev",
-        "v1.0"
+        "v1.1"
       ],
       "homepage_url": "https://elysiaecobotics.com/marketplace/browse",
       "source_url": "https://github.com/Bradley-T-Harz/elysia-codev",
       "license": "Apache-2.0",
       "status": "available",
       "signature_status": "release_manifest_signed",
-      "package_sha256": "5cbb9298e0d9f56797b95854e4cf07db84fe2d7fc00deb7bc3364d503451f6ff",
-      "package_url": "https://github.com/Bradley-T-Harz/elysia-codev/releases/download/v1.0.0/elysia-codev-1.0.0.vsix",
+      "package_sha256": "dfa341da797f71499e410688a951147888b2470130d7c728ccdf02710b34e350",
+      "package_url": "https://github.com/Bradley-T-Harz/elysia-codev/releases/download/v1.1.0/elysia-codev-1.1.0.vsix",
       "listing_stage": "official_release"
     }
   ]

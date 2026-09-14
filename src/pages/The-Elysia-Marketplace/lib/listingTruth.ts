@@ -14,7 +14,7 @@ export function canPrepareMarketplaceInstall(addon: AddonManifest) {
 }
 
 export function marketplaceListingLabel(addon: AddonManifest) {
-  if (addon.listing_stage === "official_release") return "Official v1.0 release";
+  if (addon.listing_stage === "official_release") return `Official v${addon.version} release`;
   if (addon.listing_stage === "official_candidate") return "Official candidate · not installable";
   if (addon.marketplace_listing_id) return "Live reviewed listing";
   if (addon.status === "approved") return "Legacy reviewed listing";
