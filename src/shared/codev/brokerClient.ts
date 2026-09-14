@@ -1,5 +1,6 @@
 /** Signed fixed-loopback transport. Constructed only after explicit Sync/native confirmation. */
 import type { BrokerPolicy, BrokerProof, BrokerResponse, BrowserPublicKey, PairingIntent, PairingSession } from "./contracts";
+import { BROWSER_SUPPORTED_CORE_VERSIONS } from "./contracts";
 import { browserHash } from "./workspace";
 
 export const codevBrokerPolicy = { origin: "http://127.0.0.1:47321", host: "127.0.0.1:47321", port: 47321,
@@ -130,7 +131,7 @@ export class CodevBrokerClient {
       || value.actor.online_account_id!==this.key.scope.accountId || value.actor.origin!==this.key.scope.origin
       || value.actor.surface!==this.key.scope.surface || value.actor.client_kind!=="browser"
       || value.browser_session_id!==this.key.scope.browserSessionId || !value.installation.installed || !value.installation.usable
-      || value.installation.version!=="1.0.0" || !Array.isArray(value.workspace_grants) || value.workspace_grants.length)throw new Error("Installed Codev could not be verified for this connection.");
+      || !BROWSER_SUPPORTED_CORE_VERSIONS.includes(value.installation.version ?? "") || !Array.isArray(value.workspace_grants) || value.workspace_grants.length)throw new Error("Installed Codev could not be verified for this connection.");
     this.supportsEditProposals = value.installation.capabilities?.some(capability => capability.id === "structured_edit_proposal" && capability.available === true) ?? false;
     return value;
   }
