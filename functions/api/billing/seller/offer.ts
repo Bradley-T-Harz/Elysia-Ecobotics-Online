@@ -1,7 +1,7 @@
 import { authenticateRequired, createEconomicServerClient } from "../_shared/auth.ts";
 import { assertBillingCheckoutReliabilityEnabled, assertBillingFeatureEnabled, assertBillingMutationEnabled } from "../_shared/config.ts";
 import { configureMarketplaceOffer, recordMarketplaceProviderCatalog } from "../_shared/database.ts";
-import { jsonResponse, requireJsonPost, requireSameOriginMutation, safeBillingErrorResponse } from "../_shared/http.ts";
+import { BillingHttpError, jsonResponse, requireJsonPost, requireSameOriginMutation, safeBillingErrorResponse } from "../_shared/http.ts";
 import { billingFailureOutcome, defaultBillingLogger, emitBillingEvent, type BillingLogger } from "../_shared/observability.ts";
 import { marketplaceOfferConfigurationRequest } from "../_shared/schema.ts";
 import { createStripeTestProvider } from "../_shared/stripe.ts";
@@ -37,11 +37,10 @@ export async function handleSellerOffer(
 ): Promise<Response> {
   let correlationId: string | null = null;
   try {
-    assertBillingMutationEnabled(env);
-    assertBillingFeatureEnabled(env, "BILLING_MARKETPLACE_COMMERCE_ENABLED", "marketplace_commerce_disabled");
     requireSameOriginMutation(request, env);
     requireJsonPost(request);
     const input = await marketplaceOfferConfigurationRequest(request);
+    if (input.offerKind !== "free") throw new BillingHttpError(503, "third_party_money_hard_off");
     correlationId = input.clientRequestId;
     emitBillingEvent(dependencies.logger, "billing.marketplace_offer_configuration", "attempted", correlationId);
     const auth = await dependencies.authenticate(request, env);
@@ -85,7 +84,7 @@ export async function handleSellerOffer(
         providerCatalogConfigured,
         paymentGrantsTrust: false,
         purchaseInstallsAddon: false,
-        testMode: true
+        testMode: env.BILLING_MODE !== "live"
       }
     }, 201);
   } catch (error) {

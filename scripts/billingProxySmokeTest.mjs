@@ -14,7 +14,7 @@ import { handleSellerStatus } from "../functions/api/billing/seller/status.ts";
 import {
   billingLegalConsentBundleIntegrityExpectations,
   billingLegalDocumentIntegrityExpectations
-} from "../src/pages/Legal/economicLegalContentManifest.ts";
+} from "../src/pages/Legal/firstPartyLegalManifest.ts";
 import { loadBillingCapabilities, loadBillingOrder } from "../src/shared/billing/billingClient.ts";
 
 function assert(condition, message) {
@@ -38,6 +38,7 @@ const env = {
   BILLING_SPONSORSHIP_CHECKOUT_ENABLED: "true",
   BILLING_STAGING_ACCESS_CONFIRMED: "true",
   BILLING_EDGE_RATE_LIMIT_CONFIRMED: "true",
+  STRIPE_ACCOUNT_ID: "acct_fixture",
   STRIPE_CONNECT_ENABLED: "true",
   STRIPE_LIVE_ENABLED: "false",
   STRIPE_SECRET_KEY_TEST: `sk_test_${"s".repeat(40)}`,
@@ -531,7 +532,7 @@ const sellerResponse = await handleSellerOnboarding(checkoutRequest(sellerOnboar
   attach: async () => { sellerAttached += 1; }
 });
 const sellerPayload = await sellerResponse.json();
-assert(sellerResponse.status === 201 && sellerAttached === 1 && sellerPayload.onboardingUrl.startsWith("https://connect.stripe.com/"), "Test-mode seller onboarding did not bind its new account.");
+assert(sellerResponse.status === 503 && sellerAttached === 0 && sellerPayload.onboardingUrl === undefined, "The immutable seller-onboarding hard stop failed.");
 assert(!JSON.stringify(sellerPayload).includes("acct_fixture"), "Connected account reference leaked through onboarding response.");
 assert((await handleSellerOnboarding(checkoutRequest(sellerOnboardingBody, { authorization: "Bearer synthetic" }), { ...env, BILLING_SELLER_ONBOARDING_ENABLED: "false" }, {
   authenticate: async () => auth, provider: () => provider, prepare: async () => { throw new Error("must not run"); }, attach: async () => undefined
@@ -554,7 +555,7 @@ const sellerStatusResponse = await handleSellerStatus(new Request(`${origin}/api
   })
 });
 const sellerStatusPayload = await sellerStatusResponse.json();
-assert(sellerStatusResponse.status === 200 && sellerStatusPayload.seller.detailsSubmitted === true, "Seller status was not normalized.");
+assert(sellerStatusResponse.status === 200 && sellerStatusPayload.seller.detailsSubmitted === true, "Free creator status was unavailable.");
 assert(!JSON.stringify(sellerStatusPayload).includes("acct_fixture"), "Connected account reference leaked through seller status.");
 assert((await handleSellerStatus(new Request(`${origin}/api/billing/seller/status`, { headers: { authorization: "Bearer synthetic" } }), {
   ...env, BILLING_SELLER_ONBOARDING_ENABLED: "false", STRIPE_CONNECT_ENABLED: "false"
@@ -566,8 +567,8 @@ assert((await handleSellerStatus(new Request(`${origin}/api/billing/seller/statu
   ...env, BILLING_MARKETPLACE_COMMERCE_ENABLED: "false"
 }, {
   authenticate: async () => auth,
-  loadSafe: async () => { throw new Error("must not load"); }
-})).status === 503, "Seller status ignored the Marketplace commerce kill switch.");
+  loadSafe: async () => sellerStatusPayload.seller
+})).status === 200, "Free creator status was coupled to the paid commerce switch.");
 
 const enabledDatabaseCapabilities = {
   supportCheckoutEnabled: true,
@@ -592,7 +593,7 @@ const parsedDatabaseCapabilities = await loadEconomicPublicCapabilities({
   })
 });
 assert(parsedDatabaseCapabilities?.economicWebhooksEnabled === true, "Database capability parser rejected safe test-only invariants.");
-assert(parsedDatabaseCapabilities?.legalDocumentVersions.supportOneTime.version === "2026-07-16", "Canonical active support terms were dropped from the safe capabilities projection.");
+assert(parsedDatabaseCapabilities?.legalDocumentVersions.supportOneTime.version === billingLegalDocumentIntegrityExpectations.supportOneTime.version, "Canonical active support terms were dropped from the safe capabilities projection.");
 assert(parsedDatabaseCapabilities?.legalDocumentVersions.supportOneTime.contentSha256 === billingLegalDocumentIntegrityExpectations.supportOneTime.contentSha256, "Canonical active support content hash was dropped from the safe capabilities projection.");
 assert(parsedDatabaseCapabilities?.legalConsentBundles.job_post_fee_checkout_bundle.documents.refundPolicy.path === "/legal/refund-and-cancellation-policy", "Canonical multi-document checkout consent bundle was dropped.");
 assert(parsedDatabaseCapabilities?.legalConsentBundles.job_post_fee_checkout_bundle.documents.refundPolicy.contentSha256 === billingLegalConsentBundleIntegrityExpectations.job_post_fee_checkout_bundle.documents.refundPolicy.contentSha256, "Consent bundle dropped its immutable refund-policy content hash.");
@@ -645,7 +646,7 @@ assert(
   "Capabilities did not intersect configured test-mode environment and database state."
 );
 assert(capabilities.legalDocumentVersions.supportRecurring.path === "/legal/support-and-billing-terms", "Capabilities response did not expose the canonical active recurring terms document.");
-assert(capabilities.legalConsentBundles.support_one_time_checkout_bundle.version === "2026-07-16", "Capabilities response dropped the active support consent bundle version.");
+assert(capabilities.legalConsentBundles.support_one_time_checkout_bundle.version === billingLegalConsentBundleIntegrityExpectations.support_one_time_checkout_bundle.version, "Capabilities response dropped the active support consent bundle version.");
 assert(capabilities.legalDocumentVersions.supportRecurring.contentSha256 === billingLegalDocumentIntegrityExpectations.supportRecurring.contentSha256, "Capabilities response dropped the canonical legal content hash.");
 let browserCapabilitiesFixture = capabilities;
 const originalCapabilitiesFetch = globalThis.fetch;

@@ -20,8 +20,6 @@ export async function handleSellerStatus(
   dependencies: SellerStatusDependencies = defaultDependencies
 ): Promise<Response> {
   try {
-    assertTestOnlyBillingMode(env);
-    assertBillingFeatureEnabled(env, "BILLING_MARKETPLACE_COMMERCE_ENABLED", "marketplace_commerce_disabled");
     requireGet(request);
     const auth = await dependencies.authenticate(request, env);
     return jsonResponse({ ok: true, seller: await dependencies.loadSafe(auth) });

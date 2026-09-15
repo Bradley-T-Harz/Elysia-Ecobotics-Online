@@ -405,7 +405,7 @@ export class StripeProvider implements BillingProvider {
     if (input.accountLinked && !input.providerCustomerReference) {
       throw new BillingHttpError(503, "billing_customer_required");
     }
-    if (this.#env.STRIPE_ACCOUNT_ID && input.flow === "support_recurring" && input.providerPriceReference) {
+    if (this.#env.STRIPE_ACCOUNT_ID && (input.flow === "support_recurring" || !input.providerProductReference) && input.providerPriceReference) {
       const price = await this.#request(`/v1/prices/${encodeURIComponent(input.providerPriceReference)}`, "GET");
       const recurring = optionalRow(price.recurring);
       if (price.livemode !== (this.#env.BILLING_MODE === "live") || price.active !== true

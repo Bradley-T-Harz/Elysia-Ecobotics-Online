@@ -1,4 +1,4 @@
-import { applyFirstPartyLegal, firstPartyLegalSlugs, firstPartyLegalVersion } from "./firstPartyLegal";
+import { applyFirstPartyLegal, firstPartyLegalSlugs, firstPartyLegalVersion } from "./firstPartyLegal.ts";
 import { applyWordingCleanupLegal, wordingCleanupLegalSlugs, wordingCleanupLegalVersion } from "./wordingCleanupLegal.ts";
 import readinessArchive from "./readinessLegalArchive.json" with { type: "json" };
 import ownerPriorArchive from "./ownerDecisionPriorLegalArchive.json" with { type: "json" };

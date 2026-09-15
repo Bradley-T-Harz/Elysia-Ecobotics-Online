@@ -26,8 +26,6 @@ export async function handleMarketplaceFreeLicense(
   let correlationId: string | null = null;
   try {
     // Free-license acceptance is not a payment acquisition.
-    assertTestOnlyBillingMode(env);
-    assertBillingFeatureEnabled(env, "BILLING_MARKETPLACE_COMMERCE_ENABLED", "marketplace_commerce_disabled");
     requireSameOriginMutation(request, env);
     requireJsonPost(request);
     const input = await marketplacePurchaseRequest(request);
@@ -39,7 +37,7 @@ export async function handleMarketplaceFreeLicense(
     return jsonResponse({
       ok: true,
       license: { ...license, paymentRequired: false, paymentGrantsAuthority: false },
-      testMode: true
+      testMode: env.BILLING_MODE !== "live"
     }, 201);
   } catch (error) {
     emitBillingEvent(dependencies.logger, "billing.marketplace_free_license", billingFailureOutcome(error), correlationId);

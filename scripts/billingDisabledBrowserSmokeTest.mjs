@@ -62,7 +62,9 @@ const origin = `http://127.0.0.1:${address.port}`;
 const browser = await chromium.launch({ headless: true });
 
 const cases = [
-  { path: "/support", heading: "Keep the commons alive", disabledText: "Support checkout is disabled" },
+  { path: "/marketplace/creator-studio", heading: "Creator Studio", disabledText: "Create an add-on" },
+  { path: "/developer-forge", heading: "Developer Forge", disabledText: "Creator Studio" },
+  { path: "/support", heading: "Keep the commons alive", disabledText: "Stripe" },
   { path: "/commons-circle/support-billing", heading: "Support & Billing", disabledText: "Billing disabled" },
   { path: "/marketplace/account", heading: "Cloud profile here. Local account stays local.", disabledText: "Sign in to view account licenses" },
 ];
@@ -96,7 +98,7 @@ try {
     await page.close();
   }
   await context.close();
-  console.log("Disabled billing-client browser boundary passed: three affected routes issued zero /api/billing requests.");
+  console.log("Disabled billing-client browser boundary passed: five affected routes issued zero /api/billing requests.");
 } finally {
   await browser.close();
   await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));

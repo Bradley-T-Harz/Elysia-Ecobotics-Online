@@ -640,7 +640,7 @@ function JobPostEconomicAssessmentForm({ accessToken, onComplete }: { accessToke
   const requestedJob = params.get("jobPostId") ?? "";
   const [jobPostId, setJobPostId] = useState(isBillingUuid(requestedJob) ? requestedJob : "");
   const [classification, setClassification] = useState<OperatorJobPostClassification | "">("");
-  const [priceCode, setPriceCode] = useState("");
+  const [priceCode, setPriceCode] = useState("job_post_standard_20260915_usd");
   const [grantId, setGrantId] = useState("");
   const [reason, setReason] = useState("");
   const [confirmation, setConfirmation] = useState("");
@@ -702,7 +702,7 @@ function JobPostEconomicAssessmentForm({ accessToken, onComplete }: { accessToke
     <form className="auth-form economic-operation-form" onSubmit={submit} noValidate>
       <label><span>Structured Job Post UUID</span><input value={jobPostId} onChange={(event) => change(() => setJobPostId(event.target.value))} autoComplete="off" spellCheck={false} required /></label>
       <label><span>Economic classification</span><select value={classification} onChange={(event) => change(() => { setClassification(event.target.value as OperatorJobPostClassification | ""); setPriceCode(""); setGrantId(""); })} required><option value="">Choose one</option><option value="community_free">Community free</option><option value="commercial">Commercial fee required</option><option value="waived">Waived</option><option value="subsidized">Subsidized</option></select></label>
-      {classification === "commercial" && <label><span>Approved test Job Post price code</span><input value={priceCode} onChange={(event) => change(() => setPriceCode(event.target.value))} placeholder="job_post_approved_test_usd" autoComplete="off" spellCheck={false} required /><small>Use the reviewed server-catalog code. Do not enter an amount or provider price ID.</small></label>}
+      {classification === "commercial" && <label><span>Approved Job Post price code</span><input value={priceCode} onChange={(event) => change(() => setPriceCode(event.target.value))} placeholder="job_post_standard_20260915_usd" autoComplete="off" spellCheck={false} required /><small>Use the reviewed server-catalog code. Do not enter an amount or provider price ID.</small></label>}
       {(classification === "waived" || classification === "subsidized") && <label><span>{classification === "waived" ? "Waiver" : "Subsidy"} grant UUID</span><input value={grantId} onChange={(event) => change(() => setGrantId(event.target.value))} autoComplete="off" spellCheck={false} required /><small>Use the existing private assistance-grant UUID. Financial circumstances and evidence never belong here.</small></label>}
       <label><span>Private audit reason</span><textarea value={reason} onChange={(event) => change(() => setReason(event.target.value))} minLength={8} maxLength={1000} rows={4} required /></label>
       <label><span>Typed confirmation</span><input value={confirmation} onChange={(event) => { setConfirmation(event.target.value); clearFeedback(setError, setStatus); }} autoComplete="off" spellCheck={false} required /></label><p className="small-note">Type <code>ASSESS JOB POST ECONOMIC CONDITION</code> exactly.</p>

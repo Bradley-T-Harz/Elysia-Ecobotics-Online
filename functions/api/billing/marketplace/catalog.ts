@@ -19,15 +19,9 @@ export async function handleMarketplaceCatalog(
 ): Promise<Response> {
   try {
     requireGet(request);
-    if (env.BILLING_MARKETPLACE_COMMERCE_ENABLED !== "true") {
-      return jsonResponse({ ok: true, catalog: { available: false, offers: [], testMode: true } });
-    }
-    assertTestOnlyBillingMode(env);
     const offers = await dependencies.load(env);
-    const visibleOffers = env.BILLING_ENABLED === "true"
-      ? offers
-      : offers.filter((offer) => offer.offerKind === "free");
-    return jsonResponse({ ok: true, catalog: { available: true, offers: visibleOffers, testMode: true } });
+    const visibleOffers = offers.filter((offer) => offer.offerKind === "free");
+    return jsonResponse({ ok: true, catalog: { available: true, offers: visibleOffers, testMode: env.BILLING_MODE !== "live" } });
   } catch (error) {
     return safeBillingErrorResponse(error);
   }

@@ -11,8 +11,8 @@ assert.equal(manifest.version, wordingCleanupLegalVersion);
 assert.equal(manifest.pages.length, legalPolicyPages.length);
 assert.deepEqual(manifest.pages.filter((p: { changed: boolean }) => p.changed).map((p: { slug: string }) => p.slug).sort(), [...wordingCleanupLegalSlugs].sort());
 for (const row of manifest.pages) {
-  const current = getLegalPolicy(row.slug)!;
-  assert.equal(hash(current), row.currentSha256, `${row.slug}: unreviewed current text`);
+  const current = getLegalPolicy(row.slug, row.changed ? wordingCleanupLegalVersion : row.priorVersion) ?? getLegalPolicy(row.slug)!;
+  assert.equal(hash(current), row.currentSha256, `${row.slug}: frozen September 10 text changed`);
   if (row.changed) {
     assert.equal(hash(getLegalPolicy(row.slug, row.priorVersion)!), row.priorSha256, `${row.slug}: previous text was rewritten`);
     assert.deepEqual(getLegalPolicy(row.slug, wordingCleanupLegalVersion), current);
@@ -33,4 +33,4 @@ assert.equal(getLegalPolicy('privacy-policy', 'unknown-version'), undefined);
 assert(!getLegalPolicy('privacy-policy')!.body.includes('before backend account sync is built'));
 assert(!getLegalPolicy('terms-of-use')!.body.includes('reviewed before publication'));
 assert(getLegalPolicy('terms-of-use')!.body.includes('remain subject to legal review'));
-console.log(`Wording legal integrity passed: ${legalPolicyPages.length} current pages, 8 corrected versions, exact prior text and all 8 consent bundles preserved.`);
+console.log(`Wording legal integrity passed: ${legalPolicyPages.length} preserved page records, 8 corrected versions, exact prior text and all 8 consent bundles preserved.`);

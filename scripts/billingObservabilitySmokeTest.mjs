@@ -156,7 +156,7 @@ await handleOperatorTestRefundExecution(post("/api/billing/operator/refund-execu
   logger
 });
 
-await handleSellerOnboarding(post("/api/billing/seller/onboarding", {
+const deniedOnboarding = await handleSellerOnboarding(post("/api/billing/seller/onboarding", {
   clientRequestId: correlationId,
   sellerAgreementVersion: "marketplace-seller-v1",
   stripeConnectDisclosureVersion: "stripe-connect-disclosure-v1",
@@ -179,6 +179,7 @@ await handleSellerOnboarding(post("/api/billing/seller/onboarding", {
   logger
 });
 
+assert(deniedOnboarding.status === 503, "Hard-off onboarding unexpectedly dispatched.");
 await handleStripeWebhook(new Request(`${origin}/api/billing/webhook`, {
   method: "POST",
   headers: { "content-type": "application/json", "stripe-signature": secretMaterial[1] },
@@ -215,7 +216,6 @@ for (const eventName of [
   "billing.operator_refund_hold",
   "billing.operator_refund_execution",
   "billing.operator_reconciliation",
-  "billing.seller_onboarding",
   "billing.webhook"
 ]) assert(events.some((event) => event.event === eventName && event.outcome === "attempted"), `Missing attempted observability for ${eventName}.`);
 

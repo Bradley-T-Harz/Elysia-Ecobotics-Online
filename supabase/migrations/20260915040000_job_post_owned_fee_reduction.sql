@@ -1,5 +1,11 @@
 -- Governed reductions of the adopted $10 EcoSyneva fee. No publication authority.
 begin;
+-- Implement the adopted September 10 amount in the authoritative catalog.
+-- This creates no provider object and enables no lane.
+insert into private.economic_prices(price_code,product_key,currency,unit_amount_minor)
+values('job_post_standard_20260915_usd','job_post_fee','usd',1000);
+insert into private.economic_audit_events(actor_kind,action,target_type,metadata)
+values('system','adopted_job_post_price_recorded','economic_price',jsonb_build_object('price_code','job_post_standard_20260915_usd','amount_minor',1000,'currency','usd','provider_action',false));
 create table private.job_post_fee_reductions (
  request_id uuid primary key, condition_id uuid not null references private.job_post_economic_conditions(id),
  actor_user_id uuid not null references auth.users(id), amount_due_minor bigint not null check(amount_due_minor between 50 and 999),

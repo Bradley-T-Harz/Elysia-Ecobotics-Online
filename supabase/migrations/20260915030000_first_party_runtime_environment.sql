@@ -45,6 +45,7 @@ begin
  -- Management and reconciliation remain available during acquisition pauses.
  if p_feature_key in ('customer_portal','economic_webhooks','test_refund_execution') then return true; end if;
  if p_feature_key in ('support_checkout','recurring_support','job_post_fee_enforcement','organization_billing','sponsorship_checkout') then
+   if not exists(select 1 from private.economic_feature_flags where feature_key='live_stripe' and enabled) then return false;end if;
    return p.webhook_verified_at is not null and p.event_coverage_verified_at is not null
     and p.receipt_configuration_verified_at is not null and p.last_preflight_at is not null
     and f.sandbox_qualified_at is not null and nullif(f.sandbox_evidence_ref,'') is not null
@@ -91,6 +92,7 @@ create table private.economic_provider_settlements (
  completeness integer not null check(completeness between 1 and 3),
  created_at timestamptz not null default now(),
  unique(payment_transaction_id,provider_event_reference,completeness),
+ check((processor_fee_minor is null)=(net_amount_minor is null)),
  check((processor_fee_minor is null and net_amount_minor is null) or (processor_fee_minor>=0 and net_amount_minor>=0))
 );
 alter table private.economic_provider_settlements enable row level security;
@@ -3798,6 +3800,7 @@ declare
   v_consent_bundle_version text;
   v_sandbox_terms_version text;
 begin
+  if p_source_category='recurring_support' then raise exception using errcode='42501',message='support_to_compute_hard_off';end if;
   if not private.economic_caller_is_service_role() then
     raise exception using errcode = '42501', message = 'economic_service_role_required';
   end if;
@@ -4074,6 +4077,7 @@ begin
   if not found then
     raise exception using errcode = 'P0002', message = 'sandbox_credit_program_not_found';
   end if;
+  if v_program.source_category='recurring_support' then raise exception using errcode='42501',message='support_to_compute_hard_off';end if;
   if v_program.source_category = 'recurring_support' then
     begin
       if coalesce(p_source_reference, '') !~
@@ -4233,6 +4237,8 @@ begin
   if not found then
     raise exception using errcode = 'P0002', message = 'sandbox_credit_program_not_found';
   end if;
+
+  if p_active and v_program.source_category='recurring_support' then raise exception using errcode='42501',message='support_to_compute_hard_off';end if;
 
   select * into v_action
   from private.sandbox_credit_program_operator_actions as action
@@ -4517,144 +4523,10 @@ end;
 $$;
 
 create or replace function private.grant_recurring_sandbox_program_from_payment()
-returns trigger
-language plpgsql
-security definer
-set search_path = ''
-as $$
-declare
-  v_order private.economic_orders%rowtype;
-  v_item private.economic_order_items%rowtype;
-  v_price private.economic_prices%rowtype;
-  v_program private.sandbox_credit_program_versions%rowtype;
-  v_fulfillment private.sandbox_credit_recurring_payment_fulfillments%rowtype;
-  v_result jsonb;
-  v_lot_id uuid;
-  v_item_count integer;
+returns trigger language plpgsql security definer set search_path='' as $$
 begin
-  if new.transaction_type <> 'payment' or new.status <> 'succeeded' then
-    return new;
-  end if;
-  select * into v_order
-  from private.economic_orders as target_order
-  where target_order.id = new.order_id;
-  if not found or v_order.flow <> 'support_recurring' or v_order.user_id is null then
-    return new;
-  end if;
-  select pg_catalog.count(*) into v_item_count
-  from private.economic_order_items as item
-  where item.order_id = v_order.id
-    and item.product_key = 'support_recurring';
-  if v_item_count <> 1 then
-    return new;
-  end if;
-  select * into v_item
-  from private.economic_order_items as item
-  where item.order_id = v_order.id
-    and item.product_key = 'support_recurring';
-  select * into v_program
-  from private.sandbox_credit_program_versions as program
-  where program.source_category = 'recurring_support'
-    and program.source_price_id = v_item.price_id
-    and program.active = true
-    and program.test_mode = true
-    and program.approved_for_live_use = false
-    and program.retired_at is null;
-  if not found then
-    return new;
-  end if;
-  select * into v_price
-  from private.economic_prices as price
-  where price.id = v_program.source_price_id
-    and price.price_code = v_program.source_price_code_snapshot
-    and price.product_key = 'support_recurring'
-    and price.unit_amount_minor = v_program.source_amount_minor_snapshot
-    and price.currency = v_program.source_currency_snapshot
-    and price.recurring_interval = v_program.source_recurring_interval_snapshot
-    and price.recurring_interval_count = v_program.source_recurring_interval_count_snapshot
-    and price.active = true
-    and price.test_mode_only = true
-    and price.retired_at is null;
-  if not found
-     or v_item.price_code_snapshot <> v_program.source_price_code_snapshot
-     or v_item.unit_amount_minor <> v_program.source_amount_minor_snapshot
-     or v_item.total_amount_minor <> new.gross_amount_minor
-     or v_item.currency <> v_program.source_currency_snapshot
-     or v_item.currency <> new.currency
-     or v_item.recurring_interval_snapshot <> v_program.source_recurring_interval_snapshot
-     or v_order.consent_version <> v_program.source_consent_bundle_version_snapshot
-     or not exists (
-       select 1 from private.economic_active_legal_consent_bundles as active_bundle
-       join private.economic_legal_consent_bundle_versions as bundle
-         on bundle.bundle_key = active_bundle.bundle_key
-        and bundle.bundle_version = active_bundle.bundle_version
-       where active_bundle.bundle_key = 'support_recurring_checkout_bundle'
-         and active_bundle.bundle_version = v_program.source_consent_bundle_version_snapshot
-         and bundle.document_manifest -> 'sandboxCreditTerms' ->> 'version'
-           = v_program.sandbox_credit_terms_version_snapshot
-         and bundle.document_manifest -> 'sandboxCreditTerms' ->> 'path'
-           = '/legal/sandbox-credit-terms'
-     )
-     or not exists (
-       select 1 from private.economic_active_legal_documents as active_document
-       where active_document.document_key = 'sandbox_credit_terms'
-         and active_document.document_version = v_program.sandbox_credit_terms_version_snapshot
-     ) then
-    return new;
-  end if;
-
-  select * into v_fulfillment
-  from private.sandbox_credit_recurring_payment_fulfillments as fulfillment
-  where fulfillment.payment_transaction_id = new.id;
-  if found then
-    return new;
-  end if;
-
-  v_result := public.grant_sandbox_credit_program(
-    v_order.user_id,
-    v_program.program_code,
-    'payment-transaction:' || new.id::text,
-    'sandbox-recurring:' || new.id::text,
-    'Configured recurring-support sandbox credit grant.'
-  );
-  v_lot_id := nullif(v_result ->> 'creditLotId', '')::uuid;
-
-  insert into private.sandbox_credit_recurring_payment_fulfillments (
-    payment_transaction_id, order_id, user_id, program_version_id,
-    credit_lot_id, granted_units, fulfilled_at
-  ) values (
-    new.id, v_order.id, v_order.user_id, v_program.id,
-    v_lot_id, v_program.granted_units, coalesce(new.occurred_at, pg_catalog.now())
-  )
-  on conflict (payment_transaction_id) do nothing
-  returning * into v_fulfillment;
-  if not found then
-    return new;
-  end if;
-
-  insert into private.economic_entitlements (
-    user_id, entitlement_key, source_type, source_id, status,
-    starts_at, ends_at
-  ) values (
-    v_order.user_id, 'sandbox_credit_lot', 'payment_transaction', new.id, 'active',
-    coalesce(new.occurred_at, pg_catalog.now()), nullif(v_result ->> 'expiresAt', '')::timestamptz
-  );
-  insert into private.economic_audit_events (
-    actor_kind, action, target_type, target_id, reason, metadata
-  ) values (
-    'provider_webhook', 'sandbox_recurring_payment_credit_fulfilled',
-    'sandbox_credit_recurring_payment_fulfillment', v_fulfillment.id,
-    'Active reviewed test program matched one verified recurring payment.',
-    pg_catalog.jsonb_build_object(
-      'payment_transaction_id', new.id,
-      'order_id', v_order.id,
-      'program_version_id', v_program.id,
-      'granted_units', v_program.granted_units,
-      'test_mode', private.economic_is_test_mode(),
-      'no_safety_or_authority_change', true
-    )
-  );
-  return new;
+ -- Support never purchases hosted compute, in either environment.
+ return new;
 end;
 $$;
 

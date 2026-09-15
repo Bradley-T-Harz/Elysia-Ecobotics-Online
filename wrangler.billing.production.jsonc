@@ -1,0 +1,64 @@
+// Disabled production candidate. Permanent secret values are never stored here.
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "elysia-first-party-billing",
+  "main": "services/billing-worker/worker.ts",
+  "account_id": "52813999b345cafda80d67f1d6345d5c",
+  "compatibility_date": "2026-09-15",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "elysiaecobotics.com/api/billing/*",
+      "zone_name": "elysiaecobotics.com"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": false
+    },
+    "traces": {
+      "enabled": false
+    }
+  },
+  "vars": {
+    "BILLING_ENABLED": "false",
+    "BILLING_SUPPORT_CHECKOUT_ENABLED": "false",
+    "BILLING_RECURRING_ENABLED": "false",
+    "BILLING_WEBHOOK_FULFILLMENT_ENABLED": "false",
+    "BILLING_NOTIFICATION_RETRY_ENABLED": "false",
+    "BILLING_PORTAL_ENABLED": "false",
+    "BILLING_SELLER_ONBOARDING_ENABLED": "false",
+    "BILLING_JOB_POST_FEES_ENABLED": "false",
+    "BILLING_SANDBOX_PURCHASES_ENABLED": "false",
+    "BILLING_MARKETPLACE_COMMERCE_ENABLED": "false",
+    "BILLING_MARKETPLACE_PAYOUT_PREPARATION_ENABLED": "false",
+    "BILLING_ORGANIZATION_SERVICES_ENABLED": "false",
+    "BILLING_SPONSORSHIP_ADMIN_ENABLED": "false",
+    "BILLING_SPONSORSHIP_CHECKOUT_ENABLED": "false",
+    "BILLING_SPONSORSHIP_RECOGNITION_ENABLED": "false",
+    "BILLING_ASSISTANCE_ADMIN_ENABLED": "false",
+    "BILLING_SUPPORT_RECOGNITION_ENABLED": "false",
+    "BILLING_ACCOUNT_LIFECYCLE_ENABLED": "false",
+    "BILLING_ACCOUNTING_EXPORT_ENABLED": "false",
+    "BILLING_TEST_REFUNDS_ENABLED": "false",
+    "BILLING_STAGING_ACCESS_CONFIRMED": "false",
+    "BILLING_EDGE_RATE_LIMIT_CONFIRMED": "false",
+    "BILLING_FIRST_PARTY_PREFLIGHT_CONFIRMED": "false",
+    "STRIPE_CONNECT_ENABLED": "false",
+    "STRIPE_LIVE_ENABLED": "false",
+    "BILLING_MODE": "disabled",
+    "BILLING_PUBLIC_ORIGIN": "https://elysiaecobotics.com",
+    "STRIPE_API_VERSION": "2025-02-24.acacia",
+    "STRIPE_WEBHOOK_API_VERSION": "2025-02-24.acacia",
+    "STRIPE_WEBHOOK_TOLERANCE_SECONDS": "300",
+    "SUPABASE_URL": "https://qwmcstyfegvpzjmjrylc.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_GNJEkifa3bGuXlcCA7HQdg_lq7u8HaH"
+  }
+}

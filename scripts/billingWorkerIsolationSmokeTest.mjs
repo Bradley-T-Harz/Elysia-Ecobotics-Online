@@ -33,7 +33,7 @@ assert(
   JSON.stringify(actualRoutes) === JSON.stringify(expectedRoutes),
   "The dedicated billing Worker route manifest differs from the billing Function modules."
 );
-assert(actualRoutes.length === 58, "The dedicated billing Worker must expose the complete reviewed 58-route contract.");
+assert(actualRoutes.length === 60, "The dedicated billing Worker must expose the complete reviewed 60-route contract.");
 assert(actualRoutes.every((path) => path.startsWith("/api/billing/") && !path.includes("/_shared/")), "Billing Worker route escaped its namespace.");
 
 const [

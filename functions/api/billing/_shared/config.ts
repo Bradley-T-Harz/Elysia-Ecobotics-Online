@@ -154,7 +154,7 @@ export function billingCapabilities(env: BillingEnv): {
   let redirectConfigured = false;
   try {
     stripeConfig(env);
-    providerConfigured = configured && serverConfigured;
+    providerConfigured = configured && serverConfigured && /^acct_[A-Za-z0-9]+$/.test(env.STRIPE_ACCOUNT_ID ?? "");
     validatedPublicOrigin(env);
     redirectConfigured = providerConfigured;
   } catch {

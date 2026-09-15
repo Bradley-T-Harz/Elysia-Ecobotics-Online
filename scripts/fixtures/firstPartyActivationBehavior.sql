@@ -4,13 +4,21 @@ create function pg_temp.expect(ok boolean,label text) returns void language plpg
 select pg_temp.expect((select review_status='passed' and third_party_status='hard_off' from private.economic_provider_readiness),'approval independent of activation');
 update private.economic_feature_flags set enabled=true where feature_key in ('marketplace_paid_offers','marketplace_seller_onboarding','marketplace_payout_preparation','marketplace_payouts','sandbox_credit_purchase');
 select pg_temp.expect(not private.economic_feature_enabled(feature_key),'immutable third-party boundary '||feature_key) from private.economic_feature_flags where feature_key in ('marketplace_paid_offers','marketplace_seller_onboarding','marketplace_payout_preparation','marketplace_payouts','sandbox_credit_purchase');
+do $$begin
+ begin
+  perform public.configure_sandbox_test_credit_program('sandbox_test_forbidden','recurring_support','support_monthly_commons_usd',10,null,false,false,'CONFIGURE UNAPPROVED SANDBOX TEST PROGRAM','Synthetic boundary test');
+  raise exception 'unexpected support to compute configuration';
+ exception when insufficient_privilege then
+  if sqlerrm<>'support_to_compute_hard_off' then raise;end if;
+ end;
+end;$$;
 -- This is a fresh disposable database, with synthetic identifiers only.
 update private.economic_provider_readiness set runtime_mode='live',account_reference='acct_synthetic';
 select set_config('request.jwt.claim.role','service_role',true);
 select pg_temp.expect(not private.economic_caller_is_service_role(),'live worker mode/account binding required');
 select set_config('request.headers','{"x-elysia-billing-mode":"live","x-elysia-stripe-account":"acct_synthetic"}',true);
 select pg_temp.expect(private.economic_caller_is_service_role(),'correct runtime binding');
-update private.economic_feature_flags set enabled=true where feature_key in ('support_checkout','recurring_support','customer_portal','economic_webhooks');
+update private.economic_feature_flags set enabled=true where feature_key in ('support_checkout','recurring_support','customer_portal','economic_webhooks','live_stripe');
 select pg_temp.expect(not private.economic_feature_enabled('support_checkout'),'missing qualification refuses live acquisition');
 update private.economic_provider_readiness set webhook_verified_at=now(),event_coverage_verified_at=now(),last_preflight_at=now(),receipt_configuration_verified_at=now(),portal_configuration_verified_at=now();
 update private.economic_feature_flags set sandbox_qualified_at=now(),sandbox_evidence_ref='synthetic://disposable-only',tax_decision_ref='synthetic://not-a-tax-conclusion',legal_qualified_at=now(),rollout_authorized_at=now() where feature_key in ('support_checkout','recurring_support');
@@ -42,6 +50,8 @@ begin
  perform pg_temp.expect(result->>'status'='processed','provider payment confirmed');
  select id into txid from private.economic_payment_transactions where order_id=oid and transaction_type='payment';
  perform pg_temp.expect(txid is not null,'one payment recorded');
+ update private.economic_webhook_events set received_at=now()-interval '2 minutes' where provider_event_id='evt_firstparty_paid';
+ perform pg_temp.expect(jsonb_array_length(public.claim_economic_settlement_reconciliation(5))>=1,'late settlement reconciliation is claimed');
  event:=event||'{"providerReceiptUrl":"https://pay.stripe.com/receipts/synthetic","providerBalanceTransactionId":"txn_synthetic","processorFeeMinor":36,"netAmountMinor":163}';
  result:=public.process_economic_provider_event('stripe','evt_firstparty_paid','payment_intent.succeeded',now(),repeat('c',64),event);
  result:=public.process_economic_provider_event('stripe','evt_firstparty_paid','payment_intent.succeeded',now(),repeat('c',64),event);

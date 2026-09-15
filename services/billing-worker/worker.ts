@@ -66,7 +66,9 @@ import {
   type EconomicCheckoutExpiryResult,
   type EconomicNotificationDeliveryResult
 } from "../../functions/api/billing/_shared/database.ts";
-import type { BillingEnv } from "../../functions/api/billing/_shared/types.ts";
+import { createStripeProvider } from "../../functions/api/billing/_shared/stripe.ts";
+import { processProviderEvent } from "../../functions/api/billing/_shared/database.ts";
+import type { NormalizedProviderEvent, BillingEnv } from "../../functions/api/billing/_shared/types.ts";
 
 type BillingRoute = PagesFunction<BillingEnv>;
 
@@ -158,9 +160,26 @@ export type BillingScheduledDependencies = {
   expire(env: BillingEnv, limit: number): Promise<EconomicCheckoutExpiryResult>;
   deliver(env: BillingEnv, limit: number): Promise<EconomicNotificationDeliveryResult>;
   retryInbox?(env: BillingEnv): Promise<void>;
+  reconcileSettlements?(env: BillingEnv): Promise<void>;
 };
 
 const defaultScheduledDependencies: BillingScheduledDependencies = {
+  reconcileSettlements: async env => {
+    const database = createEconomicServerClient(env);
+    const { data, error } = await database.rpc("claim_economic_settlement_reconciliation", { p_limit: 5 });
+    if (error || !Array.isArray(data) || data.length > 5) throw new Error("economic_settlement_queue_unavailable");
+    if (!data.length) return;
+    const provider = createStripeProvider(env);
+    for (const event of data as NormalizedProviderEvent[]) {
+      try {
+        const enriched = await provider.enrichVerifiedEvent!(event);
+        if (enriched.providerReceiptUrl || enriched.processorFeeMinor != null) await processProviderEvent(database, enriched);
+      } catch {
+        // No identifiers, raw events, provider errors or credentials in logs.
+        console.warn(JSON.stringify({ event: "billing.settlement_reconciliation", outcome: "retry" }));
+      }
+    }
+  },
   retryInbox: async env => {
     const { error } = await createEconomicServerClient(env).rpc("retry_economic_provider_inbox", { p_limit: 25 });
     if (error) throw new Error("economic_inbox_retry_unavailable");
@@ -187,6 +206,7 @@ export async function handleBillingScheduled(
   const batchLimit = 25;
   const maximumBatches = 4;
   await dependencies.retryInbox?.(env);
+  await dependencies.reconcileSettlements?.(env);
   const expiry = await dependencies.expire(env, 100);
   let batches = 0;
   let delivered = 0;
@@ -204,7 +224,7 @@ export async function handleBillingScheduled(
 export default {
   async fetch(request: Request, env: BillingEnv): Promise<Response> {
     const url = new URL(request.url);
-    if (["/api/billing/marketplace/checkout", "/api/billing/seller/onboarding", "/api/billing/seller/status-refresh", "/api/billing/seller/offer-activation", "/api/billing/operator/marketplace-payout-preparation", "/api/billing/sandbox-credits/checkout"].includes(url.pathname)) return notFound();
+    if (["/api/billing/marketplace/checkout", "/api/billing/seller/onboarding", "/api/billing/seller/status-refresh", "/api/billing/operator/marketplace-payout-preparation", "/api/billing/sandbox-credits/checkout"].includes(url.pathname)) return notFound();
     const handler = BILLING_ROUTES[url.pathname];
     if (!handler) return notFound();
     return await handler({ request, env } as Parameters<BillingRoute>[0]);

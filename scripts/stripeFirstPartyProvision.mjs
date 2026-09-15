@@ -38,7 +38,28 @@ export async function provision({mode,account,apiVersion,secret,apply=false,fetc
   }
   rows.push({productKey:plan.productKey,priceCode:plan.priceCode,providerProductReference:productId,providerPriceReference:priceId,mode});
  }
- return {dryRun:false,mode,account,rows,enabledLanes:[],note:'References require recording in the matching economic database. No feature switch was changed.'};
+ const configurations=[];let cursor='';
+ for(let page=0;page<10;page++){
+  const listing=await request(`/v1/billing_portal/configurations?limit=100${cursor?'&starting_after='+encodeURIComponent(cursor):''}`);
+  configurations.push(...listing.data.filter(value=>value.metadata?.elysia_configuration===`first_party_${mode}_20260915`));
+  if(!listing.has_more)break;
+  if(page===9)throw new Error('Portal configuration search exceeded safe page limit.');
+  cursor=listing.data.at(-1).id;
+ }
+ if(configurations.length>1)throw new Error('Ambiguous portal configuration.');
+ let portal=configurations[0];
+ if(!portal)portal=await request('/v1/billing_portal/configurations','POST',{
+  'business_profile[headline]':'EcoSyneva Commons LLC · Support billing',
+  'business_profile[privacy_policy_url]':'https://elysiaecobotics.com/legal/privacy-policy',
+  'business_profile[terms_of_service_url]':'https://elysiaecobotics.com/legal/support-and-billing-terms',
+  'features[invoice_history][enabled]':'true','features[payment_method_update][enabled]':'true',
+  'features[subscription_cancel][enabled]':'true','features[subscription_cancel][mode]':'at_period_end',
+  'features[subscription_cancel][proration_behavior]':'none','features[subscription_update][enabled]':'false',
+  'default_return_url':'https://elysiaecobotics.com/commons-circle/support-billing',
+  'metadata[elysia_configuration]':`first_party_${mode}_20260915`
+ },`elysia:${mode}:portal:20260915`);
+ if(!portal.active||portal.livemode!==(mode==='live')||!portal.features?.subscription_cancel?.enabled||portal.features.subscription_cancel.mode!=='at_period_end'||portal.features.subscription_update?.enabled)throw new Error('Portal configuration does not match the approved cancellation policy.');
+ return {dryRun:false,mode,account,rows,portalConfigurationId:portal.id,enabledLanes:[],note:'References require recording in the matching economic database. No feature switch was changed.'};
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  const mode=process.env.BILLING_MODE;const apply=process.argv.includes('--apply');

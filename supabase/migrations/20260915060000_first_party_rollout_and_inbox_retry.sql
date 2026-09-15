@@ -44,4 +44,29 @@ revoke all on function public.retry_economic_provider_inbox(integer) from public
 grant execute on function public.retry_economic_provider_inbox(integer) to service_role;
 alter function public.operator_set_first_party_lane(uuid,text,boolean,text) owner to postgres;
 alter function public.retry_economic_provider_inbox(integer) owner to postgres;
+-- Reconcile late provider fee/receipt evidence without mutating payment history.
+create function public.claim_economic_settlement_reconciliation(p_limit integer default 5)
+returns jsonb language plpgsql security definer set search_path='' as $$
+declare e private.economic_webhook_events%rowtype; events jsonb:='[]'::jsonb;
+begin
+ if not private.economic_caller_is_service_role() then raise exception using errcode='42501',message='economic_service_role_required';end if;
+ if p_limit is null or p_limit not between 1 and 5 then raise exception using errcode='22023',message='economic_reconciliation_limit_invalid';end if;
+ for e in select event.* from private.economic_webhook_events event
+  where event.processing_status='processed' and event.provider_environment=private.economic_runtime_mode()
+  and event.normalized_event->>'providerPaymentId' is not null
+  and event.event_type in ('payment_intent.succeeded','invoice.paid','checkout.session.completed','checkout.session.async_payment_succeeded')
+  and coalesce(event.next_retry_at,event.received_at+interval '1 minute')<=now()
+  and exists(select 1 from private.economic_payment_transactions tx where tx.provider=event.provider
+   and tx.provider_transaction_reference=event.normalized_event->>'providerPaymentId' and tx.transaction_type='payment' and tx.status='succeeded'
+   and (not exists(select 1 from private.economic_provider_settlements evidence where evidence.payment_transaction_id=tx.id and evidence.processor_fee_minor is not null)
+     or not exists(select 1 from private.economic_provider_settlements evidence where evidence.payment_transaction_id=tx.id and evidence.receipt_url is not null)))
+  order by coalesce(event.next_retry_at,event.received_at),event.id for update skip locked limit p_limit loop
+  update private.economic_webhook_events set next_retry_at=now()+interval '15 minutes' where id=e.id;
+  events:=events||jsonb_build_array(e.normalized_event||jsonb_build_object('provider',e.provider,'providerEventId',e.provider_event_id,'eventType',e.event_type,'eventCreatedAt',e.event_created_at,'payloadSha256',e.payload_sha256));
+ end loop;
+ return events;
+end;$$;
+alter function public.claim_economic_settlement_reconciliation(integer) owner to postgres;
+revoke all on function public.claim_economic_settlement_reconciliation(integer) from public,anon,authenticated;
+grant execute on function public.claim_economic_settlement_reconciliation(integer) to service_role;
 commit;

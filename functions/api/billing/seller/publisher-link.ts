@@ -25,8 +25,6 @@ export async function handleSellerPublisherLink(
 ): Promise<Response> {
   let correlationId: string | null = null;
   try {
-    assertBillingMutationEnabled(env);
-    assertBillingFeatureEnabled(env, "BILLING_MARKETPLACE_COMMERCE_ENABLED", "marketplace_commerce_disabled");
     requireSameOriginMutation(request, env);
     requireJsonPost(request);
     const input = await marketplacePublisherLinkRequest(request);
