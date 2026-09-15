@@ -1,16 +1,10 @@
-// Local preparation only. No imports, credentials, network, persistence or live
+// Local preparation only. No credentials, network, persistence or live
 // dispatch. Account-scoped evidence must come from a future qualified adapter.
+import { minorUnits as minor, roundMoneyRatio as roundRatio, feeMinorUnits } from "./money.ts";
 export type ProposedFeeTerms = {
   version: string; adopted: false; basisPoints: number;
   processorFeePayer: "seller" | "platform";
 };
-function minor(value: number): bigint {
-  if (!Number.isSafeInteger(value) || value < 0 || value > 100_000_000_000) throw new Error("Invalid minor-unit amount.");
-  return BigInt(value);
-}
-function roundRatio(numerator: bigint, denominator: bigint): bigint {
-  return (numerator + denominator / 2n) / denominator;
-}
 export function previewFeeSnapshot(grossMinor: number, currency: string, terms: ProposedFeeTerms | null, processorFeeMinor: number | null, taxMinor: number | null) {
   const gross = minor(grossMinor);
   if (!/^[a-z]{3}$/.test(currency)) throw new Error("Explicit currency required.");
@@ -23,7 +17,7 @@ export function previewFeeSnapshot(grossMinor: number, currency: string, terms: 
   // No default commission. Free offers stay free. Proposed percentage basis is
   // the price excluding tax; this basis and rounding still require adoption.
   const platformFeeMinor = gross === 0n ? 0 : !terms || taxMinor === null ? null
-    : Number(roundRatio((gross - BigInt(taxMinor)) * BigInt(terms.basisPoints), 10000n));
+    : feeMinorUnits(grossMinor - taxMinor, terms.basisPoints);
   const creatorProceedsMinor = gross === 0n ? 0 : platformFeeMinor === null || processorFeeMinor === null || taxMinor === null || !terms ? null
     : grossMinor - taxMinor - platformFeeMinor - (terms.processorFeePayer === "seller" ? processorFeeMinor : 0);
   const platformNetMinor = !terms || platformFeeMinor === null || processorFeeMinor === null ? null
