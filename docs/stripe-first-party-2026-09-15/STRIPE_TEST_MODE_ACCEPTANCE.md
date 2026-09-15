@@ -4,8 +4,8 @@
 
 - `npm run test:stripe-first-party`: money, adapter, provisioning replay, prospective/historical legal integrity, proxy, Stripe boundaries, Worker isolation, operator, Job Post, services/sponsorship/assistance, lifecycle, observability, frontend and navigation contracts.
 - `npm run typecheck` and `npm run typecheck:functions`.
-- Disposable Supabase replay of all 73 migrations with historical behavior fixtures and plpgsql_check of current governed functions.
-- Separate clean replay of all 73 migrations plus first-party qualification/environment/deduplication/late-settlement/immutable-history/fee-reduction/Support-to-compute fixtures.
+- Disposable Supabase replay of all 74 migrations with historical behavior fixtures and plpgsql_check of current governed functions.
+- Separate clean replay of all 74 migrations plus first-party qualification/environment/deduplication/late-settlement/immutable-history/fee-reduction/Support-to-compute fixtures.
 - Production build and focused disabled-payment/Creator Studio browser checks are recorded with deployment evidence.
 
 ## Actual Stripe sandbox — NOT RUN / BLOCKED

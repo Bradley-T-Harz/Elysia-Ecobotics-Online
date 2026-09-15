@@ -73,6 +73,28 @@ insert into auth.users(id,email,email_confirmed_at,is_anonymous,created_at,updat
  ('f6200000-0000-4000-8000-000000000001','poster@synthetic.invalid',now(),false,now(),now()),
  ('f6200000-0000-4000-8000-000000000002','operator@synthetic.invalid',now(),false,now(),now());
 update private.account_activation_state set activation_state='active' where user_id::text like 'f6200000-%';
+-- Free compute grants require service authority, never Stripe mode/account headers.
+select set_config('request.headers','{}',true);
+select public.grant_sandbox_credit_units('f6200000-0000-4000-8000-000000000001',1,'starter','synthetic-free-allowance',null,'synthetic-free-allowance-20260915','Synthetic free allowance check');
+select pg_temp.expect((select sum(granted_units)=1 from private.sandbox_credit_lots where user_id='f6200000-0000-4000-8000-000000000001'),'free allowance remains independent of Stripe');
+do $$declare source text;begin
+ foreach source in array array['purchased','recurring_support'] loop
+  begin
+   perform public.grant_sandbox_credit_units('f6200000-0000-4000-8000-000000000001',1,source,'synthetic-forbidden',null,'synthetic-forbidden-'||source,'Synthetic hard boundary');
+   raise exception 'monetary compute grant unexpectedly allowed';
+  exception when insufficient_privilege then
+   if sqlerrm<>'paid_compute_and_support_to_compute_hard_off' then raise;end if;
+  end;
+  begin
+   insert into private.sandbox_credit_lots(user_id,source_category,granted_units,idempotency_key,private_reason)
+   values('f6200000-0000-4000-8000-000000000001',source,1,'direct-forbidden-'||source,'Synthetic table boundary');
+   raise exception 'direct monetary credit insert unexpectedly allowed';
+  exception when insufficient_privilege then
+   if sqlerrm<>'paid_compute_and_support_to_compute_hard_off' then raise;end if;
+  end;
+ end loop;
+end;$$;
+select set_config('request.headers','{"x-elysia-billing-mode":"live","x-elysia-stripe-account":"acct_synthetic"}',true);
 insert into private.economic_operator_assignments(user_id,capability,reason) values
  ('f6200000-0000-4000-8000-000000000002','job_fee_assess','Synthetic fixture'),
  ('f6200000-0000-4000-8000-000000000002','economic_assistance_manage','Synthetic fixture');

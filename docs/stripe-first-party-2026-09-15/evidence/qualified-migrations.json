@@ -23,10 +23,14 @@
     {
       "file": "supabase/migrations/20260915060000_first_party_rollout_and_inbox_retry.sql",
       "sha256": "89cf9fca8f579b678d1ffe0f64debe56a09a332b3138d5a4206533ac5c4adab5"
+    },
+    {
+      "file": "supabase/migrations/20260915070000_free_compute_and_direct_grant_boundary.sql",
+      "sha256": "03fdf66cf6f6067835e0397e3063b4ee873b010e40251d19a5b9f4664127e44b"
     }
   ],
-  "replayCount": 73,
-  "checkedFunctions": 589,
+  "replayCount": 74,
+  "checkedFunctions": 590,
   "localFixturesPassed": true,
   "stripeProviderAcceptancePassed": false
 }

@@ -1,0 +1,352 @@
+Sandbox database migration static checks ok.
+Using disposable container runtime: podman.
+Job Post participant request ownership, private storage, operator separation, idempotency and economic isolation checks passed.
+Readiness forward migrations and synthetic attachment/payment/quarantine checks passed.
+{"result": "publisher_ownership_behavior_ok", "publishers": 2, "roles_tested": 7, "synthetic_only": true, "immutable_versions": 2, "financial_state_unchanged": true, "manager_self_review_denied": true, "independent_marketplace_reviewer_accepted": true}
+Publisher entity/manager, independent review, attribution snapshots, role boundaries and financial isolation checks passed.
+  set_config   
+---------------
+ authenticated
+(1 row)
+
+              set_config              
+--------------------------------------
+ f5100000-0000-4000-8000-000000000001
+(1 row)
+
+     submit_own_work_with_request     
+--------------------------------------
+ f5200000-0000-4000-8000-000000000001
+(1 row)
+
+     submit_own_work_with_request     
+--------------------------------------
+ f5200000-0000-4000-8000-000000000001
+(1 row)
+
+              set_config              
+--------------------------------------
+ f5100000-0000-4000-8000-000000000002
+(1 row)
+
+                                  work_with_request_command                                   
+----------------------------------------------------------------------------------------------
+ {"id": "f5200000-0000-4000-8000-000000000001", "status": "needs_information", "revision": 2}
+(1 row)
+
+              set_config              
+--------------------------------------
+ f5100000-0000-4000-8000-000000000001
+(1 row)
+
+                                 work_with_request_command                                 
+-------------------------------------------------------------------------------------------
+ {"id": "f5200000-0000-4000-8000-000000000001", "status": "pending_review", "revision": 3}
+(1 row)
+
+                                 work_with_request_command                                 
+-------------------------------------------------------------------------------------------
+ {"id": "f5200000-0000-4000-8000-000000000001", "status": "pending_review", "revision": 4}
+(1 row)
+
+              set_config              
+--------------------------------------
+ f5100000-0000-4000-8000-000000000002
+(1 row)
+
+                              work_with_request_command                              
+-------------------------------------------------------------------------------------
+ {"id": "f5200000-0000-4000-8000-000000000001", "status": "approved", "revision": 5}
+(1 row)
+
+              set_config              
+--------------------------------------
+ f5100000-0000-4000-8000-000000000001
+(1 row)
+
+     submit_own_work_with_request     
+--------------------------------------
+ f5200000-0000-4000-8000-000000000002
+(1 row)
+
+                              work_with_request_command                               
+--------------------------------------------------------------------------------------
+ {"id": "f5200000-0000-4000-8000-000000000002", "status": "withdrawn", "revision": 2}
+(1 row)
+
+     submit_own_work_with_request     
+--------------------------------------
+ f5200000-0000-4000-8000-000000000003
+(1 row)
+
+ attach_own_work_with_file 
+---------------------------
+ t
+(1 row)
+
+ attach_own_work_with_file 
+---------------------------
+ t
+(1 row)
+
+          ?column?           
+-----------------------------
+ owner_decisions_behavior_ok
+(1 row)
+
+
+  set_config   
+---------------
+ authenticated
+(1 row)
+
+              set_config              
+--------------------------------------
+ f6100000-0000-4000-8000-000000000003
+(1 row)
+
+              set_config              
+--------------------------------------
+ f6100000-0000-4000-8000-000000000002
+(1 row)
+
+              set_config              
+--------------------------------------
+ f6100000-0000-4000-8000-000000000001
+(1 row)
+
+ stewardship_retention_command 
+-------------------------------
+ t
+(1 row)
+
+              set_config              
+--------------------------------------
+ f6100000-0000-4000-8000-000000000002
+(1 row)
+
+ stewardship_retention_command 
+-------------------------------
+ t
+(1 row)
+
+  set_config  
+--------------
+ service_role
+(1 row)
+
+ complete_stewardship_proof_deletion 
+-------------------------------------
+ t
+(1 row)
+
+ complete_stewardship_proof_deletion 
+-------------------------------------
+ t
+(1 row)
+
+  set_config   
+---------------
+ authenticated
+(1 row)
+
+              set_config              
+--------------------------------------
+ f6100000-0000-4000-8000-000000000002
+(1 row)
+
+ stewardship_retention_command 
+-------------------------------
+ t
+(1 row)
+
+  set_config  
+--------------
+ service_role
+(1 row)
+
+             ?column?              
+-----------------------------------
+ stewardship_retention_behavior_ok
+(1 row)
+
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ c6100000-0000-4000-8000-000000000001
+(1 row)
+
+                                                        set_config                                                         
+---------------------------------------------------------------------------------------------------------------------------
+ {"sub":"c6100000-0000-4000-8000-000000000001","session_id":"c6200000-0000-4000-8000-000000000001","role":"authenticated"}
+(1 row)
+
+ codev_denied 
+--------------
+ 
+(1 row)
+
+ codev_denied 
+--------------
+ 
+(1 row)
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+ codev_denied 
+--------------
+ 
+(1 row)
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ c6100000-0000-4000-8000-000000000002
+(1 row)
+
+                                                        set_config                                                         
+---------------------------------------------------------------------------------------------------------------------------
+ {"sub":"c6100000-0000-4000-8000-000000000002","session_id":"c6200000-0000-4000-8000-000000000002","role":"authenticated"}
+(1 row)
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+ codev_denied 
+--------------
+ 
+(1 row)
+
+ codev_denied 
+--------------
+ 
+(1 row)
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+              set_config              
+--------------------------------------
+ c6100000-0000-4000-8000-000000000001
+(1 row)
+
+                                                        set_config                                                         
+---------------------------------------------------------------------------------------------------------------------------
+ {"sub":"c6100000-0000-4000-8000-000000000001","session_id":"c6200000-0000-4000-8000-000000000001","role":"authenticated"}
+(1 row)
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+ codev_denied 
+--------------
+ 
+(1 row)
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+ codev_assert 
+--------------
+ 
+(1 row)
+
+                           ?column?                            
+---------------------------------------------------------------
+ codev_pairing_identity_replay_expiry_logout_role_isolation_ok
+(1 row)
+
+
+Replayed all 74 current migrations successfully.
+plpgsql_check found no error-level findings across 590 governed cross-system function names.
+Sandbox, economic, Artisan, Online profile, account communications, and account activation database disposable migration and behavior checks ok.

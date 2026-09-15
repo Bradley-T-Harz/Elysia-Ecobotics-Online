@@ -146,7 +146,8 @@ const publisherOwnershipPaths = ["supabase/migrations/20260909020000_marketplace
 const ownerDecisionPaths = ["supabase/migrations/20260910010000_scoped_review_capabilities.sql", "supabase/migrations/20260910020000_work_with_lifecycle_and_profile_boundaries.sql", "supabase/migrations/20260910030000_adopted_economic_policy_and_messaging_privacy.sql", "supabase/migrations/20260910040000_stewardship_proof_retention.sql", "supabase/migrations/20260910050000_owner_decision_legal_versions.sql"];
 
 const codevPairingPaths = ["supabase/migrations/20260913010000_codev_pairing_sessions.sql"];
-const stripeActivationPaths = ["supabase/migrations/20260915010000_canonical_money_rounding.sql", "supabase/migrations/20260915020000_first_party_provider_approval.sql", "supabase/migrations/20260915030000_first_party_runtime_environment.sql", "supabase/migrations/20260915040000_job_post_owned_fee_reduction.sql", "supabase/migrations/20260915050000_first_party_prospective_legal.sql", "supabase/migrations/20260915060000_first_party_rollout_and_inbox_retry.sql"];
+const stripeActivationPaths = ["supabase/migrations/20260915010000_canonical_money_rounding.sql", "supabase/migrations/20260915020000_first_party_provider_approval.sql", "supabase/migrations/20260915030000_first_party_runtime_environment.sql", "supabase/migrations/20260915040000_job_post_owned_fee_reduction.sql", "supabase/migrations/20260915050000_first_party_prospective_legal.sql", "supabase/migrations/20260915060000_first_party_rollout_and_inbox_retry.sql",
+  "supabase/migrations/20260915070000_free_compute_and_direct_grant_boundary.sql"];
 
 const activePaths = [
   ...baselinePaths,

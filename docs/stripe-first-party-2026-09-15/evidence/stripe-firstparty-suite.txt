@@ -1,0 +1,45 @@
+
+> elysia-ecobotics-online@0.1.0 test:stripe-first-party
+> node scripts/moneyCanonicalizationTest.mts && node scripts/firstPartyStripeAdapterTest.mjs && node scripts/stripeFirstPartyProvisionTest.mjs && node scripts/firstPartyLegalIntegrityTest.mjs && node scripts/billingProxySmokeTest.mjs && node scripts/billingStripeSmokeTest.mjs && node scripts/billingWorkerIsolationSmokeTest.mjs && node scripts/billingOperatorSmokeTest.mjs && node scripts/billingJobPostSmokeTest.mjs && node scripts/billingOrganizationAssistanceSmokeTest.mjs && node scripts/billingLifecycleSmokeTest.mjs && node scripts/billingObservabilitySmokeTest.mjs && node scripts/economicFrontendSmokeTest.mjs && node scripts/economicLegalContentIntegritySmokeTest.mjs && node scripts/publicNavigationModelTest.mjs
+
+(node:22) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Canonical minor-unit money: boundaries, odd denominators, previews and cumulative historical/new reversals passed.
+(node:33) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+First-party adapter: stable outbound retries, authoritative amounts, all five lanes, environment isolation, immutable hard-off, durable-before-enrichment passed.
+Catalog and cancellation provisioning: dry-run, idempotent retries, mode checks and no money/Connect operations passed.
+(node:55) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Prospective legal content, five active first-party bundles, and preserved historical routes verified.
+(node:83) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Billing proxy smoke test ok.
+(node:94) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Billing Stripe adapter and webhook smoke test ok.
+(node:105) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Billing Worker binding-isolation and route-manifest smoke test ok.
+(node:116) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Billing economic operator route smoke test ok.
+(node:127) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Billing Job Post economic boundary smoke test ok.
+(node:138) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Billing organization, sponsorship, and assistance smoke tests passed.
+(node:149) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Billing lifecycle and public recognition smoke test ok.
+(node:160) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Billing structured observability smoke test ok.
+(node:171) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Economic frontend presentation-contract smoke test ok (no backend behavior claimed). 
+(node:182) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Economic legal content integrity smoke test ok (9 canonical pages).
+Public navigation model ok (5 territories, 3 utilities, 15 territory destinations, 16 preserved former top-level routes).

@@ -1,0 +1,106 @@
+ expect 
+--------
+ 
+(1 row)
+
+ expect 
+--------
+ 
+ 
+ 
+ 
+ 
+(5 rows)
+
+  set_config  
+--------------
+ service_role
+(1 row)
+
+ expect 
+--------
+ 
+(1 row)
+
+                                 set_config                                  
+-----------------------------------------------------------------------------
+ {"x-elysia-billing-mode":"live","x-elysia-stripe-account":"acct_synthetic"}
+(1 row)
+
+ expect 
+--------
+ 
+(1 row)
+
+ expect 
+--------
+ 
+(1 row)
+
+ expect 
+--------
+ 
+(1 row)
+
+ expect 
+--------
+ 
+(1 row)
+
+ expect 
+--------
+ 
+(1 row)
+
+ set_config 
+------------
+ {}
+(1 row)
+
+                                                                        grant_sandbox_credit_units                                                                        
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ {"testMode": false, "expiresAt": null, "creditLotId": "c63111e7-abe3-4946-831d-113a906fc221", "grantedUnits": 1, "sourceCategory": "starter", "idempotentReplay": false}
+(1 row)
+
+ expect 
+--------
+ 
+(1 row)
+
+                                 set_config                                  
+-----------------------------------------------------------------------------
+ {"x-elysia-billing-mode":"live","x-elysia-stripe-account":"acct_synthetic"}
+(1 row)
+
+                                                                                                           ensure_job_post_economic_condition                                                                                                            
+---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ (2255a63e-311d-4730-b2cf-20a78d545e19,f6300000-0000-4000-8000-000000000002,f6300000-0000-4000-8000-000000000001,f6200000-0000-4000-8000-000000000001,not_assessed,not_assessed,,,,,,,,,,,"2026-09-15 23:28:09.31097+00","2026-09-15 23:28:09.31097+00")
+(1 row)
+
+ expect 
+--------
+ 
+(1 row)
+
+ expect 
+--------
+ 
+(1 row)
+
+ expect 
+--------
+ 
+(1 row)
+
+ expect 
+--------
+ 
+(1 row)
+
+              ?column?              
+------------------------------------
+ first_party_activation_behavior_ok
+(1 row)
+
+
+Fresh replay: 74 migrations; first-party behavior passed.
