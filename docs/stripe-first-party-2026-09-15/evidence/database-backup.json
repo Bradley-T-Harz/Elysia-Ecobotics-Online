@@ -1,0 +1,19 @@
+{
+  "capturedAt": "2026-09-15T22:53:30.338911+00:00",
+  "scope": "Public/private schema plus immutable legal versions, active pointers and feature flag data; no auth credential dump, raw proof objects or user content export. Affected function/trigger definitions are preserved in the schema dump. No financial rows are rewritten by the candidate.",
+  "files": [
+    {
+      "file": "before-public-private-schema.dump",
+      "bytes": 4085856,
+      "sha256": "49160d38c8d5d9bea32dd8f22eb30bfd811deb08533ed7a388911750e9234a20",
+      "pgRestoreListPassed": true
+    },
+    {
+      "file": "before-protected-legal-flags-data.dump",
+      "bytes": 8132,
+      "sha256": "d4c2aee73e507b696d657de5178b2fe6e20e64ce37e85f31c2f528458ab7cc65",
+      "pgRestoreListPassed": true
+    }
+  ],
+  "restoreExecuted": false
+}

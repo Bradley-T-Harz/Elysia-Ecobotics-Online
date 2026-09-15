@@ -1,0 +1,86 @@
+{
+  "publicReadOnly": true,
+  "authenticatedActionsClaimed": false,
+  "results": [
+    {
+      "path": "/support",
+      "width": 1440,
+      "heading": "Keep the commons alive",
+      "currentWording": true,
+      "pageErrors": 0,
+      "billingRequests": 0
+    },
+    {
+      "path": "/marketplace/creator-studio",
+      "width": 1440,
+      "heading": "Creator Studio",
+      "currentWording": true,
+      "pageErrors": 0,
+      "billingRequests": 0
+    },
+    {
+      "path": "/developer-forge",
+      "width": 1440,
+      "heading": "Developer Forge",
+      "currentWording": true,
+      "pageErrors": 0,
+      "billingRequests": 0
+    },
+    {
+      "path": "/commons-circle/support-billing",
+      "width": 1440,
+      "heading": "Support & Billing",
+      "currentWording": true,
+      "pageErrors": 0,
+      "billingRequests": 0
+    },
+    {
+      "path": "/legal/support-and-billing-terms",
+      "width": 1440,
+      "heading": "Support and Billing Terms",
+      "currentWording": true,
+      "pageErrors": 0,
+      "billingRequests": 0
+    },
+    {
+      "path": "/support",
+      "width": 390,
+      "heading": "Keep the commons alive",
+      "currentWording": true,
+      "pageErrors": 0,
+      "billingRequests": 0
+    },
+    {
+      "path": "/marketplace/creator-studio",
+      "width": 390,
+      "heading": "Creator Studio",
+      "currentWording": true,
+      "pageErrors": 0,
+      "billingRequests": 0
+    },
+    {
+      "path": "/developer-forge",
+      "width": 390,
+      "heading": "Developer Forge",
+      "currentWording": true,
+      "pageErrors": 0,
+      "billingRequests": 0
+    },
+    {
+      "path": "/commons-circle/support-billing",
+      "width": 390,
+      "heading": "Support & Billing",
+      "currentWording": true,
+      "pageErrors": 0,
+      "billingRequests": 0
+    },
+    {
+      "path": "/legal/support-and-billing-terms",
+      "width": 390,
+      "heading": "Support and Billing Terms",
+      "currentWording": true,
+      "pageErrors": 0,
+      "billingRequests": 0
+    }
+  ]
+}

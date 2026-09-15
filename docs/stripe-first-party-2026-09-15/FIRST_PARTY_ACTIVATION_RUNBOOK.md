@@ -2,7 +2,7 @@
 
 ## Prerequisites and reproducible tooling
 
-Production is disabled. `wrangler.billing.production.jsonc` defines the isolated Worker route; it contains no permanent credentials. Prepare a separate protected sandbox Worker and separate Supabase project/schema replay, with test-only credentials, API origin and Cloudflare Access (webhook path must allow Stripe signatures). Configure edge rate limits for checkout/Portal/refund/operator mutations; verify behavior before setting BILLING_EDGE_RATE_LIMIT_CONFIRMED. Do not treat that assertion variable as a rate limiter.
+Production is disabled. `wrangler.billing.production.jsonc` defines the isolated Worker route; it contains no permanent credentials. The disabled `wrangler.billing.sandbox.jsonc` Worker is deployed. Complete its separate Supabase project/schema replay and protected test configuration, with test-only credentials, API origin and Cloudflare Access (webhook path must allow Stripe signatures). Configure edge rate limits for checkout/Portal/refund/operator mutations; verify behavior before setting BILLING_EDGE_RATE_LIMIT_CONFIRMED. Do not treat that assertion variable as a rate limiter.
 
 `node scripts/stripeFirstPartyProvision.mjs` is dry-run by default. In a secure environment, set mode, non-secret account ID, pinned version and injected corresponding secret, then use `--apply`. It verifies `/v1/account`, creates deterministic Products, looks up recurring Prices by stable key, checks existing objects and idempotently prepares Portal cancellation. It outputs non-secret catalog references and Portal configuration ID only, and never enables a lane. Default catalog covers Support and Jobs; existing service/sponsorship catalog is added only for an actually approved agreement.
 

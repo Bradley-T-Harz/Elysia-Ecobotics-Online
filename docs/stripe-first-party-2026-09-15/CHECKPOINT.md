@@ -1,3 +1,5 @@
+> Historical checkpoint. Superseded for current deployment state by DEPLOYMENT_AND_ROLLBACK_REPORT.md.
+
 # First-party Stripe implementation checkpoint
 
 Owner-authorized scope: first-party Support, recurring Support, $10 commercial Job Posts, defined organization services and governed sponsorships. Third-party Marketplace money, Connect, onboarding, payouts, paid compute, Support credits and hardware remain hard OFF.

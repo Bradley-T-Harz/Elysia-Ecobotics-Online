@@ -1,0 +1,53 @@
+{
+  "status": "BLOCKED",
+  "blocker": "Secure Stripe sandbox key/signing secret and isolated economic test database binding are absent; required real Stripe acceptance cannot run. Live credentials and lane tax/operational qualification are also absent.",
+  "productionSourceCommit": "1fba0d87d56f7e4800521efd10d9257b1c01fdbb",
+  "pagesDeploymentId": "66d46ab1-64c9-4956-9ecf-df075178a89f",
+  "pagesUrl": "https://66d46ab1.elysia-ecobotics-online.pages.dev",
+  "workerVersionId": "9a130f76-dab4-46df-a348-2f564ed649d4",
+  "workerDeploymentId": "77f062fb-a71a-4cb2-8f51-7d62f78636be",
+  "sandboxRuntime": {
+    "capturedAt": "2026-09-15T23:33:22.515404+00:00",
+    "name": "elysia-first-party-billing-sandbox",
+    "url": "https://elysia-first-party-billing-sandbox.bradleytharz3407.workers.dev",
+    "versionId": "ed3ad36e-35e9-42c3-96af-63d4626e8bd1",
+    "deploymentId": "8b23e1bb-845a-451e-b47d-fbd81f0fa48d",
+    "allMoneyOff": true,
+    "noProductionDatabaseBinding": true,
+    "noSecretBindings": true,
+    "testDatabaseConfigured": false
+  },
+  "migrationIds": [
+    "20260915010000",
+    "20260915020000",
+    "20260915030000",
+    "20260915040000",
+    "20260915050000",
+    "20260915060000",
+    "20260915070000"
+  ],
+  "migrationCount": 74,
+  "artifactSha256": "bac2af1e44b791c2cfe59703ac56710df9dd3e95c012dde2cb58d4199fd0856c",
+  "paymentsEnabled": false,
+  "thirdPartyMoney": "hard_off",
+  "stripeSandboxAcceptance": "not_run",
+  "publicBrowserCasesPassed": 10,
+  "publicEndpointCasesPassed": 7,
+  "plpgsqlCheckedFunctions": 590,
+  "privateRemotes": {
+    "online": "https://github.com/Bradley-T-Harz/Elysia-Ecobotics-Online.git",
+    "legacy": "https://github.com/Bradley-T-Harz/elysia-marketplace.git"
+  },
+  "remoteRefs": [
+    "online/main",
+    "online/stripe-first-party-2026-09-15",
+    "legacy/stripe-first-party-2026-09-15"
+  ],
+  "implementationCommits": [
+    "1fba0d87d56f7e4800521efd10d9257b1c01fdbb",
+    "3208d9cbe9e5770071e3c4c7324d42f894cd5402",
+    "4b7b4f5ae250144abf22e5c3a323bafd05970891",
+    "f4fa7c04473e821aea9c17231cf10849089fec18"
+  ],
+  "recordedAt": "2026-09-15T23:34:30.035953+00:00"
+}

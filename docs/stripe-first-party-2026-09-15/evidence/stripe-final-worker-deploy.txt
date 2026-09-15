@@ -1,0 +1,44 @@
+
+ ⛅️ wrangler 4.125.0 (update available 4.132.0)
+───────────────────────────────────────────────
+Total Upload: 1091.27 KiB / gzip: 196.41 KiB
+Worker Startup Time: 16 ms
+Your Worker has access to the following bindings:
+Binding                                                                                              Resource                  
+env.BILLING_ENABLED ("false")                                                                        Environment Variable      
+env.BILLING_SUPPORT_CHECKOUT_ENABLED ("false")                                                       Environment Variable      
+env.BILLING_RECURRING_ENABLED ("false")                                                              Environment Variable      
+env.BILLING_WEBHOOK_FULFILLMENT_ENABLED ("false")                                                    Environment Variable      
+env.BILLING_NOTIFICATION_RETRY_ENABLED ("false")                                                     Environment Variable      
+env.BILLING_PORTAL_ENABLED ("false")                                                                 Environment Variable      
+env.BILLING_SELLER_ONBOARDING_ENABLED ("false")                                                      Environment Variable      
+env.BILLING_JOB_POST_FEES_ENABLED ("false")                                                          Environment Variable      
+env.BILLING_SANDBOX_PURCHASES_ENABLED ("false")                                                      Environment Variable      
+env.BILLING_MARKETPLACE_COMMERCE_ENABLED ("false")                                                   Environment Variable      
+env.BILLING_MARKETPLACE_PAYOUT_PREPARATION_ENABLED ("false")                                         Environment Variable      
+env.BILLING_ORGANIZATION_SERVICES_ENABLED ("false")                                                  Environment Variable      
+env.BILLING_SPONSORSHIP_ADMIN_ENABLED ("false")                                                      Environment Variable      
+env.BILLING_SPONSORSHIP_CHECKOUT_ENABLED ("false")                                                   Environment Variable      
+env.BILLING_SPONSORSHIP_RECOGNITION_ENABLED ("false")                                                Environment Variable      
+env.BILLING_ASSISTANCE_ADMIN_ENABLED ("false")                                                       Environment Variable      
+env.BILLING_SUPPORT_RECOGNITION_ENABLED ("false")                                                    Environment Variable      
+env.BILLING_ACCOUNT_LIFECYCLE_ENABLED ("false")                                                      Environment Variable      
+env.BILLING_ACCOUNTING_EXPORT_ENABLED ("false")                                                      Environment Variable      
+env.BILLING_TEST_REFUNDS_ENABLED ("false")                                                           Environment Variable      
+env.BILLING_STAGING_ACCESS_CONFIRMED ("false")                                                       Environment Variable      
+env.BILLING_EDGE_RATE_LIMIT_CONFIRMED ("false")                                                      Environment Variable      
+env.BILLING_FIRST_PARTY_PREFLIGHT_CONFIRMED ("false")                                                Environment Variable      
+env.STRIPE_CONNECT_ENABLED ("false")                                                                 Environment Variable      
+env.STRIPE_LIVE_ENABLED ("false")                                                                    Environment Variable      
+env.BILLING_MODE ("disabled")                                                                        Environment Variable      
+env.BILLING_PUBLIC_ORIGIN ("https://elysiaecobotics.com")                                            Environment Variable      
+env.STRIPE_API_VERSION ("2025-02-24.acacia")                                                         Environment Variable      
+env.STRIPE_WEBHOOK_API_VERSION ("2025-02-24.acacia")                                                 Environment Variable      
+env.STRIPE_WEBHOOK_TOLERANCE_SECONDS ("300")                                                         Environment Variable      
+env.SUPABASE_URL ("https://qwmcstyfegvpzjmjrylc.supabase...")                                        Environment Variable      
+env.SUPABASE_PUBLISHABLE_KEY ("sb_publishable_GNJEkifa3bGuXlcCA7HQdg...")                            Environment Variable      
+
+Uploaded elysia-first-party-billing (2.56 sec)
+Deployed elysia-first-party-billing triggers (1.32 sec)
+  elysiaecobotics.com/api/billing/* (zone name: elysiaecobotics.com)
+Current Version ID: 9a130f76-dab4-46df-a348-2f564ed649d4

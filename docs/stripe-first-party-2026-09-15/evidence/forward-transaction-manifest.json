@@ -1,0 +1,12 @@
+{
+  "sourceCommit": "1fba0d87d56f7e4800521efd10d9257b1c01fdbb",
+  "transactionSha256": "e586abeb8822c0a2ecdd684667847d973f98f185e47e2b3d32e730c991eb61cd",
+  "migrations": [
+    {
+      "file": "supabase/migrations/20260915070000_free_compute_and_direct_grant_boundary.sql",
+      "sha256": "03fdf66cf6f6067835e0397e3063b4ee873b010e40251d19a5b9f4664127e44b"
+    }
+  ],
+  "atomicMigrationAndLedger": true,
+  "allAcquisitionOff": true
+}

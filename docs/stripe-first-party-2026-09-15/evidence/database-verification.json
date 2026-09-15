@@ -1,0 +1,18 @@
+{
+  "passed": true,
+  "migrationCount": 74,
+  "newMigrations": [
+    "20260915010000",
+    "20260915020000",
+    "20260915030000",
+    "20260915040000",
+    "20260915050000",
+    "20260915060000",
+    "20260915070000"
+  ],
+  "financialFlagsUnchanged": true,
+  "monetaryRowsStillEmpty": true,
+  "historicalLegalAndConsentBundlesUnchanged": true,
+  "oldLegalHash": "fc6817302997a85bb823daa0ce6f2b46",
+  "oldBundleHash": "d1384cf2069e7e8418bce47535f3c033"
+}

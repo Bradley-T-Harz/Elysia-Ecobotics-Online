@@ -1,0 +1,305 @@
+{
+  "capturedAt": "2026-09-15T23:32:30.035982+00:00",
+  "workerVersionId": "9a130f76-dab4-46df-a348-2f564ed649d4",
+  "deployments": {
+    "deployments": [
+      {
+        "id": "77f062fb-a71a-4cb2-8f51-7d62f78636be",
+        "source": "wrangler",
+        "strategy": "percentage",
+        "versions": [
+          {
+            "version_id": "9a130f76-dab4-46df-a348-2f564ed649d4",
+            "percentage": 100
+          }
+        ],
+        "created_on": "2026-09-15T23:30:55.03156Z"
+      },
+      {
+        "id": "ad922cb3-3b84-41e3-94fd-2788a0679401",
+        "source": "wrangler",
+        "strategy": "percentage",
+        "versions": [
+          {
+            "version_id": "74d0fa81-5a47-427e-b150-4a98f369cee8",
+            "percentage": 100
+          }
+        ],
+        "created_on": "2026-09-15T23:20:13.719772Z"
+      }
+    ]
+  },
+  "workerBindingNames": [
+    {
+      "name": "BILLING_ACCOUNTING_EXPORT_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_ACCOUNT_LIFECYCLE_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_ASSISTANCE_ADMIN_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_EDGE_RATE_LIMIT_CONFIRMED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_FIRST_PARTY_PREFLIGHT_CONFIRMED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_JOB_POST_FEES_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_MARKETPLACE_COMMERCE_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_MARKETPLACE_PAYOUT_PREPARATION_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_MODE",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_NOTIFICATION_RETRY_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_ORGANIZATION_SERVICES_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_PORTAL_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_PUBLIC_ORIGIN",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_RECURRING_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_SANDBOX_PURCHASES_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_SELLER_ONBOARDING_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_SPONSORSHIP_ADMIN_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_SPONSORSHIP_CHECKOUT_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_SPONSORSHIP_RECOGNITION_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_STAGING_ACCESS_CONFIRMED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_SUPPORT_CHECKOUT_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_SUPPORT_RECOGNITION_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_TEST_REFUNDS_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "BILLING_WEBHOOK_FULFILLMENT_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "STRIPE_API_VERSION",
+      "type": "plain_text"
+    },
+    {
+      "name": "STRIPE_CONNECT_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "STRIPE_LIVE_ENABLED",
+      "type": "plain_text"
+    },
+    {
+      "name": "STRIPE_WEBHOOK_API_VERSION",
+      "type": "plain_text"
+    },
+    {
+      "name": "STRIPE_WEBHOOK_TOLERANCE_SECONDS",
+      "type": "plain_text"
+    },
+    {
+      "name": "SUPABASE_PUBLISHABLE_KEY",
+      "type": "plain_text"
+    },
+    {
+      "name": "SUPABASE_URL",
+      "type": "plain_text"
+    }
+  ],
+  "allPaymentFlagsOff": true,
+  "stripeSecretBindingsAbsent": true,
+  "publicChecks": [
+    {
+      "path": "provider-readiness",
+      "status": 200,
+      "response": {
+        "ok": true,
+        "provider": {
+          "mode": "test",
+          "lanes": [
+            {
+              "key": "job_post_fee_enforcement",
+              "enabled": false,
+              "taxBehavior": "disabled",
+              "legalQualified": false,
+              "sandboxQualified": false,
+              "rolloutAuthorized": false,
+              "taxDecisionRecorded": false
+            },
+            {
+              "key": "organization_billing",
+              "enabled": false,
+              "taxBehavior": "disabled",
+              "legalQualified": false,
+              "sandboxQualified": false,
+              "rolloutAuthorized": false,
+              "taxDecisionRecorded": false
+            },
+            {
+              "key": "recurring_support",
+              "enabled": false,
+              "taxBehavior": "disabled",
+              "legalQualified": false,
+              "sandboxQualified": false,
+              "rolloutAuthorized": false,
+              "taxDecisionRecorded": false
+            },
+            {
+              "key": "sponsorship_checkout",
+              "enabled": false,
+              "taxBehavior": "disabled",
+              "legalQualified": false,
+              "sandboxQualified": false,
+              "rolloutAuthorized": false,
+              "taxDecisionRecorded": false
+            },
+            {
+              "key": "support_checkout",
+              "enabled": false,
+              "taxBehavior": "disabled",
+              "legalQualified": false,
+              "sandboxQualified": false,
+              "rolloutAuthorized": false,
+              "taxDecisionRecorded": false
+            }
+          ],
+          "scope": "first_party_account",
+          "provider": "stripe",
+          "reviewedAt": "2026-09-15",
+          "reviewStatus": "passed",
+          "lastPreflightAt": null,
+          "webhookVerified": false,
+          "thirdPartyStatus": "hard_off",
+          "eventCoverageVerified": false
+        },
+        "runtime": {
+          "mode": "disabled",
+          "credentialPresent": false,
+          "webhookSecretPresent": false,
+          "providerConfigured": false,
+          "oneTimeSupport": false,
+          "recurringSupport": false,
+          "organizationServiceCheckout": false,
+          "sponsorshipCheckout": false,
+          "jobPostCheckout": false,
+          "thirdPartyMoney": false
+        }
+      }
+    },
+    {
+      "path": "capabilities",
+      "status": 200,
+      "response": {
+        "ok": true,
+        "mode": "disabled",
+        "livePayments": false,
+        "processor": "stripe",
+        "features": {
+          "jobPostCheckout": false,
+          "oneTimeSupport": false,
+          "recurringSupport": false,
+          "customerPortal": false,
+          "accountLifecycle": false,
+          "sellerOnboarding": false,
+          "organizationServiceCheckout": false,
+          "sponsorshipCheckout": false
+        },
+        "legalDocumentVersions": null,
+        "legalConsentBundles": null
+      }
+    },
+    {
+      "path": "marketplace/checkout",
+      "status": 404,
+      "response": {
+        "ok": false,
+        "error": "billing_route_not_found"
+      }
+    },
+    {
+      "path": "seller/onboarding",
+      "status": 404,
+      "response": {
+        "ok": false,
+        "error": "billing_route_not_found"
+      }
+    },
+    {
+      "path": "seller/status-refresh",
+      "status": 404,
+      "response": {
+        "ok": false,
+        "error": "billing_route_not_found"
+      }
+    },
+    {
+      "path": "operator/marketplace-payout-preparation",
+      "status": 404,
+      "response": {
+        "ok": false,
+        "error": "billing_route_not_found"
+      }
+    },
+    {
+      "path": "sandbox-credits/checkout",
+      "status": 404,
+      "response": {
+        "ok": false,
+        "error": "billing_route_not_found"
+      }
+    }
+  ]
+}

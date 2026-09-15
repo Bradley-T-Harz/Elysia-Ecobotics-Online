@@ -1,0 +1,95 @@
+{
+  "capturedAt": "2026-09-15T23:32:29.126553+00:00",
+  "project": "elysia-ecobotics-online",
+  "productionBranch": "main",
+  "domains": [
+    "elysia-ecobotics-online.pages.dev",
+    "elysiaecobotics.com",
+    "www.elysiaecobotics.com"
+  ],
+  "deployment": {
+    "id": "66d46ab1-64c9-4956-9ecf-df075178a89f",
+    "url": "https://66d46ab1.elysia-ecobotics-online.pages.dev",
+    "environment": "production",
+    "created_on": "2026-09-15T23:30:53.763313Z",
+    "aliases": [
+      "https://elysiaecobotics.com",
+      "https://www.elysiaecobotics.com"
+    ],
+    "latest_stage": {
+      "name": "deploy",
+      "started_on": null,
+      "ended_on": "2026-09-15T23:30:56.549985Z",
+      "status": "success"
+    },
+    "deployment_trigger": {
+      "type": "ad_hoc",
+      "metadata": {
+        "branch": "main",
+        "commit_hash": "1fba0d87d56f7e4800521efd10d9257b1c01fdbb",
+        "commit_message": "Block direct paid compute grants and preserve free allowance authorization",
+        "commit_dirty": false
+      }
+    },
+    "is_skipped": false,
+    "production_branch": "main"
+  },
+  "productionConfigSha256": "4c79e5fd327e1beaaacad48fcb4d765beab33855e0cc451b27272893ee29c1d8",
+  "productionConfigRedacted": {
+    "services": {
+      "IDENTITY_SERVICE": {
+        "service": "elysia-shared-identity",
+        "environment": "production"
+      }
+    },
+    "fail_open": true,
+    "always_use_latest_compatibility_date": false,
+    "compatibility_date": "2026-06-09",
+    "compatibility_flags": [],
+    "build_image_major_version": 3,
+    "usage_model": "standard",
+    "env_vars": {
+      "CLOUDFLARE_ACCESS_CLIENT_ID": {
+        "type": "secret_text",
+        "valueWithheld": true
+      },
+      "CLOUDFLARE_ACCESS_CLIENT_SECRET": {
+        "type": "secret_text",
+        "valueWithheld": true
+      },
+      "SANDBOX_DB_FINALIZER_TOKEN": {
+        "type": "secret_text",
+        "valueWithheld": true
+      },
+      "SANDBOX_DEPLOYMENT_ENV": {
+        "type": "plain_text",
+        "valueWithheld": true
+      },
+      "SANDBOX_ENABLED": {
+        "type": "plain_text",
+        "valueWithheld": true
+      },
+      "SANDBOX_PUBLIC_ORIGIN": {
+        "type": "plain_text",
+        "valueWithheld": true
+      },
+      "SANDBOX_SERVICE_TOKEN": {
+        "type": "secret_text",
+        "valueWithheld": true
+      },
+      "SANDBOX_SERVICE_URL": {
+        "type": "plain_text",
+        "valueWithheld": true
+      },
+      "SUPABASE_PUBLISHABLE_KEY": {
+        "type": "plain_text",
+        "valueWithheld": true
+      },
+      "SUPABASE_URL": {
+        "type": "plain_text",
+        "valueWithheld": true
+      }
+    }
+  },
+  "configurationMutationPerformed": false
+}

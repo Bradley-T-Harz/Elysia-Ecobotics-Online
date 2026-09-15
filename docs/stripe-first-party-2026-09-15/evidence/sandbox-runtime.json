@@ -1,0 +1,11 @@
+{
+  "capturedAt": "2026-09-15T23:33:22.515404+00:00",
+  "name": "elysia-first-party-billing-sandbox",
+  "url": "https://elysia-first-party-billing-sandbox.bradleytharz3407.workers.dev",
+  "versionId": "ed3ad36e-35e9-42c3-96af-63d4626e8bd1",
+  "deploymentId": "8b23e1bb-845a-451e-b47d-fbd81f0fa48d",
+  "allMoneyOff": true,
+  "noProductionDatabaseBinding": true,
+  "noSecretBindings": true,
+  "testDatabaseConfigured": false
+}

@@ -1,0 +1,37 @@
+{
+  "startedAt": "2026-09-15T23:19:04.708856+00:00",
+  "sourceCommit": "3208d9cbe9e5770071e3c4c7324d42f894cd5402",
+  "transactionSha256": "3e70a2ed32fc6c1636b58e0540375f24240bda8c6a6d8c937ddd32b10f1b17dd",
+  "migrations": [
+    {
+      "file": "supabase/migrations/20260915010000_canonical_money_rounding.sql",
+      "sha256": "8b9571fd4b616744d1b0a2ad102ddeb86d9ddb0f984009e4c8c5631f52d8ead3"
+    },
+    {
+      "file": "supabase/migrations/20260915020000_first_party_provider_approval.sql",
+      "sha256": "130c9d9e523f0422b1c0caadd9472fadd54ddee47598278ec5b8231d968d0a13"
+    },
+    {
+      "file": "supabase/migrations/20260915030000_first_party_runtime_environment.sql",
+      "sha256": "81cc0da4dc8462e42e17ac42ad7251627eb43002150e03944c07f24d3858dd9d"
+    },
+    {
+      "file": "supabase/migrations/20260915040000_job_post_owned_fee_reduction.sql",
+      "sha256": "527d93f91dfa08b2729c2a60d01ca622c9d230e281acd9e7e9a93cda5b7c29e7"
+    },
+    {
+      "file": "supabase/migrations/20260915050000_first_party_prospective_legal.sql",
+      "sha256": "beaae115fcf5537d0df49419da95374b374c65eefb730024cf19452d5ef7f2d5"
+    },
+    {
+      "file": "supabase/migrations/20260915060000_first_party_rollout_and_inbox_retry.sql",
+      "sha256": "89cf9fca8f579b678d1ffe0f64debe56a09a332b3138d5a4206533ac5c4adab5"
+    }
+  ],
+  "atomicMigrationAndLedger": true,
+  "allAcquisitionOff": true,
+  "backupVerified": true,
+  "ownerAuthorized": true,
+  "finishedAt": "2026-09-15T23:19:07.641434+00:00",
+  "exitCode": 0
+}
