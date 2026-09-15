@@ -1,5 +1,5 @@
 import { authenticateRequired } from "../_shared/auth.ts";
-import { assertTestOnlyBillingMode } from "../_shared/config.ts";
+import { assertBillingMode } from "../_shared/config.ts";
 import { assertEconomicResponseSize, loadCurrentEconomicAuditEvents, type EconomicAuditQuery } from "../_shared/database.ts";
 import { BillingHttpError, jsonResponse, requireGet, safeBillingErrorResponse } from "../_shared/http.ts";
 import { isUuid } from "../_shared/schema.ts";
@@ -43,7 +43,7 @@ export function parseEconomicAuditQuery(request: Request): EconomicAuditQuery {
 
 export async function handleOperatorAudit(request: Request, env: BillingEnv, dependencies: OperatorAuditDependencies = defaultDependencies): Promise<Response> {
   try {
-    assertTestOnlyBillingMode(env);
+    assertBillingMode(env);
     requireGet(request);
     const query = parseEconomicAuditQuery(request);
     const auth = await dependencies.authenticate(request, env);

@@ -29,6 +29,11 @@ export interface BillingEnv {
   STRIPE_LIVE_ENABLED?: string;
   STRIPE_SECRET_KEY_TEST?: string;
   STRIPE_WEBHOOK_SECRET_TEST?: string;
+  STRIPE_SECRET_KEY_LIVE?: string;
+  STRIPE_WEBHOOK_SECRET_LIVE?: string;
+  STRIPE_ACCOUNT_ID?: string;
+  STRIPE_PORTAL_CONFIGURATION_ID?: string;
+  BILLING_FIRST_PARTY_PREFLIGHT_CONFIRMED?: string;
   STRIPE_API_VERSION?: string;
   STRIPE_WEBHOOK_API_VERSION?: string;
   STRIPE_WEBHOOK_TOLERANCE_SECONDS?: string;
@@ -532,6 +537,7 @@ export type RecurringSupportPriceCode =
   | "support_monthly_50_usd";
 
 export type CheckoutPreparation = {
+  checkoutExpiresAt?: string;
   orderId: string;
   publicReference: string;
   idempotencyKey: string;
@@ -595,7 +601,7 @@ export type NormalizedProviderEvent = {
   eventType: string;
   mutationEligible: boolean;
   eventCreatedAt: string;
-  livemode: false;
+  livemode: boolean;
   objectType: string | null;
   providerObjectReference: string | null;
   orderId: string | null;
@@ -618,6 +624,10 @@ export type NormalizedProviderEvent = {
   refundStatus: string | null;
   disputeStatus: string | null;
   disputeReason: string | null;
+  providerReceiptUrl?: string | null;
+  providerBalanceTransactionId?: string | null;
+  processorFeeMinor?: number | null;
+  netAmountMinor?: number | null;
   payloadSha256: string;
 };
 
@@ -667,6 +677,7 @@ export interface BillingProvider {
   createCustomerPortalSession(input: ProviderPortalInput): Promise<ProviderPortalResult>;
   createRefund(input: ProviderRefundInput): Promise<ProviderRefundResult>;
   verifyAndNormalizeWebhook(rawBody: string, signature: string): Promise<NormalizedProviderEvent>;
+  enrichVerifiedEvent?(event: NormalizedProviderEvent): Promise<NormalizedProviderEvent>;
   createSellerOnboarding(input: ProviderSellerOnboardingInput): Promise<ProviderSellerOnboardingResult>;
   retrieveSellerStatus(providerAccountReference: string): Promise<ProviderSellerStatus>;
   ensureMarketplaceCatalog(input: ProviderMarketplaceCatalogInput): Promise<ProviderMarketplaceCatalogResult>;

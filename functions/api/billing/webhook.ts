@@ -1,9 +1,9 @@
 import { createEconomicServerClient } from "./_shared/auth.ts";
-import { assertBillingFeatureEnabled, assertTestOnlyBillingMode } from "./_shared/config.ts";
+import { assertBillingFeatureEnabled, assertBillingMode } from "./_shared/config.ts";
 import { deliverEconomicNotificationOutbox, processProviderEvent } from "./_shared/database.ts";
 import { BillingHttpError, jsonResponse, readBoundedText, safeBillingErrorResponse } from "./_shared/http.ts";
 import { billingFailureOutcome, defaultBillingLogger, emitBillingEvent, type BillingLogger } from "./_shared/observability.ts";
-import { createStripeTestProvider } from "./_shared/stripe.ts";
+import { createStripeProvider } from "./_shared/stripe.ts";
 import type { BillingEnv, BillingProvider, NormalizedProviderEvent } from "./_shared/types.ts";
 
 export type WebhookDependencies = {
@@ -14,7 +14,7 @@ export type WebhookDependencies = {
 };
 
 const defaultDependencies: WebhookDependencies = {
-  provider: createStripeTestProvider,
+  provider: createStripeProvider,
   process: (env, event) => processProviderEvent(createEconomicServerClient(env), event),
   deliver: (env) => deliverEconomicNotificationOutbox(createEconomicServerClient(env)),
   logger: defaultBillingLogger
@@ -28,7 +28,7 @@ export async function handleStripeWebhook(
   let correlationId: string | null = null;
   let terminalLogged = false;
   try {
-    assertTestOnlyBillingMode(env);
+    assertBillingMode(env);
     assertBillingFeatureEnabled(env, "BILLING_WEBHOOK_FULFILLMENT_ENABLED", "webhook_fulfillment_disabled");
     if (request.method !== "POST") throw new BillingHttpError(405, "method_not_allowed");
     const contentType = request.headers.get("content-type")?.split(";", 1)[0]?.trim().toLowerCase();
@@ -36,7 +36,8 @@ export async function handleStripeWebhook(
     const signature = request.headers.get("stripe-signature");
     if (!signature) throw new BillingHttpError(400, "webhook_signature_invalid");
     const rawBody = await readBoundedText(request, 1_048_576);
-    const event = await dependencies.provider(env).verifyAndNormalizeWebhook(rawBody, signature);
+    const provider = dependencies.provider(env);
+    const event = await provider.verifyAndNormalizeWebhook(rawBody, signature);
     correlationId = event.orderId;
     emitBillingEvent(dependencies.logger, "billing.webhook", "attempted", correlationId);
     const status = await dependencies.process(env, event);
@@ -44,6 +45,15 @@ export async function handleStripeWebhook(
       emitBillingEvent(dependencies.logger, "billing.webhook", "retry", correlationId);
       terminalLogged = true;
       throw new BillingHttpError(503, "webhook_processing_unavailable");
+    }
+    // Commit signed payment truth before fetching optional settlement evidence.
+    // A failed enrichment returns retry; the next delivery deduplicates the
+    // payment and appends any newly available receipt/settlement facts.
+    if (provider.enrichVerifiedEvent && status !== "ignored") {
+      const enriched = await provider.enrichVerifiedEvent(event);
+      if (enriched.providerReceiptUrl || enriched.processorFeeMinor != null) {
+        if (await dependencies.process(env, enriched) === "retry") throw new BillingHttpError(503, "webhook_settlement_retry_required");
+      }
     }
     // Signal Console notifications are a convenience projection, never payment
     // truth. Scheduled reconciliation retries a failed drain; this failure must

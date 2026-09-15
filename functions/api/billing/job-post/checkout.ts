@@ -5,7 +5,7 @@ import { attachCheckoutBillingCustomer, attachCheckoutSession, failCheckout, pre
 import { BillingHttpError, jsonResponse, requireJsonPost, requireSameOriginMutation, safeBillingErrorResponse, validatedPublicOrigin } from "../_shared/http.ts";
 import { billingFailureOutcome, defaultBillingLogger, emitBillingEvent, type BillingLogger } from "../_shared/observability.ts";
 import { jobPostCheckoutRequest } from "../_shared/schema.ts";
-import { createStripeTestProvider } from "../_shared/stripe.ts";
+import { createStripeProvider } from "../_shared/stripe.ts";
 import type { AuthenticatedBillingRequest, BillingEnv, BillingProvider, JobPostCheckoutRequest } from "../_shared/types.ts";
 
 export type JobPostCheckoutDependencies = {
@@ -20,7 +20,7 @@ export type JobPostCheckoutDependencies = {
 
 const defaultDependencies: JobPostCheckoutDependencies = {
   authenticate: authenticateRequired,
-  provider: createStripeTestProvider,
+  provider: createStripeProvider,
   prepare: (env, actorUserId, input) => prepareJobPostCheckout(createEconomicServerClient(env), actorUserId, input),
   attachCustomer: (env, orderId, customerReference) => attachCheckoutBillingCustomer(
     createEconomicServerClient(env), orderId, customerReference

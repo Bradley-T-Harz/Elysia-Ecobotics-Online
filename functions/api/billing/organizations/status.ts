@@ -1,5 +1,5 @@
 import { authenticateRequired } from "../_shared/auth.ts";
-import { assertTestOnlyBillingMode } from "../_shared/config.ts";
+import { assertBillingMode } from "../_shared/config.ts";
 import { loadCurrentEconomicOrganizations } from "../_shared/database.ts";
 import { jsonResponse, requireGet, safeBillingErrorResponse } from "../_shared/http.ts";
 import type { AuthenticatedBillingRequest, BillingEnv } from "../_shared/types.ts";
@@ -20,7 +20,7 @@ export async function handleEconomicOrganizationStatus(
   dependencies: EconomicOrganizationStatusDependencies = defaultDependencies
 ): Promise<Response> {
   try {
-    assertTestOnlyBillingMode(env);
+    assertBillingMode(env);
     requireGet(request);
     const auth = await dependencies.authenticate(request, env);
     return jsonResponse({ ok: true, status: await dependencies.load(auth) });

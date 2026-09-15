@@ -1,5 +1,5 @@
 import { authenticateRequired } from "../_shared/auth.ts";
-import { assertBillingFeatureEnabled, assertTestOnlyBillingMode } from "../_shared/config.ts";
+import { assertBillingFeatureEnabled, assertBillingMode } from "../_shared/config.ts";
 import { loadCurrentEconomicClosureReadiness } from "../_shared/database.ts";
 import { jsonResponse, requireGet, safeBillingErrorResponse } from "../_shared/http.ts";
 import type { AuthenticatedBillingRequest, BillingEnv } from "../_shared/types.ts";
@@ -20,7 +20,7 @@ export async function handleEconomicClosureReadiness(
   dependencies: EconomicClosureReadinessDependencies = defaultDependencies
 ): Promise<Response> {
   try {
-    assertTestOnlyBillingMode(env);
+    assertBillingMode(env);
     assertBillingFeatureEnabled(env, "BILLING_ACCOUNT_LIFECYCLE_ENABLED", "economic_account_lifecycle_disabled");
     requireGet(request);
     const auth = await dependencies.authenticate(request, env);

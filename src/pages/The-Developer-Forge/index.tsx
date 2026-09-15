@@ -92,7 +92,7 @@ function MessageStack({ messages }: { messages: string[] }) {
 
 function ForgeNav({ current }: { current: string }) {
   const items = [
-    ["/developer-forge", "Forge"], ["/developer-forge/dashboard", "Dashboard"], ["/developer-forge/profile", "Profile"], ["/developer-forge/drafts", "Drafts"], ["/developer-forge/drafts/new", "New Draft"], ["/developer-forge/submissions", "Submissions"], ["/developer-forge/docs", "Docs"]
+    ["/developer-forge", "Forge"], ["/marketplace/creator-studio", "Creator Studio"], ["/developer-forge/dashboard", "Dashboard"], ["/developer-forge/profile", "Profile"], ["/developer-forge/drafts", "Drafts"], ["/developer-forge/drafts/new", "New Draft"], ["/developer-forge/submissions", "Submissions"], ["/developer-forge/docs", "Docs"]
   ];
   return <nav className="forge-nav" aria-label="Developer Forge sections">{items.map(([href, label]) => <Link className={current === href ? "active" : ""} to={href} key={href}>{label}</Link>)}</nav>;
 }

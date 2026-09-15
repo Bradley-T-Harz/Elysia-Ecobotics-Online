@@ -1,5 +1,5 @@
 import { authenticateRequired, createEconomicServerClient } from "../_shared/auth.ts";
-import { assertTestOnlyBillingMode } from "../_shared/config.ts";
+import { assertBillingMode } from "../_shared/config.ts";
 import { setEconomicOperatorAssignment } from "../_shared/database.ts";
 import { jsonResponse, requireJsonPost, requireSameOriginMutation, safeBillingErrorResponse } from "../_shared/http.ts";
 import { billingFailureOutcome, defaultBillingLogger, emitBillingEvent, type BillingLogger } from "../_shared/observability.ts";
@@ -24,7 +24,7 @@ export async function handleOperatorAssignment(
   dependencies: OperatorAssignmentDependencies = defaultDependencies
 ): Promise<Response> {
   try {
-    assertTestOnlyBillingMode(env);
+    assertBillingMode(env);
     requireSameOriginMutation(request, env);
     requireJsonPost(request);
     const auth = await dependencies.authenticate(request, env);

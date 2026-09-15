@@ -51,11 +51,11 @@ function OrganizationServiceCheckoutForm({ engagement, accessToken, bundle }: { 
     }
     setBusy(true);
     setError("");
-    setStatus("Preparing the exact Stripe-hosted organization-service checkout in test mode...");
+    setStatus("Preparing the exact Stripe-hosted organization-service checkout...");
     try {
       requestIdRef.current ||= createBillingClientRequestId();
       const result = await createOrganizationServiceCheckout({ engagementId: engagement.engagementId, clientRequestId: requestIdRef.current, sourceRoute: "/commons-circle/support-billing", legalBundleVersion: bundle.version, statementOfWorkVersion: engagement.statementOfWorkVersion, serviceTermsVersion: engagement.serviceTermsVersion, dataHandlingDisclosureVersion: engagement.dataHandlingDisclosureVersion }, accessToken);
-      setStatus("Opening Stripe-hosted test checkout. A browser return is not payment proof; service activation requires signed-webhook fulfillment and human review.");
+      setStatus("Opening Stripe-hosted checkout. A browser return is not payment proof; service activation requires signed-webhook fulfillment and human review.");
       window.location.assign(result.checkoutUrl);
     } catch (requestError) {
       setBusy(false);
@@ -65,13 +65,13 @@ function OrganizationServiceCheckoutForm({ engagement, accessToken, bundle }: { 
     }
   }
   return <form className="auth-form economic-operation-form" onSubmit={submit} noValidate>
-    <h4>Deliberate test checkout</h4>
+    <h4>Review this payment</h4>
     <dl className="mini-facts"><div><dt>Exact test amount</dt><dd>{privateMoney(engagement.amountMinor, engagement.currency)}</dd></div><div><dt>Statement of work</dt><dd>{engagement.statementOfWorkVersion}</dd></div><div><dt>Service terms binding</dt><dd>{engagement.serviceTermsVersion}</dd></div><div><dt>Data disclosure binding</dt><dd>{engagement.dataHandlingDisclosureVersion}</dd></div><div><dt>Canonical public bundle</dt><dd>{bundle.version}</dd></div></dl>
     <label className="checkbox-line"><input type="checkbox" checked={privateDocumentReviewed} onChange={(event) => change(() => setPrivateDocumentReviewed(event.target.checked))} /><span>I confirm that the authorized representative separately delivered the private statement of work identified above and that I received and reviewed that exact version. I understand this website does not host, reproduce, or replace the private statement of work, proposal, contract, or invoice.</span></label>
     <label className="checkbox-line"><input type="checkbox" checked={publicPoliciesReviewed} onChange={(event) => change(() => setPublicPoliciesReviewed(event.target.checked))} /><span>I reviewed the <Link to={legalDocumentLink(serviceTerms, "/legal/organization-services-terms")}>Organization Services Terms</Link>, <Link to={legalDocumentLink(refundPolicy, "/legal/refund-and-cancellation-policy")}>Refund and Cancellation Policy</Link>, and <Link to={legalDocumentLink(privacyDisclosure, "/legal/privacy-policy")}>Privacy Policy</Link> in canonical consent bundle {bundle.version}. I understand payment grants no Commons authority, profile affiliation, badge, trust, review outcome, or governance power.</span></label>
     <label><span>Type <strong>{requiredConfirmation}</strong> exactly</span><input value={confirmation} onChange={(event) => change(() => setConfirmation(event.target.value))} autoComplete="off" spellCheck={false} required /></label>
     <CheckoutFeedback error={error} status={status} errorRef={errorRef} />
-    <button className="button-primary" type="submit" disabled={!canSubmit}>{busy ? "Opening Stripe test checkout..." : "Continue to exact test checkout"}</button>
+    <button className="button-primary" type="submit" disabled={!canSubmit}>{busy ? "Opening Stripe checkout..." : "Continue to exact checkout"}</button>
     <p className="small-note">Only the server-projected engagement UUID, stable request UUID, source route, canonical bundle version, and exact document versions are sent. The browser cannot choose or alter the price, currency, organization, signer, entitlement, payment status, or activation state.</p>
   </form>;
 }
@@ -102,11 +102,11 @@ function SponsorshipCheckoutForm({ agreement, accessToken, bundle }: { agreement
     }
     setBusy(true);
     setError("");
-    setStatus("Preparing the exact Stripe-hosted ethical-sponsorship checkout in test mode...");
+    setStatus("Preparing the exact Stripe-hosted ethical-sponsorship checkout...");
     try {
       requestIdRef.current ||= createBillingClientRequestId();
       const result = await createSponsorshipCheckout({ sponsorshipAgreementId: agreement.agreementId, clientRequestId: requestIdRef.current, sourceRoute: "/commons-circle/support-billing", legalBundleVersion: bundle.version, agreementVersion: agreement.agreementVersion, disclosureVersion: agreement.disclosureVersion }, accessToken);
-      setStatus("Opening Stripe-hosted test checkout. A browser return is not payment proof, public recognition, endorsement, or authority.");
+      setStatus("Opening Stripe-hosted checkout. A browser return is not payment proof, public recognition, endorsement, or authority.");
       window.location.assign(result.checkoutUrl);
     } catch (requestError) {
       setBusy(false);
@@ -122,7 +122,7 @@ function SponsorshipCheckoutForm({ agreement, accessToken, bundle }: { agreement
     <label className="checkbox-line"><input type="checkbox" checked={publicPoliciesReviewed} onChange={(event) => change(() => setPublicPoliciesReviewed(event.target.checked))} /><span>I reviewed the <Link to={legalDocumentLink(sponsorshipTerms, "/legal/sponsorship-independence-policy")}>Sponsorship Independence Policy</Link>, <Link to={legalDocumentLink(refundPolicy, "/legal/refund-and-cancellation-policy")}>Refund and Cancellation Policy</Link>, and <Link to={legalDocumentLink(privacyDisclosure, "/legal/privacy-policy")}>Privacy Policy</Link> in canonical consent bundle {bundle.version}. I understand sponsorship grants no authority, trust, moderation, editorial control, tracking access, ranking, endorsement, recipient choice, or governance power.</span></label>
     <label><span>Type <strong>{requiredConfirmation}</strong> exactly</span><input value={confirmation} onChange={(event) => change(() => setConfirmation(event.target.value))} autoComplete="off" spellCheck={false} required /></label>
     <CheckoutFeedback error={error} status={status} errorRef={errorRef} />
-    <button className="button-primary" type="submit" disabled={!canSubmit}>{busy ? "Opening Stripe test checkout..." : "Continue to exact sponsorship test checkout"}</button>
+    <button className="button-primary" type="submit" disabled={!canSubmit}>{busy ? "Opening Stripe checkout..." : "Continue to exact sponsorship checkout"}</button>
     <p className="small-note">Only the signer-owned server projection and canonical versions are sent. The browser cannot supply amount, currency, price, organization, signer, recognition, payment status, or authority.</p>
   </form>;
 }

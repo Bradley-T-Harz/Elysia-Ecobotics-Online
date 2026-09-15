@@ -1,5 +1,5 @@
 import { authenticateRequired, createEconomicServerClient } from "../_shared/auth.ts";
-import { assertTestOnlyBillingMode } from "../_shared/config.ts";
+import { assertBillingMode } from "../_shared/config.ts";
 import { setCurrentUserSponsorshipRecognitionPreference } from "../_shared/database.ts";
 import { jsonResponse, requireJsonPost, requireSameOriginMutation, safeBillingErrorResponse } from "../_shared/http.ts";
 import { sponsorshipRecognitionPreferenceRequest } from "../_shared/schema.ts";
@@ -15,7 +15,7 @@ const defaultDependencies: SponsorshipRecognitionPreferenceDependencies = {
 };
 export async function handleSponsorshipRecognitionPreference(request: Request, env: BillingEnv, dependencies: SponsorshipRecognitionPreferenceDependencies = defaultDependencies): Promise<Response> {
   try {
-    assertTestOnlyBillingMode(env);
+    assertBillingMode(env);
     requireSameOriginMutation(request, env);
     requireJsonPost(request);
     const auth = await dependencies.authenticate(request, env);

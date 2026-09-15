@@ -1,3 +1,4 @@
+import JobPostFeeReduction from "./JobPostFeeReduction";
 import "./preparation.css";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
@@ -13,7 +14,7 @@ export function JobPostFeeNotice({ draft = false }: { draft?: boolean }) {
   return <div className="economic-summary-card">
     {draft && <h3>Posting fee &amp; community access</h3>}
     {draft && <><strong>{jobFeeStatus().label}</strong><p>Fee eligibility will be shown from the assessment of your saved opportunity.</p></>}
-    <p><strong>No payment is currently being collected.</strong></p>
+    <p>Checkout availability and any amount due are shown on your approved opportunity’s payment panel.</p>
     <p>Qualifying community opportunities can be free. Commercial for-profit posts: $10 after content approval, immediately before publication once billing opens.</p>
     <details><summary>Fee waivers, assistance &amp; publication boundaries</summary>
       <p>Free paths include qualifying volunteer, public-interest, educational/research and other community opportunities. No payment details are requested here.</p>
@@ -113,6 +114,7 @@ function Workspace({ token, operator, jobPostId }: { token: string; operator: bo
         <dl className="mini-facts"><div><dt>Economic condition</dt><dd>{words(item.conditionStatus)}</dd></div><div><dt>Content / publication status (separate)</dt><dd>{words(item.contentStatus)}</dd></div><div><dt>Waiver / assistance request</dt><dd>{item.request ? words(item.request.status) : "Not requested"}</dd></div></dl>
         {item.request && <details className="economic-summary-card"><summary>Private request details</summary><p>{jobFeeCategories.find(([key]) => key === item.request?.category)?.[1] ?? "No category supplied"}</p><p>{item.request.explanation}</p><p>Updated {new Date(item.request.updatedAt).toLocaleString()}</p>{item.request.response && <><h4>Latest operator reply</h4><p>{item.request.response}</p><p className="boundary-note">A reply is separate from the authoritative economic condition shown above.</p></>}</details>}
         <div className="button-row">{!operator && <Link className="button-link" to={`/commune/posts/${item.postId}`}>Open my opportunity</Link>}{operator && <>{state.canAssess && <Link className="button-link" to={`/admin/economic-operations?jobPostId=${item.jobPostId}#job-post-economic-assessment-title`}>Open governed fee assessment</Link>}{state.canReview && item.authorUserId && <Link className="button-link" to={`/admin/economic-operations?jobPostId=${item.jobPostId}&beneficiaryUserId=${item.authorUserId}#economic-assistance-management-title`}>Open governed assistance tools</Link>}</>}</div>
+        {operator && state.canAssess && state.canReview && item.classification === "commercial" && item.conditionStatus === "payment_required" && <JobPostFeeReduction jobPostId={item.jobPostId} token={token} refresh={refresh} />}
         {(!operator || state.canReview) && <RequestForm key={`${item.jobPostId}:${item.request?.revision ?? 0}`} item={item} operator={operator} busy={busy} run={run} />}
         {!operator && item.request && item.request.status !== "withdrawn" && <button type="button" disabled={busy} onClick={() => void run({ action: "withdraw", jobPostId: item.jobPostId, expectedRevision: item.request!.revision })}>Withdraw this request</button>}
       </article>;

@@ -1,5 +1,5 @@
 import { authenticateOptional, createEconomicServerClient } from "./_shared/auth.ts";
-import { assertTestOnlyBillingMode } from "./_shared/config.ts";
+import { assertBillingMode } from "./_shared/config.ts";
 import { lookupOrderStatus } from "./_shared/database.ts";
 import { jsonResponse, requireGet, safeBillingErrorResponse } from "./_shared/http.ts";
 import { orderPublicReference } from "./_shared/schema.ts";
@@ -21,7 +21,7 @@ export async function handleOrderStatus(
   dependencies: OrderDependencies = defaultDependencies
 ): Promise<Response> {
   try {
-    assertTestOnlyBillingMode(env);
+    assertBillingMode(env);
     requireGet(request);
     const reference = orderPublicReference(request);
     const auth = await dependencies.authenticateOptional(request, env);

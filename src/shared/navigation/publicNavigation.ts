@@ -42,6 +42,11 @@ export const publicNavigationTerritories = [
     label: "Build",
     destinations: [
       {
+        label: "Creator Studio",
+        to: "/marketplace/creator-studio",
+        description: "Manage your add-ons, drafts, submissions, review outcomes and publisher identity."
+      },
+      {
         label: "Developer Forge",
         to: "/developer-forge",
         description: "Design, validate, document, and submit add-ons through Elysia’s governed developer workspace."

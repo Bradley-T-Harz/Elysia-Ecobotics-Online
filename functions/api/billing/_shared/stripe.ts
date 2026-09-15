@@ -1,4 +1,4 @@
-import { stripeTestConfig } from "./config.ts";
+import { stripeConfig, stripeTestConfig } from "./config.ts";
 import { BillingHttpError, fetchWithTimeout, readBoundedResponseJson } from "./http.ts";
 import { isUuid } from "./schema.ts";
 import type {
@@ -176,7 +176,7 @@ function metadataOrderId(...values: unknown[]): string | null {
   return null;
 }
 
-function normalizedStripeEvent(event: Row, payloadSha256: string, expectedApiVersion: string): NormalizedProviderEvent {
+function normalizedStripeEvent(event: Row, payloadSha256: string, expectedApiVersion: string, live: boolean): NormalizedProviderEvent {
   const providerEventId = providerReference(event.id, "evt");
   const eventType = valueString(event.type, 160);
   const createdAt = unixTime(event.created);
@@ -189,7 +189,7 @@ function normalizedStripeEvent(event: Row, payloadSha256: string, expectedApiVer
     || !eventType
     || !/^[a-z0-9_.]+$/.test(eventType)
     || !createdAt
-    || event.livemode !== false
+    || event.livemode !== live
     || (event.account !== undefined && event.account !== null)
   ) {
     throw new BillingHttpError(400, "webhook_event_invalid");
@@ -245,7 +245,7 @@ function normalizedStripeEvent(event: Row, payloadSha256: string, expectedApiVer
     eventType,
     mutationEligible: STRIPE_ECONOMIC_MUTATION_EVENT_TYPE_SET.has(eventType),
     eventCreatedAt: createdAt,
-    livemode: false,
+    livemode: live,
     objectType,
     providerObjectReference: objectId && /^[a-z]+_[A-Za-z0-9_]+$/.test(objectId) ? objectId : null,
     orderId: validOrderId,
@@ -301,7 +301,7 @@ function assertSupportedEconomicEventShape(event: NormalizedProviderEvent): void
     if (event.eventType !== "checkout.session.expired" && (!hasMoney || !event.orderId)) invalid();
     if (
       ["checkout.session.completed", "checkout.session.async_payment_succeeded"].includes(event.eventType)
-      && !["paid", "no_payment_required"].includes(event.paymentStatus ?? "")
+      && !["paid", "no_payment_required", ...(event.eventType === "checkout.session.completed" ? ["unpaid"] : [])].includes(event.paymentStatus ?? "")
     ) invalid();
     return;
   }
@@ -335,10 +335,11 @@ function assertSupportedEconomicEventShape(event: NormalizedProviderEvent): void
   invalid();
 }
 
-export class StripeTestProvider implements BillingProvider {
+export class StripeProvider implements BillingProvider {
   readonly #env: BillingEnv;
   readonly #fetcher: typeof fetch;
   readonly #now: () => number;
+  #accountVerification: Promise<void> | undefined;
 
   constructor(env: BillingEnv, fetcher: typeof fetch = fetch, now: () => number = Date.now) {
     this.#env = env;
@@ -347,10 +348,19 @@ export class StripeTestProvider implements BillingProvider {
   }
 
   async #request(path: string, method: "GET" | "POST", fields?: URLSearchParams, idempotencyKey?: string): Promise<Row> {
-    const config = stripeTestConfig(this.#env);
+    const config = stripeConfig(this.#env);
+    if (path !== "/v1/account" && this.#env.STRIPE_ACCOUNT_ID) {
+      this.#accountVerification ??= this.#request("/v1/account", "GET").then(account => {
+        if (account.id !== this.#env.STRIPE_ACCOUNT_ID) throw new BillingHttpError(503, "stripe_account_mismatch");
+      });
+      await this.#accountVerification;
+    }
     const headers = new Headers({ authorization: `Bearer ${config.secretKey}` });
     if (config.apiVersion) headers.set("stripe-version", config.apiVersion);
-    if (method === "POST") headers.set("content-type", "application/x-www-form-urlencoded");
+    if (method === "POST") {
+      if (!idempotencyKey) throw new BillingHttpError(503, "provider_idempotency_required");
+      headers.set("content-type", "application/x-www-form-urlencoded");
+    }
     if (idempotencyKey) {
       if (!/^[A-Za-z0-9:_-]{16,255}$/.test(idempotencyKey)) throw new BillingHttpError(503, "billing_database_invalid");
       headers.set("idempotency-key", idempotencyKey);
@@ -365,7 +375,11 @@ export class StripeTestProvider implements BillingProvider {
       if (response.status === 429) throw new BillingHttpError(503, "payment_provider_busy", 5);
       throw new BillingHttpError(502, "payment_provider_unavailable");
     }
-    return row(await readBoundedResponseJson(response));
+    const result = row(await readBoundedResponseJson(response));
+    if (typeof result.livemode === "boolean" && result.livemode !== (config.mode === "live")) {
+      throw new BillingHttpError(502, "provider_environment_mismatch");
+    }
+    return result;
   }
 
   async ensureCustomer(input: ProviderCustomerInput): Promise<ProviderCustomerResult> {
@@ -373,7 +387,7 @@ export class StripeTestProvider implements BillingProvider {
       throw new BillingHttpError(503, "billing_database_invalid");
     }
     const result = await this.#request("/v1/customers", "POST", stripeForm({
-      "metadata[economic_test_mode]": "true",
+      "metadata[economic_test_mode]": String(this.#env.BILLING_MODE === "test"),
       "metadata[account_linkage]": "server_managed"
     }), input.idempotencyKey);
     const providerCustomerReference = providerReference(result.id, "cus");
@@ -382,15 +396,33 @@ export class StripeTestProvider implements BillingProvider {
   }
 
   async createCheckout(input: ProviderCheckoutInput): Promise<ProviderCheckoutResult> {
+    if (!["support_one_time", "support_recurring", "job_post_fee", "organization_service", "sponsorship"].includes(input.flow)) {
+      throw new BillingHttpError(503, "third_party_money_hard_off");
+    }
+    if (!Number.isSafeInteger(input.amountMinor) || input.amountMinor < 1 || input.amountMinor > 100_000_000 || input.currency !== "usd") {
+      throw new BillingHttpError(503, "billing_database_invalid");
+    }
     if (input.accountLinked && !input.providerCustomerReference) {
       throw new BillingHttpError(503, "billing_customer_required");
     }
+    if (this.#env.STRIPE_ACCOUNT_ID && input.flow === "support_recurring" && input.providerPriceReference) {
+      const price = await this.#request(`/v1/prices/${encodeURIComponent(input.providerPriceReference)}`, "GET");
+      const recurring = optionalRow(price.recurring);
+      if (price.livemode !== (this.#env.BILLING_MODE === "live") || price.active !== true
+        || price.unit_amount !== input.amountMinor || price.currency !== input.currency
+        || (input.flow === "support_recurring" ? recurring?.interval !== "month" || recurring.interval_count !== 1 : recurring !== null)) {
+        throw new BillingHttpError(503, "provider_catalog_amount_mismatch");
+      }
+    }
+    if (this.#env.STRIPE_ACCOUNT_ID && (!input.checkoutExpiresAt || !Number.isFinite(Date.parse(input.checkoutExpiresAt)))) throw new BillingHttpError(503, "checkout_expiry_required");
     const fields: Record<string, string | null | undefined> = {
       mode: input.flow === "support_recurring" ? "subscription" : "payment",
       success_url: input.successUrl,
       cancel_url: input.cancelUrl,
       client_reference_id: input.orderId,
       "metadata[economic_order_id]": input.orderId,
+      "metadata[economic_lane]": input.flow,
+      "metadata[economic_environment]": this.#env.BILLING_MODE,
       "line_items[0][quantity]": "1",
       "payment_method_types[0]": "card",
       "billing_address_collection": "auto",
@@ -399,10 +431,10 @@ export class StripeTestProvider implements BillingProvider {
       "automatic_tax[enabled]": "false",
       // Bound abandoned-session recovery. The database keeps a five-minute
       // clock-skew margin and verified provider events remain payment truth.
-      expires_at: String(Math.floor(this.#now() / 1_000) + 30 * 60),
+      expires_at: String(input.checkoutExpiresAt ? Math.floor(Date.parse(input.checkoutExpiresAt) / 1_000) - 5 * 60 : Math.floor(this.#now() / 1_000) + 30 * 60),
       customer: input.providerCustomerReference
     };
-    if (input.flow === "support_one_time") {
+    if (input.flow !== "support_recurring" && input.providerProductReference) {
       if (!input.providerProductReference || !/^prod_[A-Za-z0-9]+$/.test(input.providerProductReference)) {
         throw new BillingHttpError(503, "billing_catalog_unavailable");
       }
@@ -425,7 +457,7 @@ export class StripeTestProvider implements BillingProvider {
     }
     const result = await this.#request("/v1/checkout/sessions", "POST", stripeForm(fields), input.idempotencyKey);
     const providerSessionId = providerReference(result.id, "cs");
-    if (!providerSessionId || !providerSessionId.startsWith("cs_test_")) throw new BillingHttpError(502, "payment_provider_invalid");
+    if (!providerSessionId || !providerSessionId.startsWith(this.#env.BILLING_MODE === "live" ? "cs_live_" : "cs_test_")) throw new BillingHttpError(502, "payment_provider_invalid");
     return {
       providerSessionId,
       providerCustomerReference: providerReference(result.customer, "cus"),
@@ -437,6 +469,7 @@ export class StripeTestProvider implements BillingProvider {
     if (!/^cus_[A-Za-z0-9]+$/.test(input.providerCustomerReference)) throw new BillingHttpError(503, "billing_database_invalid");
     const result = await this.#request("/v1/billing_portal/sessions", "POST", stripeForm({
       customer: input.providerCustomerReference,
+      configuration: this.#env.STRIPE_PORTAL_CONFIGURATION_ID,
       return_url: input.returnUrl
     }), input.idempotencyKey);
     const providerSessionId = providerReference(result.id, "bps");
@@ -450,6 +483,14 @@ export class StripeTestProvider implements BillingProvider {
     }
     if (!isUuid(input.orderId) || !Number.isSafeInteger(input.amountMinor) || input.amountMinor < 1 || input.amountMinor > 1_000_000_000 || input.currency !== "usd") {
       throw new BillingHttpError(503, "billing_database_invalid");
+    }
+    if (this.#env.STRIPE_ACCOUNT_ID) {
+      const payment = await this.#request(`/v1/payment_intents/${encodeURIComponent(input.providerPaymentReference)}`, "GET");
+      if (payment.livemode !== (this.#env.BILLING_MODE === "live") || payment.currency !== input.currency
+        || payment.status !== "succeeded" || (boundedInteger(payment.amount_received) ?? -1) < input.amountMinor
+        || (optionalRow(payment.metadata)?.economic_order_id != null && optionalRow(payment.metadata)?.economic_order_id !== input.orderId)) {
+        throw new BillingHttpError(503, "provider_refund_payment_mismatch");
+      }
     }
     const result = await this.#request("/v1/refunds", "POST", stripeForm({
       payment_intent: input.providerPaymentReference,
@@ -478,100 +519,67 @@ export class StripeTestProvider implements BillingProvider {
   }
 
   async verifyAndNormalizeWebhook(rawBody: string, signature: string): Promise<NormalizedProviderEvent> {
-    const config = stripeTestConfig(this.#env);
+    const config = stripeConfig(this.#env);
     await verifyStripeSignature(rawBody, signature, config.webhookSecret, config.webhookToleranceSeconds, Math.floor(this.#now() / 1_000));
     let parsed: unknown;
     try { parsed = JSON.parse(rawBody) as unknown; }
     catch { throw new BillingHttpError(400, "webhook_event_invalid"); }
-    return normalizedStripeEvent(row(parsed), await sha256Hex(rawBody), config.webhookApiVersion);
+    const event = normalizedStripeEvent(row(parsed), await sha256Hex(rawBody), config.webhookApiVersion, config.mode === "live");
+    return event;
   }
 
-  async createSellerOnboarding(input: ProviderSellerOnboardingInput): Promise<ProviderSellerOnboardingResult> {
-    if (
-      !isUuid(input.sellerAccountId)
-      || !isUuid(input.onboardingRequestId)
-      || input.accountIdempotencyKey !== `seller-account:${input.sellerAccountId}`
-      || input.linkIdempotencyKey !== `seller-link:${input.onboardingRequestId}`
-    ) throw new BillingHttpError(503, "billing_database_invalid");
-    let providerAccountReference = input.providerAccountReference;
-    if (!providerAccountReference) {
-      const account = await this.#request("/v1/accounts", "POST", stripeForm({
-        type: "standard",
-        "metadata[economic_seller_account_id]": input.sellerAccountId
-      }), input.accountIdempotencyKey);
-      providerAccountReference = providerReference(account.id, "acct");
-      if (!providerAccountReference) throw new BillingHttpError(502, "payment_provider_invalid");
+  async enrichVerifiedEvent(event: NormalizedProviderEvent): Promise<NormalizedProviderEvent> {
+    if (this.#env.STRIPE_ACCOUNT_ID && event.providerPaymentId
+      && ["payment_intent.succeeded", "invoice.paid", "checkout.session.async_payment_succeeded", "checkout.session.completed"].includes(event.eventType)
+      && (event.objectType !== "checkout.session" || event.paymentStatus === "paid")) {
+      const payment = await this.#request(`/v1/payment_intents/${encodeURIComponent(event.providerPaymentId)}?expand[]=latest_charge.balance_transaction`, "GET");
+      if (payment.livemode !== event.livemode || payment.status !== "succeeded"
+        || payment.currency !== event.currency || payment.amount_received !== event.amountMinor
+        || (event.objectType !== "invoice" && event.orderId && optionalRow(payment.metadata)?.economic_order_id !== event.orderId)) {
+        throw new BillingHttpError(400, "provider_payment_evidence_mismatch");
+      }
+      const charge = optionalRow(payment.latest_charge);
+      const settlement = optionalRow(charge?.balance_transaction);
+      event.providerReceiptUrl = charge?.receipt_url ? absoluteUrl(charge.receipt_url, "pay.stripe.com") : null;
+      if (settlement) {
+        const fee = boundedInteger(settlement.fee), net = boundedInteger(settlement.net);
+        if (settlement.currency !== event.currency || settlement.amount !== event.amountMinor
+          || fee === null || net === null || fee + net !== event.amountMinor) {
+          throw new BillingHttpError(400, "provider_settlement_evidence_mismatch");
+        }
+        event.providerBalanceTransactionId = providerReference(settlement.id, "txn");
+        event.processorFeeMinor = fee;
+        event.netAmountMinor = net;
+      }
     }
-    const link = await this.#request("/v1/account_links", "POST", stripeForm({
-      account: providerAccountReference,
-      refresh_url: input.refreshUrl,
-      return_url: input.returnUrl,
-      type: "account_onboarding"
-    }), input.linkIdempotencyKey);
-    return {
-      providerAccountReference,
-      onboardingUrl: absoluteUrl(link.url, "connect.stripe.com")
-    };
+    return event;
   }
 
-  async retrieveSellerStatus(providerAccountReference: string): Promise<ProviderSellerStatus> {
-    if (!/^acct_[A-Za-z0-9]+$/.test(providerAccountReference)) throw new BillingHttpError(503, "billing_database_invalid");
-    const account = await this.#request(`/v1/accounts/${encodeURIComponent(providerAccountReference)}`, "GET");
-    const requirements = account.requirements && typeof account.requirements === "object" && !Array.isArray(account.requirements)
-      ? account.requirements as Row
-      : {};
-    const stringArray = (value: unknown) => Array.isArray(value)
-      ? value.filter((item): item is string => typeof item === "string" && /^[a-z0-9_.]+$/.test(item)).slice(0, 100)
-      : [];
-    return {
-      providerAccountReference,
-      detailsSubmitted: account.details_submitted === true,
-      chargesEnabled: account.charges_enabled === true,
-      payoutsEnabled: account.payouts_enabled === true,
-      currentlyDue: stringArray(requirements.currently_due),
-      eventuallyDue: stringArray(requirements.eventually_due),
-      disabledReason: requirementText(requirements.disabled_reason),
-      providerEventCreatedAt: new Date(this.#now()).toISOString(),
-      providerResponseSha256: await sha256Hex(JSON.stringify(account))
-    };
+  async createSellerOnboarding(_input: ProviderSellerOnboardingInput): Promise<ProviderSellerOnboardingResult> {
+    throw new BillingHttpError(503, "third_party_money_hard_off");
   }
 
-  async ensureMarketplaceCatalog(input: ProviderMarketplaceCatalogInput): Promise<ProviderMarketplaceCatalogResult> {
-    if (
-      !isUuid(input.offerId)
-      || !isUuid(input.addonVersionId)
-      || !/^marketplace_test_[a-z0-9]+(?:_[a-z0-9]+)*_usd$/.test(input.priceCode)
-      || !Number.isSafeInteger(input.amountMinor)
-      || input.amountMinor < 50
-      || input.amountMinor > 10_000_000
-      || input.currency !== "usd"
-    ) throw new BillingHttpError(503, "billing_database_invalid");
-    const product = await this.#request("/v1/products", "POST", stripeForm({
-      name: "Elysia Marketplace add-on (test mode)",
-      description: "A version-bound test-mode Marketplace license. Purchase does not install, approve, rank, trust, publish, or grant authority.",
-      "metadata[economic_offer_id]": input.offerId,
-      "metadata[marketplace_addon_version_id]": input.addonVersionId,
-      "metadata[elysia_environment]": "test"
-    }), `marketplace-product:${input.addonVersionId}`);
-    const providerProductReference = providerReference(product.id, "prod");
-    if (!providerProductReference || product.livemode !== false) {
-      throw new BillingHttpError(502, "payment_provider_invalid");
-    }
-    const price = await this.#request("/v1/prices", "POST", stripeForm({
-      product: providerProductReference,
-      currency: input.currency,
-      unit_amount: String(input.amountMinor),
-      lookup_key: `elysia_${input.priceCode}_v1`,
-      "metadata[economic_offer_id]": input.offerId,
-      "metadata[elysia_price_code]": input.priceCode,
-      "metadata[elysia_environment]": "test"
-    }), `marketplace-price:${input.priceCode}:v1`);
-    const providerPriceReference = providerReference(price.id, "price");
-    if (!providerPriceReference || price.livemode !== false) {
-      throw new BillingHttpError(502, "payment_provider_invalid");
-    }
-    return { providerProductReference, providerPriceReference };
+  async retrieveSellerStatus(_providerAccountReference: string): Promise<ProviderSellerStatus> {
+    throw new BillingHttpError(503, "third_party_money_hard_off");
   }
+
+  async ensureMarketplaceCatalog(_input: ProviderMarketplaceCatalogInput): Promise<ProviderMarketplaceCatalogResult> {
+    throw new BillingHttpError(503, "third_party_money_hard_off");
+  }
+}
+
+/** Compatibility entry point for isolated synthetic/sandbox qualification. */
+export class StripeTestProvider extends StripeProvider {
+  constructor(env: BillingEnv, fetcher: typeof fetch = fetch, now: () => number = Date.now) {
+    stripeTestConfig(env);
+    super(env, fetcher, now);
+  }
+}
+
+export function createStripeProvider(env: BillingEnv): BillingProvider {
+  stripeConfig(env);
+  if (!/^acct_[A-Za-z0-9]+$/.test(env.STRIPE_ACCOUNT_ID ?? "")) throw new BillingHttpError(503, "stripe_account_required");
+  return new StripeProvider(env);
 }
 
 export function createStripeTestProvider(env: BillingEnv): BillingProvider {

@@ -61,8 +61,8 @@ export default function CheckoutReturnStatus({
 
   return <div className="boundary-note checkout-return-status" role="status" aria-live="polite" aria-busy={checking}>
     <p>{returnState === "complete"
-      ? "A Stripe test checkout return parameter reached this private account surface."
-      : "A canceled or left Stripe test checkout return parameter reached this private account surface."} Browser return alone is not proof of payment or fulfillment.</p>
+      ? "A Stripe checkout return parameter reached this private account surface."
+      : "A canceled or left Stripe checkout return parameter reached this private account surface."} Browser return alone is not proof of payment or fulfillment.</p>
     {checking ? <p>Checking the private server order and account projections…</p> : flowMatches ? <>
       <p>The private server order is verified as the expected {serviceLabel} flow. Server order state: {order.status.replace(/_/g, " ")}.</p>
       <p>{boundary}</p>

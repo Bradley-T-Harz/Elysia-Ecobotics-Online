@@ -142,7 +142,7 @@ assert(recurringCall.body.get("payment_method_types[0]") === "card" && !recurrin
 assert(recurringCall.body.get("allow_promotion_codes") === "false" && recurringCall.body.get("automatic_tax[enabled]") === "false" && recurringCall.body.get("phone_number_collection[enabled]") === "false", "Recurring support enabled promotion codes, automatic tax, or phone collection.");
 assert(!recurringCall.body.has("shipping_address_collection[allowed_countries][0]"), "Recurring support requested shipping data.");
 
-for (const flow of ["job_post_fee", "marketplace_purchase", "sandbox_credits", "organization_service", "sponsorship"]) {
+for (const flow of ["job_post_fee", "organization_service", "sponsorship"]) {
   await provider.createCheckout({
     ...baseCheckout,
     flow,
@@ -167,7 +167,7 @@ let missingCanonicalCustomerRejected = false;
 try {
   await provider.createCheckout({
     ...baseCheckout,
-    flow: "sandbox_credits",
+    flow: "job_post_fee",
     accountLinked: true,
     providerProductReference: null,
     providerPriceReference: "price_fixedfixture",
@@ -198,70 +198,18 @@ assert(refundCall.url.pathname === "/v1/refunds" && refundCall.body.get("payment
 assert(refundCall.headers.get("idempotency-key") === "refund:77777777-7777-4777-8777-777777777777", "Test refund omitted its DB-derived idempotency key.");
 assert(!refundCall.body.has("reason") && /^[0-9a-f]{64}$/.test(refund.providerResponseSha256), "Private operator reason was forwarded to Stripe or provider result integrity was not recorded.");
 
-const seller = await provider.createSellerOnboarding({
-  sellerAccountId: "44444444-4444-4444-8444-444444444444",
-  onboardingRequestId: "11111111-1111-4111-8111-111111111111",
-  providerAccountReference: null,
-  accountIdempotencyKey: "seller-account:44444444-4444-4444-8444-444444444444",
-  linkIdempotencyKey: "seller-link:11111111-1111-4111-8111-111111111111",
-  refreshUrl: "https://elysiaecobotics.com/commons-circle/support-billing?seller=refresh",
-  returnUrl: "https://elysiaecobotics.com/commons-circle/support-billing?seller=returned"
-});
-assert(seller.providerAccountReference === "acct_fixture" && seller.onboardingUrl.startsWith("https://connect.stripe.com/"), "Standard connected-account onboarding was not normalized.");
-const accountCreateCall = calls.find((call) => call.url.pathname === "/v1/accounts");
-assert(accountCreateCall.body.get("type") === "standard", "Connect onboarding must create a Standard account.");
-assert(accountCreateCall.body.get("metadata[economic_seller_account_id]") === "44444444-4444-4444-8444-444444444444", "Connected account lost its opaque internal association.");
-assert(accountCreateCall.headers.get("idempotency-key") === "seller-account:44444444-4444-4444-8444-444444444444", "Connected-account creation idempotency was tied to a disposable browser request.");
-await provider.createSellerOnboarding({
-  sellerAccountId: "44444444-4444-4444-8444-444444444444",
-  onboardingRequestId: "66666666-6666-4666-8666-666666666666",
-  providerAccountReference: null,
-  accountIdempotencyKey: "seller-account:44444444-4444-4444-8444-444444444444",
-  linkIdempotencyKey: "seller-link:66666666-6666-4666-8666-666666666666",
-  refreshUrl: "https://elysiaecobotics.com/commons-circle/support-billing?seller=refresh",
-  returnUrl: "https://elysiaecobotics.com/commons-circle/support-billing?seller=returned"
-});
-const retriedAccountCalls = calls.filter((call) => call.url.pathname === "/v1/accounts" && call.init?.method === "POST");
-assert(retriedAccountCalls.length === 2 && new Set(retriedAccountCalls.map((call) => call.headers.get("idempotency-key"))).size === 1, "A DB-attach retry could request a duplicate connected account from Stripe.");
-const onboardingLinkCalls = calls.filter((call) => call.url.pathname === "/v1/account_links");
-assert(new Set(onboardingLinkCalls.map((call) => call.headers.get("idempotency-key"))).size === 2, "A refreshed onboarding request did not receive an independently idempotent account link.");
-assert(onboardingLinkCalls[0].headers.get("idempotency-key") === "seller-link:11111111-1111-4111-8111-111111111111" && onboardingLinkCalls[1].headers.get("idempotency-key") === "seller-link:66666666-6666-4666-8666-666666666666", "Account Link idempotency was not bound to the durable onboarding request.");
-let flattenedSellerIdempotencyRejected = false;
-try {
-  await provider.createSellerOnboarding({
-    sellerAccountId: "44444444-4444-4444-8444-444444444444",
-    onboardingRequestId: "77777777-7777-4777-8777-777777777777",
-    providerAccountReference: "acct_fixture",
-    accountIdempotencyKey: "seller-account:44444444-4444-4444-8444-444444444444",
-    linkIdempotencyKey: "seller-account:44444444-4444-4444-8444-444444444444",
-    refreshUrl: "https://elysiaecobotics.com/marketplace/account?seller=refresh",
-    returnUrl: "https://elysiaecobotics.com/marketplace/account?seller=returned"
-  });
-} catch (error) {
-  flattenedSellerIdempotencyRejected = error instanceof BillingHttpError && error.code === "billing_database_invalid";
+const callsBeforeHardOff = calls.length;
+for (const action of [
+  () => provider.createSellerOnboarding({}), () => provider.retrieveSellerStatus("acct_fixture"),
+  () => provider.ensureMarketplaceCatalog({}),
+  () => provider.createCheckout({ ...baseCheckout, flow: "marketplace_purchase" }),
+  () => provider.createCheckout({ ...baseCheckout, flow: "sandbox_credits" })
+]) {
+  let rejected = false;
+  try { await action(); } catch (error) { rejected = error.code === "third_party_money_hard_off"; }
+  assert(rejected, "A prohibited third-party or compute provider operation was accepted.");
 }
-assert(flattenedSellerIdempotencyRejected, "Connect provider accepted one idempotency key for both the durable Account and a single-use Account Link.");
-const sellerStatus = await provider.retrieveSellerStatus("acct_fixture");
-assert(sellerStatus.detailsSubmitted === true && sellerStatus.currentlyDue[0] === "external_account", "Connected-account readiness was not safely normalized.");
-assert(sellerStatus.disabledReason === "requirements.past_due", "Connected-account dotted disabled reason was discarded.");
-assert(!JSON.stringify(sellerStatus).includes(secretKey), "Seller status exposed a Stripe secret.");
-assert(/^\d{4}-\d{2}-\d{2}T/.test(sellerStatus.providerEventCreatedAt) && /^[0-9a-f]{64}$/.test(sellerStatus.providerResponseSha256), "Seller status observation was not integrity-stamped for durable recording.");
-
-const marketplaceCatalog = await provider.ensureMarketplaceCatalog({
-  offerId: "77777777-7777-4777-8777-777777777777",
-  addonVersionId: "88888888-8888-4888-8888-888888888888",
-  priceCode: "marketplace_test_88888888888848888888888888888888_1500_usd",
-  amountMinor: 1_500,
-  currency: "usd"
-});
-assert(marketplaceCatalog.providerProductReference === "prod_marketplacefixture" && marketplaceCatalog.providerPriceReference === "price_marketplacefixture", "Marketplace test catalog references were not strictly normalized.");
-const productCall = calls.findLast((call) => call.url.pathname === "/v1/products");
-const priceCall = calls.findLast((call) => call.url.pathname === "/v1/prices");
-assert(productCall.body.get("metadata[economic_offer_id]") === "77777777-7777-4777-8777-777777777777", "Marketplace provider product lost its opaque offer association.");
-assert(productCall.body.get("description").includes("does not install") && productCall.body.get("description").includes("grant authority"), "Marketplace provider product omitted its non-authority/non-install disclosure.");
-assert(priceCall.body.get("unit_amount") === "1500" && priceCall.body.get("currency") === "usd", "Marketplace provider price did not use its server-approved amount and currency.");
-assert(productCall.headers.get("idempotency-key") === "marketplace-product:88888888-8888-4888-8888-888888888888", "Marketplace product idempotency was not tied to the immutable add-on version.");
-assert(priceCall.headers.get("idempotency-key").startsWith("marketplace-price:marketplace_test_"), "Marketplace price idempotency was not tied to the immutable internal price code.");
+assert(calls.length === callsBeforeHardOff, "A prohibited operation contacted Stripe.");
 
 let liveRejected = false;
 try {

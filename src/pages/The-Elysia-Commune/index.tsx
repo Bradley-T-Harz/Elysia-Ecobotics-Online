@@ -4238,7 +4238,7 @@ function JobPostEconomicOwnerPanel({ jobPostId, accessToken }: { jobPostId: stri
   const privacyDocument = consentBundle?.documents.privacyDisclosure ?? null;
   const termsMatch = economic.classification === "commercial" && Boolean(consentBundle && feeTermsDocument && refundDocument && privacyDocument && economic.termsVersion === consentBundle?.version);
   const paymentRequired = economic.classification === "commercial" && economic.economicStatus === "payment_required";
-  const canCheckout = Boolean(paymentRequired && economic.contentApproved && economic.amountMinor !== null && economic.currency === "usd" && termsMatch && accepted && !busy);
+  const canCheckout = Boolean(capabilities?.jobPostCheckout && paymentRequired && economic.contentApproved && economic.amountMinor !== null && economic.currency === "usd" && termsMatch && accepted && !busy);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -4250,7 +4250,7 @@ function JobPostEconomicOwnerPanel({ jobPostId, accessToken }: { jobPostId: stri
       return;
     }
     setBusy(true);
-    setStatusMessage("Preparing a separate Stripe-hosted Job Post test checkout…");
+    setStatusMessage("Preparing a separate Stripe-hosted Job Post checkout…");
     requestIdRef.current ||= createBillingClientRequestId();
     try {
       const result = await createJobPostCheckout({
@@ -4259,7 +4259,7 @@ function JobPostEconomicOwnerPanel({ jobPostId, accessToken }: { jobPostId: stri
         sourceRoute: "/commune/rooms/job-post/posts",
         consentVersion: consentBundle.version
       }, accessToken);
-      setStatusMessage("Opening Stripe-hosted test checkout. A return page is not proof of payment or publication; the signed webhook and independent content-approval fact decide.");
+      setStatusMessage("Opening Stripe-hosted checkout. A return page is not proof of payment or publication; the signed webhook and independent content-approval fact decide.");
       window.location.assign(result.checkoutUrl);
     } catch (requestError) {
       setBusy(false);

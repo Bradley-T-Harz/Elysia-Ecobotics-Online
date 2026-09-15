@@ -1,5 +1,5 @@
 import { createEconomicServerClient } from "./_shared/auth.ts";
-import { assertTestOnlyBillingMode } from "./_shared/config.ts";
+import { assertBillingMode } from "./_shared/config.ts";
 import { loadPublicSupportRecognition } from "./_shared/database.ts";
 import { jsonResponse, requireGet, safeBillingErrorResponse } from "./_shared/http.ts";
 import type { BillingEnv } from "./_shared/types.ts";
@@ -30,7 +30,7 @@ export async function handlePublicSupportRecognition(
     if (env.BILLING_SUPPORT_RECOGNITION_ENABLED !== "true") {
       return jsonResponse({ ok: true, recognition: disabledRecognition });
     }
-    assertTestOnlyBillingMode(env);
+    assertBillingMode(env);
     return jsonResponse({ ok: true, recognition: await dependencies.load(env) });
   } catch (error) {
     return safeBillingErrorResponse(error);

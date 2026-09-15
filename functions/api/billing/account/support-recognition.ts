@@ -1,5 +1,5 @@
 import { authenticateRequired } from "../_shared/auth.ts";
-import { assertTestOnlyBillingMode } from "../_shared/config.ts";
+import { assertBillingMode } from "../_shared/config.ts";
 import { setCurrentUserSupportRecognition } from "../_shared/database.ts";
 import { jsonResponse, requireJsonPost, requireSameOriginMutation, safeBillingErrorResponse } from "../_shared/http.ts";
 import { supportRecognitionPreferenceRequest } from "../_shared/schema.ts";
@@ -22,7 +22,7 @@ export async function handleSupportRecognitionPreference(
 ): Promise<Response> {
   try {
     // Opt-out remains available even when checkout and public display are off.
-    assertTestOnlyBillingMode(env);
+    assertBillingMode(env);
     requireSameOriginMutation(request, env);
     requireJsonPost(request);
     const auth = await dependencies.authenticate(request, env);

@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   billingLegalConsentBundleIntegrityExpectations,
   billingLegalDocumentIntegrityExpectations
-} from "../../../../src/pages/Legal/economicLegalContentManifest.ts";
+} from "../../../../src/pages/Legal/firstPartyLegalManifest.ts";
 import { BillingHttpError } from "./http.ts";
 import { isUuid } from "./schema.ts";
 import type {
@@ -121,6 +121,7 @@ function checkoutPreparation(value: unknown): CheckoutPreparation {
   return {
     orderId,
     publicReference,
+    checkoutExpiresAt: typeof row.checkoutExpiresAt === "string" ? row.checkoutExpiresAt : undefined,
     idempotencyKey,
     amountMinor: integer(row, "amountMinor", 0, 100_000_000),
     currency,
@@ -207,7 +208,7 @@ export async function failCheckout(supabase: SupabaseClient, orderId: string, fa
 export type EconomicCheckoutExpiryResult = {
   expired: number;
   canonicalFinancialTruth: false;
-  testMode: true;
+  testMode: boolean;
 };
 
 export async function expireStaleEconomicCheckouts(
@@ -224,9 +225,9 @@ export async function expireStaleEconomicCheckouts(
   if (
     Object.keys(row).length !== 3
     || row.canonicalFinancialTruth !== false
-    || row.testMode !== true
+    || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
-  return { expired, canonicalFinancialTruth: false, testMode: true };
+  return { expired, canonicalFinancialTruth: false, testMode: row.testMode === true };
 }
 
 export async function processProviderEvent(supabase: SupabaseClient, event: NormalizedProviderEvent): Promise<"processed" | "duplicate" | "ignored" | "retry"> {
@@ -397,6 +398,8 @@ export type EconomicLegalConsentBundle = {
 };
 
 export type EconomicPublicCapabilities = {
+  providerMode?: "test" | "live";
+  jobPostCheckoutEnabled?: boolean;
   supportCheckoutEnabled: boolean;
   recurringSupportEnabled: boolean;
   economicWebhooksEnabled: boolean;
@@ -422,7 +425,7 @@ export async function loadEconomicPublicCapabilities(supabase: SupabaseClient): 
   const { data, error } = await supabase.rpc("economic_public_capabilities");
   if (error || !data || typeof data !== "object" || Array.isArray(data)) return null;
   const row = data as Row;
-  if (row.testModeOnly !== true || row.livePaymentsEnabled !== false || row.paymentGrantsAuthority !== false) return null;
+  if (typeof row.testModeOnly !== "boolean" || typeof row.livePaymentsEnabled !== "boolean" || row.paymentGrantsAuthority !== false) return null;
   let legalDocuments: Row;
   try { legalDocuments = object(row.legalDocumentVersions); }
   catch { return null; }
@@ -495,6 +498,8 @@ export async function loadEconomicPublicCapabilities(supabase: SupabaseClient): 
     || parsedBundles.marketplace_purchase_checkout_bundle.documents.marketplaceBuyerTerms?.version !== parsedDocuments.marketplaceBuyerTerms.version
   ) return null;
   return {
+    providerMode: row.testModeOnly ? "test" : "live",
+    jobPostCheckoutEnabled: row.jobPostFeeEnabled === true,
     supportCheckoutEnabled: row.supportCheckoutEnabled === true,
     recurringSupportEnabled: row.recurringSupportEnabled === true,
     economicWebhooksEnabled: row.economicWebhooksEnabled === true,
@@ -528,7 +533,7 @@ export async function loadCurrentEconomicAccount(supabase: SupabaseClient): Prom
   if (
     Object.keys(row).length !== finalKeys.size
     || Object.keys(row).some((key) => !finalKeys.has(key))
-    || row.testMode !== true
+    || typeof row.testMode !== "boolean"
     || row.providerIdentifiersExposed !== false
     || row.moneyDoesNotGrantAuthority !== true
     || !Array.isArray(row.orders)
@@ -556,7 +561,7 @@ export async function loadCurrentEconomicAccount(supabase: SupabaseClient): Prom
     const keys = new Set([
       "transactionId", "publicReference", "flow", "status", "amountMinor", "currency", "occurredAt",
       "receiptAvailable", "providerIdentifiersExposed",
-      ...(enhanced ? ["recordVersion", "payee", "orderStatus", "refundedAmountMinor"] : [])
+      ...(enhanced ? ["recordVersion", "payee", "orderStatus", "refundedAmountMinor", ...(receipt.receiptUrl !== undefined ? ["receiptUrl", "testMode"] : [])] : [])
     ]);
     const publicReference = requiredString(receipt, "publicReference", 160);
     const flow = requiredString(receipt, "flow", 40);
@@ -570,7 +575,7 @@ export async function loadCurrentEconomicAccount(supabase: SupabaseClient): Prom
       || !receiptFlows.has(flow)
       || !receiptStatuses.has(status)
       || !/^[a-z]{3}$/.test(currency)
-      || receipt.receiptAvailable !== false
+      || (receipt.receiptAvailable !== false && !(typeof receipt.receiptUrl === "string" && /^https:\/\/pay\.stripe\.com\//.test(receipt.receiptUrl)))
       || receipt.providerIdentifiersExposed !== false
     ) throw new BillingHttpError(503, "billing_database_invalid");
     const amount = integer(receipt, "amountMinor", 0, 100_000_000_000);
@@ -757,7 +762,7 @@ export type EconomicOperatorOverview = EconomicOperatorOverviewShape & {
   queueLimit: 10;
   providerIdentifiersExposed: false;
   personalContactDataExposed: false;
-  testMode: true;
+  testMode: boolean;
 };
 
 export async function loadCurrentEconomicOperatorOverview(supabase: SupabaseClient): Promise<EconomicOperatorOverview> {
@@ -773,7 +778,7 @@ export async function loadCurrentEconomicOperatorOverview(supabase: SupabaseClie
     || row.queueLimit !== 10
     || row.providerIdentifiersExposed !== false
     || row.personalContactDataExposed !== false
-    || row.testMode !== true
+    || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   exactDatabaseKeys(row, [
     "authorized", "capabilities", "queueLimit", "orderQueue", "paymentQueue", "refundablePaymentQueue",
@@ -1122,7 +1127,7 @@ export async function loadCurrentEconomicOperatorOverview(supabase: SupabaseClie
     featureFlags,
     providerIdentifiersExposed: false,
     personalContactDataExposed: false,
-    testMode: true
+    testMode: row.testMode === true
   };
 }
 
@@ -1150,7 +1155,7 @@ export async function loadCurrentEconomicAuditEvents(
   nextCursor: { afterCreatedAt: string; afterId: string } | null;
   providerIdentifiersExposed: false;
   personalContactDataExposed: false;
-  testMode: true;
+  testMode: boolean;
 }> {
   const { data, error } = await supabase.rpc("current_user_economic_audit_events", {
     p_after_created_at: query.afterCreatedAt,
@@ -1162,7 +1167,7 @@ export async function loadCurrentEconomicAuditEvents(
   exactDatabaseKeys(row, ["events", "limit", "providerIdentifiersExposed", "personalContactDataExposed", "testMode"]);
   if (
     row.limit !== query.limit || !Array.isArray(row.events) || row.events.length > query.limit
-    || row.providerIdentifiersExposed !== false || row.personalContactDataExposed !== false || row.testMode !== true
+    || row.providerIdentifiersExposed !== false || row.personalContactDataExposed !== false || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   const actorKinds = new Set(["system", "user", "economic_operator", "provider_webhook"]);
   const events = row.events.map((value): EconomicAuditEvent => {
@@ -1183,7 +1188,7 @@ export async function loadCurrentEconomicAuditEvents(
   return {
     events, limit: query.limit,
     nextCursor: last ? { afterCreatedAt: last.createdAt, afterId: last.eventId } : null,
-    providerIdentifiersExposed: false, personalContactDataExposed: false, testMode: true
+    providerIdentifiersExposed: false, personalContactDataExposed: false, testMode: row.testMode === true
   };
 }
 
@@ -1193,7 +1198,7 @@ export type OperatorSandboxCreditGrantResult = {
   sourceCategory: string;
   expiresAt: string | null;
   idempotentReplay: boolean;
-  testMode: true;
+  testMode: boolean;
 };
 
 export async function grantOperatorSandboxCredits(
@@ -1214,7 +1219,7 @@ export async function grantOperatorSandboxCredits(
   if (error) throw operatorRpcFailure(error);
   const row = object(data);
   const creditLotId = requiredString(row, "creditLotId", 64);
-  if (!isUuid(creditLotId) || row.testMode !== true) throw new BillingHttpError(503, "billing_database_invalid");
+  if (!isUuid(creditLotId) || typeof row.testMode !== "boolean") throw new BillingHttpError(503, "billing_database_invalid");
   const sourceCategory = requiredString(row, "sourceCategory", 40);
   const grantedUnits = integer(row, "grantedUnits", 1, 1_000_000_000);
   if (sourceCategory !== input.sourceType || grantedUnits !== input.units) {
@@ -1226,7 +1231,7 @@ export async function grantOperatorSandboxCredits(
     sourceCategory,
     expiresAt: nullableTimestamp(row, "expiresAt"),
     idempotentReplay: requiredBoolean(row, "idempotentReplay"),
-    testMode: true
+    testMode: row.testMode === true
   };
 }
 
@@ -1322,7 +1327,7 @@ export async function prepareOperatorTestRefund(
     || currency !== "usd"
     || providerIdempotencyKey !== `refund:${refundRequestId}`
     || !["approved_for_provider", "provider_pending", "completed", "rejected", "canceled"].includes(status)
-    || row.testMode !== true
+    || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   return {
     refundRequestId,
@@ -1342,7 +1347,7 @@ export type OperatorTestRefundResult = {
   status: string;
   providerStatus: ProviderRefundResult["status"];
   idempotentReplay: boolean;
-  testMode: true;
+  testMode: boolean;
 };
 
 export async function attachOperatorTestRefundResult(
@@ -1379,7 +1384,7 @@ export async function attachOperatorTestRefundResult(
     || !["provider_pending", "completed", "rejected", "canceled"].includes(status)
     || !["pending", "succeeded", "failed", "canceled"].includes(providerStatus)
     || providerStatus !== providerResult.status
-    || row.testMode !== true
+    || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   return {
     refundRequestId,
@@ -1388,7 +1393,7 @@ export async function attachOperatorTestRefundResult(
     status,
     providerStatus: providerStatus as ProviderRefundResult["status"],
     idempotentReplay: requiredBoolean(row, "idempotentReplay"),
-    testMode: true
+    testMode: row.testMode === true
   };
 }
 
@@ -1543,7 +1548,7 @@ export type CurrentUserJobPostEconomicStatus = {
   amountMinor: number | null;
   currency: "usd" | null;
   termsVersion: string | null;
-  testMode: true;
+  testMode: boolean;
 };
 
 export async function loadCurrentUserJobPostEconomicStatus(
@@ -1588,7 +1593,7 @@ export async function loadCurrentUserJobPostEconomicStatus(
     || (currency !== null && currency !== "usd")
     || (termsVersion !== null && !/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(termsVersion))
     || (classification === "commercial") !== (termsVersion !== null)
-    || row.test_mode !== true
+    || typeof row.test_mode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   return {
     jobPostId: returnedJobPostId,
@@ -1600,7 +1605,7 @@ export async function loadCurrentUserJobPostEconomicStatus(
     amountMinor,
     currency: currency as "usd" | null,
     termsVersion,
-    testMode: true
+    testMode: row.testMode === true
   };
 }
 
@@ -1632,7 +1637,7 @@ export async function prepareJobPostCheckout(
     || jobPostId !== input.jobPostId
     || !isUuid(postId)
     || preparation.amountMinor < 1
-    || !preparation.providerPriceReference
+    || (!preparation.providerPriceReference && !preparation.providerProductReference)
   ) throw new BillingHttpError(503, "billing_catalog_unavailable");
   return { ...preparation, jobPostId, postId };
 }
@@ -1641,7 +1646,7 @@ export type SandboxCreditCheckoutPreparation = CheckoutPreparation & {
   packCode: string;
   grantedUnits: number;
   expiresAfterDays: number | null;
-  testMode: true;
+  testMode: boolean;
 };
 
 export async function prepareSandboxCreditCheckout(
@@ -1673,18 +1678,18 @@ export async function prepareSandboxCreditCheckout(
     packCode !== input.packCode
     || !/^sandbox_test_[a-z0-9]+(?:_[a-z0-9]+)*$/.test(packCode)
     || preparation.amountMinor < 1
-    || !preparation.providerPriceReference
+    || (!preparation.providerPriceReference && !preparation.providerProductReference)
     || row.rateApprovedForLiveUse !== false
     || row.automaticPurchase !== false
     || row.safetyPrivilegesChanged !== false
-    || row.testMode !== true
+    || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   return {
     ...preparation,
     packCode,
     grantedUnits: integer(row, "grantedUnits", 1, 1_000_000_000),
     expiresAfterDays,
-    testMode: true
+    testMode: row.testMode === true
   };
 }
 
@@ -1695,13 +1700,13 @@ export type SandboxCreditPackSummary = {
   grantedUnits: number;
   expiresAfterDays: number | null;
   disclosureVersion: string;
-  testMode: true;
+  testMode: boolean;
 };
 
 export type SandboxCreditPackCatalog = {
   available: boolean;
   packs: SandboxCreditPackSummary[];
-  testMode: true;
+  testMode: boolean;
 };
 
 export async function loadSandboxCreditPackCatalog(supabase: SupabaseClient): Promise<SandboxCreditPackCatalog> {
@@ -1709,7 +1714,7 @@ export async function loadSandboxCreditPackCatalog(supabase: SupabaseClient): Pr
   if (error) throw new BillingHttpError(503, "sandbox_credit_catalog_unavailable");
   const row = object(data);
   const available = requiredBoolean(row, "available");
-  if (row.testMode !== true || !Array.isArray(row.packs) || row.packs.length > 100) {
+  if (typeof row.testMode !== "boolean" || !Array.isArray(row.packs) || row.packs.length > 100) {
     throw new BillingHttpError(503, "billing_database_invalid");
   }
   const seen = new Set<string>();
@@ -1736,11 +1741,11 @@ export async function loadSandboxCreditPackCatalog(supabase: SupabaseClient): Pr
       grantedUnits: integer(pack, "grantedUnits", 1, 1_000_000_000),
       expiresAfterDays,
       disclosureVersion,
-      testMode: true
+      testMode: row.testMode === true
     };
   });
   if (!available && packs.length > 0) throw new BillingHttpError(503, "billing_database_invalid");
-  return { available, packs, testMode: true };
+  return { available, packs, testMode: row.testMode === true };
 }
 
 function marketplaceRpcFailure(error: { code?: string } | null, fallback: string): BillingHttpError {
@@ -1782,7 +1787,7 @@ export type SellerPreparation = {
   linkIdempotencyKey: string;
   status: string;
   onboardingRequestId: string;
-  testMode: true;
+  testMode: boolean;
   idempotentReplay: boolean;
 };
 
@@ -1813,7 +1818,7 @@ export async function prepareSellerOnboarding(
     || accountIdempotencyKey !== `seller-account:${sellerAccountId}`
     || marketplaceDocumentVersion(row, "sellerAgreementVersion") !== input.sellerAgreementVersion
     || marketplaceDocumentVersion(row, "stripeConnectDisclosureVersion") !== input.stripeConnectDisclosureVersion
-    || row.testMode !== true
+    || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   return {
     sellerAccountId,
@@ -1822,7 +1827,7 @@ export async function prepareSellerOnboarding(
     linkIdempotencyKey: `seller-link:${onboardingRequestId}`,
     status,
     onboardingRequestId,
-    testMode: true,
+    testMode: row.testMode === true,
     idempotentReplay
   };
 }
@@ -1835,7 +1840,7 @@ export async function acceptMarketplaceFreeSellerAgreement(
   sellerAccountId: string;
   agreementVersion: string;
   connectRequiredForFreeOffers: false;
-  testMode: true;
+  testMode: boolean;
   idempotentReplay: boolean;
 }> {
   const { data, error } = await supabase.rpc("accept_marketplace_free_seller_agreement", {
@@ -1850,13 +1855,13 @@ export async function acceptMarketplaceFreeSellerAgreement(
     Object.keys(row).length !== 5
     || row.agreementVersion !== input.agreementVersion
     || row.connectRequiredForFreeOffers !== false
-    || row.testMode !== true
+    || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   return {
     sellerAccountId: requiredUuid(row, "sellerAccountId"),
     agreementVersion: input.agreementVersion,
     connectRequiredForFreeOffers: false,
-    testMode: true,
+    testMode: row.testMode === true,
     idempotentReplay: requiredBoolean(row, "idempotentReplay")
   };
 }
@@ -1899,7 +1904,7 @@ export async function loadSellerProviderContext(
     (provider === null) !== (providerAccountReference === null)
     || (provider !== null && provider !== "stripe")
     || !["pending", "onboarding", "ready"].includes(status)
-    || row.testMode !== true
+    || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   return {
     sellerAccountId: requiredUuid(row, "sellerAccountId"),
@@ -1997,7 +2002,7 @@ export type CurrentSellerStatus = {
   payoutExecutionAvailable: false;
   balancesAreTestRecords: true;
   providerIdentifiersExposed: false;
-  testMode: true;
+  testMode: boolean;
 };
 
 export async function loadCurrentSellerStatus(supabase: SupabaseClient): Promise<CurrentSellerStatus> {
@@ -2006,7 +2011,7 @@ export async function loadCurrentSellerStatus(supabase: SupabaseClient): Promise
   const row = object(data);
   const configured = requiredBoolean(row, "configured");
   const status = requiredString(row, "status", 40);
-  if (row.testMode !== true || (configured ? !["pending", "onboarding", "ready", "restricted", "closed"].includes(status) : status !== "not_configured")) {
+  if (typeof row.testMode !== "boolean" || (configured ? !["pending", "onboarding", "ready", "restricted", "closed"].includes(status) : status !== "not_configured")) {
     throw new BillingHttpError(503, "billing_database_invalid");
   }
   if (!configured) {
@@ -2020,7 +2025,7 @@ export async function loadCurrentSellerStatus(supabase: SupabaseClient): Promise
       publisherOptions: [], availablePayableByCurrency: {}, payableByCurrency: {},
       payoutPreparationEnabled: false, payoutsEnabledByFeature: false,
       payoutExecutionAvailable: false, balancesAreTestRecords: true,
-      providerIdentifiersExposed: false, testMode: true
+      providerIdentifiersExposed: false, testMode: row.testMode === true
     };
   }
   const rawPayable = object(row.availablePayableByCurrency);
@@ -2169,7 +2174,7 @@ export async function loadCurrentSellerStatus(supabase: SupabaseClient): Promise
     payoutExecutionAvailable: false,
     balancesAreTestRecords: true,
     providerIdentifiersExposed: false,
-    testMode: true
+    testMode: row.testMode === true
   };
 }
 
@@ -2188,7 +2193,7 @@ export type MarketplaceOfferSummary = {
   buyerTermsVersion: string;
   paymentGrantsTrust: false;
   purchaseInstallsAddon: false;
-  testMode: true;
+  testMode: boolean;
 };
 
 export async function loadMarketplaceOfferCatalog(supabase: SupabaseClient): Promise<MarketplaceOfferSummary[]> {
@@ -2212,7 +2217,7 @@ export async function loadMarketplaceOfferCatalog(supabase: SupabaseClient): Pro
       || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,199}$/.test(listingSlug)
       || row.paymentGrantsTrust !== false
       || row.purchaseInstallsAddon !== false
-      || row.testMode !== true
+      || typeof row.testMode !== "boolean"
     ) throw new BillingHttpError(503, "billing_database_invalid");
     seen.add(offerId);
     return {
@@ -2230,7 +2235,7 @@ export async function loadMarketplaceOfferCatalog(supabase: SupabaseClient): Pro
       buyerTermsVersion: marketplaceDocumentVersion(row, "buyerTermsVersion"),
       paymentGrantsTrust: false,
       purchaseInstallsAddon: false,
-      testMode: true
+      testMode: row.testMode === true
     };
   });
 }
@@ -2245,7 +2250,7 @@ export type MarketplaceCheckoutPreparation =
       addonVersionId: string;
       economicStatus: string;
       installAuthorized: false;
-      testMode: true;
+      testMode: boolean;
     }
   | (CheckoutPreparation & {
       alreadyOwned: false;
@@ -2257,7 +2262,7 @@ export type MarketplaceCheckoutPreparation =
       licenseVersion: string;
       installAuthorized: false;
       publicationOrTrustChanged: false;
-      testMode: true;
+      testMode: boolean;
     });
 
 export async function prepareMarketplaceCheckout(
@@ -2275,7 +2280,7 @@ export async function prepareMarketplaceCheckout(
   if (error) throw marketplaceRpcFailure(error, "marketplace_checkout");
   const row = object(data);
   if (row.alreadyOwned === true) {
-    if (row.checkoutPrepared !== false || row.installAuthorized !== false || row.testMode !== true) {
+    if (row.checkoutPrepared !== false || row.installAuthorized !== false || typeof row.testMode !== "boolean") {
       throw new BillingHttpError(503, "billing_database_invalid");
     }
     return {
@@ -2287,17 +2292,17 @@ export async function prepareMarketplaceCheckout(
       addonVersionId: requiredUuid(row, "addonVersionId"),
       economicStatus: requiredString(row, "economicStatus", 40),
       installAuthorized: false,
-      testMode: true
+      testMode: row.testMode === true
     };
   }
   const preparation = checkoutPreparation(row);
   if (
     requiredUuid(row, "offerId") !== input.offerId
     || preparation.amountMinor < 50
-    || !preparation.providerPriceReference
+    || (!preparation.providerPriceReference && !preparation.providerProductReference)
     || row.installAuthorized !== false
     || row.publicationOrTrustChanged !== false
-    || row.testMode !== true
+    || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   return {
     ...preparation,
@@ -2310,7 +2315,7 @@ export async function prepareMarketplaceCheckout(
     licenseVersion: marketplaceDocumentVersion(row, "licenseVersion"),
     installAuthorized: false,
     publicationOrTrustChanged: false,
-    testMode: true
+    testMode: row.testMode === true
   };
 }
 
@@ -2323,7 +2328,7 @@ export type MarketplaceLicenseResult = {
   licenseVersion: string;
   economicStatus: string;
   installAuthorized: false;
-  testMode: true;
+  testMode: boolean;
 };
 
 export async function acceptMarketplaceFreeLicense(
@@ -2339,7 +2344,7 @@ export async function acceptMarketplaceFreeLicense(
   });
   if (error) throw marketplaceRpcFailure(error, "marketplace_free_license");
   const row = object(data);
-  if (requiredUuid(row, "offerId") !== input.offerId || row.installAuthorized !== false || row.testMode !== true) {
+  if (requiredUuid(row, "offerId") !== input.offerId || row.installAuthorized !== false || typeof row.testMode !== "boolean") {
     throw new BillingHttpError(503, "billing_database_invalid");
   }
   return {
@@ -2348,7 +2353,7 @@ export async function acceptMarketplaceFreeLicense(
     licenseKey: requiredString(row, "licenseKey", 101),
     licenseVersion: marketplaceDocumentVersion(row, "licenseVersion"),
     economicStatus: requiredString(row, "economicStatus", 40),
-    installAuthorized: false, testMode: true
+    installAuthorized: false, testMode: row.testMode === true
   };
 }
 
@@ -2366,14 +2371,14 @@ export type MarketplacePurchaseSummary = {
   safetyStatus: "available" | "unavailable" | "revoked";
   installAuthorized: false;
   acquiredAt: string;
-  testMode: true;
+  testMode: boolean;
 };
 
-export async function loadCurrentMarketplacePurchases(supabase: SupabaseClient): Promise<{ licenses: MarketplacePurchaseSummary[]; testMode: true }> {
+export async function loadCurrentMarketplacePurchases(supabase: SupabaseClient): Promise<{ licenses: MarketplacePurchaseSummary[]; testMode: boolean }> {
   const { data, error } = await supabase.rpc("current_user_marketplace_purchases");
   if (error) throw marketplaceRpcFailure(error, "marketplace_purchases");
   const result = object(data);
-  if (result.testMode !== true || !Array.isArray(result.licenses) || result.licenses.length > 1_000) {
+  if (typeof result.testMode !== "boolean" || !Array.isArray(result.licenses) || result.licenses.length > 1_000) {
     throw new BillingHttpError(503, "billing_database_invalid");
   }
   const licenses = result.licenses.map((value): MarketplacePurchaseSummary => {
@@ -2399,10 +2404,10 @@ export async function loadCurrentMarketplacePurchases(supabase: SupabaseClient):
       safetyStatus: safetyStatus as MarketplacePurchaseSummary["safetyStatus"],
       installAuthorized: false,
       acquiredAt: requiredTimestamp(row, "acquiredAt"),
-      testMode: true
+      testMode: row.testMode === true
     };
   });
-  return { licenses, testMode: true };
+  return { licenses, testMode: result.testMode === true };
 }
 
 export type MarketplaceOfferConfigurationResult = {
@@ -2418,7 +2423,7 @@ export type MarketplaceOfferConfigurationResult = {
   amountMinor: number | null;
   currency: "usd" | null;
   idempotentReplay: boolean;
-  testMode: true;
+  testMode: boolean;
 };
 
 function marketplacePriceCode(input: MarketplaceOfferConfigurationRequest): string | null {
@@ -2459,7 +2464,7 @@ export async function configureMarketplaceOffer(
     || offerKind !== input.offerKind
     || (offerKind === "free" ? commissionBps !== 0 || commercialTermsCode !== null : commercialTermsCode !== input.commercialTermsCode)
     || marketplaceDocumentVersion(row, "buyerTermsVersion") !== input.buyerTermsVersion
-    || row.testMode !== true
+    || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   return {
     offerId: requiredUuid(row, "offerId"), listingId: requiredUuid(row, "listingId"),
@@ -2467,7 +2472,7 @@ export async function configureMarketplaceOffer(
     status: requiredString(row, "status", 40), commissionBps, commercialTermsCode,
     buyerTermsVersion: input.buyerTermsVersion, priceCode,
     amountMinor: input.amountMinor, currency: input.offerKind === "paid" ? "usd" : null,
-    idempotentReplay: requiredBoolean(row, "idempotentReplay"), testMode: true
+    idempotentReplay: requiredBoolean(row, "idempotentReplay"), testMode: row.testMode === true
   };
 }
 
@@ -2493,7 +2498,7 @@ export type MarketplaceOfferStatusResult = {
   status: "active" | "suspended" | "retired";
   offerKind: "free" | "paid";
   idempotentReplay: boolean;
-  testMode: true;
+  testMode: boolean;
 };
 
 export async function setMarketplaceOfferStatus(
@@ -2516,7 +2521,7 @@ export async function setMarketplaceOfferStatus(
     requiredUuid(row, "offerId") !== input.offerId
     || row.status !== input.targetStatus
     || !["free", "paid"].includes(offerKind)
-    || row.testMode !== true
+    || typeof row.testMode !== "boolean"
   ) {
     throw new BillingHttpError(503, "billing_database_invalid");
   }
@@ -2525,7 +2530,7 @@ export async function setMarketplaceOfferStatus(
     status: input.targetStatus,
     offerKind: offerKind as "free" | "paid",
     idempotentReplay: requiredBoolean(row, "idempotentReplay"),
-    testMode: true
+    testMode: row.testMode === true
   };
 }
 
@@ -2533,7 +2538,7 @@ export async function linkMarketplacePublisher(
   supabase: SupabaseClient,
   actorUserId: string,
   input: MarketplacePublisherLinkRequest
-): Promise<{ publisherId: string; linked: true; publisherVerifiedChanged: false; idempotentReplay: boolean; testMode: true }> {
+): Promise<{ publisherId: string; linked: true; publisherVerifiedChanged: false; idempotentReplay: boolean; testMode: boolean }> {
   const { data, error } = await supabase.rpc("link_economic_seller_publisher", {
     p_actor_user_id: actorUserId,
     p_publisher_id: input.publisherId,
@@ -2542,7 +2547,7 @@ export async function linkMarketplacePublisher(
   });
   if (error) throw marketplaceRpcFailure(error, "marketplace_publisher_link");
   const row = object(data);
-  if (requiredUuid(row, "publisherId") !== input.publisherId || row.linked !== true || row.publisherVerifiedChanged !== false || row.testMode !== true) {
+  if (requiredUuid(row, "publisherId") !== input.publisherId || row.linked !== true || row.publisherVerifiedChanged !== false || typeof row.testMode !== "boolean") {
     throw new BillingHttpError(503, "billing_database_invalid");
   }
   return {
@@ -2550,7 +2555,7 @@ export async function linkMarketplacePublisher(
     linked: true,
     publisherVerifiedChanged: false,
     idempotentReplay: requiredBoolean(row, "idempotentReplay"),
-    testMode: true
+    testMode: row.testMode === true
   };
 }
 
@@ -2561,7 +2566,7 @@ export async function configureMarketplaceCommercialTerms(
 ): Promise<{
   commercialTermsVersionId: string; termsCode: string; commissionBps: number;
   sellerAgreementVersion: string; buyerTermsVersion: string; active: boolean;
-  approvedForLiveUse: false; testMode: true;
+  approvedForLiveUse: false; testMode: boolean;
 }> {
   const { data, error } = await supabase.rpc("configure_marketplace_test_commercial_terms", {
     p_actor_user_id: actorUserId,
@@ -2580,14 +2585,14 @@ export async function configureMarketplaceCommercialTerms(
     row.termsCode !== input.termsCode || row.commissionBps !== input.commissionBps
     || row.sellerAgreementVersion !== input.sellerAgreementVersion
     || row.buyerTermsVersion !== input.buyerTermsVersion
-    || row.active !== input.active || row.approvedForLiveUse !== false || row.testMode !== true
+    || row.active !== input.active || row.approvedForLiveUse !== false || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   return {
     commercialTermsVersionId: requiredUuid(row, "commercialTermsVersionId"),
     termsCode: input.termsCode, commissionBps: input.commissionBps,
     sellerAgreementVersion: input.sellerAgreementVersion,
     buyerTermsVersion: input.buyerTermsVersion,
-    active: input.active, approvedForLiveUse: false, testMode: true
+    active: input.active, approvedForLiveUse: false, testMode: row.testMode === true
   };
 }
 
@@ -2871,7 +2876,7 @@ export async function prepareOrganizationServiceCheckout(
   const preparation = checkoutPreparation(row);
   if (
     requiredUuid(row, "engagementId") !== input.engagementId
-    || preparation.amountMinor < 1 || !preparation.providerPriceReference
+    || preparation.amountMinor < 1 || (!preparation.providerPriceReference && !preparation.providerProductReference)
   ) throw new BillingHttpError(503, "billing_catalog_unavailable");
   return { ...preparation, engagementId: input.engagementId, organizationId: requiredUuid(row, "organizationId") };
 }
@@ -2895,7 +2900,7 @@ export async function prepareSponsorshipCheckout(
   const preparation = checkoutPreparation(row);
   if (
     requiredUuid(row, "sponsorshipAgreementId") !== input.sponsorshipAgreementId
-    || row.grantsAuthority !== false || preparation.amountMinor < 1 || !preparation.providerPriceReference
+    || row.grantsAuthority !== false || preparation.amountMinor < 1 || (!preparation.providerPriceReference && !preparation.providerProductReference)
   ) throw new BillingHttpError(503, "billing_catalog_unavailable");
   return {
     ...preparation, sponsorshipAgreementId: input.sponsorshipAgreementId,
@@ -2909,7 +2914,7 @@ export async function createOperatorEconomicOrganization(
   input: OperatorEconomicOrganizationRequest
 ): Promise<{
   organizationId: string; accountName: string; status: "active";
-  testMode: true; idempotentReplay: boolean;
+  testMode: boolean; idempotentReplay: boolean;
 }> {
   const { data, error } = await supabase.rpc("operator_create_economic_organization", {
     p_actor_user_id: actorUserId,
@@ -2922,12 +2927,12 @@ export async function createOperatorEconomicOrganization(
   if (error) throw operatorRpcFailure(error);
   const row = object(data);
   exactDatabaseKeys(row, ["organizationId", "accountName", "status", "testMode", "idempotentReplay"]);
-  if (row.accountName !== input.accountName || row.status !== "active" || row.testMode !== true) {
+  if (row.accountName !== input.accountName || row.status !== "active" || typeof row.testMode !== "boolean") {
     throw new BillingHttpError(503, "billing_database_invalid");
   }
   return {
     organizationId: requiredUuid(row, "organizationId"), accountName: input.accountName,
-    status: "active", testMode: true,
+    status: "active", testMode: row.testMode === true,
     idempotentReplay: requiredBoolean(row, "idempotentReplay")
   };
 }
@@ -2939,7 +2944,7 @@ export async function setOperatorEconomicOrganizationMembership(
 ): Promise<{
   membershipId: string; organizationId: string; userId: string;
   relationship: OperatorEconomicOrganizationMembershipRequest["relationship"];
-  active: boolean; testMode: true; idempotentReplay: boolean;
+  active: boolean; testMode: boolean; idempotentReplay: boolean;
 }> {
   const { data, error } = await supabase.rpc("operator_set_economic_organization_membership", {
     p_actor_user_id: actorUserId,
@@ -2958,12 +2963,12 @@ export async function setOperatorEconomicOrganizationMembership(
   if (
     requiredUuid(row, "organizationId") !== input.organizationId
     || requiredUuid(row, "userId") !== input.targetUserId
-    || row.relationship !== input.relationship || row.active !== input.enabled || row.testMode !== true
+    || row.relationship !== input.relationship || row.active !== input.enabled || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   return {
     membershipId: requiredUuid(row, "membershipId"), organizationId: input.organizationId,
     userId: input.targetUserId, relationship: input.relationship, active: input.enabled,
-    testMode: true, idempotentReplay: requiredBoolean(row, "idempotentReplay")
+    testMode: row.testMode === true, idempotentReplay: requiredBoolean(row, "idempotentReplay")
   };
 }
 
@@ -2974,7 +2979,7 @@ export async function createOperatorOrganizationServiceEngagement(
 ): Promise<{
   engagementId: string; organizationId: string; serviceCode: string;
   status: "contract_pending"; serviceTermsVersion: string;
-  testMode: true; idempotentReplay: boolean;
+  testMode: boolean; idempotentReplay: boolean;
 }> {
   const { data, error } = await supabase.rpc("operator_create_organization_service_engagement", {
     p_actor_user_id: actorUserId,
@@ -3003,12 +3008,12 @@ export async function createOperatorOrganizationServiceEngagement(
   if (
     requiredUuid(row, "organizationId") !== input.organizationId
     || row.serviceCode !== input.serviceCode || row.status !== "contract_pending"
-    || row.serviceTermsVersion !== input.serviceTermsVersion || row.testMode !== true
+    || row.serviceTermsVersion !== input.serviceTermsVersion || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   return {
     engagementId: requiredUuid(row, "engagementId"), organizationId: input.organizationId,
     serviceCode: input.serviceCode, status: "contract_pending",
-    serviceTermsVersion: input.serviceTermsVersion, testMode: true,
+    serviceTermsVersion: input.serviceTermsVersion, testMode: row.testMode === true,
     idempotentReplay: requiredBoolean(row, "idempotentReplay")
   };
 }
@@ -3025,7 +3030,7 @@ export async function reviewOperatorOrganizationServiceEngagement(
   input: OperatorOrganizationServiceReviewRequest
 ): Promise<{
   engagementId: string; action: OperatorOrganizationServiceReviewRequest["action"];
-  status: string; testMode: true; idempotentReplay: boolean;
+  status: string; testMode: boolean; idempotentReplay: boolean;
 }> {
   const { data, error } = await supabase.rpc("operator_review_organization_service_engagement", {
     p_actor_user_id: actorUserId,
@@ -3044,11 +3049,11 @@ export async function reviewOperatorOrganizationServiceEngagement(
   const expectedStatus = ORGANIZATION_REVIEW_STATUS[input.action];
   if (
     requiredUuid(row, "engagementId") !== input.engagementId || row.action !== input.action
-    || (!replay && row.status !== expectedStatus) || row.testMode !== true
+    || (!replay && row.status !== expectedStatus) || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   return {
     engagementId: input.engagementId, action: input.action, status: expectedStatus,
-    testMode: true, idempotentReplay: requiredBoolean(row, "idempotentReplay")
+    testMode: row.testMode === true, idempotentReplay: requiredBoolean(row, "idempotentReplay")
   };
 }
 
@@ -3059,7 +3064,7 @@ export async function createOperatorSponsorshipAgreement(
 ): Promise<{
   sponsorshipAgreementId: string; organizationId: string; status: "ethical_review";
   publicRecognitionOptIn: false; publicRecognitionApproved: false;
-  grantsAuthority: false; testMode: true; idempotentReplay: boolean;
+  grantsAuthority: false; testMode: boolean; idempotentReplay: boolean;
 }> {
   const { data, error } = await supabase.rpc("operator_create_sponsorship_agreement", {
     p_actor_user_id: actorUserId,
@@ -3083,13 +3088,13 @@ export async function createOperatorSponsorshipAgreement(
   if (
     requiredUuid(row, "organizationId") !== input.organizationId || row.status !== "ethical_review"
     || row.publicRecognitionOptIn !== false || row.publicRecognitionApproved !== false
-    || row.grantsAuthority !== false || row.testMode !== true
+    || row.grantsAuthority !== false || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   return {
     sponsorshipAgreementId: requiredUuid(row, "sponsorshipAgreementId"),
     organizationId: input.organizationId, status: "ethical_review",
     publicRecognitionOptIn: false, publicRecognitionApproved: false,
-    grantsAuthority: false, testMode: true,
+    grantsAuthority: false, testMode: row.testMode === true,
     idempotentReplay: requiredBoolean(row, "idempotentReplay")
   };
 }
@@ -3106,7 +3111,7 @@ export async function reviewOperatorSponsorshipAgreement(
   input: OperatorSponsorshipReviewRequest
 ): Promise<{
   sponsorshipAgreementId: string; action: OperatorSponsorshipReviewRequest["action"];
-  status: string; grantsAuthority: false; testMode: true; idempotentReplay: boolean;
+  status: string; grantsAuthority: false; testMode: boolean; idempotentReplay: boolean;
 }> {
   const { data, error } = await supabase.rpc("operator_review_sponsorship_agreement", {
     p_actor_user_id: actorUserId,
@@ -3126,11 +3131,11 @@ export async function reviewOperatorSponsorshipAgreement(
   if (
     requiredUuid(row, "sponsorshipAgreementId") !== input.sponsorshipAgreementId
     || row.action !== input.action || (!replay && row.status !== expectedStatus)
-    || (!replay && row.grantsAuthority !== false) || row.testMode !== true
+    || (!replay && row.grantsAuthority !== false) || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   return {
     sponsorshipAgreementId: input.sponsorshipAgreementId, action: input.action,
-    status: expectedStatus, grantsAuthority: false, testMode: true,
+    status: expectedStatus, grantsAuthority: false, testMode: row.testMode === true,
     idempotentReplay: requiredBoolean(row, "idempotentReplay")
   };
 }
@@ -3141,7 +3146,7 @@ export async function setOperatorSponsorshipPublicRecognition(
   input: OperatorSponsorshipRecognitionRequest
 ): Promise<{
   sponsorshipAgreementId: string; publicRecognitionApproved: boolean;
-  amountsPublic: false; grantsAuthority: false; testMode: true; idempotentReplay: boolean;
+  amountsPublic: false; grantsAuthority: false; testMode: boolean; idempotentReplay: boolean;
 }> {
   const { data, error } = await supabase.rpc("operator_set_sponsorship_public_recognition", {
     p_actor_user_id: actorUserId,
@@ -3159,13 +3164,13 @@ export async function setOperatorSponsorshipPublicRecognition(
     : ["sponsorshipAgreementId", "publicRecognitionApproved", "publicDisplayEnabled", "amountsPublic", "grantsAuthority", "testMode", "idempotentReplay"]);
   if (
     requiredUuid(row, "sponsorshipAgreementId") !== input.sponsorshipAgreementId
-    || row.publicRecognitionApproved !== input.approved || row.testMode !== true
+    || row.publicRecognitionApproved !== input.approved || typeof row.testMode !== "boolean"
     || (!replay && (row.amountsPublic !== false || row.grantsAuthority !== false))
   ) throw new BillingHttpError(503, "billing_database_invalid");
   return {
     sponsorshipAgreementId: input.sponsorshipAgreementId,
     publicRecognitionApproved: input.approved, amountsPublic: false,
-    grantsAuthority: false, testMode: true,
+    grantsAuthority: false, testMode: row.testMode === true,
     idempotentReplay: requiredBoolean(row, "idempotentReplay")
   };
 }
@@ -3176,7 +3181,7 @@ export async function setCurrentUserSponsorshipRecognitionPreference(
   input: SponsorshipRecognitionPreferenceRequest
 ): Promise<{
   sponsorshipAgreementId: string; publicRecognitionOptIn: boolean;
-  amountsPublic: false; grantsAuthority: false; testMode: true; idempotentReplay: boolean;
+  amountsPublic: false; grantsAuthority: false; testMode: boolean; idempotentReplay: boolean;
 }> {
   const { data, error } = await supabase.rpc("set_current_user_sponsorship_recognition_preference", {
     p_actor_user_id: actorUserId,
@@ -3196,12 +3201,12 @@ export async function setCurrentUserSponsorshipRecognitionPreference(
   if (
     requiredUuid(row, "sponsorshipAgreementId") !== input.sponsorshipAgreementId
     || row.publicRecognitionOptIn !== input.optedIn || row.amountsPublic !== false
-    || row.grantsAuthority !== false || row.testMode !== true
+    || row.grantsAuthority !== false || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   return {
     sponsorshipAgreementId: input.sponsorshipAgreementId,
     publicRecognitionOptIn: input.optedIn, amountsPublic: false,
-    grantsAuthority: false, testMode: true,
+    grantsAuthority: false, testMode: row.testMode === true,
     idempotentReplay: requiredBoolean(row, "idempotentReplay")
   };
 }
@@ -3214,7 +3219,7 @@ export async function createOperatorSponsorshipAssistanceAllocation(
   allocationId: string; sponsorshipAgreementId: string; assistanceProgramId: string;
   scope: "job_post_fee" | "sandbox_credits"; allocationKind: OperatorSponsorshipAssistanceAllocationRequest["allocationKind"];
   allocationCap: number; currency: "usd" | null; sponsorSelectsRecipients: false;
-  sponsorReceivesRecipientData: false; grantsAuthority: false; testMode: true; idempotentReplay: boolean;
+  sponsorReceivesRecipientData: false; grantsAuthority: false; testMode: boolean; idempotentReplay: boolean;
 }> {
   const { data, error } = await supabase.rpc("operator_create_sponsorship_assistance_allocation", {
     p_actor_user_id: actorUserId,
@@ -3240,14 +3245,14 @@ export async function createOperatorSponsorshipAssistanceAllocation(
     || !["job_post_fee", "sandbox_credits"].includes(scope)
     || row.allocationKind !== input.allocationKind || row.allocationCap !== input.allocationCap
     || row.currency !== input.currency || row.sponsorSelectsRecipients !== false
-    || row.sponsorReceivesRecipientData !== false || row.grantsAuthority !== false || row.testMode !== true
+    || row.sponsorReceivesRecipientData !== false || row.grantsAuthority !== false || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   return {
     allocationId: requiredUuid(row, "allocationId"), sponsorshipAgreementId: input.sponsorshipAgreementId,
     assistanceProgramId: input.assistanceProgramId, scope: scope as "job_post_fee" | "sandbox_credits",
     allocationKind: input.allocationKind, allocationCap: input.allocationCap, currency: input.currency,
     sponsorSelectsRecipients: false, sponsorReceivesRecipientData: false,
-    grantsAuthority: false, testMode: true,
+    grantsAuthority: false, testMode: row.testMode === true,
     idempotentReplay: requiredBoolean(row, "idempotentReplay")
   };
 }
@@ -3256,7 +3261,7 @@ export async function closeOperatorSponsorshipAssistanceAllocation(
   supabase: SupabaseClient,
   actorUserId: string,
   input: OperatorSponsorshipAssistanceAllocationCloseRequest
-): Promise<{ allocationId: string; status: "canceled"; testMode: true; idempotentReplay: boolean }> {
+): Promise<{ allocationId: string; status: "canceled"; testMode: boolean; idempotentReplay: boolean }> {
   const { data, error } = await supabase.rpc("operator_close_sponsorship_assistance_allocation", {
     p_actor_user_id: actorUserId,
     p_client_request_id: input.clientRequestId,
@@ -3266,11 +3271,11 @@ export async function closeOperatorSponsorshipAssistanceAllocation(
   if (error) throw operatorRpcFailure(error);
   const row = object(data);
   exactDatabaseKeys(row, ["allocationId", "status", "testMode", "idempotentReplay"]);
-  if (requiredUuid(row, "allocationId") !== input.allocationId || row.status !== "canceled" || row.testMode !== true) {
+  if (requiredUuid(row, "allocationId") !== input.allocationId || row.status !== "canceled" || typeof row.testMode !== "boolean") {
     throw new BillingHttpError(503, "billing_database_invalid");
   }
   return {
-    allocationId: input.allocationId, status: "canceled", testMode: true,
+    allocationId: input.allocationId, status: "canceled", testMode: row.testMode === true,
     idempotentReplay: requiredBoolean(row, "idempotentReplay")
   };
 }
@@ -3282,7 +3287,7 @@ export async function configureOperatorAssistanceProgram(
 ): Promise<{
   programId: string; programCode: string; kind: OperatorAssistanceProgramRequest["assistanceKind"];
   scope: OperatorAssistanceProgramRequest["scope"]; status: "active" | "draft";
-  publicLabel: string; testMode: true; idempotentReplay: boolean;
+  publicLabel: string; testMode: boolean; idempotentReplay: boolean;
 }> {
   const { data, error } = await supabase.rpc("operator_configure_assistance_program", {
     p_actor_user_id: actorUserId,
@@ -3304,12 +3309,12 @@ export async function configureOperatorAssistanceProgram(
   const expectedStatus = input.activate ? "active" : "draft";
   if (
     row.programCode !== input.programCode || row.kind !== input.assistanceKind || row.scope !== input.scope
-    || row.status !== expectedStatus || row.publicLabel !== input.publicLabel || row.testMode !== true
+    || row.status !== expectedStatus || row.publicLabel !== input.publicLabel || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   return {
     programId: requiredUuid(row, "programId"), programCode: input.programCode,
     kind: input.assistanceKind, scope: input.scope, status: expectedStatus,
-    publicLabel: input.publicLabel, testMode: true,
+    publicLabel: input.publicLabel, testMode: row.testMode === true,
     idempotentReplay: requiredBoolean(row, "idempotentReplay")
   };
 }
@@ -3318,7 +3323,7 @@ export async function setOperatorAssistanceProgramStatus(
   supabase: SupabaseClient,
   actorUserId: string,
   input: OperatorAssistanceProgramStatusRequest
-): Promise<{ programId: string; status: OperatorAssistanceProgramStatusRequest["targetStatus"]; testMode: true; idempotentReplay: boolean }> {
+): Promise<{ programId: string; status: OperatorAssistanceProgramStatusRequest["targetStatus"]; testMode: boolean; idempotentReplay: boolean }> {
   const { data, error } = await supabase.rpc("operator_set_economic_assistance_program_status", {
     p_actor_user_id: actorUserId, p_client_request_id: input.clientRequestId,
     p_program_id: input.programId, p_target_status: input.targetStatus,
@@ -3330,11 +3335,11 @@ export async function setOperatorAssistanceProgramStatus(
   exactDatabaseKeys(row, replay
     ? ["programId", "status", "testMode", "idempotentReplay"]
     : ["programId", "programCode", "status", "testMode", "idempotentReplay"]);
-  if (requiredUuid(row, "programId") !== input.programId || row.status !== input.targetStatus || row.testMode !== true) {
+  if (requiredUuid(row, "programId") !== input.programId || row.status !== input.targetStatus || typeof row.testMode !== "boolean") {
     throw new BillingHttpError(503, "billing_database_invalid");
   }
   if (!replay) requiredString(row, "programCode", 100);
-  return { programId: input.programId, status: input.targetStatus, testMode: true, idempotentReplay: replay };
+  return { programId: input.programId, status: input.targetStatus, testMode: row.testMode === true, idempotentReplay: replay };
 }
 
 export async function issueOperatorAssistanceGrant(
@@ -3345,7 +3350,7 @@ export async function issueOperatorAssistanceGrant(
   grantId: string; scope: OperatorAssistanceProgramRequest["scope"]; status: string;
   expiresAt: string | null; publiclyVisible: false;
   sandboxCreditResult: null | { creditLotId: string; grantedUnits: number; sourceCategory: string; expiresAt: string | null };
-  testMode: true; idempotentReplay: boolean;
+  testMode: boolean; idempotentReplay: boolean;
 }> {
   const { data, error } = await supabase.rpc("operator_issue_economic_assistance_grant", {
     p_actor_user_id: actorUserId,
@@ -3367,7 +3372,7 @@ export async function issueOperatorAssistanceGrant(
   ]);
   const scope = requiredString(row, "scope", 40);
   const status = requiredString(row, "status", 40);
-  if (!['job_post_fee', 'sandbox_credits'].includes(scope) || !['granted', 'consumed'].includes(status) || row.publiclyVisible !== false || row.testMode !== true) {
+  if (!['job_post_fee', 'sandbox_credits'].includes(scope) || !['granted', 'consumed'].includes(status) || row.publiclyVisible !== false || typeof row.testMode !== "boolean") {
     throw new BillingHttpError(503, "billing_database_invalid");
   }
   let sandboxCreditResult: null | { creditLotId: string; grantedUnits: number; sourceCategory: string; expiresAt: string | null } = null;
@@ -3387,7 +3392,7 @@ export async function issueOperatorAssistanceGrant(
     grantId: requiredUuid(row, "grantId"),
     scope: scope as OperatorAssistanceProgramRequest["scope"], status,
     expiresAt: nullableTimestamp(row, "expiresAt"), publiclyVisible: false,
-    sandboxCreditResult, testMode: true,
+    sandboxCreditResult, testMode: row.testMode === true,
     idempotentReplay: requiredBoolean(row, "idempotentReplay")
   };
 }
@@ -3426,7 +3431,7 @@ export async function reconcileOperatorJobPostAssistanceGrant(
 ): Promise<{
   jobPostId: string; grantId: string; grantStatus: "revoked" | "expired";
   economicStatus: "not_assessed"; publicationStatus: string | null;
-  published: boolean; testMode: true; idempotentReplay: boolean;
+  published: boolean; testMode: boolean; idempotentReplay: boolean;
 }> {
   const { data, error } = await supabase.rpc("operator_reconcile_job_post_assistance_grant", {
     p_actor_user_id: actorUserId, p_client_request_id: input.clientRequestId,
@@ -3442,7 +3447,7 @@ export async function reconcileOperatorJobPostAssistanceGrant(
   const grantStatus = input.endAction === "revoke" ? "revoked" : "expired";
   if (
     requiredUuid(row, "jobPostId") !== input.jobPostId || requiredUuid(row, "grantId") !== input.grantId
-    || row.grantStatus !== grantStatus || row.economicStatus !== "not_assessed" || row.testMode !== true
+    || row.grantStatus !== grantStatus || row.economicStatus !== "not_assessed" || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   let publicationStatus: string | null = null;
   let published = false;
@@ -3453,7 +3458,7 @@ export async function reconcileOperatorJobPostAssistanceGrant(
   return {
     jobPostId: input.jobPostId, grantId: input.grantId, grantStatus,
     economicStatus: "not_assessed", publicationStatus, published,
-    testMode: true, idempotentReplay: replay
+    testMode: row.testMode === true, idempotentReplay: replay
   };
 }
 
@@ -3475,7 +3480,7 @@ export async function exportOperatorEconomicAccounting(
 ): Promise<{
   exportVersion: "economic-accounting-v1"; entries: EconomicAccountingExportEntry[];
   limit: number; from: string; to: string; providerIdentifiersExposed: false;
-  personalContactDataExposed: false; testMode: true; idempotentReplay: boolean;
+  personalContactDataExposed: false; testMode: boolean; idempotentReplay: boolean;
 }> {
   const { data, error } = await supabase.rpc("export_economic_accounting_events", {
     p_actor_user_id: actorUserId,
@@ -3498,7 +3503,7 @@ export async function exportOperatorEconomicAccounting(
     row.exportVersion !== "economic-accounting-v1" || row.limit !== input.limit
     || Date.parse(resultFrom) !== Date.parse(input.from) || Date.parse(resultTo) !== Date.parse(input.to)
     || row.providerIdentifiersExposed !== false || row.personalContactDataExposed !== false
-    || row.testMode !== true || !Array.isArray(row.entries) || row.entries.length > input.limit
+    || typeof row.testMode !== "boolean" || !Array.isArray(row.entries) || row.entries.length > input.limit
   ) throw new BillingHttpError(503, "billing_database_invalid");
   const categories = new Set(["payment_received", "payment_state", "refund", "dispute", "marketplace_allocation"]);
   const entries = row.entries.map((value): EconomicAccountingExportEntry => {
@@ -3556,7 +3561,7 @@ export async function exportOperatorEconomicAccounting(
     exportVersion: "economic-accounting-v1", entries, limit: input.limit,
     from: new Date(Date.parse(resultFrom)).toISOString(),
     to: new Date(Date.parse(resultTo)).toISOString(), providerIdentifiersExposed: false,
-    personalContactDataExposed: false, testMode: true,
+    personalContactDataExposed: false, testMode: row.testMode === true,
     idempotentReplay: requiredBoolean(row, "idempotentReplay")
   };
 }
@@ -3568,7 +3573,7 @@ export async function prepareOperatorMarketplaceTestPayout(
 ): Promise<{
   payoutPreparationId: string; sellerAccountId: string; amountMinor: number; currency: "usd";
   status: string; providerExecutionAvailable: false; balancesAreTestRecords: true;
-  testMode: true; idempotentReplay: boolean;
+  testMode: boolean; idempotentReplay: boolean;
 }> {
   const { data, error } = await supabase.rpc("operator_prepare_marketplace_test_payout", {
     p_actor_user_id: actorUserId,
@@ -3590,13 +3595,13 @@ export async function prepareOperatorMarketplaceTestPayout(
     requiredUuid(row, "sellerAccountId") !== input.sellerAccountId
     || row.amountMinor !== input.amountMinor || row.currency !== input.currency
     || !["prepared", "canceled", "reconciled"].includes(status)
-    || row.providerExecutionAvailable !== false || row.balancesAreTestRecords !== true || row.testMode !== true
+    || row.providerExecutionAvailable !== false || row.balancesAreTestRecords !== true || typeof row.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   return {
     payoutPreparationId: requiredUuid(row, "payoutPreparationId"),
     sellerAccountId: input.sellerAccountId, amountMinor: input.amountMinor,
     currency: "usd", status, providerExecutionAvailable: false,
-    balancesAreTestRecords: true, testMode: true,
+    balancesAreTestRecords: true, testMode: row.testMode === true,
     idempotentReplay: requiredBoolean(row, "idempotentReplay")
   };
 }
@@ -3637,7 +3642,7 @@ export async function loadCurrentEconomicOrganizations(
   organizations: EconomicOrganizationSummary[];
   financialDetailsPrivate: true;
   affectsCommonsIdentity: false;
-  testMode: true;
+  testMode: boolean;
 }> {
   const { data, error } = await supabase.rpc("current_user_economic_organization_status");
   if (error) throw marketplaceRpcFailure(error, "economic_organization_status");
@@ -3648,7 +3653,7 @@ export async function loadCurrentEconomicOrganizations(
     || result.organizations.length > 1_000
     || result.financialDetailsPrivate !== true
     || result.affectsCommonsIdentity !== false
-    || result.testMode !== true
+    || typeof result.testMode !== "boolean"
   ) throw new BillingHttpError(503, "billing_database_invalid");
   const organizations = result.organizations.map((value): EconomicOrganizationSummary => {
     const row = object(value);
@@ -3729,7 +3734,7 @@ export async function loadCurrentEconomicOrganizations(
       sponsorshipAgreements
     };
   });
-  return { organizations, financialDetailsPrivate: true, affectsCommonsIdentity: false, testMode: true };
+  return { organizations, financialDetailsPrivate: true, affectsCommonsIdentity: false, testMode: result.testMode === true };
 }
 
 export type PublicSponsorshipRecognition = {

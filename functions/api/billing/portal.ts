@@ -1,10 +1,10 @@
 import { authenticateRequired, createEconomicServerClient } from "./_shared/auth.ts";
-import { assertBillingFeatureEnabled, assertTestOnlyBillingMode } from "./_shared/config.ts";
+import { assertBillingFeatureEnabled, assertBillingMode } from "./_shared/config.ts";
 import { prepareCustomerPortal, recordPortalSession } from "./_shared/database.ts";
 import { BillingHttpError, jsonResponse, requireJsonPost, requireSameOriginMutation, safeBillingErrorResponse, validatedPublicOrigin } from "./_shared/http.ts";
 import { billingFailureOutcome, defaultBillingLogger, emitBillingEvent, type BillingLogger } from "./_shared/observability.ts";
 import { portalRequest } from "./_shared/schema.ts";
-import { createStripeTestProvider } from "./_shared/stripe.ts";
+import { createStripeProvider } from "./_shared/stripe.ts";
 import type { AuthenticatedBillingRequest, BillingEnv, BillingProvider } from "./_shared/types.ts";
 
 export type PortalDependencies = {
@@ -17,7 +17,7 @@ export type PortalDependencies = {
 
 const defaultDependencies: PortalDependencies = {
   authenticate: authenticateRequired,
-  provider: createStripeTestProvider,
+  provider: createStripeProvider,
   prepare: (env, actorUserId, clientRequestId) => prepareCustomerPortal(createEconomicServerClient(env), actorUserId, clientRequestId),
   record: (env, portalRequestId, billingCustomerId, providerSessionId) => recordPortalSession(
     createEconomicServerClient(env),
@@ -37,7 +37,7 @@ export async function handleCustomerPortal(
   try {
     // Customer cancellation/management is not a new acquisition. It remains
     // available when BILLING_ENABLED disables checkout creation.
-    assertTestOnlyBillingMode(env);
+    assertBillingMode(env);
     assertBillingFeatureEnabled(env, "BILLING_PORTAL_ENABLED", "billing_portal_disabled");
     requireSameOriginMutation(request, env);
     requireJsonPost(request);

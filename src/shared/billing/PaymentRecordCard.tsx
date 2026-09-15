@@ -5,7 +5,8 @@ export default function PaymentRecordCard({ receipt }: { receipt: ReceiptSummary
   const support = receipt.flow === "support_one_time" || receipt.flow === "support_recurring";
   return <article className="economic-summary-card" aria-label={support ? "Support acknowledgment" : "Payment record"}>
     <h3>{support ? "Support acknowledgment" : "Payment record"}</h3>
-    <p className="boundary-note">Test-mode record — no real payment or refund is claimed.</p>
+    {receipt.testMode !== false && <p className="boundary-note">Test-mode record — no real payment or refund is claimed.</p>}
+    {receipt.receiptAvailable && receipt.receiptUrl && <a className="button-link" href={receipt.receiptUrl} target="_blank" rel="noopener noreferrer">Open Stripe receipt</a>}
     <dl className="mini-facts">
       <div><dt>Purpose</dt><dd>{receipt.label}</dd></div>
       <div><dt>Payee / seller</dt><dd>{receipt.payee ?? "Seller identity is unavailable in this historical record; contact billing support."}</dd></div>

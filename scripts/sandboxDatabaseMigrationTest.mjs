@@ -146,6 +146,7 @@ const publisherOwnershipPaths = ["supabase/migrations/20260909020000_marketplace
 const ownerDecisionPaths = ["supabase/migrations/20260910010000_scoped_review_capabilities.sql", "supabase/migrations/20260910020000_work_with_lifecycle_and_profile_boundaries.sql", "supabase/migrations/20260910030000_adopted_economic_policy_and_messaging_privacy.sql", "supabase/migrations/20260910040000_stewardship_proof_retention.sql", "supabase/migrations/20260910050000_owner_decision_legal_versions.sql"];
 
 const codevPairingPaths = ["supabase/migrations/20260913010000_codev_pairing_sessions.sql"];
+const stripeActivationPaths = ["supabase/migrations/20260915010000_canonical_money_rounding.sql", "supabase/migrations/20260915020000_first_party_provider_approval.sql", "supabase/migrations/20260915030000_first_party_runtime_environment.sql", "supabase/migrations/20260915040000_job_post_owned_fee_reduction.sql", "supabase/migrations/20260915050000_first_party_prospective_legal.sql", "supabase/migrations/20260915060000_first_party_rollout_and_inbox_retry.sql"];
 
 const activePaths = [
   ...baselinePaths,
@@ -171,6 +172,7 @@ const activePaths = [
   ...publisherOwnershipPaths,
   ...ownerDecisionPaths,
   ...codevPairingPaths,
+  ...stripeActivationPaths,
 ];
 
 const legacyHashes = new Map(Object.entries({
@@ -1029,6 +1031,7 @@ try {
     "scripts/fixtures/publisherOwnershipBehavior.sql",
     "scripts/fixtures/ownerDecisionsBehavior.sql",
     "scripts/fixtures/codevPairingBehavior.sql",
+    "scripts/fixtures/moneyCanonicalizationBehavior.sql",
     "scripts/fixtures/stewardshipRetentionBehavior.sql",
     "scripts/fixtures/sandboxDatabaseBehavior.sql",
     "scripts/fixtures/codeRevisionProposalBehavior.sql",
@@ -1791,6 +1794,8 @@ try {
   for (const file of codevPairingPaths) await psql(["-f", `/tmp/${path.basename(file)}`]);
   console.log((await psql(["-f", "/tmp/codevPairingBehavior.sql"])).stdout);
 
+  for (const file of stripeActivationPaths) await psql(["-f", `/tmp/${path.basename(file)}`]);
+  await psql(["-f", "/tmp/moneyCanonicalizationBehavior.sql"]);
   assert(appliedMigrations.size === activePaths.length, `Only ${appliedMigrations.size}/${activePaths.length} inventoried migrations were replayed.`);
   console.log(`Replayed all ${appliedMigrations.size} current migrations successfully.`);
 
@@ -1812,7 +1817,7 @@ try {
   const plpgsqlCheckAvailable = await psql(["-tAc", "select exists (select 1 from pg_catalog.pg_available_extensions where name = 'plpgsql_check');"]);
   if (plpgsqlCheckAvailable.stdout.trim() === "t") {
     await psql(["-c", "create extension if not exists plpgsql_check;"]);
-    const ownerFunctionSources = await Promise.all([...ownerDecisionPaths, ...codevPairingPaths].map(file => fs.readFile(file, "utf8")));
+    const ownerFunctionSources = await Promise.all([...ownerDecisionPaths, ...codevPairingPaths, ...stripeActivationPaths].map(file => fs.readFile(file, "utf8")));
     const governedPlpgsqlFunctions = [...new Set([
       ...ownerFunctionSources.flatMap(sql => [...sql.matchAll(/create (?:or replace )?function ((?:public|private)\.[a-z_]+)\(/gi)].map(match => match[1])),
       "private.publisher_actor", "private.apply_automatic_community_deletion_anonymization", "private.publisher_assert_namespace", "private.establish_marketplace_publisher", "private.authorize_marketplace_publisher_manager", "private.register_external_publisher_release", "public.save_own_marketplace_publisher", "public.current_user_publisher_workspace",

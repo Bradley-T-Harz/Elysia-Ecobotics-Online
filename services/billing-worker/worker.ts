@@ -56,8 +56,10 @@ import { onRequest as sponsorshipPreference } from "../../functions/api/billing/
 import { onRequest as sponsorshipRecognition } from "../../functions/api/billing/sponsorships/recognition.ts";
 import { onRequest as supportRecognition } from "../../functions/api/billing/support-recognition.ts";
 import { onRequest as webhook } from "../../functions/api/billing/webhook.ts";
+import { onRequest as providerReadiness } from "../../functions/api/billing/provider-readiness.ts";
+import { onRequest as jobPostReduction } from "../../functions/api/billing/operator/job-post-reduction.ts";
 import { createEconomicServerClient } from "../../functions/api/billing/_shared/auth.ts";
-import { assertBillingFeatureEnabled, assertTestOnlyBillingMode } from "../../functions/api/billing/_shared/config.ts";
+import { assertBillingFeatureEnabled, assertBillingMode } from "../../functions/api/billing/_shared/config.ts";
 import {
   deliverEconomicNotificationOutbox,
   expireStaleEconomicCheckouts,
@@ -69,6 +71,8 @@ import type { BillingEnv } from "../../functions/api/billing/_shared/types.ts";
 type BillingRoute = PagesFunction<BillingEnv>;
 
 export const BILLING_ROUTES: Readonly<Record<string, BillingRoute>> = Object.freeze({
+  "/api/billing/provider-readiness": providerReadiness,
+  "/api/billing/operator/job-post-reduction": jobPostReduction,
   "/api/billing/account": account,
   "/api/billing/account/action": accountAction,
   "/api/billing/account/closure-readiness": accountClosureReadiness,
@@ -153,9 +157,14 @@ export type BillingScheduledDeliverySummary = {
 export type BillingScheduledDependencies = {
   expire(env: BillingEnv, limit: number): Promise<EconomicCheckoutExpiryResult>;
   deliver(env: BillingEnv, limit: number): Promise<EconomicNotificationDeliveryResult>;
+  retryInbox?(env: BillingEnv): Promise<void>;
 };
 
 const defaultScheduledDependencies: BillingScheduledDependencies = {
+  retryInbox: async env => {
+    const { error } = await createEconomicServerClient(env).rpc("retry_economic_provider_inbox", { p_limit: 25 });
+    if (error) throw new Error("economic_inbox_retry_unavailable");
+  },
   expire: (env, limit) => expireStaleEconomicCheckouts(createEconomicServerClient(env), limit),
   deliver: (env, limit) => deliverEconomicNotificationOutbox(createEconomicServerClient(env), limit)
 };
@@ -172,11 +181,12 @@ export async function handleBillingScheduled(
   if (env.BILLING_NOTIFICATION_RETRY_ENABLED !== "true") {
     return { enabled: false, expiredCheckouts: 0, batches: 0, delivered: 0, failed: 0, canonicalFinancialTruth: false };
   }
-  assertTestOnlyBillingMode(env);
+  assertBillingMode(env);
   assertBillingFeatureEnabled(env, "BILLING_WEBHOOK_FULFILLMENT_ENABLED", "webhook_fulfillment_disabled");
 
   const batchLimit = 25;
   const maximumBatches = 4;
+  await dependencies.retryInbox?.(env);
   const expiry = await dependencies.expire(env, 100);
   let batches = 0;
   let delivered = 0;
@@ -194,6 +204,7 @@ export async function handleBillingScheduled(
 export default {
   async fetch(request: Request, env: BillingEnv): Promise<Response> {
     const url = new URL(request.url);
+    if (["/api/billing/marketplace/checkout", "/api/billing/seller/onboarding", "/api/billing/seller/status-refresh", "/api/billing/seller/offer-activation", "/api/billing/operator/marketplace-payout-preparation", "/api/billing/sandbox-credits/checkout"].includes(url.pathname)) return notFound();
     const handler = BILLING_ROUTES[url.pathname];
     if (!handler) return notFound();
     return await handler({ request, env } as Parameters<BillingRoute>[0]);

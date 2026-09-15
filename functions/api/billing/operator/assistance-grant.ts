@@ -1,5 +1,5 @@
 import { authenticateRequired, createEconomicServerClient } from "../_shared/auth.ts";
-import { assertBillingFeatureEnabled, assertTestOnlyBillingMode } from "../_shared/config.ts";
+import { assertBillingFeatureEnabled, assertBillingMode } from "../_shared/config.ts";
 import { issueOperatorAssistanceGrant } from "../_shared/database.ts";
 import { jsonResponse, requireJsonPost, requireSameOriginMutation, safeBillingErrorResponse } from "../_shared/http.ts";
 import { operatorAssistanceGrantRequest } from "../_shared/schema.ts";
@@ -21,7 +21,7 @@ export async function handleOperatorAssistanceGrant(
   dependencies: OperatorAssistanceGrantDependencies = defaultDependencies
 ): Promise<Response> {
   try {
-    assertTestOnlyBillingMode(env);
+    assertBillingMode(env);
     assertBillingFeatureEnabled(env, "BILLING_ASSISTANCE_ADMIN_ENABLED", "economic_assistance_disabled");
     requireSameOriginMutation(request, env);
     requireJsonPost(request);

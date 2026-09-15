@@ -88,10 +88,10 @@ export function economicServerClientConfigured(env: BillingEnv): boolean {
   }
 }
 
-function client(url: string, key: string, authorization?: string): SupabaseClient {
+function client(url: string, key: string, authorization?: string, extraHeaders: Record<string, string> = {}): SupabaseClient {
   return createClient(url, key, {
     global: {
-      headers: authorization ? { Authorization: authorization } : {},
+      headers: { ...extraHeaders, ...(authorization ? { Authorization: authorization } : {}) },
       fetch: (input, init) => fetchWithTimeout(input, { ...(init ?? {}), redirect: "error" }, 7_000)
     },
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false }
@@ -141,7 +141,7 @@ export async function authenticateRequired(request: Request, env: BillingEnv): P
 export function createEconomicServerClient(env: BillingEnv): SupabaseClient {
   const supabaseUrl = requiredSupabaseUrl(env.SUPABASE_URL);
   const serviceRoleKey = requiredServiceRoleKey(env);
-  return client(supabaseUrl, serviceRoleKey);
+  return client(supabaseUrl, serviceRoleKey, undefined, { "x-elysia-billing-mode": env.BILLING_MODE ?? "disabled", "x-elysia-stripe-account": env.STRIPE_ACCOUNT_ID ?? "" });
 }
 
 export function createEconomicPublicClient(env: BillingEnv): SupabaseClient {

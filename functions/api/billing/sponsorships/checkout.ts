@@ -5,7 +5,7 @@ import { attachCheckoutBillingCustomer, attachCheckoutSession, failCheckout, pre
 import { BillingHttpError, jsonResponse, requireJsonPost, requireSameOriginMutation, safeBillingErrorResponse, validatedPublicOrigin } from "../_shared/http.ts";
 import { billingFailureOutcome, defaultBillingLogger, emitBillingEvent, type BillingLogger } from "../_shared/observability.ts";
 import { sponsorshipCheckoutRequest } from "../_shared/schema.ts";
-import { createStripeTestProvider } from "../_shared/stripe.ts";
+import { createStripeProvider } from "../_shared/stripe.ts";
 import type { AuthenticatedBillingRequest, BillingEnv, BillingProvider, SponsorshipCheckoutRequest } from "../_shared/types.ts";
 
 export type SponsorshipCheckoutDependencies = {
@@ -19,7 +19,7 @@ export type SponsorshipCheckoutDependencies = {
 };
 const defaultDependencies: SponsorshipCheckoutDependencies = {
   authenticate: authenticateRequired,
-  provider: createStripeTestProvider,
+  provider: createStripeProvider,
   prepare: (env, actor, input) => prepareSponsorshipCheckout(createEconomicServerClient(env), actor, input),
   attachCustomer: (env, orderId, customer) => attachCheckoutBillingCustomer(createEconomicServerClient(env), orderId, customer),
   attach: (env, orderId, sessionId, customer) => attachCheckoutSession(createEconomicServerClient(env), orderId, sessionId, customer),
@@ -65,7 +65,7 @@ export async function handleSponsorshipCheckout(request: Request, env: BillingEn
       ok: true, checkoutUrl: providerResult.checkoutUrl,
       orderReference: preparation.publicReference,
       sponsorshipAgreementId: preparation.sponsorshipAgreementId,
-      paymentGrantsAuthority: false, testMode: true
+      paymentGrantsAuthority: false, testMode: env.BILLING_MODE !== "live"
     }, 201);
   } catch (error) {
     emitBillingEvent(dependencies.logger, "billing.sponsorship_checkout", billingFailureOutcome(error), correlationId);

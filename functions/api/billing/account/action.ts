@@ -1,5 +1,5 @@
 import { authenticateRequired, createEconomicServerClient } from "../_shared/auth.ts";
-import { assertBillingFeatureEnabled, assertTestOnlyBillingMode } from "../_shared/config.ts";
+import { assertBillingFeatureEnabled, assertBillingMode } from "../_shared/config.ts";
 import { requestCurrentUserEconomicAccountAction } from "../_shared/database.ts";
 import { jsonResponse, requireJsonPost, requireSameOriginMutation, safeBillingErrorResponse } from "../_shared/http.ts";
 import { economicAccountActionRequest } from "../_shared/schema.ts";
@@ -23,7 +23,7 @@ export async function handleEconomicAccountAction(
   dependencies: EconomicAccountActionDependencies = defaultDependencies
 ): Promise<Response> {
   try {
-    assertTestOnlyBillingMode(env);
+    assertBillingMode(env);
     assertBillingFeatureEnabled(env, "BILLING_ACCOUNT_LIFECYCLE_ENABLED", "economic_account_lifecycle_disabled");
     requireSameOriginMutation(request, env);
     requireJsonPost(request);

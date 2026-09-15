@@ -1,7 +1,7 @@
 import {
   billingLegalConsentBundleIntegrityExpectations,
   billingLegalDocumentIntegrityExpectations
-} from "../../pages/Legal/economicLegalContentManifest.js";
+} from "../../pages/Legal/firstPartyLegalManifest.js";
 
 export type BillingMode = "disabled" | "test" | "live";
 export type SupportCadence = "one_time" | "monthly";
@@ -72,6 +72,7 @@ export type BillingLegalConsentBundle = {
 export type BillingLegalConsentBundles = Record<BillingLegalConsentBundleKey, BillingLegalConsentBundle>;
 
 export type BillingCapabilities = {
+  jobPostCheckout?: boolean;
   available: boolean;
   mode: BillingMode;
   supportCheckout: boolean;
@@ -97,13 +98,13 @@ export type SandboxCreditPack = {
   grantedUnits: number;
   expiresAfterDays: number | null;
   disclosureVersion: string;
-  testMode: true;
+  testMode: boolean;
 };
 
 export type SandboxCreditCatalog = {
   available: boolean;
   packs: SandboxCreditPack[];
-  testMode: true;
+  testMode: boolean;
 };
 
 export type SandboxCreditCheckoutInput = {
@@ -116,7 +117,7 @@ export type SandboxCreditCheckoutInput = {
 export type SandboxCreditCheckoutResult = {
   checkoutUrl: string;
   orderReference: string;
-  pack: { code: string; grantedUnits: number; expiresAfterDays: number | null; changesSafetyPrivileges: false; testMode: true };
+  pack: { code: string; grantedUnits: number; expiresAfterDays: number | null; changesSafetyPrivileges: false; testMode: boolean };
 };
 
 export type MarketplaceCommercialOffer = {
@@ -134,10 +135,10 @@ export type MarketplaceCommercialOffer = {
   buyerTermsVersion: string;
   paymentGrantsTrust: false;
   purchaseInstallsAddon: false;
-  testMode: true;
+  testMode: boolean;
 };
 
-export type MarketplaceCommerceCatalog = { available: boolean; offers: MarketplaceCommercialOffer[]; testMode: true };
+export type MarketplaceCommerceCatalog = { available: boolean; offers: MarketplaceCommercialOffer[]; testMode: boolean };
 export type MarketplacePurchaseInput = {
   offerId: string;
   clientRequestId: string;
@@ -145,8 +146,8 @@ export type MarketplacePurchaseInput = {
   consentVersion: string;
 };
 export type MarketplaceCheckoutResult =
-  | { alreadyOwned: true; economicStatus: string; installAuthorized: false; paymentGrantsAuthority: false; testMode: true }
-  | { alreadyOwned: false; checkoutUrl: string; orderReference: string; licenseKey: string; licenseVersion: string; installAuthorized: false; paymentGrantsAuthority: false; testMode: true };
+  | { alreadyOwned: true; economicStatus: string; installAuthorized: false; paymentGrantsAuthority: false; testMode: boolean }
+  | { alreadyOwned: false; checkoutUrl: string; orderReference: string; licenseKey: string; licenseVersion: string; installAuthorized: false; paymentGrantsAuthority: false; testMode: boolean };
 export type MarketplaceFreeLicenseResult = {
   licenseKey: string;
   licenseVersion: string;
@@ -154,7 +155,7 @@ export type MarketplaceFreeLicenseResult = {
   installAuthorized: false;
   paymentRequired: false;
   paymentGrantsAuthority: false;
-  testMode: true;
+  testMode: boolean;
 };
 export type JobPostEconomicClassification = "not_assessed" | "community_free" | "commercial" | "waived" | "subsidized";
 export type JobPostEconomicStatus = "not_assessed" | "not_required" | "payment_required" | "payment_pending" | "satisfied" | "waived" | "subsidized" | "refunded" | "disputed" | "reconciliation_required";
@@ -168,7 +169,7 @@ export type JobPostOwnerEconomicStatus = {
   amountMinor: number | null;
   currency: "usd" | null;
   termsVersion: string | null;
-  testMode: true;
+  testMode: boolean;
 };
 export type JobPostCheckoutInput = {
   jobPostId: string;
@@ -188,9 +189,9 @@ export type MarketplaceOwnedLicense = {
   safetyStatus: "available" | "unavailable" | "revoked";
   installAuthorized: false;
   acquiredAt: string;
-  testMode: true;
+  testMode: boolean;
 };
-export type MarketplacePurchases = { licenses: MarketplaceOwnedLicense[]; testMode: true };
+export type MarketplacePurchases = { licenses: MarketplaceOwnedLicense[]; testMode: boolean };
 export type MarketplaceSellerEligibleVersion = {
   addonVersionId: string;
   listingId: string;
@@ -259,7 +260,7 @@ export type MarketplaceSellerStatus = {
   payoutExecutionAvailable: false;
   balancesAreTestRecords: true;
   providerIdentifiersExposed: false;
-  testMode: true;
+  testMode: boolean;
 };
 export type MarketplaceSellerOnboardingInput = {
   clientRequestId: string;
@@ -274,7 +275,7 @@ export type MarketplaceSellerOnboardingResult = {
   provider: "stripe";
   consentRecorded: true;
   paymentGrantsAuthority: false;
-  testMode: true;
+  testMode: boolean;
 };
 export type MarketplaceFreeSellerAgreementInput = {
   clientRequestId: string;
@@ -287,7 +288,7 @@ export type MarketplaceFreeSellerAgreementResult = {
   sellerAccountId: string;
   agreementVersion: string;
   connectRequiredForFreeOffers: false;
-  testMode: true;
+  testMode: boolean;
   idempotentReplay: boolean;
 };
 export type MarketplacePublisherLinkInput = {
@@ -300,7 +301,7 @@ export type MarketplacePublisherLinkResult = {
   publisherId: string;
   linked: true;
   publisherVerifiedChanged: false;
-  testMode: true;
+  testMode: boolean;
   idempotentReplay: boolean;
 };
 export type MarketplaceSellerOfferInput = {
@@ -328,7 +329,7 @@ export type MarketplaceSellerOfferResult = {
   providerCatalogConfigured: boolean;
   paymentGrantsTrust: false;
   purchaseInstallsAddon: false;
-  testMode: true;
+  testMode: boolean;
   idempotentReplay: boolean;
 };
 export type MarketplaceSellerOfferTargetStatus = "active" | "suspended" | "retired";
@@ -338,7 +339,7 @@ export const marketplaceSellerOfferStatusConfirmations = {
   retired: "RETIRE MARKETPLACE TEST OFFER"
 } as const;
 export type MarketplaceSellerOfferStatusInput = { clientRequestId: string; offerId: string; targetStatus: MarketplaceSellerOfferTargetStatus; confirmation: (typeof marketplaceSellerOfferStatusConfirmations)[MarketplaceSellerOfferTargetStatus]; reason: string };
-export type MarketplaceSellerOfferStatusResult = { offerId: string; status: MarketplaceSellerOfferTargetStatus; offerKind: "free" | "paid"; paymentGrantsTrust: false; purchaseInstallsAddon: false; testMode: true; idempotentReplay: boolean };
+export type MarketplaceSellerOfferStatusResult = { offerId: string; status: MarketplaceSellerOfferTargetStatus; offerKind: "free" | "paid"; paymentGrantsTrust: false; purchaseInstallsAddon: false; testMode: boolean; idempotentReplay: boolean };
 export type EconomicOrganizationRelationship = "owner" | "billing_admin" | "technical_contact" | "procurement_contact" | "billing_contact" | "authorized_signer" | "service_participant";
 export type EconomicOrganizationEngagement = {
   engagementId: string;
@@ -371,13 +372,13 @@ export type EconomicOrganizationStatus = {
   engagements: EconomicOrganizationEngagement[];
   sponsorshipAgreements: EconomicSponsorshipAgreement[];
 };
-export type EconomicOrganizationAccount = { organizations: EconomicOrganizationStatus[]; financialDetailsPrivate: true; affectsCommonsIdentity: false; testMode: true };
+export type EconomicOrganizationAccount = { organizations: EconomicOrganizationStatus[]; financialDetailsPrivate: true; affectsCommonsIdentity: false; testMode: boolean };
 export type OrganizationServiceCheckoutInput = { engagementId: string; clientRequestId: string; sourceRoute: "/commons-circle/support-billing"; legalBundleVersion: string; statementOfWorkVersion: string; serviceTermsVersion: string; dataHandlingDisclosureVersion: string };
-export type OrganizationServiceCheckoutResult = { checkoutUrl: string; orderReference: string; engagementId: string; paymentGrantsAuthority: false; testMode: true };
+export type OrganizationServiceCheckoutResult = { checkoutUrl: string; orderReference: string; engagementId: string; paymentGrantsAuthority: false; testMode: boolean };
 export type SponsorshipCheckoutInput = { sponsorshipAgreementId: string; clientRequestId: string; sourceRoute: "/commons-circle/support-billing"; legalBundleVersion: string; agreementVersion: string; disclosureVersion: string };
-export type SponsorshipCheckoutResult = { checkoutUrl: string; orderReference: string; sponsorshipAgreementId: string; paymentGrantsAuthority: false; testMode: true };
+export type SponsorshipCheckoutResult = { checkoutUrl: string; orderReference: string; sponsorshipAgreementId: string; paymentGrantsAuthority: false; testMode: boolean };
 export type SponsorshipRecognitionPreferenceInput = { sponsorshipAgreementId: string; clientRequestId: string; optedIn: boolean; sourceRoute: "/commons-circle/support-billing"; agreementVersion: string; disclosureVersion: string; confirmation: "PUBLISH NEUTRAL SPONSORSHIP RECOGNITION" | "REMOVE NEUTRAL SPONSORSHIP RECOGNITION" };
-export type SponsorshipRecognitionPreferenceResult = { sponsorshipAgreementId: string; publicRecognitionOptIn: boolean; amountsPublic: false; grantsAuthority: false; testMode: true; idempotentReplay: boolean };
+export type SponsorshipRecognitionPreferenceResult = { sponsorshipAgreementId: string; publicRecognitionOptIn: boolean; amountsPublic: false; grantsAuthority: false; testMode: boolean; idempotentReplay: boolean };
 export type PublicSponsorshipRecognition = { label: string; summary: string | null; purposeCode: string; grantsAuthority: false; isEndorsement: false };
 export type SponsorshipRecognitionCatalog = { enabled: boolean; recognitions: PublicSponsorshipRecognition[]; paymentGrantsAuthority: false };
 export type PublicSupportRecognition = { username: string; displayName: string; grantsAuthority: false; amountPublic: false };
@@ -418,6 +419,8 @@ export type SupportHistoryItem = {
 };
 
 export type ReceiptSummary = {
+  receiptUrl?: string | null;
+  testMode?: boolean;
   flow: BillingOrderFlow;
   status: string;
   payee: string | null;
@@ -633,31 +636,31 @@ export type EconomicOperatorOverview = {
   featureFlags: EconomicOperatorFeatureFlagItem[] | null;
   providerIdentifiersExposed: false;
   personalContactDataExposed: false;
-  testMode: true;
+  testMode: boolean;
 };
 export type EconomicAuditActorKind = "system" | "user" | "economic_operator" | "provider_webhook";
 export type EconomicAuditEvent = { eventId: string; action: string; targetType: string; targetId: string | null; actorKind: EconomicAuditActorKind; createdAt: string };
 export type EconomicAuditCursor = { afterCreatedAt: string; afterId: string };
-export type EconomicAuditPage = { events: EconomicAuditEvent[]; limit: number; nextCursor: EconomicAuditCursor | null; providerIdentifiersExposed: false; personalContactDataExposed: false; testMode: true };
+export type EconomicAuditPage = { events: EconomicAuditEvent[]; limit: number; nextCursor: EconomicAuditCursor | null; providerIdentifiersExposed: false; personalContactDataExposed: false; testMode: boolean };
 export type OperatorAccountingExportInput = { clientRequestId: string; from: string; to: string; afterCreatedAt: string | null; afterId: string | null; limit: number; confirmation: "EXPORT PRIVATE ECONOMIC ACCOUNTING" };
 export type EconomicAccountingExportEntry = { exportVersion: "economic-accounting-v1"; eventId: string; effectiveAt: string; recordedAt: string; category: string; economicFlow: "support_one_time" | "support_recurring" | "sandbox_credits" | "job_post_fee" | "marketplace_purchase" | "organization_service" | "sponsorship"; direction: "inflow" | "outflow" | "memo"; grossMinor: number | null; refundMinor: number | null; disputeMinor: number | null; processorFeeMinor: number | null; platformCommissionMinor: number | null; sellerPayableMinor: number | null; netMinor: number | null; currency: string; internalOrderReference: string; provider: string; providerEventDate: string; jurisdiction: string | null; taxTreatmentPendingReview: true; reconciliationStatus: "recorded" | "settlement_details_pending" | "review" };
-export type OperatorAccountingExportResult = { exportVersion: "economic-accounting-v1"; entries: EconomicAccountingExportEntry[]; limit: number; from: string; to: string; providerIdentifiersExposed: false; personalContactDataExposed: false; testMode: true; idempotentReplay: boolean };
+export type OperatorAccountingExportResult = { exportVersion: "economic-accounting-v1"; entries: EconomicAccountingExportEntry[]; limit: number; from: string; to: string; providerIdentifiersExposed: false; personalContactDataExposed: false; testMode: boolean; idempotentReplay: boolean };
 
 export type OperatorAssignmentInput = { userId: string; capability: EconomicOperatorCapability; enabled: boolean; confirmation: "grant-economic-capability" | "revoke-economic-capability"; reason: string };
 export type OperatorAssignmentResult = { assignmentId: string | null; userId: string; capability: EconomicOperatorCapability; active: boolean; idempotentReplay: boolean };
 export type OperatorSandboxCreditGrantInput = { userId: string; units: number; sourceType: OperatorSandboxCreditSource; sourceReference: string | null; expiresAt: string | null; idempotencyKey: string; reason: string };
-export type OperatorSandboxCreditGrantResult = { creditLotId: string; grantedUnits: number; sourceCategory: OperatorSandboxCreditSource; expiresAt: string | null; idempotentReplay: boolean; testMode: true };
+export type OperatorSandboxCreditGrantResult = { creditLotId: string; grantedUnits: number; sourceCategory: OperatorSandboxCreditSource; expiresAt: string | null; idempotentReplay: boolean; testMode: boolean };
 export type OperatorRefundHoldInput = { orderId: string; paymentTransactionId: string; amountMinor: number; clientRequestId: string; reason: string };
 export type OperatorRefundHoldResult = { refundRequestId: string; orderId: string; paymentTransactionId: string; amountMinor: number; currency: "usd"; status: "held_for_review" | "approved_for_provider" | "provider_pending" | "completed" | "rejected" | "canceled"; idempotentReplay: boolean };
 export type OperatorTestRefundExecutionInput = { refundRequestId: string; approvalClientRequestId: string; providerAttachClientRequestId: string; confirmation: "AUTHORIZE TEST REFUND"; reason: string };
-export type OperatorTestRefundExecutionResult = { refundRequestId: string; orderId: string; amountMinor: number; currency: "usd"; status: "provider_pending" | "completed" | "rejected" | "canceled"; providerStatus: "pending" | "succeeded" | "failed" | "canceled"; idempotentReplay: boolean; testMode: true };
+export type OperatorTestRefundExecutionResult = { refundRequestId: string; orderId: string; amountMinor: number; currency: "usd"; status: "provider_pending" | "completed" | "rejected" | "canceled"; providerStatus: "pending" | "succeeded" | "failed" | "canceled"; idempotentReplay: boolean; testMode: boolean };
 export type OperatorReconciliationInput = { orderId: string; clientRequestId: string; reason: string };
 export type OperatorReconciliationResult = { reconciliationCaseId: string; orderId: string; status: "open" | "investigating" | "waiting_for_provider" | "resolved" | "closed_no_change"; idempotentReplay: boolean };
 export type OperatorJobPostClassification = "community_free" | "commercial" | "waived" | "subsidized";
 export type OperatorJobPostFeeAssessmentInput = { jobPostId: string; classification: OperatorJobPostClassification; priceCode: string | null; waiverId: string | null; subsidyId: string | null; clientRequestId: string; confirmation: "ASSESS JOB POST ECONOMIC CONDITION"; reason: string };
 export type OperatorJobPostFeeAssessmentResult = { jobPostId: string; classification: OperatorJobPostClassification; economicStatus: string; publicationStatus: string | null; published: boolean; idempotentReplay: boolean };
 export type OperatorMarketplaceCommercialTermsInput = { clientRequestId: string; termsCode: string; commissionBps: number; sellerAgreementVersion: string; buyerTermsVersion: string; active: boolean; confirmation: "CONFIGURE MARKETPLACE TEST COMMERCIAL TERMS"; reason: string };
-export type OperatorMarketplaceCommercialTermsResult = { commercialTermsVersionId: string; termsCode: string; commissionBps: number; sellerAgreementVersion: string; buyerTermsVersion: string; active: boolean; approvedForLiveUse: false; testMode: true };
+export type OperatorMarketplaceCommercialTermsResult = { commercialTermsVersionId: string; termsCode: string; commissionBps: number; sellerAgreementVersion: string; buyerTermsVersion: string; active: boolean; approvedForLiveUse: false; testMode: boolean };
 export type OperatorEconomicAccountActionStatus = "identity_verification" | "operator_review" | "processing" | "completed" | "rejected";
 export type OperatorEconomicAccountActionInput = { requestId: string; status: OperatorEconomicAccountActionStatus; clientRequestId: string; artifactSha256: string | null; artifactExpiresAt: string | null; confirmation: "UPDATE ECONOMIC ACCOUNT REQUEST"; reason: string };
 export type OperatorEconomicAccountActionResult = { requestId: string; requestType: EconomicAccountRequestType; status: OperatorEconomicAccountActionStatus; financialRecordsRetained: true; authProfileUnchanged: true; idempotentReplay: boolean };
@@ -665,11 +668,11 @@ export type EconomicServiceRestrictionScope = "billing" | "recurring_support" | 
 export type OperatorEconomicServiceRestrictionInput = { clientRequestId: string; targetUserId: string; restrictionId: string | null; scope: EconomicServiceRestrictionScope; reasonCode: string; expiresAt: string | null; enabled: boolean; confirmation: "IMPOSE SCOPED ECONOMIC RESTRICTION" | "LIFT SCOPED ECONOMIC RESTRICTION"; reason: string };
 export type OperatorEconomicServiceRestrictionResult = { restrictionId: string; userId: string; scope: EconomicServiceRestrictionScope; active: boolean; commonsAccountAffected: false; idempotentReplay: boolean };
 export type OperatorMarketplacePayoutPreparationInput = { sellerAccountId: string; clientRequestId: string; amountMinor: number; currency: "usd"; confirmation: "PREPARE TEST MARKETPLACE PAYOUT"; reason: string };
-export type OperatorMarketplacePayoutPreparationResult = { payoutPreparationId: string; sellerAccountId: string; amountMinor: number; currency: "usd"; status: "prepared"; providerExecutionAvailable: false; balancesAreTestRecords: true; testMode: true; idempotentReplay: boolean };
+export type OperatorMarketplacePayoutPreparationResult = { payoutPreparationId: string; sellerAccountId: string; amountMinor: number; currency: "usd"; status: "prepared"; providerExecutionAvailable: false; balancesAreTestRecords: true; testMode: boolean; idempotentReplay: boolean };
 export type EconomicAssistanceKind = "waiver" | "subsidy" | "sponsored_access";
 export type EconomicAssistanceScope = "job_post_fee" | "sandbox_credits";
 export type OperatorAssistanceProgramInput = { clientRequestId: string; programCode: string; assistanceKind: EconomicAssistanceKind; scope: EconomicAssistanceScope; publicLabel: string; termsVersion: string; startsAt: string; endsAt: string | null; maxGrants: number | null; confirmation: "CONFIGURE ECONOMIC ASSISTANCE PROGRAM"; reason: string };
-export type OperatorAssistanceProgramResult = { programId: string; programCode: string; kind: EconomicAssistanceKind; scope: EconomicAssistanceScope; status: "draft"; publicLabel: string; testMode: true; idempotentReplay: boolean };
+export type OperatorAssistanceProgramResult = { programId: string; programCode: string; kind: EconomicAssistanceKind; scope: EconomicAssistanceScope; status: "draft"; publicLabel: string; testMode: boolean; idempotentReplay: boolean };
 export type EconomicAssistanceProgramTargetStatus = "active" | "paused" | "retired";
 export const operatorAssistanceProgramStatusConfirmations = {
   active: "ACTIVATE TEST ECONOMIC ASSISTANCE PROGRAM",
@@ -677,18 +680,18 @@ export const operatorAssistanceProgramStatusConfirmations = {
   retired: "RETIRE TEST ECONOMIC ASSISTANCE PROGRAM"
 } as const satisfies Record<EconomicAssistanceProgramTargetStatus, string>;
 export type OperatorAssistanceProgramStatusInput = { clientRequestId: string; programId: string; targetStatus: EconomicAssistanceProgramTargetStatus; confirmation: (typeof operatorAssistanceProgramStatusConfirmations)[EconomicAssistanceProgramTargetStatus]; reason: string };
-export type OperatorAssistanceProgramStatusResult = { programId: string; status: EconomicAssistanceProgramTargetStatus; testMode: true; idempotentReplay: boolean };
+export type OperatorAssistanceProgramStatusResult = { programId: string; status: EconomicAssistanceProgramTargetStatus; testMode: boolean; idempotentReplay: boolean };
 export type OperatorAssistanceGrantInput = { clientRequestId: string; programCode: string; beneficiaryUserId: string; resourceId: string | null; units: number | null; expiresAt: string | null; sponsorshipAllocationId: string | null; allocationConsumption: number | null; confirmation: "ISSUE ECONOMIC ASSISTANCE GRANT"; reason: string };
-export type OperatorAssistanceGrantResult = { grantId: string; scope: EconomicAssistanceScope; status: "granted" | "consumed"; expiresAt: string | null; publiclyVisible: false; sandboxCreditResult: null | { creditLotId: string; grantedUnits: number; sourceCategory: string; expiresAt: string | null }; testMode: true; idempotentReplay: boolean };
+export type OperatorAssistanceGrantResult = { grantId: string; scope: EconomicAssistanceScope; status: "granted" | "consumed"; expiresAt: string | null; publiclyVisible: false; sandboxCreditResult: null | { creditLotId: string; grantedUnits: number; sourceCategory: string; expiresAt: string | null }; testMode: boolean; idempotentReplay: boolean };
 export type OperatorAssistanceEndInput = { clientRequestId: string; grantId: string; action: "revoke" | "expire"; confirmation: "END ECONOMIC ASSISTANCE GRANT"; reason: string };
 export type OperatorAssistanceEndResult = { grantId: string; status: "revoked" | "expired"; reversedUnits: number; publiclyVisible: false; idempotentReplay: boolean };
 export type OperatorJobPostAssistanceReconciliationInput = { clientRequestId: string; jobPostId: string; grantId: string; endAction: "revoke" | "expire"; confirmation: "RECONCILE AND END TEST JOB POST ASSISTANCE"; reason: string };
-export type OperatorJobPostAssistanceReconciliationResult = { jobPostId: string; grantId: string; grantStatus: "revoked" | "expired"; economicStatus: "not_assessed"; publicationStatus: string | null; published: boolean; testMode: true; idempotentReplay: boolean };
+export type OperatorJobPostAssistanceReconciliationResult = { jobPostId: string; grantId: string; grantStatus: "revoked" | "expired"; economicStatus: "not_assessed"; publicationStatus: string | null; published: boolean; testMode: boolean; idempotentReplay: boolean };
 export type OperatorOrganizationRelationship = "owner" | "billing_admin" | "technical_contact" | "procurement_contact" | "billing_contact" | "authorized_signer" | "service_participant";
 export type OperatorOrganizationInput = { clientRequestId: string; accountName: string; countryCode: string | null; initialContactUserId: string; confirmation: "CREATE ECONOMIC ORGANIZATION"; reason: string };
-export type OperatorOrganizationResult = { organizationId: string; accountName: string; status: "active"; testMode: true; idempotentReplay: boolean };
+export type OperatorOrganizationResult = { organizationId: string; accountName: string; status: "active"; testMode: boolean; idempotentReplay: boolean };
 export type OperatorOrganizationMembershipInput = { clientRequestId: string; organizationId: string; targetUserId: string; relationship: OperatorOrganizationRelationship; enabled: boolean; confirmation: "SET ECONOMIC ORGANIZATION MEMBERSHIP"; reason: string };
-export type OperatorOrganizationMembershipResult = { membershipId: string; organizationId: string; userId: string; relationship: OperatorOrganizationRelationship; active: boolean; testMode: true; idempotentReplay: boolean };
+export type OperatorOrganizationMembershipResult = { membershipId: string; organizationId: string; userId: string; relationship: OperatorOrganizationRelationship; active: boolean; testMode: boolean; idempotentReplay: boolean };
 export type OperatorOrganizationServiceReviewAction = "activate" | "complete" | "cancel" | "reconciliation_required" | "resolve_resume" | "resolve_complete" | "resolve_cancel";
 export const operatorOrganizationServiceReviewConfirmations = {
   activate: "ACTIVATE TEST ORGANIZATION SERVICE",
@@ -700,9 +703,9 @@ export const operatorOrganizationServiceReviewConfirmations = {
   resolve_cancel: "RESOLVE TEST ORGANIZATION RECONCILIATION AS CANCELED"
 } as const satisfies Record<OperatorOrganizationServiceReviewAction, string>;
 export type OperatorOrganizationServiceInput = { clientRequestId: string; organizationId: string; authorizedSignerUserId: string; serviceCode: string; priceCode: string; statementOfWorkVersion: string; serviceTermsVersion: string; dataHandlingDisclosureVersion: string; confidentialityClass: "internal" | "confidential" | "restricted"; proposalReference: string | null; contractReference: string | null; invoiceReference: string | null; startsAt: string; endsAt: string | null; confirmation: "CREATE TEST ORGANIZATION SERVICE ENGAGEMENT"; reason: string };
-export type OperatorOrganizationServiceResult = { engagementId: string; organizationId: string; serviceCode: string; status: "contract_pending"; serviceTermsVersion: string; testMode: true; idempotentReplay: boolean };
+export type OperatorOrganizationServiceResult = { engagementId: string; organizationId: string; serviceCode: string; status: "contract_pending"; serviceTermsVersion: string; testMode: boolean; idempotentReplay: boolean };
 export type OperatorOrganizationServiceReviewInput = { engagementId: string; clientRequestId: string; action: OperatorOrganizationServiceReviewAction; confirmation: (typeof operatorOrganizationServiceReviewConfirmations)[OperatorOrganizationServiceReviewAction]; reason: string };
-export type OperatorOrganizationServiceReviewResult = { engagementId: string; action: OperatorOrganizationServiceReviewAction; status: "active" | "completed" | "canceled" | "reconciliation_required"; testMode: true; idempotentReplay: boolean };
+export type OperatorOrganizationServiceReviewResult = { engagementId: string; action: OperatorOrganizationServiceReviewAction; status: "active" | "completed" | "canceled" | "reconciliation_required"; testMode: boolean; idempotentReplay: boolean };
 export type OperatorSponsorshipReviewAction = "approve" | "activate" | "reject" | "complete" | "cancel" | "resolve_resume" | "resolve_complete" | "resolve_cancel";
 export const operatorSponsorshipReviewConfirmations = {
   approve: "APPROVE TEST SPONSORSHIP WITHOUT CONTROL",
@@ -715,16 +718,16 @@ export const operatorSponsorshipReviewConfirmations = {
   resolve_cancel: "RESOLVE TEST SPONSORSHIP RECONCILIATION AS CANCELED"
 } as const satisfies Record<OperatorSponsorshipReviewAction, string>;
 export type OperatorSponsorshipAgreementInput = { clientRequestId: string; organizationId: string; authorizedSignerUserId: string; purposeCode: string; priceCode: string; agreementVersion: string; disclosureVersion: string; publicLabel: string | null; publicSummary: string | null; confirmation: "CREATE TEST SPONSORSHIP AGREEMENT WITHOUT CONTROL"; reason: string };
-export type OperatorSponsorshipAgreementResult = { sponsorshipAgreementId: string; organizationId: string; status: "ethical_review"; publicRecognitionOptIn: false; publicRecognitionApproved: false; grantsAuthority: false; testMode: true; idempotentReplay: boolean };
+export type OperatorSponsorshipAgreementResult = { sponsorshipAgreementId: string; organizationId: string; status: "ethical_review"; publicRecognitionOptIn: false; publicRecognitionApproved: false; grantsAuthority: false; testMode: boolean; idempotentReplay: boolean };
 export type OperatorSponsorshipReviewInput = { sponsorshipAgreementId: string; clientRequestId: string; action: OperatorSponsorshipReviewAction; confirmation: (typeof operatorSponsorshipReviewConfirmations)[OperatorSponsorshipReviewAction]; reason: string };
-export type OperatorSponsorshipReviewResult = { sponsorshipAgreementId: string; action: OperatorSponsorshipReviewAction; status: "contract_pending" | "active" | "rejected" | "completed" | "canceled"; grantsAuthority: false; testMode: true; idempotentReplay: boolean };
+export type OperatorSponsorshipReviewResult = { sponsorshipAgreementId: string; action: OperatorSponsorshipReviewAction; status: "contract_pending" | "active" | "rejected" | "completed" | "canceled"; grantsAuthority: false; testMode: boolean; idempotentReplay: boolean };
 export type OperatorSponsorshipRecognitionInput = { sponsorshipAgreementId: string; clientRequestId: string; approved: boolean; confirmation: "APPROVE NEUTRAL SPONSORSHIP RECOGNITION" | "REVOKE NEUTRAL SPONSORSHIP RECOGNITION"; reason: string };
-export type OperatorSponsorshipRecognitionResult = { sponsorshipAgreementId: string; publicRecognitionApproved: boolean; amountsPublic: false; grantsAuthority: false; testMode: true; idempotentReplay: boolean };
+export type OperatorSponsorshipRecognitionResult = { sponsorshipAgreementId: string; publicRecognitionApproved: boolean; amountsPublic: false; grantsAuthority: false; testMode: boolean; idempotentReplay: boolean };
 export type OperatorSponsorshipAllocationKind = "funding_minor" | "sandbox_credit_units" | "grant_count";
 export type OperatorSponsorshipAllocationInput = { clientRequestId: string; sponsorshipAgreementId: string; assistanceProgramId: string; allocationKind: OperatorSponsorshipAllocationKind; allocationCap: number; currency: "usd" | null; confirmation: "CREATE SPONSORSHIP ASSISTANCE ALLOCATION"; reason: string };
-export type OperatorSponsorshipAllocationResult = { allocationId: string; sponsorshipAgreementId: string; assistanceProgramId: string; scope: EconomicAssistanceScope; allocationKind: OperatorSponsorshipAllocationKind; allocationCap: number; currency: "usd" | null; sponsorSelectsRecipients: false; sponsorReceivesRecipientData: false; grantsAuthority: false; testMode: true; idempotentReplay: boolean };
+export type OperatorSponsorshipAllocationResult = { allocationId: string; sponsorshipAgreementId: string; assistanceProgramId: string; scope: EconomicAssistanceScope; allocationKind: OperatorSponsorshipAllocationKind; allocationCap: number; currency: "usd" | null; sponsorSelectsRecipients: false; sponsorReceivesRecipientData: false; grantsAuthority: false; testMode: boolean; idempotentReplay: boolean };
 export type OperatorSponsorshipAllocationCloseInput = { clientRequestId: string; allocationId: string; confirmation: "CLOSE SPONSORSHIP ASSISTANCE ALLOCATION"; reason: string };
-export type OperatorSponsorshipAllocationCloseResult = { allocationId: string; status: "canceled"; testMode: true; idempotentReplay: boolean };
+export type OperatorSponsorshipAllocationCloseResult = { allocationId: string; status: "canceled"; testMode: boolean; idempotentReplay: boolean };
 
 export type BillingAccountSummary = {
   available: boolean;
@@ -965,7 +968,7 @@ export function currentBillingApiPublication() {
   // test Worker before any /api/billing request is allowed to leave the client.
   if (typeof document === "undefined") return "contract-test" as const;
   const marker = document.head.querySelector<HTMLMetaElement>('meta[name="elysia-billing-api-publication"]');
-  return marker?.content === "test" ? "test" as const : "disabled" as const;
+  return marker?.content === "live" ? "live" as const : marker?.content === "test" ? "test" as const : "disabled" as const;
 }
 
 async function billingFetch(path: string, init: RequestInit = {}, accessToken?: string | null) {
@@ -993,6 +996,17 @@ async function billingFetch(path: string, init: RequestInit = {}, accessToken?: 
       const errorCode = stringValue(record.error || record.code);
       throw new BillingRequestError(errorMessageForStatus(response.status, errorCode), response.status, errorCode);
     }
+    // Every returned financial record belongs to the published environment.
+    const publication = currentBillingApiPublication();
+    const validateMode = (value: unknown): void => {
+      if (Array.isArray(value)) { value.forEach(validateMode); return; }
+      if (!isRecord(value)) return;
+      if (typeof value.testMode === "boolean" && publication !== "contract-test" && value.testMode !== (publication === "test")) {
+        throw new BillingRequestError(genericUnavailableMessage, 503, "billing_environment_mismatch");
+      }
+      Object.values(value).forEach(validateMode);
+    };
+    validateMode(record);
     return record;
   } catch (error) {
     if (error instanceof BillingRequestError) throw error;
@@ -1070,14 +1084,14 @@ function billingLegalConsentBundles(value: unknown, legalDocuments: BillingLegal
 export async function loadBillingCapabilities(): Promise<BillingCapabilities> {
   try {
     const data = exactRecord(await billingFetch("/api/billing/capabilities"), ["ok", "mode", "livePayments", "processor", "features", "legalDocumentVersions", "legalConsentBundles"], "billing_capabilities_invalid");
-    const features = exactRecord(data.features, ["oneTimeSupport", "recurringSupport", "customerPortal", "accountLifecycle", "sellerOnboarding", "organizationServiceCheckout", "sponsorshipCheckout"], "billing_capabilities_invalid");
-    if (data.ok !== true || (data.mode !== "test" && data.mode !== "disabled") || data.livePayments !== false || data.processor !== "stripe"
+    const features = exactRecord(data.features, [...(isRecord(data.features) && "jobPostCheckout" in data.features ? ["jobPostCheckout"] : []), "oneTimeSupport", "recurringSupport", "customerPortal", "accountLifecycle", "sellerOnboarding", "organizationServiceCheckout", "sponsorshipCheckout"], "billing_capabilities_invalid");
+    if (data.ok !== true || !["test", "live", "disabled"].includes(String(data.mode)) || typeof data.livePayments !== "boolean" || (data.livePayments && data.mode !== "live") || data.processor !== "stripe"
       || typeof features.oneTimeSupport !== "boolean" || typeof features.recurringSupport !== "boolean"
       || typeof features.customerPortal !== "boolean" || typeof features.accountLifecycle !== "boolean" || typeof features.sellerOnboarding !== "boolean"
       || typeof features.organizationServiceCheckout !== "boolean" || typeof features.sponsorshipCheckout !== "boolean") {
       throw new BillingRequestError(genericUnavailableMessage, 503, "billing_capabilities_invalid");
     }
-    const mode = data.mode;
+    const mode = data.mode as BillingMode;
     const supportCheckout = features.oneTimeSupport;
     const recurringSupport = features.recurringSupport;
     const customerPortal = features.customerPortal;
@@ -1085,8 +1099,8 @@ export async function loadBillingCapabilities(): Promise<BillingCapabilities> {
     const sellerOnboarding = features.sellerOnboarding;
     const organizationServiceCheckout = features.organizationServiceCheckout;
     const sponsorshipCheckout = features.sponsorshipCheckout;
-    const legalDocumentVersions = mode === "test" ? billingLegalDocumentVersions(data.legalDocumentVersions) : null;
-    const legalConsentBundles = mode === "test" && legalDocumentVersions ? billingLegalConsentBundles(data.legalConsentBundles, legalDocumentVersions) : null;
+    const legalDocumentVersions = mode !== "disabled" ? billingLegalDocumentVersions(data.legalDocumentVersions) : null;
+    const legalConsentBundles = mode !== "disabled" && legalDocumentVersions ? billingLegalConsentBundles(data.legalConsentBundles, legalDocumentVersions) : null;
     if ((mode === "disabled" && data.legalDocumentVersions !== null)
       || (mode === "disabled" && data.legalConsentBundles !== null)
       || (mode === "disabled" && (supportCheckout || recurringSupport || customerPortal || accountLifecycle || sellerOnboarding || organizationServiceCheckout || sponsorshipCheckout))) {
@@ -1097,6 +1111,7 @@ export async function loadBillingCapabilities(): Promise<BillingCapabilities> {
       available,
       mode,
       supportCheckout,
+      jobPostCheckout: features.jobPostCheckout === true,
       recurringSupport,
       accountBilling: mode !== "disabled",
       customerPortal,
@@ -1106,15 +1121,15 @@ export async function loadBillingCapabilities(): Promise<BillingCapabilities> {
       organizationServiceCheckout,
       sponsorshipCheckout,
       sellerPayouts: false,
-      livePayments: false,
+      livePayments: data.livePayments,
       legalDocumentVersions,
       legalConsentBundles,
       message: available
         ? supportCheckout || recurringSupport || organizationServiceCheckout || sponsorshipCheckout
-          ? "One or more explicitly labeled economic test paths are available. No live charge can be created."
+          ? mode === "live" ? "Approved first-party checkout is available through Stripe." : "One or more explicitly labeled economic test paths are available. No live charge can be created."
           : customerPortal
-            ? "Private Stripe test-mode billing management is available while new checkout remains disabled."
-            : "A private test-mode economic account workflow is available; each page shows its exact scope."
+            ? "Private Stripe billing management is available while new checkout remains disabled."
+            : "A private economic account workflow is available; each page shows its exact scope."
         : genericUnavailableMessage
     };
   } catch (error) {
@@ -1148,7 +1163,7 @@ function sandboxExpirationDays(value: unknown) {
 export async function loadSandboxCreditCatalog(): Promise<SandboxCreditCatalog> {
   const data = await billingFetch("/api/billing/sandbox-credits/catalog", { cache: "no-store" });
   const catalog = operatorMutationEnvelope(data, "catalog", ["available", "packs", "testMode"], "sandbox_credit_catalog_invalid");
-  if (typeof catalog.available !== "boolean" || catalog.testMode !== true || !Array.isArray(catalog.packs) || catalog.packs.length > 100) {
+  if (typeof catalog.available !== "boolean" || typeof catalog.testMode !== "boolean" || !Array.isArray(catalog.packs) || catalog.packs.length > 100) {
     throw new BillingRequestError("The sandbox credit catalog was invalid. No purchase is available.", 503, "sandbox_credit_catalog_invalid");
   }
   const seen = new Set<string>();
@@ -1161,7 +1176,7 @@ export async function loadSandboxCreditCatalog(): Promise<SandboxCreditCatalog> 
       || !Number.isSafeInteger(pack.grantedUnits) || Number(pack.grantedUnits) < 1 || Number(pack.grantedUnits) > 1_000_000_000
       || expiresAfterDays === undefined
       || typeof pack.disclosureVersion !== "string" || !consentVersionPattern.test(pack.disclosureVersion)
-      || pack.testMode !== true) {
+      || typeof pack.testMode !== "boolean") {
       throw new BillingRequestError("The sandbox credit catalog was invalid. No purchase is available.", 503, "sandbox_credit_catalog_invalid");
     }
     seen.add(pack.packCode);
@@ -1172,11 +1187,11 @@ export async function loadSandboxCreditCatalog(): Promise<SandboxCreditCatalog> 
       grantedUnits: Number(pack.grantedUnits),
       expiresAfterDays,
       disclosureVersion: pack.disclosureVersion,
-      testMode: true
+      testMode: currentBillingApiPublication() !== "live"
     };
   });
   if (!catalog.available && packs.length) throw new BillingRequestError("The sandbox credit catalog was invalid. No purchase is available.", 503, "sandbox_credit_catalog_invalid");
-  return { available: catalog.available, packs, testMode: true };
+  return { available: catalog.available, packs, testMode: currentBillingApiPublication() !== "live" };
 }
 
 export async function createSandboxCreditCheckout(input: SandboxCreditCheckoutInput, accessToken: string): Promise<SandboxCreditCheckoutResult> {
@@ -1198,13 +1213,13 @@ export async function createSandboxCreditCheckout(input: SandboxCreditCheckoutIn
     || !Number.isSafeInteger(pack.grantedUnits) || Number(pack.grantedUnits) < 1 || Number(pack.grantedUnits) > 1_000_000_000
     || expiresAfterDays === undefined
     || pack.changesSafetyPrivileges !== false
-    || pack.testMode !== true) {
+    || typeof pack.testMode !== "boolean") {
     throw new BillingRequestError("The sandbox checkout result was invalid. No checkout or credit grant should be assumed.", 503, "sandbox_credit_checkout_invalid");
   }
   return {
     checkoutUrl: checkoutUrl as string,
     orderReference: envelope.orderReference,
-    pack: { code: input.packCode, grantedUnits: Number(pack.grantedUnits), expiresAfterDays, changesSafetyPrivileges: false, testMode: true }
+    pack: { code: input.packCode, grantedUnits: Number(pack.grantedUnits), expiresAfterDays, changesSafetyPrivileges: false, testMode: currentBillingApiPublication() !== "live" }
   };
 }
 
@@ -1244,7 +1259,7 @@ export async function loadMarketplaceCommerceCatalog(): Promise<MarketplaceComme
   const data = await billingFetch("/api/billing/marketplace/catalog", { cache: "no-store" });
   const envelope = exactRecord(data, ["ok", "catalog"], "marketplace_catalog_invalid");
   const catalog = exactRecord(envelope.catalog, ["available", "offers", "testMode"], "marketplace_catalog_invalid");
-  if (envelope.ok !== true || typeof catalog.available !== "boolean" || catalog.testMode !== true || !Array.isArray(catalog.offers) || catalog.offers.length > 1_000) {
+  if (envelope.ok !== true || typeof catalog.available !== "boolean" || typeof catalog.testMode !== "boolean" || !Array.isArray(catalog.offers) || catalog.offers.length > 1_000) {
     throw new BillingRequestError("The Marketplace offer catalog was invalid. Existing free Marketplace browsing remains available.", 503, "marketplace_catalog_invalid");
   }
   const seen = new Set<string>();
@@ -1256,7 +1271,7 @@ export async function loadMarketplaceCommerceCatalog(): Promise<MarketplaceComme
     if (seen.has(offerId) || !marketplaceSlugPattern.test(listingSlug) || !marketplaceLicenseKeyPattern.test(licenseKey)
       || (offer.offerKind !== "free" && offer.offerKind !== "paid")
       || (offer.offerKind === "free" ? offer.amountMinor !== null || offer.currency !== null : !Number.isSafeInteger(offer.amountMinor) || Number(offer.amountMinor) < 50 || Number(offer.amountMinor) > 10_000_000 || offer.currency !== "usd")
-      || offer.paymentGrantsTrust !== false || offer.purchaseInstallsAddon !== false || offer.testMode !== true) {
+      || offer.paymentGrantsTrust !== false || offer.purchaseInstallsAddon !== false || typeof offer.testMode !== "boolean") {
       throw new BillingRequestError("The Marketplace offer catalog was invalid. Existing free Marketplace browsing remains available.", 503, "marketplace_catalog_invalid");
     }
     seen.add(offerId);
@@ -1275,11 +1290,11 @@ export async function loadMarketplaceCommerceCatalog(): Promise<MarketplaceComme
       buyerTermsVersion: marketplaceDocumentVersion(offer.buyerTermsVersion, "marketplace_catalog_invalid"),
       paymentGrantsTrust: false,
       purchaseInstallsAddon: false,
-      testMode: true
+      testMode: currentBillingApiPublication() !== "live"
     };
   });
   if (!catalog.available && offers.length) throw new BillingRequestError("The Marketplace offer catalog was invalid. Existing free Marketplace browsing remains available.", 503, "marketplace_catalog_invalid");
-  return { available: catalog.available, offers, testMode: true };
+  return { available: catalog.available, offers, testMode: currentBillingApiPublication() !== "live" };
 }
 
 export async function createMarketplaceCheckout(input: MarketplacePurchaseInput, accessToken: string): Promise<MarketplaceCheckoutResult> {
@@ -1296,7 +1311,7 @@ export async function createMarketplaceCheckout(input: MarketplacePurchaseInput,
   if (data.alreadyOwned === true) {
     const envelope = exactRecord(data, ["ok", "alreadyOwned", "license", "testMode"], "marketplace_checkout_invalid");
     const license = exactRecord(envelope.license, ["licenseId", "offerId", "listingId", "addonVersionId", "economicStatus", "installAuthorized", "paymentGrantsAuthority"], "marketplace_checkout_invalid");
-    if (envelope.ok !== true || envelope.testMode !== true || license.offerId !== body.offerId || license.installAuthorized !== false || license.paymentGrantsAuthority !== false) {
+    if (envelope.ok !== true || typeof envelope.testMode !== "boolean" || license.offerId !== body.offerId || license.installAuthorized !== false || license.paymentGrantsAuthority !== false) {
       throw new BillingRequestError("The Marketplace ownership result was invalid. No new purchase or install should be assumed.", 503, "marketplace_checkout_invalid");
     }
     marketplaceUuid(license.licenseId, "marketplace_checkout_invalid");
@@ -1304,7 +1319,7 @@ export async function createMarketplaceCheckout(input: MarketplacePurchaseInput,
     marketplaceUuid(license.addonVersionId, "marketplace_checkout_invalid");
     const economicStatus = marketplaceString(license.economicStatus, 40, "marketplace_checkout_invalid");
     if (!marketplaceEconomicStatusPattern.test(economicStatus)) throw new BillingRequestError("The Marketplace ownership result was invalid. No new purchase or install should be assumed.", 503, "marketplace_checkout_invalid");
-    return { alreadyOwned: true, economicStatus, installAuthorized: false, paymentGrantsAuthority: false, testMode: true };
+    return { alreadyOwned: true, economicStatus, installAuthorized: false, paymentGrantsAuthority: false, testMode: currentBillingApiPublication() !== "live" };
   }
   const envelope = exactRecord(data, ["ok", "alreadyOwned", "checkoutUrl", "orderReference", "license", "testMode"], "marketplace_checkout_invalid");
   const license = exactRecord(envelope.license, ["offerId", "listingId", "addonVersionId", "licenseKey", "licenseVersion", "installAuthorized", "paymentGrantsAuthority"], "marketplace_checkout_invalid");
@@ -1312,7 +1327,7 @@ export async function createMarketplaceCheckout(input: MarketplacePurchaseInput,
   let exactCheckoutHost = false;
   try { exactCheckoutHost = Boolean(checkoutUrl && new URL(checkoutUrl).origin === "https://checkout.stripe.com"); } catch { exactCheckoutHost = false; }
   const licenseKey = marketplaceString(license.licenseKey, 101, "marketplace_checkout_invalid");
-  if (envelope.ok !== true || envelope.alreadyOwned !== false || envelope.testMode !== true || !exactCheckoutHost
+  if (envelope.ok !== true || envelope.alreadyOwned !== false || typeof envelope.testMode !== "boolean" || !exactCheckoutHost
     || typeof envelope.orderReference !== "string" || !/^[A-Za-z0-9_-]{24,160}$/.test(envelope.orderReference)
     || license.offerId !== body.offerId || !marketplaceLicenseKeyPattern.test(licenseKey)
     || license.installAuthorized !== false || license.paymentGrantsAuthority !== false) {
@@ -1320,7 +1335,7 @@ export async function createMarketplaceCheckout(input: MarketplacePurchaseInput,
   }
   marketplaceUuid(license.listingId, "marketplace_checkout_invalid");
   marketplaceUuid(license.addonVersionId, "marketplace_checkout_invalid");
-  return { alreadyOwned: false, checkoutUrl: checkoutUrl as string, orderReference: envelope.orderReference, licenseKey, licenseVersion: marketplaceDocumentVersion(license.licenseVersion, "marketplace_checkout_invalid"), installAuthorized: false, paymentGrantsAuthority: false, testMode: true };
+  return { alreadyOwned: false, checkoutUrl: checkoutUrl as string, orderReference: envelope.orderReference, licenseKey, licenseVersion: marketplaceDocumentVersion(license.licenseVersion, "marketplace_checkout_invalid"), installAuthorized: false, paymentGrantsAuthority: false, testMode: currentBillingApiPublication() !== "live" };
 }
 
 export async function acceptMarketplaceFreeLicense(input: MarketplacePurchaseInput, accessToken: string): Promise<MarketplaceFreeLicenseResult> {
@@ -1330,7 +1345,7 @@ export async function acceptMarketplaceFreeLicense(input: MarketplacePurchaseInp
   const license = exactRecord(envelope.license, ["licenseId", "offerId", "listingId", "addonVersionId", "licenseKey", "licenseVersion", "economicStatus", "installAuthorized", "testMode", "paymentRequired", "paymentGrantsAuthority"], "marketplace_free_license_invalid");
   const licenseKey = marketplaceString(license.licenseKey, 101, "marketplace_free_license_invalid");
   const economicStatus = marketplaceString(license.economicStatus, 40, "marketplace_free_license_invalid");
-  if (envelope.ok !== true || envelope.testMode !== true || license.testMode !== true || license.offerId !== body.offerId
+  if (envelope.ok !== true || typeof envelope.testMode !== "boolean" || typeof license.testMode !== "boolean" || license.offerId !== body.offerId
     || !marketplaceLicenseKeyPattern.test(licenseKey) || !marketplaceEconomicStatusPattern.test(economicStatus)
     || license.installAuthorized !== false || license.paymentRequired !== false || license.paymentGrantsAuthority !== false) {
     throw new BillingRequestError("The free Marketplace license result was invalid. No license or install should be assumed.", 503, "marketplace_free_license_invalid");
@@ -1338,7 +1353,7 @@ export async function acceptMarketplaceFreeLicense(input: MarketplacePurchaseInp
   marketplaceUuid(license.licenseId, "marketplace_free_license_invalid");
   marketplaceUuid(license.listingId, "marketplace_free_license_invalid");
   marketplaceUuid(license.addonVersionId, "marketplace_free_license_invalid");
-  return { licenseKey, licenseVersion: marketplaceDocumentVersion(license.licenseVersion, "marketplace_free_license_invalid"), economicStatus, installAuthorized: false, paymentRequired: false, paymentGrantsAuthority: false, testMode: true };
+  return { licenseKey, licenseVersion: marketplaceDocumentVersion(license.licenseVersion, "marketplace_free_license_invalid"), economicStatus, installAuthorized: false, paymentRequired: false, paymentGrantsAuthority: false, testMode: currentBillingApiPublication() !== "live" };
 }
 
 const jobPostEconomicStatuses = new Set<JobPostEconomicStatus>(["not_assessed", "not_required", "payment_required", "payment_pending", "satisfied", "waived", "subsidized", "refunded", "disputed", "reconciliation_required"]);
@@ -1360,7 +1375,7 @@ export async function loadJobPostOwnerEconomicStatus(jobPostId: string, accessTo
     || (amountMinor === null) !== (status.currency === null)
     || (amountMinor !== null && (!Number.isSafeInteger(amountMinor) || amountMinor < 1 || amountMinor > 100_000_000 || status.currency !== "usd"))
     || (status.classification === "commercial" ? termsVersion === null : termsVersion !== null)
-    || status.testMode !== true) {
+    || typeof status.testMode !== "boolean") {
     throw new BillingRequestError("The private Job Post economic status was invalid. No payment or publication state should be assumed.", 503, "job_post_economic_status_invalid");
   }
   return {
@@ -1373,7 +1388,7 @@ export async function loadJobPostOwnerEconomicStatus(jobPostId: string, accessTo
     amountMinor,
     currency: status.currency as "usd" | null,
     termsVersion,
-    testMode: true
+    testMode: currentBillingApiPublication() !== "live"
   };
 }
 
@@ -1411,7 +1426,7 @@ export async function createJobPostCheckout(input: JobPostCheckoutInput, accessT
 export async function loadMarketplacePurchases(accessToken: string): Promise<MarketplacePurchases> {
   const data = await billingFetch("/api/billing/marketplace/purchases", { cache: "no-store" }, accessToken);
   const envelope = exactRecord(data, ["ok", "licenses", "testMode"], "marketplace_purchases_invalid");
-  if (envelope.ok !== true || envelope.testMode !== true || !Array.isArray(envelope.licenses) || envelope.licenses.length > 1_000) throw new BillingRequestError("Private Marketplace licenses are unavailable right now.", 503, "marketplace_purchases_invalid");
+  if (envelope.ok !== true || typeof envelope.testMode !== "boolean" || !Array.isArray(envelope.licenses) || envelope.licenses.length > 1_000) throw new BillingRequestError("Private Marketplace licenses are unavailable right now.", 503, "marketplace_purchases_invalid");
   const seen = new Set<string>();
   const licenses = envelope.licenses.map((value): MarketplaceOwnedLicense => {
     const license = exactRecord(value, ["licenseId", "listingId", "addonVersionId", "listingSlug", "listingName", "version", "licenseKey", "licenseVersion", "acquisitionKind", "economicStatus", "safetyStatus", "installAuthorized", "acquiredAt", "testMode"], "marketplace_purchases_invalid");
@@ -1423,15 +1438,15 @@ export async function loadMarketplacePurchases(accessToken: string): Promise<Mar
     if (seen.has(licenseId) || !marketplaceSlugPattern.test(listingSlug) || !marketplaceLicenseKeyPattern.test(licenseKey)
       || (license.acquisitionKind !== "free_acceptance" && license.acquisitionKind !== "paid_order")
       || !marketplaceEconomicStatusPattern.test(economicStatus) || !["available", "unavailable", "revoked"].includes(String(license.safetyStatus))
-      || license.installAuthorized !== false || license.testMode !== true || !Number.isFinite(Date.parse(acquiredAt))) {
+      || license.installAuthorized !== false || typeof license.testMode !== "boolean" || !Number.isFinite(Date.parse(acquiredAt))) {
       throw new BillingRequestError("Private Marketplace licenses are unavailable right now.", 503, "marketplace_purchases_invalid");
     }
     seen.add(licenseId);
     marketplaceUuid(license.listingId, "marketplace_purchases_invalid");
     marketplaceUuid(license.addonVersionId, "marketplace_purchases_invalid");
-    return { listingSlug, listingName: marketplaceString(license.listingName, 300, "marketplace_purchases_invalid"), version: marketplaceString(license.version, 120, "marketplace_purchases_invalid"), licenseKey, licenseVersion: marketplaceDocumentVersion(license.licenseVersion, "marketplace_purchases_invalid"), acquisitionKind: license.acquisitionKind, economicStatus, safetyStatus: license.safetyStatus as MarketplaceOwnedLicense["safetyStatus"], installAuthorized: false, acquiredAt, testMode: true };
+    return { listingSlug, listingName: marketplaceString(license.listingName, 300, "marketplace_purchases_invalid"), version: marketplaceString(license.version, 120, "marketplace_purchases_invalid"), licenseKey, licenseVersion: marketplaceDocumentVersion(license.licenseVersion, "marketplace_purchases_invalid"), acquisitionKind: license.acquisitionKind, economicStatus, safetyStatus: license.safetyStatus as MarketplaceOwnedLicense["safetyStatus"], installAuthorized: false, acquiredAt, testMode: currentBillingApiPublication() !== "live" };
   });
-  return { licenses, testMode: true };
+  return { licenses, testMode: currentBillingApiPublication() !== "live" };
 }
 
 function parseMarketplaceSellerStatus(data: JsonRecord): MarketplaceSellerStatus {
@@ -1465,7 +1480,7 @@ function parseMarketplaceSellerStatus(data: JsonRecord): MarketplaceSellerStatus
     || !Number.isSafeInteger(seller.publisherOptionCount) || Number(seller.publisherOptionCount) < 0 || Number(seller.publisherOptionCount) > 1_000_000
     || typeof seller.publisherOptionsTruncated !== "boolean"
     || typeof seller.payoutPreparationEnabled !== "boolean" || seller.payoutsEnabledByFeature !== false || seller.payoutExecutionAvailable !== false
-    || seller.balancesAreTestRecords !== true || seller.providerIdentifiersExposed !== false || seller.testMode !== true) {
+    || seller.balancesAreTestRecords !== true || seller.providerIdentifiersExposed !== false || typeof seller.testMode !== "boolean") {
     throw new BillingRequestError("Private seller readiness is unavailable right now.", 503, "marketplace_seller_status_invalid");
   }
   const sellerAgreementVersion = seller.sellerAgreementVersion === null ? null : marketplaceDocumentVersion(seller.sellerAgreementVersion, "marketplace_seller_status_invalid");
@@ -1586,7 +1601,7 @@ function parseMarketplaceSellerStatus(data: JsonRecord): MarketplaceSellerStatus
     publisherOptionCount, publisherOptionsTruncated: seller.publisherOptionsTruncated, publisherOptions,
     availablePayableByCurrency: payableByCurrency, payableByCurrency,
     payoutPreparationEnabled: seller.payoutPreparationEnabled, payoutsEnabledByFeature: false,
-    payoutExecutionAvailable: false, balancesAreTestRecords: true, providerIdentifiersExposed: false, testMode: true
+    payoutExecutionAvailable: false, balancesAreTestRecords: true, providerIdentifiersExposed: false, testMode: currentBillingApiPublication() !== "live"
   };
 }
 
@@ -1615,10 +1630,10 @@ export async function createMarketplaceSellerOnboarding(input: MarketplaceSeller
   const onboardingUrl = safeInternalOrStripeUrl(envelope.onboardingUrl);
   let exactConnectHost = false;
   try { exactConnectHost = Boolean(onboardingUrl && new URL(onboardingUrl).origin === "https://connect.stripe.com"); } catch { exactConnectHost = false; }
-  if (envelope.ok !== true || !exactConnectHost || envelope.provider !== "stripe" || envelope.consentRecorded !== true || envelope.paymentGrantsAuthority !== false || envelope.testMode !== true) {
+  if (envelope.ok !== true || !exactConnectHost || envelope.provider !== "stripe" || envelope.consentRecorded !== true || envelope.paymentGrantsAuthority !== false || typeof envelope.testMode !== "boolean") {
     throw new BillingRequestError("The seller-onboarding destination was invalid. No provider account change should be assumed.", 503, "marketplace_seller_onboarding_invalid");
   }
-  return { onboardingUrl: onboardingUrl as string, provider: "stripe", consentRecorded: true, paymentGrantsAuthority: false, testMode: true };
+  return { onboardingUrl: onboardingUrl as string, provider: "stripe", consentRecorded: true, paymentGrantsAuthority: false, testMode: currentBillingApiPublication() !== "live" };
 }
 
 export async function acceptMarketplaceFreeSellerAgreement(input: MarketplaceFreeSellerAgreementInput, accessToken: string): Promise<MarketplaceFreeSellerAgreementResult> {
@@ -1636,14 +1651,14 @@ export async function acceptMarketplaceFreeSellerAgreement(input: MarketplaceFre
   const envelope = exactRecord(data, ["ok", "agreement"], "marketplace_free_seller_agreement_invalid");
   const agreement = exactRecord(envelope.agreement, ["sellerAccountId", "agreementVersion", "connectRequiredForFreeOffers", "testMode", "idempotentReplay"], "marketplace_free_seller_agreement_invalid");
   if (envelope.ok !== true || agreement.agreementVersion !== body.agreementVersion || agreement.connectRequiredForFreeOffers !== false
-    || agreement.testMode !== true || typeof agreement.idempotentReplay !== "boolean") {
+    || typeof agreement.testMode !== "boolean" || typeof agreement.idempotentReplay !== "boolean") {
     throw new BillingRequestError("The free-seller agreement result was invalid. No seller setup should be assumed.", 503, "marketplace_free_seller_agreement_invalid");
   }
   return {
     sellerAccountId: marketplaceUuid(agreement.sellerAccountId, "marketplace_free_seller_agreement_invalid"),
     agreementVersion: body.agreementVersion,
     connectRequiredForFreeOffers: false,
-    testMode: true,
+    testMode: currentBillingApiPublication() !== "live",
     idempotentReplay: agreement.idempotentReplay
   };
 }
@@ -1659,10 +1674,10 @@ export async function linkMarketplaceSellerPublisher(input: MarketplacePublisher
   const data = await billingFetch("/api/billing/seller/publisher-link", { method: "POST", cache: "no-store", body: JSON.stringify(body) }, accessToken);
   const envelope = exactRecord(data, ["ok", "publisherLink"], "marketplace_publisher_link_invalid");
   const link = exactRecord(envelope.publisherLink, ["publisherId", "linked", "publisherVerifiedChanged", "idempotentReplay", "testMode"], "marketplace_publisher_link_invalid");
-  if (envelope.ok !== true || link.publisherId !== body.publisherId || link.linked !== true || link.publisherVerifiedChanged !== false || typeof link.idempotentReplay !== "boolean" || link.testMode !== true) {
+  if (envelope.ok !== true || link.publisherId !== body.publisherId || link.linked !== true || link.publisherVerifiedChanged !== false || typeof link.idempotentReplay !== "boolean" || typeof link.testMode !== "boolean") {
     throw new BillingRequestError("The private seller-to-publisher link could not be confirmed. Publisher verification was not changed.", 503, "marketplace_publisher_link_invalid");
   }
-  return { publisherId: body.publisherId, linked: true, publisherVerifiedChanged: false, testMode: true, idempotentReplay: link.idempotentReplay };
+  return { publisherId: body.publisherId, linked: true, publisherVerifiedChanged: false, testMode: currentBillingApiPublication() !== "live", idempotentReplay: link.idempotentReplay };
 }
 
 export async function configureMarketplaceSellerOffer(input: MarketplaceSellerOfferInput, accessToken: string): Promise<MarketplaceSellerOfferResult> {
@@ -1708,11 +1723,11 @@ export async function configureMarketplaceSellerOffer(input: MarketplaceSellerOf
     || offer.commercialTermsCode !== commercialTermsCode || offer.buyerTermsVersion !== buyerTermsVersion
     || typeof offer.idempotentReplay !== "boolean"
     || typeof offer.providerCatalogConfigured !== "boolean" || offer.providerCatalogConfigured !== (input.offerKind === "paid")
-    || offer.paymentGrantsTrust !== false || offer.purchaseInstallsAddon !== false || offer.testMode !== true) {
+    || offer.paymentGrantsTrust !== false || offer.purchaseInstallsAddon !== false || typeof offer.testMode !== "boolean") {
     throw new BillingRequestError("The seller offer result was invalid. No active offer should be assumed.", 503, "marketplace_seller_offer_invalid");
   }
   marketplaceUuid(offer.listingId, "marketplace_seller_offer_invalid");
-  return { offerId, addonVersionId, offerKind: input.offerKind, status, commissionBps: Number(offer.commissionBps), commercialTermsCode, buyerTermsVersion, providerCatalogConfigured: offer.providerCatalogConfigured, paymentGrantsTrust: false, purchaseInstallsAddon: false, testMode: true, idempotentReplay: offer.idempotentReplay };
+  return { offerId, addonVersionId, offerKind: input.offerKind, status, commissionBps: Number(offer.commissionBps), commercialTermsCode, buyerTermsVersion, providerCatalogConfigured: offer.providerCatalogConfigured, paymentGrantsTrust: false, purchaseInstallsAddon: false, testMode: currentBillingApiPublication() !== "live", idempotentReplay: offer.idempotentReplay };
 }
 
 export async function setMarketplaceSellerOfferStatus(input: MarketplaceSellerOfferStatusInput, accessToken: string): Promise<MarketplaceSellerOfferStatusResult> {
@@ -1724,17 +1739,17 @@ export async function setMarketplaceSellerOfferStatus(input: MarketplaceSellerOf
   const data = await billingFetch("/api/billing/seller/offer-activation", { method: "POST", cache: "no-store", body: JSON.stringify(body) }, accessToken);
   const envelope = exactRecord(data, ["ok", "offer"], "marketplace_seller_offer_status_invalid");
   const offer = exactRecord(envelope.offer, ["offerId", "status", "offerKind", "idempotentReplay", "testMode", "paymentGrantsTrust", "purchaseInstallsAddon"], "marketplace_seller_offer_status_invalid");
-  if (envelope.ok !== true || offer.offerId !== offerId || offer.status !== input.targetStatus || (offer.offerKind !== "free" && offer.offerKind !== "paid") || typeof offer.idempotentReplay !== "boolean" || offer.testMode !== true || offer.paymentGrantsTrust !== false || offer.purchaseInstallsAddon !== false) {
+  if (envelope.ok !== true || offer.offerId !== offerId || offer.status !== input.targetStatus || (offer.offerKind !== "free" && offer.offerKind !== "paid") || typeof offer.idempotentReplay !== "boolean" || typeof offer.testMode !== "boolean" || offer.paymentGrantsTrust !== false || offer.purchaseInstallsAddon !== false) {
     throw new BillingRequestError("The offer-status result was invalid. No status change should be assumed.", 503, "marketplace_seller_offer_status_invalid");
   }
-  return { offerId, status: input.targetStatus, offerKind: offer.offerKind, paymentGrantsTrust: false, purchaseInstallsAddon: false, testMode: true, idempotentReplay: offer.idempotentReplay };
+  return { offerId, status: input.targetStatus, offerKind: offer.offerKind, paymentGrantsTrust: false, purchaseInstallsAddon: false, testMode: currentBillingApiPublication() !== "live", idempotentReplay: offer.idempotentReplay };
 }
 
 export async function loadEconomicOrganizationAccount(accessToken: string): Promise<EconomicOrganizationAccount> {
   const data = await billingFetch("/api/billing/organizations/status", { cache: "no-store" }, accessToken);
   const envelope = exactRecord(data, ["ok", "status"], "economic_organization_status_invalid");
   const statusProjection = exactRecord(envelope.status, ["organizations", "financialDetailsPrivate", "affectsCommonsIdentity", "testMode"], "economic_organization_status_invalid");
-  if (envelope.ok !== true || !Array.isArray(statusProjection.organizations) || statusProjection.organizations.length > 1_000 || statusProjection.financialDetailsPrivate !== true || statusProjection.affectsCommonsIdentity !== false || statusProjection.testMode !== true) {
+  if (envelope.ok !== true || !Array.isArray(statusProjection.organizations) || statusProjection.organizations.length > 1_000 || statusProjection.financialDetailsPrivate !== true || statusProjection.affectsCommonsIdentity !== false || typeof statusProjection.testMode !== "boolean") {
     throw new BillingRequestError("Private organization-service status is unavailable right now.", 503, "economic_organization_status_invalid");
   }
   const relationships = new Set<EconomicOrganizationRelationship>(["owner", "billing_admin", "technical_contact", "procurement_contact", "billing_contact", "authorized_signer", "service_participant"]);
@@ -1772,7 +1787,7 @@ export async function loadEconomicOrganizationAccount(accessToken: string): Prom
     });
     return { organizationId, accountName: marketplaceString(organization.accountName, 200, "economic_organization_status_invalid"), status: organization.status as EconomicOrganizationStatus["status"], relationships: organization.relationships as EconomicOrganizationRelationship[], engagements, sponsorshipAgreements };
   });
-  return { organizations, financialDetailsPrivate: true, affectsCommonsIdentity: false, testMode: true };
+  return { organizations, financialDetailsPrivate: true, affectsCommonsIdentity: false, testMode: currentBillingApiPublication() !== "live" };
 }
 
 function verifiedStripeCheckoutUrl(value: unknown, errorCode: string) {
@@ -1801,10 +1816,10 @@ export async function createOrganizationServiceCheckout(input: OrganizationServi
   const body: OrganizationServiceCheckoutInput = { engagementId, clientRequestId, sourceRoute: "/commons-circle/support-billing", legalBundleVersion, statementOfWorkVersion, serviceTermsVersion, dataHandlingDisclosureVersion };
   const data = await billingFetch("/api/billing/organizations/checkout", { method: "POST", cache: "no-store", body: JSON.stringify(body) }, accessToken);
   const result = exactRecord(data, ["ok", "checkoutUrl", "orderReference", "engagementId", "paymentGrantsAuthority", "testMode"], "organization_service_checkout_invalid");
-  if (result.ok !== true || result.engagementId !== engagementId || result.paymentGrantsAuthority !== false || result.testMode !== true) {
+  if (result.ok !== true || result.engagementId !== engagementId || result.paymentGrantsAuthority !== false || typeof result.testMode !== "boolean") {
     throw new BillingRequestError("The organization-service checkout result was invalid. No payment or service activation should be assumed.", 503, "organization_service_checkout_invalid");
   }
-  return { checkoutUrl: verifiedStripeCheckoutUrl(result.checkoutUrl, "organization_service_checkout_invalid"), orderReference: verifiedCheckoutReference(result.orderReference, "organization_service_checkout_invalid"), engagementId, paymentGrantsAuthority: false, testMode: true };
+  return { checkoutUrl: verifiedStripeCheckoutUrl(result.checkoutUrl, "organization_service_checkout_invalid"), orderReference: verifiedCheckoutReference(result.orderReference, "organization_service_checkout_invalid"), engagementId, paymentGrantsAuthority: false, testMode: currentBillingApiPublication() !== "live" };
 }
 
 export async function createSponsorshipCheckout(input: SponsorshipCheckoutInput, accessToken: string): Promise<SponsorshipCheckoutResult> {
@@ -1817,10 +1832,10 @@ export async function createSponsorshipCheckout(input: SponsorshipCheckoutInput,
   const body: SponsorshipCheckoutInput = { sponsorshipAgreementId, clientRequestId, sourceRoute: "/commons-circle/support-billing", legalBundleVersion, agreementVersion, disclosureVersion };
   const data = await billingFetch("/api/billing/sponsorships/checkout", { method: "POST", cache: "no-store", body: JSON.stringify(body) }, accessToken);
   const result = exactRecord(data, ["ok", "checkoutUrl", "orderReference", "sponsorshipAgreementId", "paymentGrantsAuthority", "testMode"], "sponsorship_checkout_invalid");
-  if (result.ok !== true || result.sponsorshipAgreementId !== sponsorshipAgreementId || result.paymentGrantsAuthority !== false || result.testMode !== true) {
+  if (result.ok !== true || result.sponsorshipAgreementId !== sponsorshipAgreementId || result.paymentGrantsAuthority !== false || typeof result.testMode !== "boolean") {
     throw new BillingRequestError("The sponsorship checkout result was invalid. No payment, recognition, or authority should be assumed.", 503, "sponsorship_checkout_invalid");
   }
-  return { checkoutUrl: verifiedStripeCheckoutUrl(result.checkoutUrl, "sponsorship_checkout_invalid"), orderReference: verifiedCheckoutReference(result.orderReference, "sponsorship_checkout_invalid"), sponsorshipAgreementId, paymentGrantsAuthority: false, testMode: true };
+  return { checkoutUrl: verifiedStripeCheckoutUrl(result.checkoutUrl, "sponsorship_checkout_invalid"), orderReference: verifiedCheckoutReference(result.orderReference, "sponsorship_checkout_invalid"), sponsorshipAgreementId, paymentGrantsAuthority: false, testMode: currentBillingApiPublication() !== "live" };
 }
 
 export async function setSponsorshipRecognitionPreference(input: SponsorshipRecognitionPreferenceInput, accessToken: string): Promise<SponsorshipRecognitionPreferenceResult> {
@@ -1834,10 +1849,10 @@ export async function setSponsorshipRecognitionPreference(input: SponsorshipReco
   const body: SponsorshipRecognitionPreferenceInput = { sponsorshipAgreementId, clientRequestId, optedIn: input.optedIn, sourceRoute: "/commons-circle/support-billing", agreementVersion, disclosureVersion, confirmation };
   const data = await billingFetch("/api/billing/sponsorships/preference", { method: "POST", cache: "no-store", body: JSON.stringify(body) }, accessToken);
   const recognition = operatorMutationEnvelope(data, "recognition", ["sponsorshipAgreementId", "publicRecognitionOptIn", "amountsPublic", "grantsAuthority", "testMode", "idempotentReplay"], "sponsorship_recognition_preference_invalid");
-  if (recognition.sponsorshipAgreementId !== sponsorshipAgreementId || recognition.publicRecognitionOptIn !== input.optedIn || recognition.amountsPublic !== false || recognition.grantsAuthority !== false || recognition.testMode !== true || typeof recognition.idempotentReplay !== "boolean") {
+  if (recognition.sponsorshipAgreementId !== sponsorshipAgreementId || recognition.publicRecognitionOptIn !== input.optedIn || recognition.amountsPublic !== false || recognition.grantsAuthority !== false || typeof recognition.testMode !== "boolean" || typeof recognition.idempotentReplay !== "boolean") {
     throw new BillingRequestError("The sponsorship-recognition preference result was invalid. No public display change should be assumed.", 503, "sponsorship_recognition_preference_invalid");
   }
-  return { sponsorshipAgreementId, publicRecognitionOptIn: input.optedIn, amountsPublic: false, grantsAuthority: false, testMode: true, idempotentReplay: recognition.idempotentReplay };
+  return { sponsorshipAgreementId, publicRecognitionOptIn: input.optedIn, amountsPublic: false, grantsAuthority: false, testMode: currentBillingApiPublication() !== "live", idempotentReplay: recognition.idempotentReplay };
 }
 
 export async function loadPublicSponsorshipRecognition(): Promise<SponsorshipRecognitionCatalog> {
@@ -1937,7 +1952,7 @@ export async function loadBillingOrder(reference: string, accessToken?: string |
       throw new BillingRequestError("The private order returned an invalid state. No completed result should be assumed.", 503, "billing_order_status_invalid");
     }
     const expectedCadence: SupportCadence = flow === "support_recurring" ? "monthly" : "one_time";
-    if (source.publicReference !== reference || source.cadence !== expectedCadence || source.testMode !== true) {
+    if (source.publicReference !== reference || source.cadence !== expectedCadence || typeof source.testMode !== "boolean") {
       throw new BillingRequestError("The private order response did not match the requested test-mode order. No completed result should be assumed.", 503, "billing_order_invalid");
     }
     if (hasAmount !== hasCurrency || (hasAmount && (!Number.isSafeInteger(source.amountMinor) || Number(source.amountMinor) < 1 || Number(source.amountMinor) > 100_000_000_000 || typeof source.currency !== "string" || !/^[a-z]{3}$/.test(source.currency)))) {
@@ -2002,7 +2017,7 @@ export function normalizeReceipts(value: unknown): ReceiptSummary[] {
   const seen = new Set<string>();
   return receipts.map((item): ReceiptSummary => {
     const enhanced = isRecord(item) && item.recordVersion === "payment-record-v1";
-    const receipt = exactRecord(item, ["transactionId", "publicReference", "flow", "status", "amountMinor", "currency", "occurredAt", "receiptAvailable", "providerIdentifiersExposed", ...(enhanced ? ["recordVersion", "payee", "orderStatus", "refundedAmountMinor"] : [])], "billing_account_receipts_invalid");
+    const receipt = exactRecord(item, ["transactionId", "publicReference", "flow", "status", "amountMinor", "currency", "occurredAt", "receiptAvailable", "providerIdentifiersExposed", ...(enhanced ? ["recordVersion", "payee", "orderStatus", "refundedAmountMinor", ...(isRecord(item) && "receiptUrl" in item ? ["receiptUrl", "testMode"] : [])] : [])], "billing_account_receipts_invalid");
     const transactionId = marketplaceUuid(receipt.transactionId, "billing_account_receipts_invalid");
     const publicReference = marketplaceString(receipt.publicReference, 160, "billing_account_receipts_invalid");
     const flow = marketplaceString(receipt.flow, 40, "billing_account_receipts_invalid");
@@ -2012,7 +2027,7 @@ export function normalizeReceipts(value: unknown): ReceiptSummary[] {
     if (seen.has(transactionId) || !/^[A-Za-z0-9_-]{24,160}$/.test(publicReference) || !receiptFlows.has(flow) || !receiptStatuses.has(status)
       || !Number.isSafeInteger(receipt.amountMinor) || Number(receipt.amountMinor) < 0 || Number(receipt.amountMinor) > 100_000_000_000
       || !/^[a-z]{3}$/.test(currency) || Number.isNaN(Date.parse(occurredAt))
-      || receipt.receiptAvailable !== false || receipt.providerIdentifiersExposed !== false) {
+      || (receipt.receiptAvailable !== false && !(typeof receipt.receiptUrl === "string" && /^https:\/\/pay\.stripe\.com\//.test(receipt.receiptUrl))) || receipt.providerIdentifiersExposed !== false) {
       accountProjectionError("billing_account_receipts_invalid");
     }
     seen.add(transactionId);
@@ -2025,7 +2040,7 @@ export function normalizeReceipts(value: unknown): ReceiptSummary[] {
     return { id: transactionId, publicReference, flow: flow as BillingOrderFlow, status, payee,
       cadence: flow === "support_recurring" ? "monthly" : "one_time", orderStatus,
       refundedAmountCents: enhanced ? Number(receipt.refundedAmountMinor) : null,
-      label: `${flowLabels[flow]} · ${status.replace(/_/g, " ")}`, amountCents: Number(receipt.amountMinor), currency: currency.toUpperCase(), createdAt: occurredAt, receiptAvailable: false };
+      label: `${flowLabels[flow]} · ${status.replace(/_/g, " ")}`, amountCents: Number(receipt.amountMinor), currency: currency.toUpperCase(), createdAt: occurredAt, receiptAvailable: receipt.receiptAvailable === true, receiptUrl: typeof receipt.receiptUrl === "string" ? receipt.receiptUrl : null, testMode: receipt.testMode !== false };
   });
 }
 
@@ -2056,7 +2071,7 @@ function normalizeAccountWarnings(value: unknown): string[] {
 function normalizeMarketplacePurchases(value: unknown): MarketplacePurchaseSummary[] {
   const finalProjection = isRecord(value);
   const rawLicenses = finalProjection ? value.licenses : value;
-  if (finalProjection && value.testMode !== true) accountProjectionError("billing_account_marketplace_invalid");
+  if (finalProjection && typeof value.testMode !== "boolean") accountProjectionError("billing_account_marketplace_invalid");
   return boundedAccountArray(rawLicenses, "billing_account_marketplace_invalid").flatMap((item, index) => {
     if (!isRecord(item)) return [];
     if (finalProjection) {
@@ -2245,7 +2260,7 @@ function normalizeFinalSellerSummary(value: unknown): SellerFinanceSummary | nul
     if (!/^[a-z]{3}$/.test(currency) || !Number.isSafeInteger(amount) || Number(amount) < -1_000_000_000_000 || Number(amount) > 1_000_000_000_000 || compatibilityPayable[currency] !== amount) accountProjectionError("billing_account_seller_invalid");
     payableByCurrency[currency] = Number(amount);
   }
-  if (typeof seller.eligible !== "boolean" || typeof seller.configured !== "boolean" || seller.testMode !== true || !marketplaceEconomicStatusPattern.test(status)
+  if (typeof seller.eligible !== "boolean" || typeof seller.configured !== "boolean" || typeof seller.testMode !== "boolean" || !marketplaceEconomicStatusPattern.test(status)
     || typeof seller.detailsSubmitted !== "boolean" || typeof seller.chargesEnabled !== "boolean" || typeof seller.payoutsEnabled !== "boolean"
     || !Number.isSafeInteger(seller.activeOfferCount) || Number(seller.activeOfferCount) < 0 || Number(seller.activeOfferCount) > 1_000_000
     || typeof seller.payoutPreparationEnabled !== "boolean" || seller.payoutsEnabledByFeature !== false || seller.payoutExecutionAvailable !== false
@@ -2271,7 +2286,7 @@ export async function loadBillingAccount(accessToken: string): Promise<BillingAc
   const account = nestedRecord(data, "account", "data");
   const source = Object.keys(account).length ? account : data;
   const finalAccountProjection = hasOwnProjection(source, "sandboxCredits", "marketplaceSeller", "jobPosts", "accountRequests");
-  if (finalAccountProjection && (source.testMode !== true || source.providerIdentifiersExposed !== false || source.moneyDoesNotGrantAuthority !== true)) {
+  if (finalAccountProjection && (typeof source.testMode !== "boolean" || source.providerIdentifiersExposed !== false || source.moneyDoesNotGrantAuthority !== true)) {
     accountProjectionError("billing_account_boundary_invalid");
   }
   const subscriptions = boundedAccountArray(source.subscriptions, "billing_account_subscriptions_invalid");
@@ -2289,7 +2304,7 @@ export async function loadBillingAccount(accessToken: string): Promise<BillingAc
   const recognition = normalizeEconomicRecognition(source.recognition);
   return {
     available: booleanValue(source.available, true),
-    mode: normalizeMode(source.mode ?? data.mode ?? (source.testMode === true ? "test" : undefined)),
+    mode: normalizeMode(source.mode ?? data.mode ?? (source.testMode === true ? "test" : source.testMode === false ? "live" : undefined)),
     contributions: normalizeSupportHistory(source.contributions ?? source.support_history ?? source.orders),
     receipts: normalizeReceipts(source.receipts),
     subscription: Object.keys(currentSubscription).length ? {
@@ -2483,10 +2498,10 @@ export async function prepareEconomicOperatorMarketplaceTestPayout(input: Operat
   const payout = operatorMutationEnvelope(data, "payoutPreparation", ["payoutPreparationId", "sellerAccountId", "amountMinor", "currency", "status", "providerExecutionAvailable", "balancesAreTestRecords", "testMode", "idempotentReplay"], "economic_operator_payout_preparation_invalid");
   const payoutPreparationId = marketplaceUuid(payout.payoutPreparationId, "economic_operator_payout_preparation_invalid");
   if (payout.sellerAccountId !== sellerAccountId || payout.amountMinor !== input.amountMinor || payout.currency !== "usd" || payout.status !== "prepared"
-    || payout.providerExecutionAvailable !== false || payout.balancesAreTestRecords !== true || payout.testMode !== true || typeof payout.idempotentReplay !== "boolean") {
+    || payout.providerExecutionAvailable !== false || payout.balancesAreTestRecords !== true || typeof payout.testMode !== "boolean" || typeof payout.idempotentReplay !== "boolean") {
     throw new BillingRequestError("The private test payout-preparation result was invalid. No payout preparation or provider transfer should be assumed.", 503, "economic_operator_payout_preparation_invalid");
   }
-  return { payoutPreparationId, sellerAccountId, amountMinor: input.amountMinor, currency: "usd", status: "prepared", providerExecutionAvailable: false, balancesAreTestRecords: true, testMode: true, idempotentReplay: payout.idempotentReplay };
+  return { payoutPreparationId, sellerAccountId, amountMinor: input.amountMinor, currency: "usd", status: "prepared", providerExecutionAvailable: false, balancesAreTestRecords: true, testMode: currentBillingApiPublication() !== "live", idempotentReplay: payout.idempotentReplay };
 }
 
 export async function configureEconomicOperatorAssistanceProgram(input: OperatorAssistanceProgramInput, accessToken: string): Promise<OperatorAssistanceProgramResult> {
@@ -2507,10 +2522,10 @@ export async function configureEconomicOperatorAssistanceProgram(input: Operator
   const data = await billingFetch("/api/billing/operator/assistance-program", { method: "POST", cache: "no-store", body: JSON.stringify(body) }, accessToken);
   const program = operatorMutationEnvelope(data, "program", ["programId", "programCode", "kind", "scope", "status", "publicLabel", "testMode", "idempotentReplay"], "economic_operator_assistance_program_invalid");
   const programId = marketplaceUuid(program.programId, "economic_operator_assistance_program_invalid");
-  if (program.programCode !== programCode || program.kind !== input.assistanceKind || program.scope !== input.scope || program.status !== "draft" || program.publicLabel !== publicLabel || program.testMode !== true || typeof program.idempotentReplay !== "boolean") {
+  if (program.programCode !== programCode || program.kind !== input.assistanceKind || program.scope !== input.scope || program.status !== "draft" || program.publicLabel !== publicLabel || typeof program.testMode !== "boolean" || typeof program.idempotentReplay !== "boolean") {
     throw new BillingRequestError("The assistance-program result was invalid. No program state should be assumed.", 503, "economic_operator_assistance_program_invalid");
   }
-  return { programId, programCode, kind: input.assistanceKind, scope: input.scope, status: "draft", publicLabel, testMode: true, idempotentReplay: program.idempotentReplay };
+  return { programId, programCode, kind: input.assistanceKind, scope: input.scope, status: "draft", publicLabel, testMode: currentBillingApiPublication() !== "live", idempotentReplay: program.idempotentReplay };
 }
 
 export async function setEconomicOperatorAssistanceProgramStatus(input: OperatorAssistanceProgramStatusInput, accessToken: string): Promise<OperatorAssistanceProgramStatusResult> {
@@ -2522,10 +2537,10 @@ export async function setEconomicOperatorAssistanceProgramStatus(input: Operator
   const body: OperatorAssistanceProgramStatusInput = { clientRequestId, programId, targetStatus: input.targetStatus, confirmation: expectedConfirmation, reason: normalizedOperatorReason(input.reason) };
   const data = await billingFetch("/api/billing/operator/assistance-program-status", { method: "POST", cache: "no-store", body: JSON.stringify(body) }, accessToken);
   const program = operatorMutationEnvelope(data, "program", ["programId", "status", "testMode", "idempotentReplay"], "economic_operator_assistance_program_status_invalid");
-  if (program.programId !== programId || program.status !== input.targetStatus || program.testMode !== true || typeof program.idempotentReplay !== "boolean") {
+  if (program.programId !== programId || program.status !== input.targetStatus || typeof program.testMode !== "boolean" || typeof program.idempotentReplay !== "boolean") {
     throw new BillingRequestError("The assistance-program status result was invalid. No status change should be assumed.", 503, "economic_operator_assistance_program_status_invalid");
   }
-  return { programId, status: input.targetStatus, testMode: true, idempotentReplay: program.idempotentReplay };
+  return { programId, status: input.targetStatus, testMode: currentBillingApiPublication() !== "live", idempotentReplay: program.idempotentReplay };
 }
 
 export async function issueEconomicOperatorAssistanceGrant(input: OperatorAssistanceGrantInput, accessToken: string): Promise<OperatorAssistanceGrantResult> {
@@ -2544,7 +2559,7 @@ export async function issueEconomicOperatorAssistanceGrant(input: OperatorAssist
   const data = await billingFetch("/api/billing/operator/assistance-grant", { method: "POST", cache: "no-store", body: JSON.stringify(body) }, accessToken);
   const grant = operatorMutationEnvelope(data, "grant", ["grantId", "scope", "status", "expiresAt", "publiclyVisible", "sandboxCreditResult", "testMode", "idempotentReplay"], "economic_operator_assistance_grant_invalid");
   const grantId = marketplaceUuid(grant.grantId, "economic_operator_assistance_grant_invalid");
-  if ((grant.scope !== "job_post_fee" && grant.scope !== "sandbox_credits") || (grant.status !== "granted" && grant.status !== "consumed") || grant.publiclyVisible !== false || grant.testMode !== true || typeof grant.idempotentReplay !== "boolean") {
+  if ((grant.scope !== "job_post_fee" && grant.scope !== "sandbox_credits") || (grant.status !== "granted" && grant.status !== "consumed") || grant.publiclyVisible !== false || typeof grant.testMode !== "boolean" || typeof grant.idempotentReplay !== "boolean") {
     throw new BillingRequestError("The private assistance-grant result was invalid. No grant should be assumed.", 503, "economic_operator_assistance_grant_invalid");
   }
   const returnedExpiresAt = grant.expiresAt === null ? null : marketplaceString(grant.expiresAt, 40, "economic_operator_assistance_grant_invalid");
@@ -2556,7 +2571,7 @@ export async function issueEconomicOperatorAssistanceGrant(input: OperatorAssist
     if (!Number.isSafeInteger(credit.grantedUnits) || Number(credit.grantedUnits) < 1 || Number(credit.grantedUnits) > 1_000_000_000 || typeof credit.sourceCategory !== "string" || credit.sourceCategory.length > 40 || (creditExpiresAt !== null && Number.isNaN(Date.parse(creditExpiresAt)))) accountProjectionError("economic_operator_assistance_grant_invalid");
     sandboxCreditResult = { creditLotId: marketplaceUuid(credit.creditLotId, "economic_operator_assistance_grant_invalid"), grantedUnits: Number(credit.grantedUnits), sourceCategory: credit.sourceCategory, expiresAt: creditExpiresAt };
   }
-  return { grantId, scope: grant.scope, status: grant.status, expiresAt: returnedExpiresAt, publiclyVisible: false, sandboxCreditResult, testMode: true, idempotentReplay: grant.idempotentReplay };
+  return { grantId, scope: grant.scope, status: grant.status, expiresAt: returnedExpiresAt, publiclyVisible: false, sandboxCreditResult, testMode: currentBillingApiPublication() !== "live", idempotentReplay: grant.idempotentReplay };
 }
 
 export async function endEconomicOperatorAssistanceGrant(input: OperatorAssistanceEndInput, accessToken: string): Promise<OperatorAssistanceEndResult> {
@@ -2585,10 +2600,10 @@ export async function reconcileEconomicOperatorJobPostAssistanceGrant(input: Ope
   const reconciliation = operatorMutationEnvelope(data, "reconciliation", ["jobPostId", "grantId", "grantStatus", "economicStatus", "publicationStatus", "published", "testMode", "idempotentReplay"], "economic_operator_job_post_assistance_reconciliation_invalid");
   const expectedStatus = input.endAction === "revoke" ? "revoked" : "expired";
   const publicationStatus = reconciliation.publicationStatus === null ? null : marketplaceString(reconciliation.publicationStatus, 40, "economic_operator_job_post_assistance_reconciliation_invalid");
-  if (reconciliation.jobPostId !== jobPostId || reconciliation.grantId !== grantId || reconciliation.grantStatus !== expectedStatus || reconciliation.economicStatus !== "not_assessed" || typeof reconciliation.published !== "boolean" || reconciliation.testMode !== true || typeof reconciliation.idempotentReplay !== "boolean") {
+  if (reconciliation.jobPostId !== jobPostId || reconciliation.grantId !== grantId || reconciliation.grantStatus !== expectedStatus || reconciliation.economicStatus !== "not_assessed" || typeof reconciliation.published !== "boolean" || typeof reconciliation.testMode !== "boolean" || typeof reconciliation.idempotentReplay !== "boolean") {
     throw new BillingRequestError("The Job Post assistance reconciliation result was invalid. No grant or economic-condition change should be assumed.", 503, "economic_operator_job_post_assistance_reconciliation_invalid");
   }
-  return { jobPostId, grantId, grantStatus: expectedStatus, economicStatus: "not_assessed", publicationStatus, published: reconciliation.published, testMode: true, idempotentReplay: reconciliation.idempotentReplay };
+  return { jobPostId, grantId, grantStatus: expectedStatus, economicStatus: "not_assessed", publicationStatus, published: reconciliation.published, testMode: currentBillingApiPublication() !== "live", idempotentReplay: reconciliation.idempotentReplay };
 }
 
 const operatorOrganizationRelationships = new Set<OperatorOrganizationRelationship>([
@@ -2627,10 +2642,10 @@ export async function createEconomicOperatorOrganization(input: OperatorOrganiza
   const data = await billingFetch("/api/billing/operator/organization", { method: "POST", cache: "no-store", body: JSON.stringify(body) }, accessToken);
   const organization = operatorMutationEnvelope(data, "organization", ["organizationId", "accountName", "status", "testMode", "idempotentReplay"], "economic_operator_organization_invalid");
   const organizationId = marketplaceUuid(organization.organizationId, "economic_operator_organization_invalid");
-  if (organization.accountName !== accountName || organization.status !== "active" || organization.testMode !== true || typeof organization.idempotentReplay !== "boolean") {
+  if (organization.accountName !== accountName || organization.status !== "active" || typeof organization.testMode !== "boolean" || typeof organization.idempotentReplay !== "boolean") {
     throw new BillingRequestError("The private organization result was invalid. No organization record should be assumed.", 503, "economic_operator_organization_invalid");
   }
-  return { organizationId, accountName, status: "active", testMode: true, idempotentReplay: organization.idempotentReplay };
+  return { organizationId, accountName, status: "active", testMode: currentBillingApiPublication() !== "live", idempotentReplay: organization.idempotentReplay };
 }
 
 export async function setEconomicOperatorOrganizationMembership(input: OperatorOrganizationMembershipInput, accessToken: string): Promise<OperatorOrganizationMembershipResult> {
@@ -2643,10 +2658,10 @@ export async function setEconomicOperatorOrganizationMembership(input: OperatorO
   const data = await billingFetch("/api/billing/operator/organization-membership", { method: "POST", cache: "no-store", body: JSON.stringify(body) }, accessToken);
   const membership = operatorMutationEnvelope(data, "membership", ["membershipId", "organizationId", "userId", "relationship", "active", "testMode", "idempotentReplay"], "economic_operator_organization_membership_invalid");
   const membershipId = marketplaceUuid(membership.membershipId, "economic_operator_organization_membership_invalid");
-  if (membership.organizationId !== organizationId || membership.userId !== targetUserId || membership.relationship !== input.relationship || membership.active !== input.enabled || membership.testMode !== true || typeof membership.idempotentReplay !== "boolean") {
+  if (membership.organizationId !== organizationId || membership.userId !== targetUserId || membership.relationship !== input.relationship || membership.active !== input.enabled || typeof membership.testMode !== "boolean" || typeof membership.idempotentReplay !== "boolean") {
     throw new BillingRequestError("The private organization-membership result was invalid. No membership change should be assumed.", 503, "economic_operator_organization_membership_invalid");
   }
-  return { membershipId, organizationId, userId: targetUserId, relationship: input.relationship, active: input.enabled, testMode: true, idempotentReplay: membership.idempotentReplay };
+  return { membershipId, organizationId, userId: targetUserId, relationship: input.relationship, active: input.enabled, testMode: currentBillingApiPublication() !== "live", idempotentReplay: membership.idempotentReplay };
 }
 
 export async function createEconomicOperatorOrganizationService(input: OperatorOrganizationServiceInput, accessToken: string): Promise<OperatorOrganizationServiceResult> {
@@ -2670,10 +2685,10 @@ export async function createEconomicOperatorOrganizationService(input: OperatorO
   const data = await billingFetch("/api/billing/operator/organization-service", { method: "POST", cache: "no-store", body: JSON.stringify(body) }, accessToken);
   const engagement = operatorMutationEnvelope(data, "engagement", ["engagementId", "organizationId", "serviceCode", "status", "serviceTermsVersion", "testMode", "idempotentReplay"], "economic_operator_organization_service_invalid");
   const engagementId = marketplaceUuid(engagement.engagementId, "economic_operator_organization_service_invalid");
-  if (engagement.organizationId !== organizationId || engagement.serviceCode !== serviceCode || engagement.status !== "contract_pending" || engagement.serviceTermsVersion !== serviceTermsVersion || engagement.testMode !== true || typeof engagement.idempotentReplay !== "boolean") {
+  if (engagement.organizationId !== organizationId || engagement.serviceCode !== serviceCode || engagement.status !== "contract_pending" || engagement.serviceTermsVersion !== serviceTermsVersion || typeof engagement.testMode !== "boolean" || typeof engagement.idempotentReplay !== "boolean") {
     throw new BillingRequestError("The private organization-service result was invalid. No engagement should be assumed.", 503, "economic_operator_organization_service_invalid");
   }
-  return { engagementId, organizationId, serviceCode, status: "contract_pending", serviceTermsVersion, testMode: true, idempotentReplay: engagement.idempotentReplay };
+  return { engagementId, organizationId, serviceCode, status: "contract_pending", serviceTermsVersion, testMode: currentBillingApiPublication() !== "live", idempotentReplay: engagement.idempotentReplay };
 }
 
 const organizationServiceReviewStatuses: Record<OperatorOrganizationServiceReviewAction, OperatorOrganizationServiceReviewResult["status"]> = {
@@ -2690,10 +2705,10 @@ export async function reviewEconomicOperatorOrganizationService(input: OperatorO
   const data = await billingFetch("/api/billing/operator/organization-service-review", { method: "POST", cache: "no-store", body: JSON.stringify(body) }, accessToken);
   const review = operatorMutationEnvelope(data, "review", ["engagementId", "action", "status", "testMode", "idempotentReplay"], "economic_operator_organization_service_review_invalid");
   const expectedStatus = organizationServiceReviewStatuses[input.action];
-  if (review.engagementId !== engagementId || review.action !== input.action || review.status !== expectedStatus || review.testMode !== true || typeof review.idempotentReplay !== "boolean") {
+  if (review.engagementId !== engagementId || review.action !== input.action || review.status !== expectedStatus || typeof review.testMode !== "boolean" || typeof review.idempotentReplay !== "boolean") {
     throw new BillingRequestError("The organization-service review result was invalid. No status change should be assumed.", 503, "economic_operator_organization_service_review_invalid");
   }
-  return { engagementId, action: input.action, status: expectedStatus, testMode: true, idempotentReplay: review.idempotentReplay };
+  return { engagementId, action: input.action, status: expectedStatus, testMode: currentBillingApiPublication() !== "live", idempotentReplay: review.idempotentReplay };
 }
 
 export async function createEconomicOperatorSponsorshipAgreement(input: OperatorSponsorshipAgreementInput, accessToken: string): Promise<OperatorSponsorshipAgreementResult> {
@@ -2711,10 +2726,10 @@ export async function createEconomicOperatorSponsorshipAgreement(input: Operator
   const data = await billingFetch("/api/billing/operator/sponsorship-agreement", { method: "POST", cache: "no-store", body: JSON.stringify(body) }, accessToken);
   const agreement = operatorMutationEnvelope(data, "agreement", ["sponsorshipAgreementId", "organizationId", "status", "publicRecognitionOptIn", "publicRecognitionApproved", "grantsAuthority", "testMode", "idempotentReplay"], "economic_operator_sponsorship_agreement_invalid");
   const sponsorshipAgreementId = marketplaceUuid(agreement.sponsorshipAgreementId, "economic_operator_sponsorship_agreement_invalid");
-  if (agreement.organizationId !== organizationId || agreement.status !== "ethical_review" || agreement.publicRecognitionOptIn !== false || agreement.publicRecognitionApproved !== false || agreement.grantsAuthority !== false || agreement.testMode !== true || typeof agreement.idempotentReplay !== "boolean") {
+  if (agreement.organizationId !== organizationId || agreement.status !== "ethical_review" || agreement.publicRecognitionOptIn !== false || agreement.publicRecognitionApproved !== false || agreement.grantsAuthority !== false || typeof agreement.testMode !== "boolean" || typeof agreement.idempotentReplay !== "boolean") {
     throw new BillingRequestError("The private sponsorship-agreement result was invalid. No agreement should be assumed.", 503, "economic_operator_sponsorship_agreement_invalid");
   }
-  return { sponsorshipAgreementId, organizationId, status: "ethical_review", publicRecognitionOptIn: false, publicRecognitionApproved: false, grantsAuthority: false, testMode: true, idempotentReplay: agreement.idempotentReplay };
+  return { sponsorshipAgreementId, organizationId, status: "ethical_review", publicRecognitionOptIn: false, publicRecognitionApproved: false, grantsAuthority: false, testMode: currentBillingApiPublication() !== "live", idempotentReplay: agreement.idempotentReplay };
 }
 
 const sponsorshipReviewStatuses: Record<OperatorSponsorshipReviewAction, OperatorSponsorshipReviewResult["status"]> = {
@@ -2731,10 +2746,10 @@ export async function reviewEconomicOperatorSponsorship(input: OperatorSponsorsh
   const data = await billingFetch("/api/billing/operator/sponsorship-review", { method: "POST", cache: "no-store", body: JSON.stringify(body) }, accessToken);
   const review = operatorMutationEnvelope(data, "review", ["sponsorshipAgreementId", "action", "status", "grantsAuthority", "testMode", "idempotentReplay"], "economic_operator_sponsorship_review_invalid");
   const expectedStatus = sponsorshipReviewStatuses[input.action];
-  if (review.sponsorshipAgreementId !== sponsorshipAgreementId || review.action !== input.action || review.status !== expectedStatus || review.grantsAuthority !== false || review.testMode !== true || typeof review.idempotentReplay !== "boolean") {
+  if (review.sponsorshipAgreementId !== sponsorshipAgreementId || review.action !== input.action || review.status !== expectedStatus || review.grantsAuthority !== false || typeof review.testMode !== "boolean" || typeof review.idempotentReplay !== "boolean") {
     throw new BillingRequestError("The private sponsorship review result was invalid. No status or authority change should be assumed.", 503, "economic_operator_sponsorship_review_invalid");
   }
-  return { sponsorshipAgreementId, action: input.action, status: expectedStatus, grantsAuthority: false, testMode: true, idempotentReplay: review.idempotentReplay };
+  return { sponsorshipAgreementId, action: input.action, status: expectedStatus, grantsAuthority: false, testMode: currentBillingApiPublication() !== "live", idempotentReplay: review.idempotentReplay };
 }
 
 export async function setEconomicOperatorSponsorshipRecognition(input: OperatorSponsorshipRecognitionInput, accessToken: string): Promise<OperatorSponsorshipRecognitionResult> {
@@ -2745,10 +2760,10 @@ export async function setEconomicOperatorSponsorshipRecognition(input: OperatorS
   const body: OperatorSponsorshipRecognitionInput = { sponsorshipAgreementId, clientRequestId, approved: input.approved, confirmation, reason: normalizedOperatorReason(input.reason) };
   const data = await billingFetch("/api/billing/operator/sponsorship-recognition", { method: "POST", cache: "no-store", body: JSON.stringify(body) }, accessToken);
   const recognition = operatorMutationEnvelope(data, "recognition", ["sponsorshipAgreementId", "publicRecognitionApproved", "amountsPublic", "grantsAuthority", "testMode", "idempotentReplay"], "economic_operator_sponsorship_recognition_invalid");
-  if (recognition.sponsorshipAgreementId !== sponsorshipAgreementId || recognition.publicRecognitionApproved !== input.approved || recognition.amountsPublic !== false || recognition.grantsAuthority !== false || recognition.testMode !== true || typeof recognition.idempotentReplay !== "boolean") {
+  if (recognition.sponsorshipAgreementId !== sponsorshipAgreementId || recognition.publicRecognitionApproved !== input.approved || recognition.amountsPublic !== false || recognition.grantsAuthority !== false || typeof recognition.testMode !== "boolean" || typeof recognition.idempotentReplay !== "boolean") {
     throw new BillingRequestError("The neutral sponsorship-recognition result was invalid. No public display change should be assumed.", 503, "economic_operator_sponsorship_recognition_invalid");
   }
-  return { sponsorshipAgreementId, publicRecognitionApproved: input.approved, amountsPublic: false, grantsAuthority: false, testMode: true, idempotentReplay: recognition.idempotentReplay };
+  return { sponsorshipAgreementId, publicRecognitionApproved: input.approved, amountsPublic: false, grantsAuthority: false, testMode: currentBillingApiPublication() !== "live", idempotentReplay: recognition.idempotentReplay };
 }
 
 export async function createEconomicOperatorSponsorshipAllocation(input: OperatorSponsorshipAllocationInput, accessToken: string): Promise<OperatorSponsorshipAllocationResult> {
@@ -2764,10 +2779,10 @@ export async function createEconomicOperatorSponsorshipAllocation(input: Operato
   const data = await billingFetch("/api/billing/operator/sponsorship-allocation", { method: "POST", cache: "no-store", body: JSON.stringify(body) }, accessToken);
   const allocation = operatorMutationEnvelope(data, "allocation", ["allocationId", "sponsorshipAgreementId", "assistanceProgramId", "scope", "allocationKind", "allocationCap", "currency", "sponsorSelectsRecipients", "sponsorReceivesRecipientData", "grantsAuthority", "testMode", "idempotentReplay"], "economic_operator_sponsorship_allocation_invalid");
   const allocationId = marketplaceUuid(allocation.allocationId, "economic_operator_sponsorship_allocation_invalid");
-  if (allocation.sponsorshipAgreementId !== sponsorshipAgreementId || allocation.assistanceProgramId !== assistanceProgramId || (allocation.scope !== "job_post_fee" && allocation.scope !== "sandbox_credits") || allocation.allocationKind !== input.allocationKind || allocation.allocationCap !== input.allocationCap || allocation.currency !== currency || allocation.sponsorSelectsRecipients !== false || allocation.sponsorReceivesRecipientData !== false || allocation.grantsAuthority !== false || allocation.testMode !== true || typeof allocation.idempotentReplay !== "boolean") {
+  if (allocation.sponsorshipAgreementId !== sponsorshipAgreementId || allocation.assistanceProgramId !== assistanceProgramId || (allocation.scope !== "job_post_fee" && allocation.scope !== "sandbox_credits") || allocation.allocationKind !== input.allocationKind || allocation.allocationCap !== input.allocationCap || allocation.currency !== currency || allocation.sponsorSelectsRecipients !== false || allocation.sponsorReceivesRecipientData !== false || allocation.grantsAuthority !== false || typeof allocation.testMode !== "boolean" || typeof allocation.idempotentReplay !== "boolean") {
     throw new BillingRequestError("The sponsorship-assistance allocation result was invalid. No allocation or sponsor control should be assumed.", 503, "economic_operator_sponsorship_allocation_invalid");
   }
-  return { allocationId, sponsorshipAgreementId, assistanceProgramId, scope: allocation.scope, allocationKind: input.allocationKind, allocationCap: input.allocationCap, currency, sponsorSelectsRecipients: false, sponsorReceivesRecipientData: false, grantsAuthority: false, testMode: true, idempotentReplay: allocation.idempotentReplay };
+  return { allocationId, sponsorshipAgreementId, assistanceProgramId, scope: allocation.scope, allocationKind: input.allocationKind, allocationCap: input.allocationCap, currency, sponsorSelectsRecipients: false, sponsorReceivesRecipientData: false, grantsAuthority: false, testMode: currentBillingApiPublication() !== "live", idempotentReplay: allocation.idempotentReplay };
 }
 
 export async function closeEconomicOperatorSponsorshipAllocation(input: OperatorSponsorshipAllocationCloseInput, accessToken: string): Promise<OperatorSponsorshipAllocationCloseResult> {
@@ -2777,10 +2792,10 @@ export async function closeEconomicOperatorSponsorshipAllocation(input: Operator
   const body: OperatorSponsorshipAllocationCloseInput = { clientRequestId, allocationId, confirmation: "CLOSE SPONSORSHIP ASSISTANCE ALLOCATION", reason: normalizedOperatorReason(input.reason) };
   const data = await billingFetch("/api/billing/operator/sponsorship-allocation-close", { method: "POST", cache: "no-store", body: JSON.stringify(body) }, accessToken);
   const allocation = operatorMutationEnvelope(data, "allocation", ["allocationId", "status", "testMode", "idempotentReplay"], "economic_operator_sponsorship_allocation_close_invalid");
-  if (allocation.allocationId !== allocationId || allocation.status !== "canceled" || allocation.testMode !== true || typeof allocation.idempotentReplay !== "boolean") {
+  if (allocation.allocationId !== allocationId || allocation.status !== "canceled" || typeof allocation.testMode !== "boolean" || typeof allocation.idempotentReplay !== "boolean") {
     throw new BillingRequestError("The sponsorship-allocation close result was invalid. No closure should be assumed.", 503, "economic_operator_sponsorship_allocation_close_invalid");
   }
-  return { allocationId, status: "canceled", testMode: true, idempotentReplay: allocation.idempotentReplay };
+  return { allocationId, status: "canceled", testMode: currentBillingApiPublication() !== "live", idempotentReplay: allocation.idempotentReplay };
 }
 
 function operatorQueueTimestamp(value: unknown): string {
@@ -2816,7 +2831,7 @@ export async function loadEconomicOperatorOverview(accessToken: string): Promise
     "organizationServiceQueue", "sponsorshipQueue", "accountRequestQueue", "assistanceProgramQueue",
     "assistanceQueue", "featureFlags", "providerIdentifiersExposed", "personalContactDataExposed", "testMode"
   ], "economic_operator_overview_invalid");
-  if (envelope.ok !== true || typeof operator.authorized !== "boolean" || operator.testMode !== true || operator.providerIdentifiersExposed !== false || operator.personalContactDataExposed !== false || operator.queueLimit !== 10 || !Array.isArray(operator.capabilities)
+  if (envelope.ok !== true || typeof operator.authorized !== "boolean" || typeof operator.testMode !== "boolean" || operator.providerIdentifiersExposed !== false || operator.personalContactDataExposed !== false || operator.queueLimit !== 10 || !Array.isArray(operator.capabilities)
     || operator.capabilities.length > economicOperatorCapabilities.size
     || operator.capabilities.some((capability) => typeof capability !== "string" || !economicOperatorCapabilities.has(capability as EconomicOperatorCapability))
     || new Set(operator.capabilities).size !== operator.capabilities.length) {
@@ -3064,7 +3079,7 @@ export async function loadEconomicOperatorOverview(accessToken: string): Promise
     featureFlags.length !== economicOperatorFeatureFlagKeys.length
     || featureFlags.some((flag, index) => flag.featureKey !== economicOperatorFeatureFlagKeys[index])
   )) accountProjectionError("economic_operator_overview_invalid");
-  return { authorized: operator.authorized, capabilities, queueLimit: 10, orderQueue, paymentQueue, refundablePaymentQueue, refundQueue, subscriptionQueue, disputeQueue, webhookQueue, reconciliationQueue, sandboxCorrectionQueue, jobPostEconomicQueue, sellerPayableQueue, sellerPayoutPreparationQueue, organizationServiceQueue, sponsorshipQueue, accountRequestQueue, assistanceProgramQueue, assistanceQueue, featureFlags, providerIdentifiersExposed: false, personalContactDataExposed: false, testMode: true };
+  return { authorized: operator.authorized, capabilities, queueLimit: 10, orderQueue, paymentQueue, refundablePaymentQueue, refundQueue, subscriptionQueue, disputeQueue, webhookQueue, reconciliationQueue, sandboxCorrectionQueue, jobPostEconomicQueue, sellerPayableQueue, sellerPayoutPreparationQueue, organizationServiceQueue, sponsorshipQueue, accountRequestQueue, assistanceProgramQueue, assistanceQueue, featureFlags, providerIdentifiersExposed: false, personalContactDataExposed: false, testMode: currentBillingApiPublication() !== "live" };
 }
 
 export async function loadEconomicOperatorAudit(accessToken: string, options: { limit?: number; cursor?: EconomicAuditCursor | null } = {}): Promise<EconomicAuditPage> {
@@ -3080,7 +3095,7 @@ export async function loadEconomicOperatorAudit(accessToken: string, options: { 
   const data = await billingFetch(`/api/billing/operator/audit?${query.toString()}`, { cache: "no-store" }, accessToken);
   const envelope = exactRecord(data, ["ok", "audit"], "economic_operator_audit_invalid");
   const audit = exactRecord(envelope.audit, ["events", "limit", "nextCursor", "providerIdentifiersExposed", "personalContactDataExposed", "testMode"], "economic_operator_audit_invalid");
-  if (envelope.ok !== true || audit.limit !== limit || !Array.isArray(audit.events) || audit.events.length > limit || audit.providerIdentifiersExposed !== false || audit.personalContactDataExposed !== false || audit.testMode !== true) {
+  if (envelope.ok !== true || audit.limit !== limit || !Array.isArray(audit.events) || audit.events.length > limit || audit.providerIdentifiersExposed !== false || audit.personalContactDataExposed !== false || typeof audit.testMode !== "boolean") {
     throw new BillingRequestError("The private economic audit page was invalid. No audit conclusion should be drawn.", 503, "economic_operator_audit_invalid");
   }
   const actorKinds = new Set<EconomicAuditActorKind>(["system", "user", "economic_operator", "provider_webhook"]);
@@ -3103,7 +3118,7 @@ export async function loadEconomicOperatorAudit(accessToken: string, options: { 
     if (Number.isNaN(Date.parse(afterCreatedAt))) throw new BillingRequestError("The private economic audit cursor was invalid.", 503, "economic_operator_audit_invalid");
     nextCursor = { afterCreatedAt, afterId: marketplaceUuid(cursor.afterId, "economic_operator_audit_invalid") };
   }
-  return { events, limit, nextCursor, providerIdentifiersExposed: false, personalContactDataExposed: false, testMode: true };
+  return { events, limit, nextCursor, providerIdentifiersExposed: false, personalContactDataExposed: false, testMode: currentBillingApiPublication() !== "live" };
 }
 
 export async function exportEconomicOperatorAccounting(input: OperatorAccountingExportInput, accessToken: string): Promise<OperatorAccountingExportResult> {
@@ -3119,7 +3134,7 @@ export async function exportEconomicOperatorAccounting(input: OperatorAccounting
   const body: OperatorAccountingExportInput = { clientRequestId, from, to, afterCreatedAt, afterId, limit: input.limit, confirmation: "EXPORT PRIVATE ECONOMIC ACCOUNTING" };
   const data = await billingFetch("/api/billing/operator/accounting-export", { method: "POST", cache: "no-store", body: JSON.stringify(body) }, accessToken);
   const accounting = operatorMutationEnvelope(data, "accountingExport", ["exportVersion", "entries", "limit", "from", "to", "providerIdentifiersExposed", "personalContactDataExposed", "testMode", "idempotentReplay"], "economic_accounting_export_invalid");
-  if (accounting.exportVersion !== "economic-accounting-v1" || accounting.limit !== input.limit || accounting.from !== from || accounting.to !== to || accounting.providerIdentifiersExposed !== false || accounting.personalContactDataExposed !== false || accounting.testMode !== true || typeof accounting.idempotentReplay !== "boolean" || !Array.isArray(accounting.entries) || accounting.entries.length > input.limit) {
+  if (accounting.exportVersion !== "economic-accounting-v1" || accounting.limit !== input.limit || accounting.from !== from || accounting.to !== to || accounting.providerIdentifiersExposed !== false || accounting.personalContactDataExposed !== false || typeof accounting.testMode !== "boolean" || typeof accounting.idempotentReplay !== "boolean" || !Array.isArray(accounting.entries) || accounting.entries.length > input.limit) {
     throw new BillingRequestError("The private accounting export was invalid. No export should be retained.", 503, "economic_accounting_export_invalid");
   }
   const nullableMinor = (value: unknown) => {
@@ -3153,7 +3168,7 @@ export async function exportEconomicOperatorAccounting(input: OperatorAccounting
     }
     return { exportVersion: "economic-accounting-v1", eventId: String(entry.eventId), effectiveAt, recordedAt, category, economicFlow: economicFlow as EconomicAccountingExportEntry["economicFlow"], direction: entry.direction as "inflow" | "outflow" | "memo", grossMinor, refundMinor, disputeMinor, processorFeeMinor, platformCommissionMinor, sellerPayableMinor, netMinor, currency: String(entry.currency), internalOrderReference, provider: "stripe", providerEventDate: String(entry.providerEventDate), jurisdiction, taxTreatmentPendingReview: true, reconciliationStatus: entry.reconciliationStatus as EconomicAccountingExportEntry["reconciliationStatus"] };
   });
-  return { exportVersion: "economic-accounting-v1", entries, limit: input.limit, from, to, providerIdentifiersExposed: false, personalContactDataExposed: false, testMode: true, idempotentReplay: accounting.idempotentReplay };
+  return { exportVersion: "economic-accounting-v1", entries, limit: input.limit, from, to, providerIdentifiersExposed: false, personalContactDataExposed: false, testMode: currentBillingApiPublication() !== "live", idempotentReplay: accounting.idempotentReplay };
 }
 
 export async function setEconomicOperatorAssignment(input: OperatorAssignmentInput, accessToken: string): Promise<OperatorAssignmentResult> {
@@ -3210,7 +3225,7 @@ export async function grantEconomicOperatorSandboxCredits(input: OperatorSandbox
     || (returnedExpiration !== null && (typeof returnedExpiration !== "string" || !Number.isFinite(Date.parse(returnedExpiration))))
     || (expiresAt === null ? returnedExpiration !== null : Date.parse(String(returnedExpiration)) !== Date.parse(expiresAt))
     || typeof grant.idempotentReplay !== "boolean"
-    || grant.testMode !== true) {
+    || typeof grant.testMode !== "boolean") {
     throw new BillingRequestError("The sandbox credit grant result was invalid. No completed grant should be assumed.", 503, "economic_operator_credit_grant_invalid");
   }
   return {
@@ -3219,7 +3234,7 @@ export async function grantEconomicOperatorSandboxCredits(input: OperatorSandbox
     sourceCategory: input.sourceType,
     expiresAt: returnedExpiration as string | null,
     idempotentReplay: grant.idempotentReplay,
-    testMode: true
+    testMode: currentBillingApiPublication() !== "live"
   };
 }
 
@@ -3283,7 +3298,7 @@ export async function executeEconomicOperatorTestRefund(input: OperatorTestRefun
     || typeof refund.status !== "string" || !testRefundStatuses.has(refund.status as OperatorTestRefundExecutionResult["status"])
     || typeof refund.providerStatus !== "string" || !testRefundProviderStatuses.has(refund.providerStatus as OperatorTestRefundExecutionResult["providerStatus"])
     || typeof refund.idempotentReplay !== "boolean"
-    || refund.testMode !== true) {
+    || typeof refund.testMode !== "boolean") {
     throw new BillingRequestError("The test-refund result was invalid. No completed refund should be assumed.", 503, "economic_operator_refund_execution_invalid");
   }
   return {
@@ -3294,7 +3309,7 @@ export async function executeEconomicOperatorTestRefund(input: OperatorTestRefun
     status: refund.status as OperatorTestRefundExecutionResult["status"],
     providerStatus: refund.providerStatus as OperatorTestRefundExecutionResult["providerStatus"],
     idempotentReplay: refund.idempotentReplay,
-    testMode: true
+    testMode: currentBillingApiPublication() !== "live"
   };
 }
 
@@ -3359,10 +3374,10 @@ export async function configureEconomicOperatorMarketplaceTerms(input: OperatorM
   const data = await billingFetch("/api/billing/operator/marketplace-commercial-terms", { method: "POST", cache: "no-store", body: JSON.stringify(body) }, accessToken);
   const terms = operatorMutationEnvelope(data, "terms", ["commercialTermsVersionId", "termsCode", "commissionBps", "sellerAgreementVersion", "buyerTermsVersion", "active", "approvedForLiveUse", "testMode"], "economic_operator_marketplace_terms_invalid");
   if (terms.termsCode !== termsCode || terms.commissionBps !== input.commissionBps || terms.sellerAgreementVersion !== sellerAgreementVersion || terms.buyerTermsVersion !== buyerTermsVersion
-    || terms.active !== input.active || terms.approvedForLiveUse !== false || terms.testMode !== true) {
+    || terms.active !== input.active || terms.approvedForLiveUse !== false || typeof terms.testMode !== "boolean") {
     throw new BillingRequestError("The Marketplace commercial-terms result was invalid. No active terms or live approval should be assumed.", 503, "economic_operator_marketplace_terms_invalid");
   }
-  return { commercialTermsVersionId: marketplaceUuid(terms.commercialTermsVersionId, "economic_operator_marketplace_terms_invalid"), termsCode, commissionBps: input.commissionBps, sellerAgreementVersion, buyerTermsVersion, active: input.active, approvedForLiveUse: false, testMode: true };
+  return { commercialTermsVersionId: marketplaceUuid(terms.commercialTermsVersionId, "economic_operator_marketplace_terms_invalid"), termsCode, commissionBps: input.commissionBps, sellerAgreementVersion, buyerTermsVersion, active: input.active, approvedForLiveUse: false, testMode: currentBillingApiPublication() !== "live" };
 }
 
 async function loadCustomerPortalRedirect(accessToken: string): Promise<RedirectActionResult> {
@@ -3379,4 +3394,11 @@ async function loadCustomerPortalRedirect(accessToken: string): Promise<Redirect
 
 export function createBillingPortal(accessToken: string) {
   return loadCustomerPortalRedirect(accessToken);
+}
+
+export async function reduceJobPostFee(input: { jobPostId: string; clientRequestId: string; amountDueMinor: number; reason: string }, accessToken: string) {
+  const envelope = await billingFetch("/api/billing/operator/job-post-reduction", { method: "POST", body: JSON.stringify(input) }, accessToken);
+  const result = exactRecord(envelope.result, ["jobPostId", "amountDueMinor", "idempotentReplay", "publicationGranted"], "job_post_reduction_invalid");
+  if (result.jobPostId !== input.jobPostId || result.amountDueMinor !== input.amountDueMinor || result.publicationGranted !== false || typeof result.idempotentReplay !== "boolean") throw new BillingRequestError(genericUnavailableMessage,503,"job_post_reduction_invalid");
+  return result;
 }

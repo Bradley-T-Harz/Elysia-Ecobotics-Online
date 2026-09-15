@@ -1,10 +1,10 @@
 import { authenticateRequired, createEconomicServerClient } from "../_shared/auth.ts";
-import { assertBillingFeatureEnabled, assertTestOnlyBillingMode } from "../_shared/config.ts";
+import { assertBillingFeatureEnabled, assertBillingMode } from "../_shared/config.ts";
 import { attachOperatorTestRefundResult, prepareOperatorTestRefund } from "../_shared/database.ts";
 import { BillingHttpError, jsonResponse, requireJsonPost, requireSameOriginMutation, safeBillingErrorResponse } from "../_shared/http.ts";
 import { billingFailureOutcome, defaultBillingLogger, emitBillingEvent, type BillingLogger } from "../_shared/observability.ts";
 import { operatorTestRefundExecutionRequest } from "../_shared/schema.ts";
-import { createStripeTestProvider } from "../_shared/stripe.ts";
+import { createStripeProvider } from "../_shared/stripe.ts";
 import type {
   AuthenticatedBillingRequest,
   BillingEnv,
@@ -28,7 +28,7 @@ export type OperatorTestRefundExecutionDependencies = {
 
 const defaultDependencies: OperatorTestRefundExecutionDependencies = {
   authenticate: authenticateRequired,
-  provider: createStripeTestProvider,
+  provider: createStripeProvider,
   prepare: (env, actorUserId, input) => prepareOperatorTestRefund(createEconomicServerClient(env), actorUserId, input),
   attach: (env, actorUserId, input, providerResult) => attachOperatorTestRefundResult(
     createEconomicServerClient(env), actorUserId, input, providerResult
@@ -43,7 +43,7 @@ export async function handleOperatorTestRefundExecution(
 ): Promise<Response> {
   let correlationId: string | null = null;
   try {
-    assertTestOnlyBillingMode(env);
+    assertBillingMode(env);
     assertBillingFeatureEnabled(env, "BILLING_TEST_REFUNDS_ENABLED", "test_refunds_disabled");
     requireSameOriginMutation(request, env);
     requireJsonPost(request);
@@ -82,7 +82,7 @@ export async function handleOperatorTestRefundExecution(
         status: result.status,
         providerStatus: result.providerStatus,
         idempotentReplay: result.idempotentReplay,
-        testMode: true
+        testMode: env.BILLING_MODE !== "live"
       }
     });
   } catch (error) {

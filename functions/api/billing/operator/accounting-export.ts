@@ -1,5 +1,5 @@
 import { authenticateRequired, createEconomicServerClient } from "../_shared/auth.ts";
-import { assertBillingFeatureEnabled, assertTestOnlyBillingMode } from "../_shared/config.ts";
+import { assertBillingFeatureEnabled, assertBillingMode } from "../_shared/config.ts";
 import { exportOperatorEconomicAccounting } from "../_shared/database.ts";
 import { jsonResponse, requireJsonPost, requireSameOriginMutation, safeBillingErrorResponse } from "../_shared/http.ts";
 import { operatorAccountingExportRequest } from "../_shared/schema.ts";
@@ -21,7 +21,7 @@ export async function handleOperatorAccountingExport(
   dependencies: OperatorAccountingExportDependencies = defaultDependencies
 ): Promise<Response> {
   try {
-    assertTestOnlyBillingMode(env);
+    assertBillingMode(env);
     assertBillingFeatureEnabled(env, "BILLING_ACCOUNTING_EXPORT_ENABLED", "economic_accounting_export_disabled");
     requireSameOriginMutation(request, env);
     requireJsonPost(request);

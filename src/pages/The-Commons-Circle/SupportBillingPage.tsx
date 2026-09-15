@@ -329,7 +329,7 @@ export default function SupportBillingPage() {
       <p className="eyebrow">Payment needs attention</p>
       <h2>Private billing guidance</h2>
       <p>A provider-confirmed recurring-support or checkout state needs attention. It affects only that economic flow: it does not ban the Website Account, remove the Commons Profile, change badges or roles, lower trust, or block ordinary free community participation.</p>
-      <div className="button-row">{capabilities?.customerPortal && <button type="button" disabled={actionBusy !== null} onClick={() => void openPortal()}>{actionBusy === "portal" ? "Opening portal..." : "Review billing in Stripe"}</button>}<a className="button-link" href="mailto:support@elysiaecobotics.com?subject=Private%20test-mode%20billing%20help">Contact private billing support</a></div>
+      <div className="button-row">{capabilities?.customerPortal && <button type="button" disabled={actionBusy !== null} onClick={() => void openPortal()}>{actionBusy === "portal" ? "Opening portal..." : "Review billing in Stripe"}</button>}<a className="button-link" href="mailto:support@elysiaecobotics.com?subject=Private%20billing%20help">Contact private billing support</a></div>
       <p className="boundary-note">Do not email card, bank, tax, identity, password, or full provider-transaction details. A public Elysia order reference and a short description are enough to begin review. Retrying a checkout does not repair an existing recurring-support state.</p>
     </section>}
 

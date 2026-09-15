@@ -1,3 +1,4 @@
+import { applyFirstPartyLegal, firstPartyLegalSlugs, firstPartyLegalVersion } from "./firstPartyLegal";
 import { applyWordingCleanupLegal, wordingCleanupLegalSlugs, wordingCleanupLegalVersion } from "./wordingCleanupLegal.ts";
 import readinessArchive from "./readinessLegalArchive.json" with { type: "json" };
 import ownerPriorArchive from "./ownerDecisionPriorLegalArchive.json" with { type: "json" };
@@ -793,9 +794,19 @@ for (const page of legalPolicyPages) {
   }
 }
 
+const priorFirstPartyPages = legalPolicyPages.map(page => ({ ...page }));
+for (const page of legalPolicyPages) {
+  if (firstPartyLegalSlugs.has(page.slug)) {
+    page.body = applyFirstPartyLegal(page.slug, page.body);
+    page.lastUpdated = "2026-09-15";
+    if (!["marketplace-commerce-terms", "sandbox-credit-terms"].includes(page.slug)) page.status = "First-party operating terms";
+  }
+}
+
 export function getLegalPolicy(slug: string | undefined, version?: string | null): LegalPolicyPage | undefined {
   if (!version) return legalPolicyPages.find(policy => policy.slug === slug);
-  if (version === wordingCleanupLegalVersion) return legalPolicyPages.find(policy => policy.slug === slug && wordingCleanupLegalSlugs.has(policy.slug));
+  if (version === firstPartyLegalVersion) return legalPolicyPages.find(policy => policy.slug === slug && firstPartyLegalSlugs.has(policy.slug));
+  if (version === wordingCleanupLegalVersion) return priorFirstPartyPages.find(policy => policy.slug === slug && wordingCleanupLegalSlugs.has(policy.slug));
   if (version === ownerDecisionLegalVersion || version === "2026-09-10") return priorWordingCleanupPages.find(policy => policy.slug === slug && ownerDecisionLegalSlugs.has(policy.slug));
   if (version === readinessLegalVersion || version === "2026-09-08") return readinessArchive.find(policy => policy.slug === slug);
   return [...archivedLegalPolicyPages, ...ownerPriorArchive, ...priorWordingCleanupPages.filter(policy => wordingCleanupLegalSlugs.has(policy.slug))].find(policy => policy.slug === slug

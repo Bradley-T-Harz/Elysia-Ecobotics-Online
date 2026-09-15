@@ -23,8 +23,8 @@ export async function handleBillingCapabilities(
     const database = state.configured
       ? await dependencies.load(env).catch(() => null)
       : null;
-    const available = state.enabled && state.configured && state.providerConfigured && database !== null;
-    const accountManagementAvailable = state.configured && database !== null;
+    const available = state.enabled && state.configured && state.providerConfigured && database !== null && (database.providerMode ?? "test") === env.BILLING_MODE;
+    const accountManagementAvailable = state.configured && database !== null && (database.providerMode ?? "test") === env.BILLING_MODE;
     const checkoutAvailable = available
       && state.redirectConfigured
       && state.webhookFulfillment
@@ -32,10 +32,11 @@ export async function handleBillingCapabilities(
       && database?.economicWebhooksEnabled === true;
     return jsonResponse({
       ok: true,
-      mode: accountManagementAvailable ? "test" : "disabled",
-      livePayments: false,
+      mode: accountManagementAvailable ? env.BILLING_MODE : "disabled",
+      livePayments: checkoutAvailable && env.BILLING_MODE === "live",
       processor: "stripe",
       features: {
+        jobPostCheckout: checkoutAvailable && env.BILLING_JOB_POST_FEES_ENABLED === "true" && database?.jobPostCheckoutEnabled === true,
         oneTimeSupport: checkoutAvailable && state.oneTimeSupport && database?.supportCheckoutEnabled === true,
         recurringSupport: checkoutAvailable
           && state.recurringSupport

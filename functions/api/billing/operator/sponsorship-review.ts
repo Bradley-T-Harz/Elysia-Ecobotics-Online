@@ -1,5 +1,5 @@
 import { authenticateRequired, createEconomicServerClient } from "../_shared/auth.ts";
-import { assertBillingFeatureEnabled, assertTestOnlyBillingMode } from "../_shared/config.ts";
+import { assertBillingFeatureEnabled, assertBillingMode } from "../_shared/config.ts";
 import { reviewOperatorSponsorshipAgreement } from "../_shared/database.ts";
 import { jsonResponse, requireJsonPost, requireSameOriginMutation, safeBillingErrorResponse } from "../_shared/http.ts";
 import { operatorSponsorshipReviewRequest } from "../_shared/schema.ts";
@@ -15,7 +15,7 @@ const defaultDependencies: OperatorSponsorshipReviewDependencies = {
 };
 export async function handleOperatorSponsorshipReview(request: Request, env: BillingEnv, dependencies: OperatorSponsorshipReviewDependencies = defaultDependencies): Promise<Response> {
   try {
-    assertTestOnlyBillingMode(env);
+    assertBillingMode(env);
     assertBillingFeatureEnabled(env, "BILLING_SPONSORSHIP_ADMIN_ENABLED", "sponsorship_admin_disabled");
     requireSameOriginMutation(request, env);
     requireJsonPost(request);
