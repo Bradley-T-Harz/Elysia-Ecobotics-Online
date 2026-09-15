@@ -39,7 +39,7 @@ export default function AddonCard({ addon, selected, saved, onSelect, onSaveAddo
       </div>
       <div className="button-row">
         <button type="button" onClick={() => onSelect(addon.id)}>View Details</button>
-        {officialDownload && <a className="button-link button-link--primary" href={officialDownload}>Download Codev VSIX</a>}
+        {officialDownload && <a className="button-link button-link--primary" href={officialDownload}>Download Codev VSIX</a>}{officialDownload && addon.id === "elysia-codev" && <a className="button-link" href="/archive#codev-core">Get required Codev Core</a>}
         {installAvailable && <button type="button" onClick={() => saved ? onRemoveAddon(addon.id) : onSaveAddon(addon.id)}>{saved ? "Remove from My Add-ons" : "Save to My Add-ons"}</button>}
         {!officialDownload && <button type="button" className="button-primary" disabled={!installAvailable} onClick={() => onPrepareInstall(addon.id)}>{installAvailable ? "Prepare Install Review" : addon.listing_stage === "official_candidate" ? "Candidate · not installable" : "Install unavailable"}</button>}
       </div>

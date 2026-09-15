@@ -59,7 +59,7 @@ export default function AddonDetails({ addon, onPrepareInstall, onOpenLocalInsta
         <pre>{JSON.stringify(addon, null, 2)}</pre>
       </details>
       <MarketplaceCommercePanel addon={addon} />
-      <div className="button-row">{officialDownload && <a className="button-link button-link--primary" href={officialDownload}>Download Codev 1.0 VSIX</a>}{installAvailable && <button type="button" className="button-primary" onClick={() => onPrepareInstall(addon.id)}>Review permissions</button>}{installAvailable && <button type="button" onClick={() => onOpenLocalInstall(addon.id)}>Prepare Local Install</button>}<a className="button-link" href="/catalog-preview.json" target="_blank" rel="noreferrer">View catalog JSON</a></div>
+      <div className="button-row">{officialDownload && <a className="button-link button-link--primary" href={officialDownload}>Download Codev VSIX</a>}{officialDownload && addon.id === "elysia-codev" && <a className="button-link" href="/archive#codev-core">Get required Codev Core</a>}{installAvailable && <button type="button" className="button-primary" onClick={() => onPrepareInstall(addon.id)}>Review permissions</button>}{installAvailable && <button type="button" onClick={() => onOpenLocalInstall(addon.id)}>Prepare Local Install</button>}<a className="button-link" href="/catalog-preview.json" target="_blank" rel="noreferrer">View catalog JSON</a></div>
     </section>
   );
 }
