@@ -1,4 +1,7 @@
 import { generateKeyPairSync, sign } from "node:crypto";
+import { fileURLToPath } from "node:url";
+import { build } from "esbuild";
+import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 import { clearAccessJwksCacheForTests, verifyCloudflareAccessAssertion } from "../services/sandbox-runner/accessValidator.mjs";
 
 function assert(condition, message) {
@@ -76,4 +79,56 @@ assert(!await verifyCloudflareAccessAssertion(assertion(), config, {
   now
 }), "Oversized Access JWKS responses must fail closed.");
 
-console.log("Sandbox Cloudflare Access assertion smoke test ok.");
+// Exercise the actual Workers runtime without Node globals. Ordinary Node
+// tests cannot catch a validator that implicitly depends on global Buffer.
+const bundle = await build({ stdin: {
+  resolveDir: fileURLToPath(new URL("../services/sandbox-runner/", import.meta.url)),
+  contents: `import { verifyCloudflareAccessAssertion } from "./accessValidator.mjs";
+    // Some local workerd versions expose Buffer even without nodejs_compat.
+    // Remove it explicitly so local shims cannot hide a deployed dependency.
+    Object.defineProperty(globalThis, "Buffer", { value: undefined, configurable: true });
+    export default { async fetch(request) {
+      const { token, invalidToken, config, now, jwk } = await request.json();
+      let fetches = 0;
+      const cache = new Map();
+      const fetcher = async () => {
+        fetches++;
+        const bytes = new TextEncoder().encode(JSON.stringify({ note: "synthetic-雪", keys: [jwk] }));
+        const split = bytes.indexOf(0xe9) + 1; // Split a multibyte UTF-8 character.
+        return new Response(new ReadableStream({ start(controller) {
+          controller.enqueue(bytes.slice(0, split));
+          controller.enqueue(bytes.slice(split));
+          controller.close();
+        } }));
+      };
+      const options = { fetcher, cache, now };
+      const valid = await verifyCloudflareAccessAssertion(token, config, options);
+      const cached = await verifyCloudflareAccessAssertion(token, config, options);
+      const invalid = await verifyCloudflareAccessAssertion(invalidToken, config, options);
+      const oversized = await verifyCloudflareAccessAssertion(token, config, {
+        now, cache: new Map(), fetcher: async () => new Response(new Uint8Array(65_537))
+      });
+      const badKey = await verifyCloudflareAccessAssertion(token, config, {
+        now, cache: new Map(), fetcher: async () => Response.json({ keys: [{ ...jwk, n: "!" }] })
+      });
+      return Response.json({ bufferAbsent: typeof Buffer === "undefined", valid, cached, invalid, oversized, badKey, fetches });
+    } };`
+}, bundle: true, write: false, format: "esm", platform: "browser" });
+const runtime = new Miniflare(convertV4MiniflareOptions({ cf: false, workers: [{
+  name: "access-regression", modules: true, script: bundle.outputFiles[0].text,
+  // Pinned to the installed workerd binary; no Node compatibility/polyfills.
+  compatibilityDate: "2026-08-27", compatibilityFlags: [],
+  outboundService: async () => { throw new Error("External network is forbidden in this test"); }
+}] }));
+try {
+  const response = await runtime.dispatchFetch("https://access-regression.invalid/", {
+    method: "POST", body: JSON.stringify({ token: assertion({ sub: "synthetic-雪" }), invalidToken: invalidSignature, config, now, jwk: publicJwk })
+  });
+  const result = await response.json();
+  assert(result.bufferAbsent, `Workers regression must run without global Buffer: ${JSON.stringify(result)}`);
+  assert(result.valid && result.cached, "Valid Access assertions and chunked JWKS must verify in workerd without Node globals.");
+  assert(result.fetches === 1, "Workers verification must preserve the JWKS cache.");
+  assert(!result.invalid && !result.oversized && !result.badKey, "Workers signature, streamed size and invalid JWK checks must fail closed.");
+} finally { await runtime.dispose(); }
+
+console.log("Sandbox Cloudflare Access assertion smoke test ok, including native workerd without Buffer.");

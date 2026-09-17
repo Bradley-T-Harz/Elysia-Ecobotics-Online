@@ -2,6 +2,9 @@ const MAX_ASSERTION_BYTES = 16_384;
 const MAX_JWKS_BYTES = 65_536;
 const JWKS_CACHE_MS = 5 * 60_000;
 const defaultCache = new Map();
+const utf8Encoder = new TextEncoder();
+// Preserve a leading BOM as Buffer's UTF-8 decoding did; JSON must reject it.
+const utf8Decoder = new TextDecoder("utf-8", { ignoreBOM: true });
 
 function object(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : null;
@@ -9,17 +12,19 @@ function object(value) {
 
 function decodeSegment(segment) {
   if (typeof segment !== "string" || !segment || !/^[A-Za-z0-9_-]+$/.test(segment)) throw new Error("access_assertion_invalid");
-  return Buffer.from(segment, "base64url");
+  const base64 = segment.replace(/-/g, "+").replace(/_/g, "/");
+  const binary = atob(base64.padEnd(Math.ceil(base64.length / 4) * 4, "="));
+  return Uint8Array.from(binary, (character) => character.charCodeAt(0));
 }
 
 function parseAssertion(assertion) {
-  if (typeof assertion !== "string" || Buffer.byteLength(assertion, "utf8") > MAX_ASSERTION_BYTES) {
+  if (typeof assertion !== "string" || assertion.length > MAX_ASSERTION_BYTES || utf8Encoder.encode(assertion).byteLength > MAX_ASSERTION_BYTES) {
     throw new Error("access_assertion_invalid");
   }
   const segments = assertion.split(".");
   if (segments.length !== 3) throw new Error("access_assertion_invalid");
-  const header = object(JSON.parse(decodeSegment(segments[0]).toString("utf8")));
-  const payload = object(JSON.parse(decodeSegment(segments[1]).toString("utf8")));
+  const header = object(JSON.parse(utf8Decoder.decode(decodeSegment(segments[0]))));
+  const payload = object(JSON.parse(utf8Decoder.decode(decodeSegment(segments[1]))));
   const signature = decodeSegment(segments[2]);
   if (!header || !payload || header.alg !== "RS256" || typeof header.kid !== "string" || !header.kid) {
     throw new Error("access_assertion_invalid");
@@ -43,12 +48,18 @@ async function readBoundedJson(response) {
         await reader.cancel();
         throw new Error("access_jwks_invalid");
       }
-      chunks.push(Buffer.from(value));
+      chunks.push(new Uint8Array(value));
     }
   } finally {
     reader.releaseLock();
   }
-  return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  const bytes = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    bytes.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return JSON.parse(utf8Decoder.decode(bytes));
 }
 
 function normalizeJwks(value) {
@@ -139,11 +150,11 @@ export async function verifyCloudflareAccessAssertion(assertion, config, options
       ["verify"]
     );
 
-    return crypto.subtle.verify(
+    return await crypto.subtle.verify(
       "RSASSA-PKCS1-v1_5",
       publicKey,
-      new Uint8Array(parsed.signature),
-      new TextEncoder().encode(parsed.signingInput)
+      parsed.signature,
+      utf8Encoder.encode(parsed.signingInput)
     );
   } catch {
     return false;
