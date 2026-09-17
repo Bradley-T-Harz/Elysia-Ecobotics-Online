@@ -1,5 +1,3 @@
-import { createPublicKey, verify as verifySignature } from "node:crypto";
-
 const MAX_ASSERTION_BYTES = 16_384;
 const MAX_JWKS_BYTES = 65_536;
 const JWKS_CACHE_MS = 5 * 60_000;
@@ -133,8 +131,20 @@ export async function verifyCloudflareAccessAssertion(assertion, config, options
     if (!claimsAreValid(parsed.payload, config, options.now ?? Date.now())) return false;
     const jwk = await keyFor(parsed.header.kid, config, options);
     if (!jwk) return false;
-    const publicKey = createPublicKey({ key: jwk, format: "jwk" });
-    return verifySignature("RSA-SHA256", Buffer.from(parsed.signingInput, "ascii"), publicKey, parsed.signature);
+    const publicKey = await crypto.subtle.importKey(
+      "jwk",
+      jwk,
+      { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
+      false,
+      ["verify"]
+    );
+
+    return crypto.subtle.verify(
+      "RSASSA-PKCS1-v1_5",
+      publicKey,
+      new Uint8Array(parsed.signature),
+      new TextEncoder().encode(parsed.signingInput)
+    );
   } catch {
     return false;
   }
