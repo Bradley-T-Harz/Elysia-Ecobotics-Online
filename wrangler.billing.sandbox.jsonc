@@ -1,4 +1,4 @@
-// Disabled credential handoff runtime. No production database binding.
+// Disabled sandbox runtime. Isolated Supabase project; no production database binding.
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "elysia-first-party-billing-sandbox",
@@ -52,6 +52,8 @@
     "BILLING_PUBLIC_ORIGIN": "https://sandbox-not-yet-configured.invalid",
     "STRIPE_API_VERSION": "2025-02-24.acacia",
     "STRIPE_WEBHOOK_API_VERSION": "2025-02-24.acacia",
-    "STRIPE_WEBHOOK_TOLERANCE_SECONDS": "300"
+    "STRIPE_WEBHOOK_TOLERANCE_SECONDS": "300",
+    "SUPABASE_URL": "https://kdtqyxlrkpmlpupzgmwv.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_N9YjXz0WKeCVYZRtBzgmrA_OX5RPcsm"
   }
 }
