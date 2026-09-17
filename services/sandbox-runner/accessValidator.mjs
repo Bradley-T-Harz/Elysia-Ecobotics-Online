@@ -93,7 +93,7 @@ async function fetchJwks(config, options) {
     const response = await (options.fetcher ?? fetch)(`${config.accessTeamDomain}/cdn-cgi/access/certs`, {
       method: "GET",
       headers: { accept: "application/json" },
-      redirect: "error",
+      redirect: "follow",
       signal: controller.signal
     });
     if (!response.ok) throw new Error("access_jwks_unavailable");

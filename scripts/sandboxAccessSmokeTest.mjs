@@ -42,7 +42,7 @@ let fetchCount = 0;
 const fetcher = async (url, init) => {
   fetchCount += 1;
   assert(url === `${config.accessTeamDomain}/cdn-cgi/access/certs`, "Access verifier must fetch only the configured team-domain JWKS endpoint.");
-  assert(init.redirect === "error", "Access JWKS retrieval must refuse redirects.");
+  assert(init.redirect === "follow", "Access JWKS retrieval must support the cert endpoint's redirects.");
   return new Response(JSON.stringify({ keys: [publicJwk] }), {
     status: 200,
     headers: { "content-type": "application/json" }
@@ -130,13 +130,35 @@ const bundle = await build({ stdin: {
       const badKey = await verifyCloudflareAccessAssertion(token, config, {
         now, cache: new Map(), fetcher: async () => Response.json({ keys: [{ ...jwk, n: "!" }] })
       });
-      return Response.json({ bufferAbsent: typeof Buffer === "undefined", valid, cached, invalid, oversized, badKey, fetches, reason, invalidReason });
+      // Native fetch against a synthetic redirecting cert endpoint, not a stub
+      // that accepts redirect options without exercising Workers semantics.
+      const redirectError = await cloudflareAccessVerificationReason(token, config, {
+        now, cache: new Map(), fetcher: (url, init) => fetch(url, { ...init, redirect: "error" })
+      });
+      const redirectFollow = await cloudflareAccessVerificationReason(token, config, {
+        now, cache: new Map(), fetcher: (url, init) => fetch(url, { ...init, redirect: "follow" })
+      });
+      const redirectCache = new Map();
+      const redirectActual = await cloudflareAccessVerificationReason(token, config, { now, cache: redirectCache });
+      const redirectCached = await cloudflareAccessVerificationReason(token, config, { now, cache: redirectCache });
+      return Response.json({ bufferAbsent: typeof Buffer === "undefined", valid, cached, invalid, oversized, badKey, fetches, reason, invalidReason, redirectError, redirectFollow, redirectActual, redirectCached });
     } };`
 }, bundle: true, write: false, format: "esm", platform: "browser" });
 const runtime = new Miniflare(convertV4MiniflareOptions({ cf: false, workers: [{
   name: "access-regression", modules: true, script: bundle.outputFiles[0].text,
   // Pinned to the installed workerd binary; no Node compatibility/polyfills.
   compatibilityDate: "2026-08-27", compatibilityFlags: [],
+  outboundService: "access-jwks-upstream"
+}, {
+  name: "access-jwks-upstream", modules: true, compatibilityDate: "2026-08-27",
+  bindings: { JWK: publicJwk },
+  script: `export default { fetch(request, env) {
+    if (["authorization", "cookie", "cf-access-jwt-assertion"].some(name => request.headers.has(name))) return new Response(null, { status: 400 });
+    const endpoint = "${config.accessTeamDomain}/cdn-cgi/access/certs";
+    if (request.url === endpoint) return Response.redirect(endpoint + "/", 302);
+    if (request.url === endpoint + "/") return Response.json({ keys: [env.JWK] });
+    return new Response(null, { status: 404 });
+  } };`,
   outboundService: async () => { throw new Error("External network is forbidden in this test"); }
 }] }));
 try {
@@ -149,6 +171,8 @@ try {
   assert(result.fetches === 1, "Workers verification must preserve the JWKS cache.");
   assert(result.reason === "access_verified" && result.invalidReason === "access_signature_invalid", "Workers diagnostics must expose only fixed verification reasons.");
   assert(!result.invalid && !result.oversized && !result.badKey, "Workers signature, streamed size and invalid JWK checks must fail closed.");
+  assert(result.redirectError === "access_jwks_unavailable" && result.redirectFollow === "access_verified", "Native Workers fetch must reproduce the redirect-mode failure and successful control.");
+  assert(result.redirectActual === "access_verified" && result.redirectCached === "access_verified", "JWKS retrieval must support the legitimate cert redirect and cache the validated keys.");
 } finally { await runtime.dispose(); }
 
 console.log("Sandbox Cloudflare Access assertion smoke test ok, including native workerd without Buffer.");
