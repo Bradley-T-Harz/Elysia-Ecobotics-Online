@@ -1,0 +1,9 @@
+{
+  "startedAt": "2026-09-17T05:37:32.101567+00:00",
+  "target": "kdtqyxlrkpmlpupzgmwv",
+  "phase": "inventory",
+  "sourceCommit": "7412bda8536ff01d0553ba2ba83ac7dcb392b53a",
+  "migrationCount": 74,
+  "finishedAt": "2026-09-17T05:37:33.506943+00:00",
+  "exitCode": 0
+}

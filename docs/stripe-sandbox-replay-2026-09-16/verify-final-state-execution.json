@@ -1,0 +1,9 @@
+{
+  "startedAt": "2026-09-17T05:46:37.928387+00:00",
+  "target": "kdtqyxlrkpmlpupzgmwv",
+  "phase": "verify-final-state",
+  "sourceCommit": "52fe35c82037adc825ec96fbe1f965065772ca6c",
+  "migrationCount": 74,
+  "finishedAt": "2026-09-17T05:46:39.255618+00:00",
+  "exitCode": 0
+}

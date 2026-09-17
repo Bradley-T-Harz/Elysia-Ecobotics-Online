@@ -1,0 +1,32 @@
+# Explicit sandbox-only CLI execution. Never queries production or reads Worker secrets.
+import subprocess,json,re,sys,datetime,hashlib
+from pathlib import Path
+E=Path(__file__).resolve().parent.parent;R=E.parent.parent/'Elysia-Ecobotics-Online'
+W=Path('/tmp/elysia-stripe-sandbox-kdtqyxlrkpmlpupzgmwv');target='kdtqyxlrkpmlpupzgmwv'
+CLI='/home/ojiji-chhaya/.npm/_npx/d903ae8227774c3f/node_modules/@supabase/cli-linux-x64/bin/supabase-go'
+assert (W/'supabase/.temp/project-ref').read_text().strip()==target
+assert (R/'supabase/.temp/project-ref').read_text().strip()=='qwmcstyfegvpzjmjrylc'
+manifest=json.loads((R/'docs/stripe-sandbox-preparation-2026-09-16/sandbox-migration-plan.json').read_text())
+for item in manifest['migrations']:
+ for p in [R/item['file'],W/item['file']]:assert hashlib.sha256(p.read_bytes()).hexdigest()==item['sha256']
+phase=sys.argv[1]
+if phase=='inventory':args=['db','query','--linked','--file',str(E.parent/'Stripe_Sandbox_Binding_and_Replay_Preparation_2026-09-16/sql/inspect-sandbox.sql'),'--output','json']
+elif phase=='dry-run':args=['db','push','--linked','--dry-run']
+elif phase in ('verify-schema','verify-financial-state','verify-boundaries','verify-functions','verify-final-state'):
+ args=['db','query','--linked','--file',str(E/'sql'/(phase+'.sql')),'--output','json']
+elif phase=='ledger':args=['migration','list','--linked']
+elif phase=='apply':args=['db','push','--linked','--yes']
+else:raise SystemExit('Unknown stage')
+record={'startedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'target':target,'phase':phase,'sourceCommit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=R,text=True).strip(),'migrationCount':len(manifest['migrations'])}
+(E/(phase+'-execution.json')).write_text(json.dumps(record,indent=2)+'\n')
+r=subprocess.run([CLI,*args,'--workdir',str(W)],cwd=W,stdin=subprocess.DEVNULL,capture_output=True,text=True,timeout=1200)
+def clean(s):
+ s=re.sub(r'(postgres(?:ql)?://)[^\s]+',r'\1[REDACTED]',s)
+ s=re.sub(r'(?<![A-Za-z0-9])(?:sb_secret_[A-Za-z0-9_-]+|sbp_[A-Za-z0-9]+|(?:sk|rk)_(?:test|live)_[A-Za-z0-9_]+|whsec_[A-Za-z0-9_]+)','[REDACTED]',s)
+ return s
+(E/(phase+'-stdout.txt')).write_text(clean(r.stdout));(E/(phase+'-stderr.txt')).write_text(clean(r.stderr))
+record.update(finishedAt=datetime.datetime.now(datetime.timezone.utc).isoformat(),exitCode=r.returncode)
+(E/(phase+'-execution.json')).write_text(json.dumps(record,indent=2)+'\n')
+print(json.dumps(record,indent=2))
+if phase in ('dry-run','apply','ledger') or r.returncode:print(clean(r.stdout+r.stderr)[-2800:])
+raise SystemExit(r.returncode)
