@@ -1,0 +1,5 @@
+
+> elysia-ecobotics-online@0.1.0 test:billing-disabled-browser:built
+> node scripts/billingDisabledBrowserSmokeTest.mjs
+
+Disabled billing-client browser boundary passed: five affected routes issued zero /api/billing requests.

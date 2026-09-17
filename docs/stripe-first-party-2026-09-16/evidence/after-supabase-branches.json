@@ -1,0 +1,11 @@
+[
+  {
+    "id": "b87ae36a-3a72-41d3-a4ba-62ca4e88eac0",
+    "is_default": true,
+    "name": "main",
+    "parent_project_ref": "qwmcstyfegvpzjmjrylc",
+    "persistent": false,
+    "project_ref": "qwmcstyfegvpzjmjrylc",
+    "status": "FUNCTIONS_DEPLOYED"
+  }
+]

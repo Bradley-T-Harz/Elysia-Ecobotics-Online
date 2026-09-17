@@ -1,0 +1,22 @@
+{
+  "readCompletelyBeforeCodeChanges": true,
+  "files": [
+    {
+      "file": "EcoSyneva_Stripe_First_Party_Financial_Activation_Master_Plan_2026-09-15.docx",
+      "bytes": 66402,
+      "sha256": "73dd5c2c61de12e02a160b9c981af55b1094cb52348f955a9ee8b9b1a82f03eb"
+    },
+    {
+      "file": "Codex_Stripe_First_Party_Production_Readiness_and_Creator_UX_2026-09-15.md",
+      "bytes": 22711,
+      "sha256": "43242f82fb5f5c87d64a99628311431079d515c02f028b2d4d2ad31511616e13"
+    },
+    {
+      "file": "EcoSyneva_Stripe_First_Party_Financial_Activation_Master_Plan_2026-09-15.md",
+      "bytes": 62416,
+      "sha256": "67a7f6e2e8d3fbbb5945787122cdfc9cf6f1a4131fec59e2b01b01297ef79481"
+    }
+  ],
+  "docxDifference": "Core-rule and source-grounding notes plus formatting; no conflicting activation scope.",
+  "approvalEvidence": "Owner-confirmed transcription, not independently retrieved provider email."
+}

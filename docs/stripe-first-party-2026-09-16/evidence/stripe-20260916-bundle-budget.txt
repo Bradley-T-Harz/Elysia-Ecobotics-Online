@@ -1,0 +1,5 @@
+
+> elysia-ecobotics-online@0.1.0 test:bundle-budget
+> node scripts/bundleBudgetAudit.mjs
+
+Website bundle budget passed: 134 ordinary chunks at or below 512000 bytes; one demand-loaded local Monaco core within raw/gzip budgets; 5 bounded workers; no source maps.

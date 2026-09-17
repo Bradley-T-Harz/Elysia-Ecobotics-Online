@@ -1,0 +1,5 @@
+
+> elysia-ecobotics-online@0.1.0 test:public-bundle-security
+> node scripts/publicBundleSecurityAudit.mjs
+
+Online public-bundle security audit passed: 229 artifacts, no symlinks, source maps, runtime environment files, secret material, or private-machine paths.

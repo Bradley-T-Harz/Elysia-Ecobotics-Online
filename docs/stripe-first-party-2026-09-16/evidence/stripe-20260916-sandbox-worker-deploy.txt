@@ -1,0 +1,43 @@
+
+ ⛅️ wrangler 4.125.0 (update available 4.133.0)
+───────────────────────────────────────────────
+Total Upload: 1094.07 KiB / gzip: 197.32 KiB
+Worker Startup Time: 17 ms
+Your Worker has access to the following bindings:
+Binding                                                                                              Resource                  
+env.BILLING_MUTATION_RATE_LIMITER (60 requests/60s)                                                  Rate Limit                
+env.BILLING_ENABLED ("false")                                                                        Environment Variable      
+env.BILLING_SUPPORT_CHECKOUT_ENABLED ("false")                                                       Environment Variable      
+env.BILLING_RECURRING_ENABLED ("false")                                                              Environment Variable      
+env.BILLING_WEBHOOK_FULFILLMENT_ENABLED ("false")                                                    Environment Variable      
+env.BILLING_NOTIFICATION_RETRY_ENABLED ("false")                                                     Environment Variable      
+env.BILLING_PORTAL_ENABLED ("false")                                                                 Environment Variable      
+env.BILLING_SELLER_ONBOARDING_ENABLED ("false")                                                      Environment Variable      
+env.BILLING_JOB_POST_FEES_ENABLED ("false")                                                          Environment Variable      
+env.BILLING_SANDBOX_PURCHASES_ENABLED ("false")                                                      Environment Variable      
+env.BILLING_MARKETPLACE_COMMERCE_ENABLED ("false")                                                   Environment Variable      
+env.BILLING_MARKETPLACE_PAYOUT_PREPARATION_ENABLED ("false")                                         Environment Variable      
+env.BILLING_ORGANIZATION_SERVICES_ENABLED ("false")                                                  Environment Variable      
+env.BILLING_SPONSORSHIP_ADMIN_ENABLED ("false")                                                      Environment Variable      
+env.BILLING_SPONSORSHIP_CHECKOUT_ENABLED ("false")                                                   Environment Variable      
+env.BILLING_SPONSORSHIP_RECOGNITION_ENABLED ("false")                                                Environment Variable      
+env.BILLING_ASSISTANCE_ADMIN_ENABLED ("false")                                                       Environment Variable      
+env.BILLING_SUPPORT_RECOGNITION_ENABLED ("false")                                                    Environment Variable      
+env.BILLING_ACCOUNT_LIFECYCLE_ENABLED ("false")                                                      Environment Variable      
+env.BILLING_ACCOUNTING_EXPORT_ENABLED ("false")                                                      Environment Variable      
+env.BILLING_TEST_REFUNDS_ENABLED ("false")                                                           Environment Variable      
+env.BILLING_STAGING_ACCESS_CONFIRMED ("false")                                                       Environment Variable      
+env.BILLING_EDGE_RATE_LIMIT_CONFIRMED ("false")                                                      Environment Variable      
+env.BILLING_FIRST_PARTY_PREFLIGHT_CONFIRMED ("false")                                                Environment Variable      
+env.STRIPE_CONNECT_ENABLED ("false")                                                                 Environment Variable      
+env.STRIPE_LIVE_ENABLED ("false")                                                                    Environment Variable      
+env.BILLING_MODE ("disabled")                                                                        Environment Variable      
+env.BILLING_PUBLIC_ORIGIN ("https://sandbox-not-yet-configured.in...")                               Environment Variable      
+env.STRIPE_API_VERSION ("2025-02-24.acacia")                                                         Environment Variable      
+env.STRIPE_WEBHOOK_API_VERSION ("2025-02-24.acacia")                                                 Environment Variable      
+env.STRIPE_WEBHOOK_TOLERANCE_SECONDS ("300")                                                         Environment Variable      
+
+Uploaded elysia-first-party-billing-sandbox (2.86 sec)
+Deployed elysia-first-party-billing-sandbox triggers (0.52 sec)
+  https://elysia-first-party-billing-sandbox.bradleytharz3407.workers.dev
+Current Version ID: 98597868-29fe-4f4a-9665-32d272bd33c7

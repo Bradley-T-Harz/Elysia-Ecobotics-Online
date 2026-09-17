@@ -1,0 +1,503 @@
+{
+  "capturedAt": "2026-09-17T00:27:26.792Z",
+  "sourceCommit": "ba75044d82aa676026cba37f828f7b559729ef77",
+  "rows": [
+    {
+      "route": "/support",
+      "width": 1440,
+      "status": 200,
+      "heading": "Keep the commons alive",
+      "overflow": false
+    },
+    {
+      "route": "/marketplace",
+      "width": 1440,
+      "status": 200,
+      "heading": "The Elysia Marketplace",
+      "overflow": false
+    },
+    {
+      "route": "/marketplace/creator-studio",
+      "width": 1440,
+      "status": 200,
+      "heading": "Creator Studio",
+      "overflow": false
+    },
+    {
+      "route": "/developer-forge",
+      "width": 1440,
+      "status": 200,
+      "heading": "The Developer Forge",
+      "overflow": false
+    },
+    {
+      "route": "/legal/support-and-billing-terms",
+      "width": 1440,
+      "status": 200,
+      "heading": "Support and Billing Terms",
+      "overflow": false
+    },
+    {
+      "route": "/support",
+      "width": 390,
+      "status": 200,
+      "heading": "Keep the commons alive",
+      "overflow": false
+    },
+    {
+      "route": "/marketplace",
+      "width": 390,
+      "status": 200,
+      "heading": "The Elysia Marketplace",
+      "overflow": false
+    },
+    {
+      "route": "/marketplace/creator-studio",
+      "width": 390,
+      "status": 200,
+      "heading": "Creator Studio",
+      "overflow": false
+    },
+    {
+      "route": "/developer-forge",
+      "width": 390,
+      "status": 200,
+      "heading": "The Developer Forge",
+      "overflow": false
+    },
+    {
+      "route": "/legal/support-and-billing-terms",
+      "width": 390,
+      "status": 200,
+      "heading": "Support and Billing Terms",
+      "overflow": false
+    }
+  ],
+  "endpoints": [
+    {
+      "path": "provider-readiness",
+      "status": 200,
+      "data": {
+        "ok": true,
+        "provider": {
+          "mode": "test",
+          "lanes": [
+            {
+              "key": "job_post_fee_enforcement",
+              "enabled": false,
+              "taxBehavior": "disabled",
+              "legalQualified": false,
+              "sandboxQualified": false,
+              "rolloutAuthorized": false,
+              "taxDecisionRecorded": false
+            },
+            {
+              "key": "organization_billing",
+              "enabled": false,
+              "taxBehavior": "disabled",
+              "legalQualified": false,
+              "sandboxQualified": false,
+              "rolloutAuthorized": false,
+              "taxDecisionRecorded": false
+            },
+            {
+              "key": "recurring_support",
+              "enabled": false,
+              "taxBehavior": "disabled",
+              "legalQualified": false,
+              "sandboxQualified": false,
+              "rolloutAuthorized": false,
+              "taxDecisionRecorded": false
+            },
+            {
+              "key": "sponsorship_checkout",
+              "enabled": false,
+              "taxBehavior": "disabled",
+              "legalQualified": false,
+              "sandboxQualified": false,
+              "rolloutAuthorized": false,
+              "taxDecisionRecorded": false
+            },
+            {
+              "key": "support_checkout",
+              "enabled": false,
+              "taxBehavior": "disabled",
+              "legalQualified": false,
+              "sandboxQualified": false,
+              "rolloutAuthorized": false,
+              "taxDecisionRecorded": false
+            }
+          ],
+          "scope": "first_party_account",
+          "provider": "stripe",
+          "reviewedAt": "2026-09-15",
+          "reviewStatus": "passed",
+          "lastPreflightAt": null,
+          "webhookVerified": false,
+          "thirdPartyStatus": "hard_off",
+          "eventCoverageVerified": false
+        },
+        "runtime": {
+          "mode": "disabled",
+          "credentialPresent": false,
+          "webhookSecretPresent": false,
+          "testCredentialPresent": false,
+          "testWebhookSecretPresent": false,
+          "liveCredentialPresent": false,
+          "liveWebhookSecretPresent": false,
+          "rateLimiterBound": true,
+          "economicPublicConfigured": true,
+          "economicServerConfigured": false,
+          "providerConfigured": false,
+          "oneTimeSupport": false,
+          "recurringSupport": false,
+          "organizationServiceCheckout": false,
+          "sponsorshipCheckout": false,
+          "jobPostCheckout": false,
+          "thirdPartyMoney": false
+        }
+      }
+    },
+    {
+      "path": "capabilities",
+      "status": 200,
+      "data": {
+        "ok": true,
+        "mode": "disabled",
+        "livePayments": false,
+        "processor": "stripe",
+        "features": {
+          "jobPostCheckout": false,
+          "oneTimeSupport": false,
+          "recurringSupport": false,
+          "customerPortal": false,
+          "accountLifecycle": false,
+          "sellerOnboarding": false,
+          "organizationServiceCheckout": false,
+          "sponsorshipCheckout": false
+        },
+        "legalDocumentVersions": null,
+        "legalConsentBundles": null
+      }
+    },
+    {
+      "path": "marketplace/checkout",
+      "status": 404,
+      "data": {
+        "ok": false,
+        "error": "billing_route_not_found"
+      }
+    },
+    {
+      "path": "seller/onboarding",
+      "status": 404,
+      "data": {
+        "ok": false,
+        "error": "billing_route_not_found"
+      }
+    },
+    {
+      "path": "seller/status-refresh",
+      "status": 404,
+      "data": {
+        "ok": false,
+        "error": "billing_route_not_found"
+      }
+    },
+    {
+      "path": "operator/marketplace-payout-preparation",
+      "status": 404,
+      "data": {
+        "ok": false,
+        "error": "billing_route_not_found"
+      }
+    },
+    {
+      "path": "sandbox-credits/checkout",
+      "status": 404,
+      "data": {
+        "ok": false,
+        "error": "billing_route_not_found"
+      }
+    }
+  ],
+  "rateLimit": {
+    "attempts": 62,
+    "responses": [
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 503,
+        "error": "billing_live_preflight_required"
+      },
+      {
+        "status": 429,
+        "error": "billing_rate_limited"
+      }
+    ],
+    "verified": true
+  },
+  "sandboxReadiness": {
+    "ok": false,
+    "provider": null,
+    "runtime": {
+      "mode": "disabled",
+      "credentialPresent": false,
+      "webhookSecretPresent": false,
+      "testCredentialPresent": false,
+      "testWebhookSecretPresent": false,
+      "liveCredentialPresent": false,
+      "liveWebhookSecretPresent": false,
+      "rateLimiterBound": true,
+      "economicPublicConfigured": false,
+      "economicServerConfigured": false,
+      "providerConfigured": false,
+      "oneTimeSupport": false,
+      "recurringSupport": false,
+      "organizationServiceCheckout": false,
+      "sponsorshipCheckout": false,
+      "jobPostCheckout": false,
+      "thirdPartyMoney": false
+    }
+  },
+  "qualifiedEntryAsset": "/assets/safe-assets-v1-rolldown-runtime-Dd_uD5pT.js",
+  "pageErrors": []
+}

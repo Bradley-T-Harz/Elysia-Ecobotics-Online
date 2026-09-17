@@ -1,0 +1,34 @@
+
+> elysia-ecobotics-online@0.1.0 pages:production:deploy
+> bash scripts/deployVerifiedProductionPages.sh
+
+Production public configuration gate passed: Supabase remote auth and both Turnstile widget bindings are present and safely classified.
+Production Auth compiled-artifact gate passed.
+Mode: required
+Public Turnstile site key: exact match
+Commons/Auth bundle: assets/safe-assets-v1-commons-circle-D8Wdne2O.js
+Commons/Auth bundle SHA-256: 74c1bc473e53e529ed9770747fc994edcb408929a3f268c8dd2875f0934062be
+Lifecycle Turnstile public site key: exact match
+Lifecycle Turnstile bundle: assets/safe-assets-v1-TurnstileWidget-BhHV6LHG.js
+Lifecycle Turnstile bundle SHA-256: cfe6648f6903caee6923c28872dfa5e786f39c371397f55abe48ad7296fb4b3e
+Supabase remote-auth public configuration: exact compiled match
+Supabase browser key classification: publishable/anon only
+Supabase configuration bundle: assets/safe-assets-v1-commune-account-api-DN7bk_nL.js
+Complete artifact SHA-256: e9f2ef6b577f87289f8e3dd2b1c00a629145dfb823a3f16a73238f358874d34d
+Artifact file count: 229
+
+ ⛅️ wrangler 4.125.0 (update available 4.133.0)
+───────────────────────────────────────────────
+✨ Compiled Worker successfully
+Uploading... (210/226)
+Uploading... (215/226)
+Uploading... (221/226)
+Uploading... (226/226)
+✨ Success! Uploaded 16 files (210 already uploaded) (2.47 sec)
+
+✨ Uploading _headers
+✨ Uploading _redirects
+✨ Uploading Functions bundle
+✨ Uploading _routes.json
+🌎 Deploying...
+✨ Deployment complete! Take a peek over at https://57f69a36.elysia-ecobotics-online.pages.dev

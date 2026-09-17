@@ -99,7 +99,7 @@ The script [stripeContract.ts](../../functions/api/billing/_shared/stripeContrac
 
 ## 4. Payment methods, receipts and tax
 
-The current adapter explicitly sends **`payment_method_types[0]=card`** for every Checkout Session. Enable Cards in the correct Stripe environment. Apple Pay / Google Pay are offered by Stripe-hosted Checkout only where eligible; verify each intended wallet in sandbox. This implementation does not request Link, ACH, BNPL or dynamic payment methods. Keep BNPL/financing and unqualified methods out of the launch. Enabling an extra method in Dashboard does not enable it in this adapter; adding one requires code and its asynchronous/refund/dispute acceptance cases.
+The current adapter explicitly sends **`payment_method_types[0]=card`** for every Checkout Session. Enable Cards in the correct Stripe environment. Apple Pay / Google Pay are offered by Stripe-hosted Checkout only where eligible; verify each intended wallet in sandbox. [Hosted Checkout wallet behavior](https://docs.stripe.com/payments/checkout/save-and-reuse). This implementation does not request Link, ACH, BNPL or dynamic payment methods. Keep BNPL/financing and unqualified methods out of the launch. Enabling an extra method in Dashboard does not enable it in this adapter; adding one requires code and its asynchronous/refund/dispute acceptance cases.
 
 Verify EcoSyneva Commons LLC business identity, support contact, statement descriptor, receipt sender and customer email settings. Sandbox receipt-email behavior differs from real delivery; keep Dashboard configuration evidence separate from actual receipt delivery. No redirect page creates payment success. The application shows provider-confirmed payment/receipt/refund state only.
 
