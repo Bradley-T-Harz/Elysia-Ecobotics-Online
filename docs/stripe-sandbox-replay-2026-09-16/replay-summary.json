@@ -1,0 +1,29 @@
+{
+  "migrationsApplied": 74,
+  "first": "20260714010000",
+  "head": "20260915070000",
+  "canonicalOrderVerified": true,
+  "publicTables": 114,
+  "publicTablesWithRls": 114,
+  "privateTables": 158,
+  "privateTablesWithRls": 157,
+  "privateAclOnlyException": "sandbox_proxy_secrets: canonical owner-only table; no anon/authenticated schema or table access",
+  "policies": 455,
+  "policiesBySchema": {
+    "private": 4,
+    "public": 433,
+    "storage": 18
+  },
+  "functions": 708,
+  "allDefinerSearchPathsFixed": true,
+  "invalidIndexes": 0,
+  "unvalidatedConstraints": 0,
+  "authUsers": 0,
+  "storageObjects": 0,
+  "databaseMode": "test",
+  "workerMode": "disabled",
+  "allMoneyFlagsOff": true,
+  "providerAccountReference": null,
+  "stripeProviderAcceptanceStarted": false,
+  "productionAccessed": false
+}
