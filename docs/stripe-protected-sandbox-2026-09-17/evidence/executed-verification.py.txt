@@ -1,0 +1,70 @@
+import concurrent.futures, datetime, hashlib, json, pathlib, tomllib, urllib.request, urllib.error
+
+ROOT=pathlib.Path('/home/ojiji-chhaya/MAIN_Projects/EcoSyneva_Commons_LLC/Elysia_Ecobotics')
+OUT=ROOT/'Elysia_Financial-and-Economic_Matters/Stripe_Protected_UI_2026-09-17'
+ACCOUNT='52813999b345cafda80d67f1d6345d5c'
+UI='https://elysia-ecobotics-online-sandbox.bradleytharz3407.workers.dev'
+BILLING='https://elysia-first-party-billing-sandbox.bradleytharz3407.workers.dev'
+token=tomllib.loads(pathlib.Path('/home/ojiji-chhaya/.config/.wrangler/config/default.toml').read_text())['oauth_token']
+
+def cf(path):
+    req=urllib.request.Request('https://api.cloudflare.com/client/v4/accounts/'+ACCOUNT+path,headers={'Authorization':'Bearer '+token})
+    with urllib.request.urlopen(req,timeout=30) as response: return json.load(response)['result']
+
+def worker(name):
+    settings=cf('/workers/scripts/'+name+'/settings')
+    deployments=cf('/workers/scripts/'+name+'/deployments')['deployments']
+    bindings=settings.get('bindings',[])
+    values={b['name']:b.get('text') for b in bindings if b['type']=='plain_text'}
+    return {'mode':values.get('BILLING_MODE'),'origin':values.get('BILLING_PUBLIC_ORIGIN',values.get('SANDBOX_UI_ORIGIN',values.get('IDENTITY_ALLOWED_ORIGINS'))),
+        'database':values.get('SUPABASE_URL'),'flags':{k:v for k,v in values.items() if k.endswith('_ENABLED') or k.endswith('_CONFIRMED')},
+        'sandboxAccessRequired':values.get('BILLING_SANDBOX_ACCESS_REQUIRED'),
+        'accessConfigured':bool(values.get('SANDBOX_ACCESS_TEAM_DOMAIN') and values.get('SANDBOX_ACCESS_AUDIENCE')),
+        'secretBindingNames':sorted(b['name'] for b in bindings if b['type']=='secret_text'),
+        'services':[{'binding':b['name'],'service':b.get('service')} for b in bindings if b['type']=='service'],
+        'assetBindingPresent':any(b['type']=='assets' for b in bindings),
+        'subdomain':cf('/workers/scripts/'+name+'/subdomain'),
+        'deployments':[{'id':d['id'],'created_on':d['created_on'],'versions':d['versions']} for d in deployments[:1]]}
+
+names=['elysia-ecobotics-online-sandbox','elysia-first-party-billing-sandbox','elysia-shared-identity-sandbox','elysia-first-party-billing']
+after={'capturedAt':datetime.datetime.now(datetime.timezone.utc).isoformat()}
+with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
+    for name,result in zip(names,pool.map(worker,names)):after[name]=result
+pages=cf('/pages/projects/elysia-ecobotics-online')['canonical_deployment']
+after['productionPages']={k:pages[k] for k in ['id','url','deployment_trigger']}
+before=json.loads((OUT/'before-runtime.json').read_text())
+assert after['productionPages']==before['productionPages']
+for key in ['deployments','mode','origin','database','flags','secretBindingNames']:
+    assert after['elysia-first-party-billing'][key]==before['elysia-first-party-billing'][key], key
+after['productionUnchanged']=True
+for name in names[:3]:assert after[name]['database']=='https://kdtqyxlrkpmlpupzgmwv.supabase.co'
+b=after['elysia-first-party-billing-sandbox']
+assert b['mode']=='disabled' and b['origin']==UI and b['sandboxAccessRequired']=='true'
+assert all(v=='false' for v in b['flags'].values()) and b['secretBindingNames']==['SUPABASE_SERVICE_ROLE_KEY']
+assert not b['accessConfigured']
+assert after['elysia-shared-identity-sandbox']['subdomain']=={'enabled':False,'previews_enabled':False}
+assert after['elysia-ecobotics-online-sandbox']['assetBindingPresent'] is True
+(OUT/'after-runtime.json').write_text(json.dumps(after,indent=2)+'\n')
+
+manifest=json.loads((ROOT/'Elysia-Ecobotics-Online/dist-sandbox-build.json').read_text())
+assets=list((ROOT/'Elysia-Ecobotics-Online/dist-sandbox/assets').glob('*.js'))
+asset='/assets/'+assets[0].name
+cases=[(UI,p,'GET',403,{}) for p in ['/', '/support','/developer-forge','/marketplace/creator-studio','/account','/commons-circle/support-billing','/robots.txt',asset,'/api/billing/provider-readiness','/api/identity/session','/api/billing/webhook']]
+cases += [(UI,'/','GET',403,{'Cf-Access-Jwt-Assertion':'forged.synthetic.token'})]
+cases += [(UI,p,'POST',403,{}) for p in ['/api/billing/webhook/','/api/billing/webhook?bypass=1','/api/billing/webhook/child']]
+cases += [(base,'/api/billing/webhook','POST',503,{}) for base in [UI,BILLING]]
+cases += [(BILLING,'/api/billing/provider-readiness','GET',403,{})]
+cases += [(BILLING,'/api/billing/webhook?bypass=1','POST',403,{})]
+def probe(case):
+    base,path,method,expected,extra=case
+    req=urllib.request.Request(base+path,method=method,headers={'User-Agent':'Elysia-sandbox-protection-verification/1.0',**extra},data=b'{}' if method=='POST' else None)
+    try:response=urllib.request.urlopen(req,timeout=30)
+    except urllib.error.HTTPError as e:response=e
+    body=response.read()
+    status=response.status
+    assert status==expected, (base,path,status,expected)
+    assert b'<html' not in body.lower() and b'<script' not in body.lower()
+    return {'url':base+path,'method':method,'forgedAssertion':bool(extra),'status':status,'expectedStatus':expected,'bodySha256':hashlib.sha256(body).hexdigest(),'bytes':len(body),'cacheControl':response.headers.get('Cache-Control'),'xRobotsTag':response.headers.get('X-Robots-Tag'),'applicationBodyExposed':False}
+with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:results=list(pool.map(probe,cases))
+(OUT/'deployed-protection-checks.json').write_text(json.dumps({'capturedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'checks':results,'authorizedRemoteAccessTest':'PENDING_OWNER_ACCESS_SETUP','webhookNote':'Exact POST reaches billing disabled guard (503); no provider delivery or acceptance performed.'},indent=2)+'\n')
+print(json.dumps({'routeChecksPassed':len(results),'productionUnchanged':True,'sandboxBillingGatesOff':len(b['flags']),'workers':{n:after[n]['deployments'][0] for n in names[:3]}},indent=2))

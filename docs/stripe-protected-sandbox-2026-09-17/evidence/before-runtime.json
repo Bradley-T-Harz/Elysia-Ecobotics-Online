@@ -1,0 +1,108 @@
+{
+  "capturedAt": "2026-09-17T06:36:45.098290+00:00",
+  "elysia-first-party-billing-sandbox": {
+    "mode": "disabled",
+    "origin": "https://sandbox-not-yet-configured.invalid",
+    "database": "https://kdtqyxlrkpmlpupzgmwv.supabase.co",
+    "flags": {
+      "BILLING_ACCOUNTING_EXPORT_ENABLED": "false",
+      "BILLING_ACCOUNT_LIFECYCLE_ENABLED": "false",
+      "BILLING_ASSISTANCE_ADMIN_ENABLED": "false",
+      "BILLING_EDGE_RATE_LIMIT_CONFIRMED": "false",
+      "BILLING_ENABLED": "false",
+      "BILLING_FIRST_PARTY_PREFLIGHT_CONFIRMED": "false",
+      "BILLING_JOB_POST_FEES_ENABLED": "false",
+      "BILLING_MARKETPLACE_COMMERCE_ENABLED": "false",
+      "BILLING_MARKETPLACE_PAYOUT_PREPARATION_ENABLED": "false",
+      "BILLING_NOTIFICATION_RETRY_ENABLED": "false",
+      "BILLING_ORGANIZATION_SERVICES_ENABLED": "false",
+      "BILLING_PORTAL_ENABLED": "false",
+      "BILLING_RECURRING_ENABLED": "false",
+      "BILLING_SANDBOX_PURCHASES_ENABLED": "false",
+      "BILLING_SELLER_ONBOARDING_ENABLED": "false",
+      "BILLING_SPONSORSHIP_ADMIN_ENABLED": "false",
+      "BILLING_SPONSORSHIP_CHECKOUT_ENABLED": "false",
+      "BILLING_SPONSORSHIP_RECOGNITION_ENABLED": "false",
+      "BILLING_STAGING_ACCESS_CONFIRMED": "false",
+      "BILLING_SUPPORT_CHECKOUT_ENABLED": "false",
+      "BILLING_SUPPORT_RECOGNITION_ENABLED": "false",
+      "BILLING_TEST_REFUNDS_ENABLED": "false",
+      "BILLING_WEBHOOK_FULFILLMENT_ENABLED": "false",
+      "STRIPE_CONNECT_ENABLED": "false",
+      "STRIPE_LIVE_ENABLED": "false"
+    },
+    "secretBindingNames": [
+      "SUPABASE_SERVICE_ROLE_KEY"
+    ],
+    "deployments": [
+      {
+        "id": "f3a856eb-2199-4c18-af22-e996a1af5deb",
+        "created_on": "2026-09-17T05:05:51.078219Z",
+        "versions": [
+          {
+            "version_id": "31f96a20-91c6-458b-b707-34e9f1f618a0",
+            "percentage": 100
+          }
+        ]
+      }
+    ]
+  },
+  "elysia-first-party-billing": {
+    "mode": "disabled",
+    "origin": "https://elysiaecobotics.com",
+    "database": "https://qwmcstyfegvpzjmjrylc.supabase.co",
+    "flags": {
+      "BILLING_ACCOUNTING_EXPORT_ENABLED": "false",
+      "BILLING_ACCOUNT_LIFECYCLE_ENABLED": "false",
+      "BILLING_ASSISTANCE_ADMIN_ENABLED": "false",
+      "BILLING_EDGE_RATE_LIMIT_CONFIRMED": "false",
+      "BILLING_ENABLED": "false",
+      "BILLING_FIRST_PARTY_PREFLIGHT_CONFIRMED": "false",
+      "BILLING_JOB_POST_FEES_ENABLED": "false",
+      "BILLING_MARKETPLACE_COMMERCE_ENABLED": "false",
+      "BILLING_MARKETPLACE_PAYOUT_PREPARATION_ENABLED": "false",
+      "BILLING_NOTIFICATION_RETRY_ENABLED": "false",
+      "BILLING_ORGANIZATION_SERVICES_ENABLED": "false",
+      "BILLING_PORTAL_ENABLED": "false",
+      "BILLING_RECURRING_ENABLED": "false",
+      "BILLING_SANDBOX_PURCHASES_ENABLED": "false",
+      "BILLING_SELLER_ONBOARDING_ENABLED": "false",
+      "BILLING_SPONSORSHIP_ADMIN_ENABLED": "false",
+      "BILLING_SPONSORSHIP_CHECKOUT_ENABLED": "false",
+      "BILLING_SPONSORSHIP_RECOGNITION_ENABLED": "false",
+      "BILLING_STAGING_ACCESS_CONFIRMED": "false",
+      "BILLING_SUPPORT_CHECKOUT_ENABLED": "false",
+      "BILLING_SUPPORT_RECOGNITION_ENABLED": "false",
+      "BILLING_TEST_REFUNDS_ENABLED": "false",
+      "BILLING_WEBHOOK_FULFILLMENT_ENABLED": "false",
+      "STRIPE_CONNECT_ENABLED": "false",
+      "STRIPE_LIVE_ENABLED": "false"
+    },
+    "secretBindingNames": [],
+    "deployments": [
+      {
+        "id": "3940a21e-f650-4521-91b4-e3d5eeff3e86",
+        "created_on": "2026-09-17T00:23:07.234114Z",
+        "versions": [
+          {
+            "version_id": "a043d182-a69e-451e-98a1-ae03b972ccd2",
+            "percentage": 100
+          }
+        ]
+      }
+    ]
+  },
+  "productionPages": {
+    "id": "57f69a36-caad-4959-8dfb-30aec839ec74",
+    "url": "https://57f69a36.elysia-ecobotics-online.pages.dev",
+    "deployment_trigger": {
+      "type": "ad_hoc",
+      "metadata": {
+        "branch": "main",
+        "commit_hash": "ba75044d82aa676026cba37f828f7b559729ef77",
+        "commit_message": "Qualify Stripe configuration preflight, edge limits and exact secret handoff",
+        "commit_dirty": false
+      }
+    }
+  }
+}

@@ -1,0 +1,129 @@
+
+ ⛅️ wrangler 4.125.0 (update available 4.133.0)
+───────────────────────────────────────────────
+🌀 Building list of assets...
+✨ Read 235 files from the assets directory /tmp/elysia-protected-sandbox-release-6735f7e/dist-sandbox
+🌀 Starting asset upload...
+🌀 Found 224 new or modified static assets to upload. Proceeding with upload...
++ /asset-not-found.txt
++ /assets/safe-assets-v1-useMarketplaceContext-J7pEyNhI.js
++ /assets/safe-assets-v1-StatusBadge-CEKZ-hoV.js
++ /assets/safe-assets-v1-exactMoney-BpLSXrCN.js
++ /assets/safe-assets-v1-FeatureCard-CczLp5yU.js
++ /legal/LICENSES/LicenseRef-Pending-Permission-Pond5-168538192.txt
++ /assets/safe-assets-v1-listingTruth-BgtHlh09.js
++ /favicon.svg
++ /assets/safe-assets-v1-The-Elysia-Mission-D2dVuUgj.js
++ /assets/safe-assets-v1-TurnstileWidget-tXlviUxB.js
++ /assets/safe-assets-v1-CreatorStudioDoorway-BUL3_07I.js
++ /assets/safe-assets-v1-CommonsProfileLayoutFrame-CkvyK7zK.js
++ /404.html
++ /legal/LICENSES/ISC.txt
++ /legal/LICENSES/MIT.txt
++ /assets/safe-assets-v1-CommonsAvatarViewer-DCqWNyCZ.js
++ /legal/LICENSES/BSL-1.0.txt
++ /legal/LICENSES/BSD-3-Clause.txt
++ /assets/safe-assets-v1-AccountDeletionPage-h1VmdirM.js
++ /assets/safe-assets-v1-useCoordinatedRefresh-DvLM7_Jo.js
++ /assets/safe-assets-v1-useAccountDoorways-3A4Tvolz.js
++ /assets/safe-assets-v1-TrustPage-Bayqr_y2.js
++ /assets/safe-assets-v1-commons-circle-CtP3wlgc.js
++ /assets/safe-assets-v1-StewardshipRetentionPanel-BzZSCX7p.js
++ /manifest-schema.json
++ /assets/safe-assets-v1-HomePage-BrwOUfLt.js
++ /assets/safe-assets-v1-Elysia-Ecobotics-Online-MainPage-B1v3QXhY.js
++ /assets/AddonIntakePanel-D2OM_mZj.css
++ /assets/safe-assets-v1-BrowsePage-DjdFDT_J.js
++ /assets/safe-assets-v1-CirclePage-CBXR4Y4e.js
++ /assets/safe-assets-v1-RequestsReviewsPage-Cs4AlvUY.js
++ /assets/safe-assets-v1-PreparationComponents-CvVwI8M3.js
++ /assets/safe-assets-v1-NotificationsPage-C3847qAF.js
++ /assets/safe-assets-v1-AccountLifecycleRequestForm-BCDMtM3U.js
++ /legal/LICENSES/Python-2.0.txt
++ /assets/safe-assets-v1-CreatorStudioPage-3KZLhz15.js
++ /legal/LICENSES/Apache-2.0.txt
++ /assets/safe-assets-v1-ProfileAppearanceSettingsPage-DR51lCDv.js
++ /assets/safe-assets-v1-AdminCommunicationsPage-CsECfQE3.js
++ /assets/safe-assets-v1-commons-profile-D99AYK8r.js
++ /assets/safe-assets-v1-JobPostFeeWorkspace-BEK7i7mP.js
++ /assets/safe-assets-v1-SavedShelvesPage-BoFv9hAa.js
++ /assets/safe-assets-v1-accountCommunicationsApi-BmMlgFt4.js
++ /assets/safe-assets-v1-The-Elysia-Archive-BIghqOo1.js
++ /assets/safe-assets-v1-tsMode-B2j9m8Q_.js
++ /assets/safe-assets-v1-dist-COjC_mUG.js
++ /assets/safe-assets-v1-EconomicOperationsSectionPage-bl8bx7lz.js
++ /assets/safe-assets-v1-SignalDetailPage-B0Aa8RUW.js
++ /legal/LICENSES/GPL-3.0-or-later.txt
++ /assets/safe-assets-v1-The-Living-Library-Di8l68Vi.js
++ /assets/safe-assets-v1-dist-Q_9WVI4_.js
++ /assets/safe-assets-v1-AccountPage-fJM-g22l.js
++ /assets/safe-assets-v1-commonsCircleApi-B3WmVUvx.js
++ /assets/editor-CJEeZjoM.css
++ /assets/safe-assets-v1-dist-DoR6naUJ.js
++ /assets/safe-assets-v1-Admin-DzCOmop-.js
++ /assets/safe-assets-v1-billingClient-BrGdj29O.js
++ /assets/main-BpBKYbGW.css
++ /assets/editor.worker-CcK0Ydjj.js
++ /assets/wetland_reed-BL1Z8pbV.png
++ /assets/safe-assets-v1-commune-account-api-DoJDV8QM.js
++ /assets/water_ripple-DyLkNPRQ.png
++ /assets/moon_crest-DC9liPd0.png
++ /assets/mushroom_badge-A3Q0dmux.png
++ /images/badges/Seed_Sower.png
++ /images/badges/Boundary_Lantern.png
++ /images/home/Right_Vine.png
++ /images/badges/Open_Pathmaker.png
++ /images/home/Left_Vine.png
++ /images/badges/Archive_Warden.png
++ /images/badges/Kindred_Ally.png
++ /images/badges/Radiant_Scribe.png
++ /images/badges/Ecobotics_Forgewright.png
++ /images/badges/Elysian_Artwright.png
++ /assets/ts.worker-Bt-G9PB_.js
++ /robots.txt
++ /assets/safe-assets-v1-legalDocumentLink-5GKJ3bv_.js
++ /.well-known/security.txt
++ /assets/safe-assets-v1-WarningCallout-CbTRJ-QM.js
++ /manifest.webmanifest
++ /assets/safe-assets-v1-PageBrandMark-47YN8oFj.js
++ /assets/safe-assets-v1-RequireMember-B9lO9inp.js
++ /assets/safe-assets-v1-siteUrls-DBEReoRQ.js
++ /assets/safe-assets-v1-addonCatalog-C1VedJaE.js
++ /legal/ASSET_NOTICES.md
++ /assets/safe-assets-v1-useAuth-BSWIz1mN.js
++ /legal/LICENSES/Zlib.txt
++ /legal/LICENSES/MIT-0.txt
++ /assets/safe-assets-v1-The-Elysia-Ecobotics-Lab-DZsbU8-D.js
++ /assets/safe-assets-v1-workWithClient-DU3ElqAF.js
++ /legal/LICENSES/BSD-2-Clause.txt
++ /legal/LICENSES/BlueOak-1.0.0.txt
++ /assets/safe-assets-v1-InboxConversationPage-DBC2U7vX.js
++ /assets/safe-assets-v1-ManifestApiPage-C4AzMihS.js
++ /assets/safe-assets-v1-About-Elysia-Ecobotics-BN1SKf-m.js
++ /artisan-collective.html
++ /index.html
++ /assets/safe-assets-v1-Elysia-Artisan-Collective-BjaatNBW.js
++ /assets/safe-assets-v1-AccountChangePasswordPage-B_ntadnG.js
++ /assets/safe-assets-v1-SupportThankYouPage-Bh1FJfFf.js
+   (truncating changed assets log, set `WRANGLER_LOG=debug` environment variable to see full diff)
+Uploaded 75 of 224 assets
+Uploaded 149 of 224 assets
+Uploaded 224 of 224 assets
+✨ Success! Uploaded 224 files (2 already uploaded) (16.34 sec)
+
+Total Upload: 13.17 KiB / gzip: 3.91 KiB
+Worker Startup Time: 6 ms
+Your Worker has access to the following bindings:
+Binding                                                                          Resource                  
+env.BILLING_SERVICE (elysia-first-party-billing-sandbox)                         Worker                    
+env.IDENTITY_SERVICE (elysia-shared-identity-sandbox)                            Worker                    
+env.ASSETS                                                                       Assets                    
+env.SANDBOX_UI_ORIGIN ("https://elysia-ecobotics-online-sandb...")               Environment Variable      
+env.SUPABASE_URL ("https://kdtqyxlrkpmlpupzgmwv.supabase...")                    Environment Variable      
+env.SANDBOX_ACCESS_TEAM_DOMAIN ("")                                              Environment Variable      
+env.SANDBOX_ACCESS_AUDIENCE ("")                                                 Environment Variable      
+
+Uploaded elysia-ecobotics-online-sandbox (19.19 sec)
+Deployed elysia-ecobotics-online-sandbox triggers (0.88 sec)
+  https://elysia-ecobotics-online-sandbox.bradleytharz3407.workers.dev
+Current Version ID: d9122959-93ee-4c88-a50f-bed9e6642623

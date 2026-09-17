@@ -1,0 +1,4 @@
+Route preservation contract failed (1 issue):
+- Preserved former top-level destinations differs.
+Expected: ["/","/about","/archive","/artisan-collective","/commons-circle","/commune","/developer-forge","/lab","/legal","/living-library","/marketplace","/mission","/products","/story","/support","/work-with-elysia-ecobotics"]
+Actual:   ["/","/about","/archive","/artisan-collective","/commons-circle","/commune","/developer-forge","/lab","/legal","/living-library","/marketplace","/marketplace/creator-studio","/mission","/products","/story","/support","/work-with-elysia-ecobotics"]

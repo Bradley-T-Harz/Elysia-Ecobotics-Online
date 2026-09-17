@@ -1,0 +1,1139 @@
+{
+  "sourceCommit": "6735f7e48837a471279aa8c3474c5aeea8ae98f3",
+  "origin": "https://elysia-ecobotics-online-sandbox.bradleytharz3407.workers.dev",
+  "database": "https://kdtqyxlrkpmlpupzgmwv.supabase.co",
+  "billingPublication": "disabled",
+  "productionEnvironmentInherited": false,
+  "files": [
+    {
+      "file": ".well-known/security.txt",
+      "sha256": "33935f4db95b0cf3895db7aa8cc665f78e3c5e776cb22d2477bcde0004b86d73",
+      "bytes": 237
+    },
+    {
+      "file": "404.html",
+      "sha256": "6197cc7ae597249be670265073b5708b39c8951185dd794aad9b8e55e03d3da3",
+      "bytes": 1464
+    },
+    {
+      "file": "artisan-collective.html",
+      "sha256": "9f805a4de43a74f8c8b7fdc2a50b26eb42fd7eadf64a335cf97df3e0e1d24074",
+      "bytes": 3635
+    },
+    {
+      "file": "asset-not-found.txt",
+      "sha256": "b636b91f1f60fb69e0a6a15de8e3a785b2987e95689f1ef808a3d280d1e1f877",
+      "bytes": 24
+    },
+    {
+      "file": "assets/AddonIntakePanel-D2OM_mZj.css",
+      "sha256": "84c07164d9322b9dcf3e9053816baaf909de8645a0a7d008026b65134c9f0c0f",
+      "bytes": 6871
+    },
+    {
+      "file": "assets/aurora-canopy-overlay-BnJM88m5.png",
+      "sha256": "7afe3161c3c2797906b95322dd2bfcc60a1a3f72d29b8ee5fa4e4671601f5ab0",
+      "bytes": 1668078
+    },
+    {
+      "file": "assets/circuit_vine-BkZrMUTJ.png",
+      "sha256": "33cdfcc125153345352de8dddb8704b042560b4a050cbbdb5d0599ae1d1a6704",
+      "bytes": 469679
+    },
+    {
+      "file": "assets/css.worker-Dbe2hCzx.js",
+      "sha256": "93b0e591c5e31eedbebd7a992e6e6e27a080bba34690cf60805a7b9fa34de543",
+      "bytes": 1056120
+    },
+    {
+      "file": "assets/editor-CJEeZjoM.css",
+      "sha256": "63c5f635e8ed11e1894a668a514f547e09121275b97b1853a69431dcd691b51b",
+      "bytes": 74223
+    },
+    {
+      "file": "assets/editor.worker-CcK0Ydjj.js",
+      "sha256": "ac141863bfc48c37651d90a60bf71913dad718deb9a085a629e6d7402ca8da70",
+      "bytes": 281218
+    },
+    {
+      "file": "assets/html.worker-DS3nu8jg.js",
+      "sha256": "10eb8cf771cdec74b9e7e789a3025046b98149253140ffc23df8214671155ac6",
+      "bytes": 720922
+    },
+    {
+      "file": "assets/json.worker-B_Cqcmp7.js",
+      "sha256": "7f8b372b3904f95b35ea0b3076d8ad087fb30d00100808d733d951857900600e",
+      "bytes": 410534
+    },
+    {
+      "file": "assets/leaf_glyph-DEi9o_oE.png",
+      "sha256": "dd4fa7caf4acba16012e1a03ac9941a383aae047db6dec56e1a39e032727ed3f",
+      "bytes": 267161
+    },
+    {
+      "file": "assets/main-BpBKYbGW.css",
+      "sha256": "5f9466c3a2072ba802068c0645fb00cf3e01bd31ea72669b6970ffb3983b3a3b",
+      "bytes": 223996
+    },
+    {
+      "file": "assets/moon_crest-DC9liPd0.png",
+      "sha256": "006bbb2e1a6bd715b5179100bf78d5f75fcee950025e9eed03ed31700fa12221",
+      "bytes": 527216
+    },
+    {
+      "file": "assets/mushroom_badge-A3Q0dmux.png",
+      "sha256": "8119f6bb7133231faf068e0832f69c39e7418601b1f1ab4cfdc332117f8f3f54",
+      "bytes": 638458
+    },
+    {
+      "file": "assets/pollinator-Cdt0HH1P.png",
+      "sha256": "aa8252fa5ba269b10f7768792328a18f961bf5aab5e542f517f47a840e836627",
+      "bytes": 1514677
+    },
+    {
+      "file": "assets/preparation-wOKG_Byd.css",
+      "sha256": "ac9918c287ca56aded870e7811c7ab6076a319952528bf129bc2802a58218254",
+      "bytes": 1863
+    },
+    {
+      "file": "assets/robotic_seed-C6m6uOFt.png",
+      "sha256": "4119b6d6557ab949917fa2efed291485bb1637f6c65a7b338f005ff96ca216ae",
+      "bytes": 549268
+    },
+    {
+      "file": "assets/safe-assets-v1-About-Elysia-Ecobotics-BN1SKf-m.js",
+      "sha256": "8bc59a6c9ffae52cfba579e1c5c8b33a968803441c8506195fa25ec91c6b623a",
+      "bytes": 3290
+    },
+    {
+      "file": "assets/safe-assets-v1-AccountChangePasswordPage-B_ntadnG.js",
+      "sha256": "771991598e240fc0fdb9ddc79d08014e4f5fe080c3c96e3fdb576410c06056fc",
+      "bytes": 4698
+    },
+    {
+      "file": "assets/safe-assets-v1-AccountDataExportPage-61vhwZxU.js",
+      "sha256": "c72ce34b322765c6786fb2c8113dc2eeb0acb5d1fb59e6464dcb363394b23b8a",
+      "bytes": 1721
+    },
+    {
+      "file": "assets/safe-assets-v1-AccountDeactivationPage-Dv0l_0zs.js",
+      "sha256": "75ceb5817de3913159e6345e44ed1369dc617160dca2230b4c3f1870a13e4bf7",
+      "bytes": 4596
+    },
+    {
+      "file": "assets/safe-assets-v1-AccountDeletionPage-h1VmdirM.js",
+      "sha256": "3ab5d634b58e24800f381bd8002307805a3fcdfe1268d09a35c2444f4bfa0efa",
+      "bytes": 2428
+    },
+    {
+      "file": "assets/safe-assets-v1-AccountForgotPasswordPage-BRRcEHj0.js",
+      "sha256": "b065cd6d7bb7e18656f0956f6bd4ff3de87cbfd43c6f395a1ecaff73c218ab6c",
+      "bytes": 5734
+    },
+    {
+      "file": "assets/safe-assets-v1-AccountLifecycleRequestForm-BCDMtM3U.js",
+      "sha256": "87de7c7ad44150237cfbc1553d30dedab400564d288a6e2fcb70d32c9d00fbbf",
+      "bytes": 10451
+    },
+    {
+      "file": "assets/safe-assets-v1-AccountNotificationPreferencesPage-RXj3ipjW.js",
+      "sha256": "31f2fb74799c7b82d103bb024d1f795f452b745cd2ca5b31665409a5844cf130",
+      "bytes": 7199
+    },
+    {
+      "file": "assets/safe-assets-v1-AccountPage-fJM-g22l.js",
+      "sha256": "0a275ca8f4982a11ac4296ba95b2ccf5c5b5a4616725021ff23d4133024a48cc",
+      "bytes": 54313
+    },
+    {
+      "file": "assets/safe-assets-v1-AccountPrivacySettingsPage-C8cbf0nJ.js",
+      "sha256": "bac82f38c79e887008f241151f0cb46a5e95544d245e823605a0cf59ddca334e",
+      "bytes": 8342
+    },
+    {
+      "file": "assets/safe-assets-v1-AccountReactivationPage-C4yj0gsp.js",
+      "sha256": "638b2f11334eb8d7ed807585fd72b2c7436dde16beb507ae837339d83558a65f",
+      "bytes": 5431
+    },
+    {
+      "file": "assets/safe-assets-v1-AccountRecoveryPage-Ce1SCzzu.js",
+      "sha256": "17e586eb106f2de3fb8e33b247886052168f055b2aec240c87a7dbeac38a1a5b",
+      "bytes": 6054
+    },
+    {
+      "file": "assets/safe-assets-v1-AccountSettingsPage-BsV8opAa.js",
+      "sha256": "d98a320abf097aefb675bcffbbcb25cf64adc6379a26b5ad52b7b41c4fe916c3",
+      "bytes": 3365
+    },
+    {
+      "file": "assets/safe-assets-v1-ActionPreviewPage-DUu-ScrO.js",
+      "sha256": "31afc31f690d39f92a4a2ef7f8e2d906b583111d476dd5e825765863854e9388",
+      "bytes": 3927
+    },
+    {
+      "file": "assets/safe-assets-v1-AddonDetailsPage-BBhulMBG.js",
+      "sha256": "4a4b3de5ef11e347bcd5de7b53d2b3c2a7fe73ed5b27d9c89f6b77307a7a2e97",
+      "bytes": 16009
+    },
+    {
+      "file": "assets/safe-assets-v1-AddonIntakePanel-D17scvZa.js",
+      "sha256": "9029770c593348cee840f3d8cb8cbb0f9a60e49af1c54358be03bf1bd378e456",
+      "bytes": 80789
+    },
+    {
+      "file": "assets/safe-assets-v1-Admin-DzCOmop-.js",
+      "sha256": "7abb2a97480e0bc2f8ba0a32d5cb28c52e523b7131521010bdd3c4ebcccca074",
+      "bytes": 115012
+    },
+    {
+      "file": "assets/safe-assets-v1-AdminCommunicationsPage-CsECfQE3.js",
+      "sha256": "dfdc941af408b08df87a75b8443b5a57455924bf6aaa01dc1ccd080fc9952bd8",
+      "bytes": 14656
+    },
+    {
+      "file": "assets/safe-assets-v1-AuthPanel-D3ha3TWy.js",
+      "sha256": "b2e7feb6bfae9f0592d4f22378473e0fd5344966a6a54c3ce296cf049d015c0c",
+      "bytes": 17374
+    },
+    {
+      "file": "assets/safe-assets-v1-BrowsePage-DjdFDT_J.js",
+      "sha256": "b8b96361f63586d030b57e8a8e9bdcfadbd5e671caae53a4d7d07c8653d0c25f",
+      "bytes": 7168
+    },
+    {
+      "file": "assets/safe-assets-v1-CheckoutReturnStatus-DF5hkyNi.js",
+      "sha256": "6ca9a114eae2aa64fc4726f77db929a0c6e65effab93fa433492977eee2e4a53",
+      "bytes": 2374
+    },
+    {
+      "file": "assets/safe-assets-v1-CirclePage-CBXR4Y4e.js",
+      "sha256": "5bb56b71901b5ac5af85632302443d4023e6ffc568b4255a2b7b3c2169fed960",
+      "bytes": 7618
+    },
+    {
+      "file": "assets/safe-assets-v1-CodeWorkspaceEditor-BKBezk4P.js",
+      "sha256": "5203815528fddfaf32dd640e33c4053099826e8fb662f96dbb7146b2e4b45af8",
+      "bytes": 103175
+    },
+    {
+      "file": "assets/safe-assets-v1-CommonsAvatarViewer-DCqWNyCZ.js",
+      "sha256": "c7c8cca9d5d4a5475514e145c95fc343404e6846640ed54b385ccdd876bfc9b7",
+      "bytes": 1854
+    },
+    {
+      "file": "assets/safe-assets-v1-CommonsCircleAdminConsolePage-DlAZTqsw.js",
+      "sha256": "fa1af4f534e3779a053fd466d757dbcaf7beca644ded4993c172f823a1705c3c",
+      "bytes": 8566
+    },
+    {
+      "file": "assets/safe-assets-v1-CommonsCircleSetupPage-BvaBdNBw.js",
+      "sha256": "56d8596e176fff06cd668030a58b298dd02a38b00a3ebdb1c14a28145a5dafdf",
+      "bytes": 43354
+    },
+    {
+      "file": "assets/safe-assets-v1-CommonsProfileLayoutFrame-CkvyK7zK.js",
+      "sha256": "87e78796613a52f6c5969fa82d7d9e55fc511fe0299a2aeafcf9def994e364ba",
+      "bytes": 1330
+    },
+    {
+      "file": "assets/safe-assets-v1-CreatorStudioDoorway-BUL3_07I.js",
+      "sha256": "0afc354f28187f39989391af4bd073aa7ff749eb4b0faaa10655b23c107901ff",
+      "bytes": 1089
+    },
+    {
+      "file": "assets/safe-assets-v1-CreatorStudioPage-3KZLhz15.js",
+      "sha256": "1e3da4c556bdb9a06ecaa4e5f69b57ab9937bcf67f07bfb2e711e126a0f9c0a5",
+      "bytes": 11691
+    },
+    {
+      "file": "assets/safe-assets-v1-EconomicOperationsNavigation-DsEbO8b5.js",
+      "sha256": "d98008f4b6762088a8e809b3d99ab5c0b57480b109cc9ef67513ecb986cb6adb",
+      "bytes": 1004
+    },
+    {
+      "file": "assets/safe-assets-v1-EconomicOperationsPage-Nt4Wyzf-.js",
+      "sha256": "6f2723c6d3d63086e9ef2c0260dd56965af4b7fb07fe3b484bf7e348f98d8240",
+      "bytes": 135915
+    },
+    {
+      "file": "assets/safe-assets-v1-EconomicOperationsSectionPage-bl8bx7lz.js",
+      "sha256": "8b6f89f00c7437d6d85f0889e0b593e12a3a9bf1d966105a9c3d417201e94fa7",
+      "bytes": 30407
+    },
+    {
+      "file": "assets/safe-assets-v1-Elysia-Artisan-Collective-BjaatNBW.js",
+      "sha256": "6333bafb01976d27874799f6eeffc1a3e08bec3ca8468fceabbd718fe1b6f442",
+      "bytes": 4415
+    },
+    {
+      "file": "assets/safe-assets-v1-Elysia-Ecobotics-Online-MainPage-B1v3QXhY.js",
+      "sha256": "0d8392b580360a49dde0cea36d6b1938543c6d28a54851b83b85bd38e8c95d0e",
+      "bytes": 6113
+    },
+    {
+      "file": "assets/safe-assets-v1-Elysia-Ecobotics-Products-D4Mg1AFb.js",
+      "sha256": "cb542ddeb7eabb896f2d0181f0d32cd4108cbc61bf8717d1fd9229a1493e5931",
+      "bytes": 1834
+    },
+    {
+      "file": "assets/safe-assets-v1-FeatureCard-CczLp5yU.js",
+      "sha256": "204463fa0184b6c24c885d82bf4ba4bfe238345fbc8a2afe594b8744ea4b2817",
+      "bytes": 281
+    },
+    {
+      "file": "assets/safe-assets-v1-ForgeMonacoEditor-CuX-KBtN.js",
+      "sha256": "a2ca49c179de0f076b7773ca30d0f67865cdc283ef26da3b60871066b94cb025",
+      "bytes": 26830
+    },
+    {
+      "file": "assets/safe-assets-v1-FundingExplanation-DAwRMJ97.js",
+      "sha256": "9c59456adef6b7dde27640e25498e085ab4b7c2e12b13f36c8aad7a21f444ec3",
+      "bytes": 3635
+    },
+    {
+      "file": "assets/safe-assets-v1-HomePage-BrwOUfLt.js",
+      "sha256": "2606e25b497b1cbe40ef6b953f39fe4ff2ef9602bafabe4f0657fefec08b5235",
+      "bytes": 5597
+    },
+    {
+      "file": "assets/safe-assets-v1-HostedExecutionAllowancePage-tQppQ2BT.js",
+      "sha256": "a365af0db9e16647fdaf6f524ac4e52a91d992d4f40877ef092948d5d9b1bf13",
+      "bytes": 9233
+    },
+    {
+      "file": "assets/safe-assets-v1-InboxConversationPage-DBC2U7vX.js",
+      "sha256": "0bbfc06c91a8888cb4773bfaa731bc7e3a7b3743d022ed8068cf8dd38bca8ec4",
+      "bytes": 2265
+    },
+    {
+      "file": "assets/safe-assets-v1-InboxMessagingPanel-BNKixO7u.js",
+      "sha256": "860e16e8b492353e60b4c95026531faaeb71b8a22e6a1d66b31c53d53809db83",
+      "bytes": 14209
+    },
+    {
+      "file": "assets/safe-assets-v1-InboxPage-BHtvwmkr.js",
+      "sha256": "cbed82cc6656cd3d53ba29ebe4412cd2018b6a690b8cca3539e906ed284db6b2",
+      "bytes": 10794
+    },
+    {
+      "file": "assets/safe-assets-v1-InboxSectionNavigation-jKQJBgfc.js",
+      "sha256": "0843e3842bac45ce485f7163efb4fd85c6e8b8f98438465401a7299414c4d582",
+      "bytes": 747
+    },
+    {
+      "file": "assets/safe-assets-v1-JobPostFeeWorkspace-BEK7i7mP.js",
+      "sha256": "1f01341f5bf21adf042bf8c1b8d2e58ba79d988c38da786bef4e624eac5f2436",
+      "bytes": 17273
+    },
+    {
+      "file": "assets/safe-assets-v1-Legal-BXoPOjfU.js",
+      "sha256": "cb51e1dc34128cfc052e3fee1ce5a52e74db976e0261ebaf3ee308e9c45d8bc7",
+      "bytes": 344815
+    },
+    {
+      "file": "assets/safe-assets-v1-ManifestApiPage-C4AzMihS.js",
+      "sha256": "568a235926449c4ab656224a68cae452208fa8b1c9bdf263dc081a6201b866a2",
+      "bytes": 2804
+    },
+    {
+      "file": "assets/safe-assets-v1-MarketplaceProvider-Cm0Fg6uw.js",
+      "sha256": "0591d71ef4a4754c8c28fa5e8b9dcefae7e22f88efc7ba7726ca34bc3e612975",
+      "bytes": 6976
+    },
+    {
+      "file": "assets/safe-assets-v1-MessagingAccessAdminPage-B1SsYjNk.js",
+      "sha256": "e600ff690e616ca3f299b9e493697f539ca671eaf63f84577aa06bafd7cea94a",
+      "bytes": 8593
+    },
+    {
+      "file": "assets/safe-assets-v1-MessagingSettingsPage-mbybhQWe.js",
+      "sha256": "4538aaaed557ed6e443006bd164524c0c19823de30e3c96bfd3b6853aba543a1",
+      "bytes": 6345
+    },
+    {
+      "file": "assets/safe-assets-v1-NewConversationPage-BwfK9oAe.js",
+      "sha256": "01b0617b1849604e3778eff48686a311fcf34a2f8d9f20757a336e7c1c1bb93c",
+      "bytes": 10642
+    },
+    {
+      "file": "assets/safe-assets-v1-NotificationsPage-C3847qAF.js",
+      "sha256": "f98ed49d6f3ebde9ba14f028c59d6879e87f1276434c680b86560b07de79bc89",
+      "bytes": 9471
+    },
+    {
+      "file": "assets/safe-assets-v1-PageBrandMark-47YN8oFj.js",
+      "sha256": "8854952a1e4f67fc8cb3f4bc4649e3340ee5dededd1b6746cdbc3b1483574455",
+      "bytes": 422
+    },
+    {
+      "file": "assets/safe-assets-v1-PageHero-CuNqmk3E.js",
+      "sha256": "d87585d184c936f2bc083431e7661b5403e1a881fc25d3236fc82126ff3ec6bc",
+      "bytes": 571
+    },
+    {
+      "file": "assets/safe-assets-v1-PreparationComponents-CvVwI8M3.js",
+      "sha256": "d2ec965d7dc94ae2d9eaf9306b8d6d1695ff1416d9ae27ec59c7d48418e1d5ea",
+      "bytes": 8931
+    },
+    {
+      "file": "assets/safe-assets-v1-ProfileAppearanceSettingsPage-DR51lCDv.js",
+      "sha256": "69fd3befafa72b046d887275ae810ad90367a5148ccf31c33188a08320f53e15",
+      "bytes": 13898
+    },
+    {
+      "file": "assets/safe-assets-v1-RequestsReviewsPage-Cs4AlvUY.js",
+      "sha256": "756bfa7e1987af7b8f1267c23cc8105e0446eaeb879f36ab9f0ccb97ef9d197d",
+      "bytes": 8553
+    },
+    {
+      "file": "assets/safe-assets-v1-RequireMember-B9lO9inp.js",
+      "sha256": "6e45e5ea8d0c96a67c53fde662f9be06467a89bfd5d34774a0f81c6447019034",
+      "bytes": 536
+    },
+    {
+      "file": "assets/safe-assets-v1-SavedShelvesPage-BoFv9hAa.js",
+      "sha256": "083633775ee8750a323ded121fa88b7fcc2095685c1641cd28882d3d419532e5",
+      "bytes": 17625
+    },
+    {
+      "file": "assets/safe-assets-v1-SignalConsolePage-CyfzjEFn.js",
+      "sha256": "dd0b3346b2c24bc9ab935d6b830e11ccd9d853ebaf2ba57520dadf10d1d1cffb",
+      "bytes": 13087
+    },
+    {
+      "file": "assets/safe-assets-v1-SignalDetailPage-B0Aa8RUW.js",
+      "sha256": "b78fb009fbec48246d95c06841070736ac4e20137a4a4b4e54028858d7494b8a",
+      "bytes": 32767
+    },
+    {
+      "file": "assets/safe-assets-v1-StatusBadge-CEKZ-hoV.js",
+      "sha256": "cf62c37ca185dd32a1511d2de79e3d9bef186040636056508a3b718386d73fbd",
+      "bytes": 207
+    },
+    {
+      "file": "assets/safe-assets-v1-StewardshipRetentionPanel-BzZSCX7p.js",
+      "sha256": "0d5acad87dd48ca7643074050592f54bc69b6a5ba214a64db999205bc0949c97",
+      "bytes": 4683
+    },
+    {
+      "file": "assets/safe-assets-v1-SubmitPage-BE0_RseO.js",
+      "sha256": "3b09dee0479144312dc998ff3caa50fcc3e26d799087ecb40c7d985f06b96d87",
+      "bytes": 14679
+    },
+    {
+      "file": "assets/safe-assets-v1-Support-CaBT0hR0.js",
+      "sha256": "635ac5ee8126f74a0d24c843abc67bc2d3524fb2f2460ed4ed2a13703b5cf07f",
+      "bytes": 20917
+    },
+    {
+      "file": "assets/safe-assets-v1-SupportBillingPage-DtSd9X3s.js",
+      "sha256": "67ce7e48c4125c507e3b10495b382e1c6d770c9e9a661c0b458a7e3ef3e4eec6",
+      "bytes": 60625
+    },
+    {
+      "file": "assets/safe-assets-v1-SupportThankYouPage-Bh1FJfFf.js",
+      "sha256": "ae1f7a463b86daec411ad38260736645ce0d8b36217a77e1dc57eec854a83557",
+      "bytes": 5428
+    },
+    {
+      "file": "assets/safe-assets-v1-The-Commons-Circle-CUQRiruQ.js",
+      "sha256": "370ed20fe0b08c1c76720cadbc495929fbe06cfd722e59c29b2256d227c61f20",
+      "bytes": 18008
+    },
+    {
+      "file": "assets/safe-assets-v1-The-Elysia-Archive-BIghqOo1.js",
+      "sha256": "08d155e0edd08f670a5362968a51311453454bc1aeb6f259aa1c98beca64a151",
+      "bytes": 20449
+    },
+    {
+      "file": "assets/safe-assets-v1-The-Elysia-Ecobotics-Lab-DZsbU8-D.js",
+      "sha256": "f79b7a2b5a39fde7ef3ad6773b7d0d71747a61a85d6711c31e43562d1318d1dc",
+      "bytes": 1624
+    },
+    {
+      "file": "assets/safe-assets-v1-The-Elysia-Mission-D2dVuUgj.js",
+      "sha256": "1688f7e4f8e494b88db89927d6820d3b696123c0c9b02258d64dcd0f7402efef",
+      "bytes": 784
+    },
+    {
+      "file": "assets/safe-assets-v1-The-Living-Library-Di8l68Vi.js",
+      "sha256": "72e99fbc29b7aee88591a664c786b93e502c977d1e9bf4540d4df25b97138f3b",
+      "bytes": 42348
+    },
+    {
+      "file": "assets/safe-assets-v1-The-Story-of-Elysia-DvpNxLtr.js",
+      "sha256": "60134b3525c754c3c05ad11f4f609b079262fd5b5acc898de3fd4a4954114f78",
+      "bytes": 14565
+    },
+    {
+      "file": "assets/safe-assets-v1-TrustBadge-DhlM487G.js",
+      "sha256": "c67cc750a2896f7a107ed2235f703d58d15e678aa64e20122e4068ad0d15be76",
+      "bytes": 205
+    },
+    {
+      "file": "assets/safe-assets-v1-TrustPage-Bayqr_y2.js",
+      "sha256": "bc376be6c265d994f33905928a416d15af8f79bbfc7a9c57ae9aabb9c47b6a17",
+      "bytes": 3636
+    },
+    {
+      "file": "assets/safe-assets-v1-TurnstileWidget-tXlviUxB.js",
+      "sha256": "7cc96ecac0405dee6c95a987307565bb0e6ddd2156a9b41991eebb6da30ea153",
+      "bytes": 932
+    },
+    {
+      "file": "assets/safe-assets-v1-WarningCallout-CbTRJ-QM.js",
+      "sha256": "87bc30d54530819cd344aef693bc8edd6a302989d457146c0650264863854ce5",
+      "bytes": 250
+    },
+    {
+      "file": "assets/safe-assets-v1-Work-With-Elysia-Ecobotics-B_zYirxK.js",
+      "sha256": "fcab40b987c17c77fd0806f4824364c3e99ac1c3df65a43ad5122f5585d4e701",
+      "bytes": 16917
+    },
+    {
+      "file": "assets/safe-assets-v1-WorkWithWorkspace-BCMD5ski.js",
+      "sha256": "52f751dce45dbc00505e0ac4ab006758f31f013594cecc28da44b6ef34c3b6e4",
+      "bytes": 7679
+    },
+    {
+      "file": "assets/safe-assets-v1-accountCommunicationsApi-BmMlgFt4.js",
+      "sha256": "d09a5f08326ce4bcd582a244c0a0397ccc34076b0f80ec290fd350fe2debf843",
+      "bytes": 19707
+    },
+    {
+      "file": "assets/safe-assets-v1-addonCatalog-C1VedJaE.js",
+      "sha256": "629ed8791eb51e9b3ca2fa5d6e08590194e45a653523bab80c4012eebe088e39",
+      "bytes": 837
+    },
+    {
+      "file": "assets/safe-assets-v1-babel-CY5KOv-I.js",
+      "sha256": "ba69800bfd327fde503c83929096cc9bf0094c8726c5c9a2b8ac24adb0c9ba5e",
+      "bytes": 316229
+    },
+    {
+      "file": "assets/safe-assets-v1-billingClient-BrGdj29O.js",
+      "sha256": "8d75735b0cc21bab7ff1ec43bb7bc6d34b8a9fb675ba16c66ac58c44720c012c",
+      "bytes": 153416
+    },
+    {
+      "file": "assets/safe-assets-v1-circleApi-DQKWZ319.js",
+      "sha256": "cdddeeab3e6f3e49b454d06e4d2ba7bd09effb655ea555c7eb97e4ae71a1a041",
+      "bytes": 4937
+    },
+    {
+      "file": "assets/safe-assets-v1-commons-circle-CtP3wlgc.js",
+      "sha256": "7e9adb065f889b6cc3b27f62c3c1d9baf1846e0eb48dba0b29c127c3d43a762d",
+      "bytes": 4336
+    },
+    {
+      "file": "assets/safe-assets-v1-commons-profile-D99AYK8r.js",
+      "sha256": "ce8f86e34bcad73bd2e4ac37712f43f6992644ad458843d84d4c1422b01c1727",
+      "bytes": 15370
+    },
+    {
+      "file": "assets/safe-assets-v1-commonsCircleApi-B3WmVUvx.js",
+      "sha256": "c7d2a9478a9f9e317ea059904ff9fe526dbf8770babe92b4f255a2db7c94fc79",
+      "bytes": 70185
+    },
+    {
+      "file": "assets/safe-assets-v1-commonsCustomizationStyles-CT533LZb.js",
+      "sha256": "c982f8db81e97b65c96a8a3b5ade0348e6d3d900c9ed7883d8650829e63fdc11",
+      "bytes": 9823
+    },
+    {
+      "file": "assets/safe-assets-v1-commune-Dd_h4OkW.js",
+      "sha256": "66528a33c28b56ebab4d3932211be2a76b11e47db02a0647ea300632661c5385",
+      "bytes": 455399
+    },
+    {
+      "file": "assets/safe-assets-v1-commune-account-api-DoJDV8QM.js",
+      "sha256": "a19cc09d9efea7851b56e4e395d6e1579b3c88e7a010d5c416a6dc240e9bf7df",
+      "bytes": 409964
+    },
+    {
+      "file": "assets/safe-assets-v1-communeSandboxHandoffApi-DCbtkRSl.js",
+      "sha256": "eed53198901c164f2afe8275837b80f558afd9cf358fb1880da1676d180fd92f",
+      "bytes": 47212
+    },
+    {
+      "file": "assets/safe-assets-v1-cssMode-CMj4dqOB.js",
+      "sha256": "460406ae57e87ef89cb3ff597e9236358d671ec61077b35064295411526e3e77",
+      "bytes": 32543
+    },
+    {
+      "file": "assets/safe-assets-v1-developer-forge-COfkgmv_.js",
+      "sha256": "21bc6729b6cd4b18e510e30ff4f91fd31f931dc869ba0ad7509830efe8466b2b",
+      "bytes": 142175
+    },
+    {
+      "file": "assets/safe-assets-v1-developerForgeApi-PLBWPJWR.js",
+      "sha256": "153866dfd9bc8bc02be13dac178d3e0c9514b7ccdcbe3d0a1d9eaf0c2323e2b2",
+      "bytes": 203860
+    },
+    {
+      "file": "assets/safe-assets-v1-dist-B9PH4Twn.js",
+      "sha256": "d7ace91ea36e76caabfc1ec8d685f65ac7816fc1013396d687efb5ed4c43ef63",
+      "bytes": 43923
+    },
+    {
+      "file": "assets/safe-assets-v1-dist-BMW__ghJ.js",
+      "sha256": "ecc634792e803bb33a2b4b935f02f4911ded4ced00bf154a8f77d8bfcc814df1",
+      "bytes": 30777
+    },
+    {
+      "file": "assets/safe-assets-v1-dist-BhPaIygo.js",
+      "sha256": "fe9e7311fd1202ecf472d829b236fbe1b0a81b8f628c6bdf4895e1f1c1df3ec0",
+      "bytes": 28435
+    },
+    {
+      "file": "assets/safe-assets-v1-dist-BmCy6FLY.js",
+      "sha256": "5bceb3bb7ef7c1d127f3482a3e063c91d1d5bbaa8fe45630ac8dc81aeb85c16c",
+      "bytes": 40741
+    },
+    {
+      "file": "assets/safe-assets-v1-dist-C1I5z9cv.js",
+      "sha256": "9dbdb1264153b96b64825dc185cc9ab58b9f6764d8c7e09097dc2caa939da06e",
+      "bytes": 103929
+    },
+    {
+      "file": "assets/safe-assets-v1-dist-COjC_mUG.js",
+      "sha256": "5b2ef7777de7a2362893420cc18e96ce7b6fcfe87cb34b7d6a6851340a706c5c",
+      "bytes": 26882
+    },
+    {
+      "file": "assets/safe-assets-v1-dist-CaGHKGA9.js",
+      "sha256": "c16cc6da38fb8283909eeb577a1c349439ad2cccecc604aff4ea72ada4f2f4f4",
+      "bytes": 70819
+    },
+    {
+      "file": "assets/safe-assets-v1-dist-CsWoqK_d.js",
+      "sha256": "2f803e4d516743e05ee563ab0a3d96f509c3048e72b1e1c8e0c256799fbecf60",
+      "bytes": 2023
+    },
+    {
+      "file": "assets/safe-assets-v1-dist-CzlrLCzv.js",
+      "sha256": "4628dbfa59073199f394e95acdb5db37613e9c9f13c96da8ea5098800693f854",
+      "bytes": 26474
+    },
+    {
+      "file": "assets/safe-assets-v1-dist-DoR6naUJ.js",
+      "sha256": "f92165690046d643517210862292f5c640590ec2b0a52245b78cedc940a28277",
+      "bytes": 84705
+    },
+    {
+      "file": "assets/safe-assets-v1-dist-DyHvqXyb.js",
+      "sha256": "5b087407f9df2eb105c22646d9024cd23143f9acec88d2cca79e8f8e720c7520",
+      "bytes": 11593
+    },
+    {
+      "file": "assets/safe-assets-v1-dist-LYKQBxeG.js",
+      "sha256": "5ab982b2e2d8d07dd1f8657e23ef9db28d1264dbf64d9e333aa70580a3ce2438",
+      "bytes": 306742
+    },
+    {
+      "file": "assets/safe-assets-v1-dist-Q_9WVI4_.js",
+      "sha256": "32040c557fa226b5fd98ca6c636b421d12d78d9895a623e7260ac10d4cc1834b",
+      "bytes": 44641
+    },
+    {
+      "file": "assets/safe-assets-v1-editor.api-U01ng3UL.js",
+      "sha256": "c42eee6e4e350d1b7e73d6ace342dfc3c17c8d1cc9f6925a9a8cd28c325b747e",
+      "bytes": 2505301
+    },
+    {
+      "file": "assets/safe-assets-v1-estree-CuT_pB8K.js",
+      "sha256": "fdcad20e9d536b18e5ca5f9f54d6219f0e8160cbac8f6f975b0e9cb4872a6c0f",
+      "bytes": 210382
+    },
+    {
+      "file": "assets/safe-assets-v1-exactMoney-BpLSXrCN.js",
+      "sha256": "feffa8aaf24a97e5909486bfcb69c49c9a73ba6a26306bd24398fa4932a822bf",
+      "bytes": 240
+    },
+    {
+      "file": "assets/safe-assets-v1-hostedAllowanceClient-BL0dVsY9.js",
+      "sha256": "34f3a2bb44410c114f326c3d054624a02e5d9b1d62cfab86969eacbfc6faa6c6",
+      "bytes": 6907
+    },
+    {
+      "file": "assets/safe-assets-v1-htmlMode-DkCcGakl.js",
+      "sha256": "56a4b0653ca65b0a05871997224b4885abede394a31265fbdd99d0175a4397f3",
+      "bytes": 33078
+    },
+    {
+      "file": "assets/safe-assets-v1-jsonMode-gX8w89M1.js",
+      "sha256": "6f9a72af879d16447f1e2a486c00a20f9a87ca57c47eb3a3dd2094dc3983acb7",
+      "bytes": 41827
+    },
+    {
+      "file": "assets/safe-assets-v1-legalDocumentLink-5GKJ3bv_.js",
+      "sha256": "825da109f4765fed601d3a6ed209595626143d6d93756826ff9b8913704c7bf0",
+      "bytes": 195
+    },
+    {
+      "file": "assets/safe-assets-v1-listingTruth-BgtHlh09.js",
+      "sha256": "c4d788dd9ef3c23e91cdb32824570a40997554769fbba476f051e84e63eed009",
+      "bytes": 520
+    },
+    {
+      "file": "assets/safe-assets-v1-livingLibraryCatalog-Bkenp5QO.js",
+      "sha256": "ca0af7b93063e19d0322d0a552ecf913259bf97cff56f22cebe82d23104f415c",
+      "bytes": 412894
+    },
+    {
+      "file": "assets/safe-assets-v1-main-Bv0zMOVc.js",
+      "sha256": "6f8fee922b0e70af9f99fe330975a47d65cba0fa6388878c215171520613a266",
+      "bytes": 61427
+    },
+    {
+      "file": "assets/safe-assets-v1-markdown-CByV-4CU.js",
+      "sha256": "a7cbcb89852150980e0e2065aa20b479b84b2dac36e3eed960f553c5407b6901",
+      "bytes": 272142
+    },
+    {
+      "file": "assets/safe-assets-v1-marketplaceApi-7hi3KzZ2.js",
+      "sha256": "4bc5838e178f2bcb4e4eaf65955a90a4b43d5c2028e33ebfb42a08f1662882eb",
+      "bytes": 15296
+    },
+    {
+      "file": "assets/safe-assets-v1-participationClient-BQsSRBm8.js",
+      "sha256": "610e58aef47bc80989c2c23bb7b0ecd2e0a83a199fc38b4abe60cacd02053d8e",
+      "bytes": 11756
+    },
+    {
+      "file": "assets/safe-assets-v1-preProviderContracts-D42LuUb_.js",
+      "sha256": "b8bca91ecab637fd01e0ce109462c2e909c97129b2848a949ad5fcbec4441537",
+      "bytes": 6252
+    },
+    {
+      "file": "assets/safe-assets-v1-rolldown-runtime-Dd_uD5pT.js",
+      "sha256": "c5f0356f5d0918a3137e4e811fd18950efe8ac8f6bf84d1d4da7811c477a24d8",
+      "bytes": 1106
+    },
+    {
+      "file": "assets/safe-assets-v1-safeInternalActionPath-CnaQZs4l.js",
+      "sha256": "41f2517970c9ce077327d565c2d7a478fe20c77909ae9a56487b5212b2209da4",
+      "bytes": 271
+    },
+    {
+      "file": "assets/safe-assets-v1-sandboxEnvironment-ynnLwmIg.js",
+      "sha256": "a83a105dc3e414096c793e5e69381f37a3e4465cdd286020cdbe1fdb1f2d2cd3",
+      "bytes": 92
+    },
+    {
+      "file": "assets/safe-assets-v1-schemas-C-KK5xM7.js",
+      "sha256": "12035d216818e155fc7d6507787728d1a19625a51f5e6a6bda90b4711231fe6b",
+      "bytes": 70862
+    },
+    {
+      "file": "assets/safe-assets-v1-securityLabels-BRAyKt4n.js",
+      "sha256": "7bb527b06421059a6636251f4634b02441b90761eedab171e220b21acef2375f",
+      "bytes": 1369
+    },
+    {
+      "file": "assets/safe-assets-v1-siteUrls-DBEReoRQ.js",
+      "sha256": "7dd2015225b3a636521eb079b1ff51b6d430eeb00943edd6fc3ac7b42dc44ac2",
+      "bytes": 710
+    },
+    {
+      "file": "assets/safe-assets-v1-standalone-6z5x8CWe.js",
+      "sha256": "13b86270e7a0dfa0ecbaf7620d191be0102b981a4cd07bb55e5286ea2214cc54",
+      "bytes": 80999
+    },
+    {
+      "file": "assets/safe-assets-v1-tsMode-B2j9m8Q_.js",
+      "sha256": "06c15ee7488f4a496919be55be9bf6d500f281c754f292d6f6f5438a791b16a7",
+      "bytes": 23747
+    },
+    {
+      "file": "assets/safe-assets-v1-useAccountDoorways-3A4Tvolz.js",
+      "sha256": "d18cb0d9f47231e243716208677cf17a7417738fde083cab931081302b69d04c",
+      "bytes": 3398
+    },
+    {
+      "file": "assets/safe-assets-v1-useAuth-BSWIz1mN.js",
+      "sha256": "9d5986a4028a6b14928c7d3c838ecf90b93138bf52cf03902675e0b95049ec35",
+      "bytes": 1095
+    },
+    {
+      "file": "assets/safe-assets-v1-useCoordinatedRefresh-DvLM7_Jo.js",
+      "sha256": "4191d8e016c8ec39d985797805fd164d5b5b856f2094590ce5d6df4fe4e8a317",
+      "bytes": 3056
+    },
+    {
+      "file": "assets/safe-assets-v1-useMarketplaceContext-J7pEyNhI.js",
+      "sha256": "688a6cdbbdb7c2c067d8812a5d81993f80fe970d8a215b93d4ae30a644dd3767",
+      "bytes": 96
+    },
+    {
+      "file": "assets/safe-assets-v1-vendor-icons-ui-CVdXa1HN.js",
+      "sha256": "af81513ee7d17b4e3ccabb37981f02209271bad2555fe4b5629a40686accf00f",
+      "bytes": 12284
+    },
+    {
+      "file": "assets/safe-assets-v1-vendor-react-bpFzcuKL.js",
+      "sha256": "127d49bcd827caea4566aee53932b0bec4a7f90c1f1a5346817a80cd6c5dbdd5",
+      "bytes": 348033
+    },
+    {
+      "file": "assets/safe-assets-v1-workWithClient-DU3ElqAF.js",
+      "sha256": "9d2c52148bcdf08c9da689899990f7b590b4654d5622728776472809ef6e6d0d",
+      "bytes": 1763
+    },
+    {
+      "file": "assets/star_map-sb8blPnj.png",
+      "sha256": "acb4eebbed0e662bc4aa9430e0d123771b923716aa0bbdac9ad3fa93961b1b9c",
+      "bytes": 6301610
+    },
+    {
+      "file": "assets/ts.worker-Bt-G9PB_.js",
+      "sha256": "d380e9547794bba19acd3313683690fa1d9186735b0394e0f2802f11940a43a2",
+      "bytes": 5935407
+    },
+    {
+      "file": "assets/water_ripple-DyLkNPRQ.png",
+      "sha256": "9bc5daf566b3db312949b12fb7dd429fcd5db96a66e334969379599d5bc404f7",
+      "bytes": 428100
+    },
+    {
+      "file": "assets/wetland_reed-BL1Z8pbV.png",
+      "sha256": "3a7585220af5c93e822aef3408396248255fae49601cd97da95d0f52dd69d6a3",
+      "bytes": 333291
+    },
+    {
+      "file": "catalog-preview.json",
+      "sha256": "e01a312ef730e51da52a264be50b3b6a4526cbff7f91e03dde441c8e9a24bb45",
+      "bytes": 3006
+    },
+    {
+      "file": "favicon.svg",
+      "sha256": "4c108b6e7e6e806abf2dc3701cb527fda19818916263bcc445f9fc7cba6326a3",
+      "bytes": 613
+    },
+    {
+      "file": "images/badges/Archive_Warden.png",
+      "sha256": "9f95baa36cf10042fd6b93006325b3f3e9b5414255a19ebc7ea479895ea3870b",
+      "bytes": 2051755
+    },
+    {
+      "file": "images/badges/Boundary_Lantern.png",
+      "sha256": "0b924c0e5d6ebcab5ffe6253a791c6b56e56dee842f34f4325d89b1a79a0adf1",
+      "bytes": 1781300
+    },
+    {
+      "file": "images/badges/Bridge_Builder.png",
+      "sha256": "dcbfcf83f09c1715f7a6ecbee11d45e6bb60f3672362366f70bdc20aec536699",
+      "bytes": 2854157
+    },
+    {
+      "file": "images/badges/Developer_Contributor.png",
+      "sha256": "698e9d3befd0e27448529591067092421f7be35a122b8b60004b8321b78664e2",
+      "bytes": 2359828
+    },
+    {
+      "file": "images/badges/Ecobotics_Forgewright.png",
+      "sha256": "f7987fc58f6f24b153dc2082167eb8075d98249a474d7c89580c25859e9087a9",
+      "bytes": 2543274
+    },
+    {
+      "file": "images/badges/Elysian_Artwright.png",
+      "sha256": "eb15d09c4779932079a11bd845f110608748ffe47d97070e25617cf94c15f91b",
+      "bytes": 2813656
+    },
+    {
+      "file": "images/badges/Field_Witness.png",
+      "sha256": "334bc52f6f4bb1d843f8346c301989a14f86ddb8fe15a1dd3dcb83b631527870",
+      "bytes": 2026700
+    },
+    {
+      "file": "images/badges/Forest_Steward.png",
+      "sha256": "51365cd7806dc56a63b0074789b3a991e509c326088b1288322240a74674b463",
+      "bytes": 1814744
+    },
+    {
+      "file": "images/badges/Forge_Tester.png",
+      "sha256": "6115d084024487367a4e38d3843e1e1f3a19de9d2bea2014ef0aa254704b7816",
+      "bytes": 2266456
+    },
+    {
+      "file": "images/badges/Founding_Steward.png",
+      "sha256": "5af04c1282edfeb6bf3fd669f842ea2beb8c9cd00bb8360223b0f561c789efa4",
+      "bytes": 2306475
+    },
+    {
+      "file": "images/badges/Free_Member.png",
+      "sha256": "2076f854d5d9326675fd4e947fba6f47866307fb536116744aca62380eb89d57",
+      "bytes": 1972968
+    },
+    {
+      "file": "images/badges/Guardian_Reviewer.png",
+      "sha256": "195065ec63247cd978acbb915d9d4a69b3bac16a61c23cc6f9b0d50b8d2ebe74",
+      "bytes": 2038250
+    },
+    {
+      "file": "images/badges/Health_Steward.png",
+      "sha256": "15576a8d83c09398c2314afe7ac83621121963143edd0ebd00393f1b9c29db1e",
+      "bytes": 1817434
+    },
+    {
+      "file": "images/badges/Hearth_Keeper.png",
+      "sha256": "6471ebcb0fd0eabc3f9509c31d14d40353b6ba5ba26757cf526441a325cd7f4b",
+      "bytes": 2710999
+    },
+    {
+      "file": "images/badges/Kindred_Ally.png",
+      "sha256": "69579e9f41aefef7569f52ee0575765b2fba63f0843fe61095d50720107c43dc",
+      "bytes": 2253234
+    },
+    {
+      "file": "images/badges/Knowledge_Commons_Supporter.png",
+      "sha256": "86ddc127be7210efd03d1d7f42f16eb4fc95813171ed16a1f275905ac91e4461",
+      "bytes": 2228456
+    },
+    {
+      "file": "images/badges/Open_Pathmaker.png",
+      "sha256": "6cca4ec013e6a0545cb2966347c694951f3191a75a8c0bc6ea3ac65e7cbb08f6",
+      "bytes": 1942799
+    },
+    {
+      "file": "images/badges/Radiant_Scribe.png",
+      "sha256": "41a6c80f0b3ea92bb10d6974731c7d943e099f2c29bd399ec17f321b19f4e9c9",
+      "bytes": 2321364
+    },
+    {
+      "file": "images/badges/Reef_Steward.png",
+      "sha256": "247deb413616a0aa6a0c72359fc395b715eab3d15314fd9639a5adcf93a0c74b",
+      "bytes": 2639273
+    },
+    {
+      "file": "images/badges/Seed_Sower.png",
+      "sha256": "ab2b48613f0a9a252e2fb8a50973a6c93c8bc35a89f8e31aa5ab4feea1cefc64",
+      "bytes": 1508991
+    },
+    {
+      "file": "images/badges/Source_Curator.png",
+      "sha256": "9606eeb6e1f6509517deb64266b4fa827b426372b52d9d6b4c2d646c79eb7fd4",
+      "bytes": 1915776
+    },
+    {
+      "file": "images/badges/Stewardship_Supporter.png",
+      "sha256": "2dc9880be0ba16b0c9b6bd329f152e020d5f9d2fe2c8608a228b1d3bca2a637a",
+      "bytes": 1903677
+    },
+    {
+      "file": "images/badges/Troubleshooting_Helper.png",
+      "sha256": "621ef6d51c47ac39b8a15ecbe389a016131157ea1ee7160cddc4af30e7ba72e8",
+      "bytes": 2181531
+    },
+    {
+      "file": "images/badges/Water_Steward.png",
+      "sha256": "c048052c11c94402c2939bbc1e0a5aebc5852eb6535a48df7c1bd59ab5897e94",
+      "bytes": 1949036
+    },
+    {
+      "file": "images/home/Left_Vine.png",
+      "sha256": "bd4d8c17355658f0ae5d0909fdbee924a4c8db370878ba60a11f23fc34a1a12e",
+      "bytes": 1991286
+    },
+    {
+      "file": "images/home/Right_Vine.png",
+      "sha256": "97e9095cfdf5f89c60591b6121233a2a50f42720b6e8ca2fb0202042cc90ba99",
+      "bytes": 1849335
+    },
+    {
+      "file": "images/home/flower-of-life-pattern.png",
+      "sha256": "a787f33e58163dbb02447e4ebad5c4c711fbcbed23b70ca0228bb382e5cb8bc2",
+      "bytes": 51983
+    },
+    {
+      "file": "images/home/home-left-vine.png",
+      "sha256": "bd4d8c17355658f0ae5d0909fdbee924a4c8db370878ba60a11f23fc34a1a12e",
+      "bytes": 1991286
+    },
+    {
+      "file": "images/home/home-right-vine.png",
+      "sha256": "97e9095cfdf5f89c60591b6121233a2a50f42720b6e8ca2fb0202042cc90ba99",
+      "bytes": 1849335
+    },
+    {
+      "file": "images/social/Elysia_Ecobotics_Link_Image.png",
+      "sha256": "c50584f3afd10138055cddd4cacdecd33f67540265330982a5237785651a7f7b",
+      "bytes": 3297939
+    },
+    {
+      "file": "index.html",
+      "sha256": "a9a12402fa9b91132ae75658131a3f26cf4c4f5028b91f219739a85785a0f9cd",
+      "bytes": 3746
+    },
+    {
+      "file": "legal/ASSET_NOTICES.md",
+      "sha256": "1ded83830e7f37910fd90ed0ed98446021abd18929f3dbeb2498f5caed55929e",
+      "bytes": 936
+    },
+    {
+      "file": "legal/LICENSES/AGPL-3.0-or-later.txt",
+      "sha256": "2cd6ee94d6ce5f21ad43922022140d65411b7d6f055b7620f76a7b60dde133b1",
+      "bytes": 35716
+    },
+    {
+      "file": "legal/LICENSES/Apache-2.0.txt",
+      "sha256": "e8dd2ea1bca23d29cae4bbd6160301b7aea5a2485bd0e417003835135b2629be",
+      "bytes": 12235
+    },
+    {
+      "file": "legal/LICENSES/Artistic-2.0.txt",
+      "sha256": "88f08f3abba24417ecd557c36645dadbd54c424ba45e60fe6061d847b60b15fa",
+      "bytes": 9955
+    },
+    {
+      "file": "legal/LICENSES/BSD-2-Clause.txt",
+      "sha256": "747358044a21d8adc4f9895eeed0df8c633045010a9f33781afb9e26851ecd75",
+      "bytes": 1859
+    },
+    {
+      "file": "legal/LICENSES/BSD-3-Clause.txt",
+      "sha256": "f6b15d93ba1acd191946bb5b779b3ed0cc0efda97279e72f651df5b93526ed84",
+      "bytes": 2070
+    },
+    {
+      "file": "legal/LICENSES/BSL-1.0.txt",
+      "sha256": "eb59bf48e38010cc35502aa17d2cbae83e3dc3d437b13419037ed80ab9065fed",
+      "bytes": 1898
+    },
+    {
+      "file": "legal/LICENSES/BlueOak-1.0.0.txt",
+      "sha256": "a949d11d6019b88cc809985fdabfba773409d4abf0e32657fd0e9907ea7777e5",
+      "bytes": 1909
+    },
+    {
+      "file": "legal/LICENSES/CC-BY-3.0.txt",
+      "sha256": "41a06225f96b11cd47a828eef08225f66f035ef962056488e11173eeaaffd5cf",
+      "bytes": 19904
+    },
+    {
+      "file": "legal/LICENSES/CC-BY-4.0.txt",
+      "sha256": "d4118a585be8799074957b42d1b76845c0f2baa5920ca992d9f1de47ddffa168",
+      "bytes": 19037
+    },
+    {
+      "file": "legal/LICENSES/CC-BY-SA-4.0.txt",
+      "sha256": "f2d5448871fd65adb1bcb7c1b2d6b1b205efad951ec70b2b59792670a5dde5db",
+      "bytes": 20553
+    },
+    {
+      "file": "legal/LICENSES/CC0-1.0.txt",
+      "sha256": "eaffccce2c97b3424dd2fdb182664e3cd65b3d38e172a5d4a099cfcf9ac7977d",
+      "bytes": 7471
+    },
+    {
+      "file": "legal/LICENSES/GPL-2.0-or-later.txt",
+      "sha256": "beceb34fe52f589efce4d8143009f870c807ba85eb945959ed7865f7ff740c34",
+      "bytes": 19707
+    },
+    {
+      "file": "legal/LICENSES/GPL-3.0-or-later.txt",
+      "sha256": "9fc00283f93e7e2444a78c03ed45dce5a92a9f8c248a3000b732952e1a457c86",
+      "bytes": 36766
+    },
+    {
+      "file": "legal/LICENSES/ISC.txt",
+      "sha256": "be46c65d5d5acb6543a5c17cd39ecd7d107bc905969d4a03aecbf10c9067dc1b",
+      "bytes": 1607
+    },
+    {
+      "file": "legal/LICENSES/LGPL-2.1-or-later.txt",
+      "sha256": "a964569b5de2feb4acd3e5766659a792e6e94417db2f615bf6590ddbdc627614",
+      "bytes": 28228
+    },
+    {
+      "file": "legal/LICENSES/LGPL-3.0-or-later.txt",
+      "sha256": "685566dab411b594d28143c7f0edfd37ee79e700329a1e0771cce3e9eadfc08d",
+      "bytes": 9325
+    },
+    {
+      "file": "legal/LICENSES/LicenseRef-EcoSyneva-Branding.txt",
+      "sha256": "ea44cafd05a3d19bc4b0f52b47870d688d4ca2edf91bb091acb11b03d1dd9715",
+      "bytes": 518
+    },
+    {
+      "file": "legal/LICENSES/LicenseRef-EcoSyneva-Proprietary.txt",
+      "sha256": "5701152e556eb71f75220ac05acd354953774c5473b4ae6fe4b3a0ad7994c134",
+      "bytes": 404
+    },
+    {
+      "file": "legal/LICENSES/LicenseRef-Pending-Permission-Pond5-168538192.txt",
+      "sha256": "1a99724a9e613b15109c3c744a2279d44db059b606928d7786f0820660c1f633",
+      "bytes": 420
+    },
+    {
+      "file": "legal/LICENSES/MIT-0.txt",
+      "sha256": "16a3e9cec15ff1e1fbeb7ac1633dd4e188855c1b17439ce7cbcd5e5dcc3e15c7",
+      "bytes": 1506
+    },
+    {
+      "file": "legal/LICENSES/MIT.txt",
+      "sha256": "11949d8a63ad00d029f0383ca8b654977b524d03f1187bdea470b702701e0de8",
+      "bytes": 1726
+    },
+    {
+      "file": "legal/LICENSES/MPL-2.0.txt",
+      "sha256": "3c31f441e0c9dd61c5bf700098b0d47f39147bf05af2873b959ab9c29c505eb7",
+      "bytes": 17600
+    },
+    {
+      "file": "legal/LICENSES/Python-2.0.txt",
+      "sha256": "0e917c8b32cc1c487593b55ea8ec448280967755bca81d065d30d7bc262dae1d",
+      "bytes": 10817
+    },
+    {
+      "file": "legal/LICENSES/Unlicense.txt",
+      "sha256": "a1344a634dd306370ff9fefa132c5e48f333917762b9d44df5816e848add64ae",
+      "bytes": 1548
+    },
+    {
+      "file": "legal/LICENSES/WTFPL.txt",
+      "sha256": "086d0ec7dc2babd2bc7db305c008334393f7f045f2dc5ee78df5f67b92e2b65e",
+      "bytes": 907
+    },
+    {
+      "file": "legal/LICENSES/Zlib.txt",
+      "sha256": "5a80154e23388844fc7075c31535c5b166ad19677d2d4bb8ca9cd84de3f8719b",
+      "bytes": 1351
+    },
+    {
+      "file": "legal/THIRD_PARTY_NOTICES.txt",
+      "sha256": "c1a4c696be12584d2f18300f23f504adce536bf4e356dc581565c193abe100b8",
+      "bytes": 587589
+    },
+    {
+      "file": "manifest-schema.json",
+      "sha256": "75319a26bad5c284bbea9ca524299c57b2602a48363f7a2c96a1e8095a38836e",
+      "bytes": 5113
+    },
+    {
+      "file": "manifest.webmanifest",
+      "sha256": "9c6f4fadd634a594ebd11077fb3d9025e0c4582213979ecf7c810cc97738f8b0",
+      "bytes": 398
+    },
+    {
+      "file": "marketplace-revocations.json",
+      "sha256": "7bd1425f8879558d816a03642fedd0d1415c064caef4f4f473a78655c8d0a1b8",
+      "bytes": 239
+    },
+    {
+      "file": "release-manifest.json",
+      "sha256": "0bfadb915da8b8871a104a3127313271c3c5340b4b445b25b8e91dcbbe42bd27",
+      "bytes": 12225
+    },
+    {
+      "file": "releases/1.0.0.json",
+      "sha256": "dea3df8c0b3104eba73d622cccec503ce5f9b8c88e7fcf84cafb1e9aa10a6d6f",
+      "bytes": 11376
+    },
+    {
+      "file": "robots.txt",
+      "sha256": "331ea9090db0c9f6f597bd9840fd5b171830f6e0b3ba1cb24dfa91f0c95aedc1",
+      "bytes": 26
+    }
+  ]
+}

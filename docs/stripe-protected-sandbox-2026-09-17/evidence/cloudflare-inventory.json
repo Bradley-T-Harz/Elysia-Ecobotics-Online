@@ -1,0 +1,58 @@
+{
+  "zones": {
+    "success": true,
+    "result": [
+      {
+        "id": "5f11b87d089849eb7ee13999a4eed410",
+        "name": "elysiaecobotics.com",
+        "status": "active"
+      }
+    ]
+  },
+  "accessApps": {
+    "success": true,
+    "result": []
+  },
+  "accessOrganization": {
+    "status": 403
+  },
+  "workersDomains": {
+    "success": true,
+    "result": []
+  },
+  "pagesProjects": {
+    "success": true,
+    "result": [
+      {
+        "name": "elysia-marketplace",
+        "subdomain": "elysia-marketplace.pages.dev",
+        "domains": [
+          "elysia-marketplace.pages.dev"
+        ]
+      },
+      {
+        "name": "elysia-ecobotics-online",
+        "subdomain": "elysia-ecobotics-online.pages.dev",
+        "domains": [
+          "elysia-ecobotics-online.pages.dev",
+          "elysiaecobotics.com",
+          "www.elysiaecobotics.com"
+        ]
+      },
+      {
+        "name": "ecosyneva-commons-llc",
+        "subdomain": "ecosyneva-commons-llc.pages.dev",
+        "domains": [
+          "ecosyneva-commons-llc.pages.dev"
+        ]
+      },
+      {
+        "name": "elysiaartisancollective",
+        "subdomain": "elysiaartisancollective.pages.dev",
+        "domains": [
+          "elysiaartisancollective.pages.dev"
+        ]
+      }
+    ]
+  }
+}

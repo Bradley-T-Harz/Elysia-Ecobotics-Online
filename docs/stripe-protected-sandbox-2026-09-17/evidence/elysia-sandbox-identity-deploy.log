@@ -1,0 +1,54 @@
+
+ ⛅️ wrangler 4.125.0 (update available 4.133.0)
+───────────────────────────────────────────────
+Total Upload: 1479.17 KiB / gzip: 258.71 KiB
+Worker Startup Time: 20 ms
+Your Worker has access to the following bindings:
+Binding                                                                                               Resource                  
+env.IDENTITY_RATE_LIMITER (10 requests/60s)                                                           Rate Limit                
+env.STEWARDSHIP_PROOF_RETENTION_ENABLED ("false")                                                     Environment Variable      
+env.IDENTITY_ENABLED ("true")                                                                         Environment Variable      
+env.IDENTITY_ALLOWED_ORIGINS ("https://elysia-ecobotics-online-sandb...")                             Environment Variable      
+env.IDENTITY_ADULT_BETA_ENABLED ("false")                                                             Environment Variable      
+env.IDENTITY_TEEN_ENABLED ("false")                                                                   Environment Variable      
+env.IDENTITY_UNDER_13_ENABLED ("false")                                                               Environment Variable      
+env.IDENTITY_UNDER13_SPONSORED_ACCOUNTS_ENABLED ("false")                                             Environment Variable      
+env.IDENTITY_UNDER13_CONTENT_APPROVAL_ENABLED ("false")                                               Environment Variable      
+env.IDENTITY_UNDER13_DEPENDENT_CONTROLS_ENABLED ("false")                                             Environment Variable      
+env.IDENTITY_LIFECYCLE_OPERATOR_ENABLED ("false")                                                     Environment Variable      
+env.IDENTITY_LIFECYCLE_EXECUTION_ENABLED ("false")                                                    Environment Variable      
+env.IDENTITY_LIFECYCLE_EXECUTION_PROVIDER ("disabled")                                                Environment Variable      
+env.IDENTITY_DELETION_FINALIZER_ENABLED ("false")                                                     Environment Variable      
+env.IDENTITY_DELETION_FINALIZER_PROVIDER ("disabled")                                                 Environment Variable      
+env.IDENTITY_DELETION_FINALIZER_BATCH_LIMIT ("2")                                                     Environment Variable      
+env.IDENTITY_DELETION_FINALIZER_LEASE_SECONDS ("600")                                                 Environment Variable      
+env.IDENTITY_DELETION_FINALIZER_RETRY_SECONDS ("300")                                                 Environment Variable      
+env.IDENTITY_ACCOUNT_EXPORT_ENABLED ("false")                                                         Environment Variable      
+env.IDENTITY_ACCOUNT_EXPORT_PROVIDER ("disabled")                                                     Environment Variable      
+env.IDENTITY_ACCOUNT_EXPORT_TTL_DAYS ("7")                                                            Environment Variable      
+env.IDENTITY_STORAGE_CLEANUP_ENABLED ("false")                                                        Environment Variable      
+env.IDENTITY_STORAGE_CLEANUP_PROVIDER ("disabled")                                                    Environment Variable      
+env.IDENTITY_AUTH_DELETION_ENABLED ("false")                                                          Environment Variable      
+env.IDENTITY_AUTH_DELETION_PROVIDER ("disabled")                                                      Environment Variable      
+env.IDENTITY_NOTIFICATION_DELIVERY_ENABLED ("false")                                                  Environment Variable      
+env.IDENTITY_NOTIFICATION_DELIVERY_PROVIDER ("disabled")                                              Environment Variable      
+env.IDENTITY_NOTIFICATION_SENDER_EMAIL ("notifications@elysiaecobotics.com")                          Environment Variable      
+env.IDENTITY_NOTIFICATION_SENDER_NAME ("Elysia Artisan Collective")                                   Environment Variable      
+env.IDENTITY_NOTIFICATION_PUBLIC_ORIGIN ("https://elysia-ecobotics-online-sandb...")                  Environment Variable      
+env.IDENTITY_ACCOUNT_NOTIFICATION_DELIVERY_ENABLED ("false")                                          Environment Variable      
+env.IDENTITY_ACCOUNT_NOTIFICATION_DELIVERY_PROVIDER ("disabled")                                      Environment Variable      
+env.IDENTITY_ACCOUNT_NOTIFICATION_SENDER_NAME ("Elysia Ecobotics")                                    Environment Variable      
+env.IDENTITY_ACCOUNT_NOTIFICATION_PUBLIC_ORIGIN ("https://elysia-ecobotics-online-sandb...")          Environment Variable      
+env.IDENTITY_EXPORT_RETENTION_ENABLED ("false")                                                       Environment Variable      
+env.IDENTITY_EXPORT_RETENTION_PROVIDER ("disabled")                                                   Environment Variable      
+env.IDENTITY_EDGE_RATE_LIMIT_CONFIRMED ("true")                                                       Environment Variable      
+env.TURNSTILE_REQUIRED ("false")                                                                      Environment Variable      
+env.TURNSTILE_EXPECTED_HOSTNAMES ("elysia-ecobotics-online-sandbox.bradl...")                         Environment Variable      
+env.AGE_ASSURANCE_PROVIDER ("disabled")                                                               Environment Variable      
+env.GUARDIAN_CONSENT_PROVIDER ("disabled")                                                            Environment Variable      
+env.SUPABASE_URL ("https://kdtqyxlrkpmlpupzgmwv.supabase...")                                         Environment Variable      
+env.SUPABASE_PUBLISHABLE_KEY ("sb_publishable_N9YjXz0WKeCVYZRtBzgmrA...")                             Environment Variable      
+
+Uploaded elysia-shared-identity-sandbox (1.49 sec)
+No targets deployed for elysia-shared-identity-sandbox (0.42 sec)
+Current Version ID: 785f8361-e311-43af-9bea-9bebc0389166

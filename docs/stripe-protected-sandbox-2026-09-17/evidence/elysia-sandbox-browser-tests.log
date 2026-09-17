@@ -1,0 +1,3 @@
+(node:4179087) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Protected sandbox browser: built homepage, Forge, Creator Studio, account, Support and billing routes render behind synthetic signed Access; no production data or Stripe requests.

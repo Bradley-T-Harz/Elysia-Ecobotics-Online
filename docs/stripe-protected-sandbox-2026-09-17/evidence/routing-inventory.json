@@ -1,0 +1,25 @@
+{
+  "sandboxDns": {
+    "status": 403
+  },
+  "zoneWorkerRoutes": {
+    "success": true,
+    "result": [
+      {
+        "id": "fbfb5f9a4ebc4a5782eacd2aef31bcf0",
+        "pattern": "elysiaecobotics.com/.well-known/webfinger*",
+        "script": "elysia-webfinger"
+      },
+      {
+        "id": "0db181c5bd1d4e7fbc6b3b75d5fb375b",
+        "pattern": "elysiaecobotics.com/api/billing/*",
+        "script": "elysia-first-party-billing"
+      }
+    ]
+  },
+  "accessIdentityProviders": {
+    "success": true,
+    "result": []
+  },
+  "sandboxDnsResolves": true
+}

@@ -1,0 +1,4 @@
+# NAMES ONLY. Never fill or commit credentials in this template.
+# Worker: elysia-shared-identity-sandbox
+# Reuse only the sandbox backend credential already held securely in Bitwarden.
+SUPABASE_SERVICE_ROLE_KEY=

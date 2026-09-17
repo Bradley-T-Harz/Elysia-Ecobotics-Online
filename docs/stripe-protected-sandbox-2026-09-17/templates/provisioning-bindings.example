@@ -1,0 +1,9 @@
+# NAMES ONLY. Secure setup-process injection only; not Worker/browser bindings.
+# Inject only the key matching the selected mode. Never fill/commit this template.
+STRIPE_PROVISIONING_KEY_TEST=
+STRIPE_PROVISIONING_KEY_LIVE=
+BILLING_MODE=
+STRIPE_ACCOUNT_ID=
+STRIPE_API_VERSION=2025-02-24.acacia
+BILLING_PUBLIC_ORIGIN=
+STRIPE_CATALOG_REFERENCES_FILE=

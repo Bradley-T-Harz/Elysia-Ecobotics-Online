@@ -1,0 +1,207 @@
+{
+  "capturedAt": "2026-09-17T06:46:34.523421+00:00",
+  "elysia-ecobotics-online-sandbox": {
+    "mode": null,
+    "origin": "https://elysia-ecobotics-online-sandbox.bradleytharz3407.workers.dev",
+    "database": "https://kdtqyxlrkpmlpupzgmwv.supabase.co",
+    "flags": {},
+    "sandboxAccessRequired": null,
+    "accessConfigured": false,
+    "secretBindingNames": [],
+    "services": [
+      {
+        "binding": "BILLING_SERVICE",
+        "service": "elysia-first-party-billing-sandbox"
+      },
+      {
+        "binding": "IDENTITY_SERVICE",
+        "service": "elysia-shared-identity-sandbox"
+      }
+    ],
+    "assetBindingPresent": true,
+    "subdomain": {
+      "enabled": true,
+      "previews_enabled": false
+    },
+    "deployments": [
+      {
+        "id": "fefe2d2a-e3f1-4068-887b-aaff5859cf18",
+        "created_on": "2026-09-17T06:40:13.781244Z",
+        "versions": [
+          {
+            "version_id": "d9122959-93ee-4c88-a50f-bed9e6642623",
+            "percentage": 100
+          }
+        ]
+      }
+    ]
+  },
+  "elysia-first-party-billing-sandbox": {
+    "mode": "disabled",
+    "origin": "https://elysia-ecobotics-online-sandbox.bradleytharz3407.workers.dev",
+    "database": "https://kdtqyxlrkpmlpupzgmwv.supabase.co",
+    "flags": {
+      "BILLING_ACCOUNTING_EXPORT_ENABLED": "false",
+      "BILLING_ACCOUNT_LIFECYCLE_ENABLED": "false",
+      "BILLING_ASSISTANCE_ADMIN_ENABLED": "false",
+      "BILLING_EDGE_RATE_LIMIT_CONFIRMED": "false",
+      "BILLING_ENABLED": "false",
+      "BILLING_FIRST_PARTY_PREFLIGHT_CONFIRMED": "false",
+      "BILLING_JOB_POST_FEES_ENABLED": "false",
+      "BILLING_MARKETPLACE_COMMERCE_ENABLED": "false",
+      "BILLING_MARKETPLACE_PAYOUT_PREPARATION_ENABLED": "false",
+      "BILLING_NOTIFICATION_RETRY_ENABLED": "false",
+      "BILLING_ORGANIZATION_SERVICES_ENABLED": "false",
+      "BILLING_PORTAL_ENABLED": "false",
+      "BILLING_RECURRING_ENABLED": "false",
+      "BILLING_SANDBOX_PURCHASES_ENABLED": "false",
+      "BILLING_SELLER_ONBOARDING_ENABLED": "false",
+      "BILLING_SPONSORSHIP_ADMIN_ENABLED": "false",
+      "BILLING_SPONSORSHIP_CHECKOUT_ENABLED": "false",
+      "BILLING_SPONSORSHIP_RECOGNITION_ENABLED": "false",
+      "BILLING_STAGING_ACCESS_CONFIRMED": "false",
+      "BILLING_SUPPORT_CHECKOUT_ENABLED": "false",
+      "BILLING_SUPPORT_RECOGNITION_ENABLED": "false",
+      "BILLING_TEST_REFUNDS_ENABLED": "false",
+      "BILLING_WEBHOOK_FULFILLMENT_ENABLED": "false",
+      "STRIPE_CONNECT_ENABLED": "false",
+      "STRIPE_LIVE_ENABLED": "false"
+    },
+    "sandboxAccessRequired": "true",
+    "accessConfigured": false,
+    "secretBindingNames": [
+      "SUPABASE_SERVICE_ROLE_KEY"
+    ],
+    "services": [],
+    "assetBindingPresent": false,
+    "subdomain": {
+      "enabled": true,
+      "previews_enabled": false
+    },
+    "deployments": [
+      {
+        "id": "61f3fc90-8c07-433d-b134-eeb0d8d15b17",
+        "created_on": "2026-09-17T06:39:51.057604Z",
+        "versions": [
+          {
+            "version_id": "17e43dc7-7b42-4758-8770-8526f7c38c60",
+            "percentage": 100
+          }
+        ]
+      }
+    ]
+  },
+  "elysia-shared-identity-sandbox": {
+    "mode": null,
+    "origin": "https://elysia-ecobotics-online-sandbox.bradleytharz3407.workers.dev",
+    "database": "https://kdtqyxlrkpmlpupzgmwv.supabase.co",
+    "flags": {
+      "IDENTITY_ACCOUNT_EXPORT_ENABLED": "false",
+      "IDENTITY_ACCOUNT_NOTIFICATION_DELIVERY_ENABLED": "false",
+      "IDENTITY_ADULT_BETA_ENABLED": "false",
+      "IDENTITY_AUTH_DELETION_ENABLED": "false",
+      "IDENTITY_DELETION_FINALIZER_ENABLED": "false",
+      "IDENTITY_EDGE_RATE_LIMIT_CONFIRMED": "true",
+      "IDENTITY_ENABLED": "true",
+      "IDENTITY_EXPORT_RETENTION_ENABLED": "false",
+      "IDENTITY_LIFECYCLE_EXECUTION_ENABLED": "false",
+      "IDENTITY_LIFECYCLE_OPERATOR_ENABLED": "false",
+      "IDENTITY_NOTIFICATION_DELIVERY_ENABLED": "false",
+      "IDENTITY_STORAGE_CLEANUP_ENABLED": "false",
+      "IDENTITY_TEEN_ENABLED": "false",
+      "IDENTITY_UNDER13_CONTENT_APPROVAL_ENABLED": "false",
+      "IDENTITY_UNDER13_DEPENDENT_CONTROLS_ENABLED": "false",
+      "IDENTITY_UNDER_13_ENABLED": "false",
+      "IDENTITY_UNDER13_SPONSORED_ACCOUNTS_ENABLED": "false",
+      "STEWARDSHIP_PROOF_RETENTION_ENABLED": "false"
+    },
+    "sandboxAccessRequired": null,
+    "accessConfigured": false,
+    "secretBindingNames": [],
+    "services": [],
+    "assetBindingPresent": false,
+    "subdomain": {
+      "enabled": false,
+      "previews_enabled": false
+    },
+    "deployments": [
+      {
+        "id": "492f3471-38de-410d-b70d-341fc01b323f",
+        "created_on": "2026-09-17T06:39:47.347628Z",
+        "versions": [
+          {
+            "version_id": "785f8361-e311-43af-9bea-9bebc0389166",
+            "percentage": 100
+          }
+        ]
+      }
+    ]
+  },
+  "elysia-first-party-billing": {
+    "mode": "disabled",
+    "origin": "https://elysiaecobotics.com",
+    "database": "https://qwmcstyfegvpzjmjrylc.supabase.co",
+    "flags": {
+      "BILLING_ACCOUNTING_EXPORT_ENABLED": "false",
+      "BILLING_ACCOUNT_LIFECYCLE_ENABLED": "false",
+      "BILLING_ASSISTANCE_ADMIN_ENABLED": "false",
+      "BILLING_EDGE_RATE_LIMIT_CONFIRMED": "false",
+      "BILLING_ENABLED": "false",
+      "BILLING_FIRST_PARTY_PREFLIGHT_CONFIRMED": "false",
+      "BILLING_JOB_POST_FEES_ENABLED": "false",
+      "BILLING_MARKETPLACE_COMMERCE_ENABLED": "false",
+      "BILLING_MARKETPLACE_PAYOUT_PREPARATION_ENABLED": "false",
+      "BILLING_NOTIFICATION_RETRY_ENABLED": "false",
+      "BILLING_ORGANIZATION_SERVICES_ENABLED": "false",
+      "BILLING_PORTAL_ENABLED": "false",
+      "BILLING_RECURRING_ENABLED": "false",
+      "BILLING_SANDBOX_PURCHASES_ENABLED": "false",
+      "BILLING_SELLER_ONBOARDING_ENABLED": "false",
+      "BILLING_SPONSORSHIP_ADMIN_ENABLED": "false",
+      "BILLING_SPONSORSHIP_CHECKOUT_ENABLED": "false",
+      "BILLING_SPONSORSHIP_RECOGNITION_ENABLED": "false",
+      "BILLING_STAGING_ACCESS_CONFIRMED": "false",
+      "BILLING_SUPPORT_CHECKOUT_ENABLED": "false",
+      "BILLING_SUPPORT_RECOGNITION_ENABLED": "false",
+      "BILLING_TEST_REFUNDS_ENABLED": "false",
+      "BILLING_WEBHOOK_FULFILLMENT_ENABLED": "false",
+      "STRIPE_CONNECT_ENABLED": "false",
+      "STRIPE_LIVE_ENABLED": "false"
+    },
+    "sandboxAccessRequired": null,
+    "accessConfigured": false,
+    "secretBindingNames": [],
+    "services": [],
+    "assetBindingPresent": false,
+    "subdomain": {
+      "enabled": false,
+      "previews_enabled": false
+    },
+    "deployments": [
+      {
+        "id": "3940a21e-f650-4521-91b4-e3d5eeff3e86",
+        "created_on": "2026-09-17T00:23:07.234114Z",
+        "versions": [
+          {
+            "version_id": "a043d182-a69e-451e-98a1-ae03b972ccd2",
+            "percentage": 100
+          }
+        ]
+      }
+    ]
+  },
+  "productionPages": {
+    "id": "57f69a36-caad-4959-8dfb-30aec839ec74",
+    "url": "https://57f69a36.elysia-ecobotics-online.pages.dev",
+    "deployment_trigger": {
+      "type": "ad_hoc",
+      "metadata": {
+        "branch": "main",
+        "commit_hash": "ba75044d82aa676026cba37f828f7b559729ef77",
+        "commit_message": "Qualify Stripe configuration preflight, edge limits and exact secret handoff",
+        "commit_dirty": false
+      }
+    }
+  },
+  "productionUnchanged": true
+}

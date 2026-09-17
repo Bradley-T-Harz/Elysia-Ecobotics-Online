@@ -1,0 +1,33 @@
+{
+  "deployedSource": "6735f7e48837a471279aa8c3474c5aeea8ae98f3",
+  "passed": [
+    "npm run test:stripe-first-party (19 programs)",
+    "node scripts/protectedSandboxUiTest.mjs",
+    "node scripts/protectedSandboxBrowserTest.mjs",
+    "npm run typecheck",
+    "npm run typecheck:functions",
+    "node scripts/authTurnstileContractTest.mjs",
+    "node scripts/artisanPortalSmokeTest.mjs",
+    "npm run sandbox:ui:build",
+    "wrangler deploy --dry-run for UI/billing/identity sandbox",
+    "19 deployed protection checks"
+  ],
+  "syntheticProviderTestsOnly": true,
+  "actualStripeAcceptance": "NOT_RUN",
+  "actualAuthorizedRemoteAccess": "PENDING_OWNER_SETUP",
+  "credentialPatternScan": {
+    "files": 33,
+    "matches": 0,
+    "valuesPrinted": false
+  },
+  "historicalRouteSnapshot": {
+    "status": "PREEXISTING_MISMATCH",
+    "reason": "Header exact equality snapshot predates Creator Studio navigation entry.",
+    "baseline": "75271adf7351ef75c6cc61bad8582f8e80de0b9f",
+    "unchangedPaths": [
+      "src/shared/navigation/publicNavigation.ts",
+      "docs/navigation/route-preservation-contract.json",
+      "scripts/routePreservationContractTest.mjs"
+    ]
+  }
+}

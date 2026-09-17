@@ -1,0 +1,49 @@
+{
+  "accountId": "52813999b345cafda80d67f1d6345d5c",
+  "method": "POST",
+  "endpoint": "/accounts/52813999b345cafda80d67f1d6345d5c/access/apps",
+  "applications": [
+    {
+      "name": "Elysia Online isolated sandbox",
+      "type": "self_hosted",
+      "domain": "elysia-ecobotics-online-sandbox.bradleytharz3407.workers.dev",
+      "session_duration": "12h",
+      "auto_redirect_to_identity": false,
+      "policies": [
+        {
+          "name": "Bradley sandbox access",
+          "decision": "allow",
+          "include": [
+            {
+              "email": {
+                "email": "bradleytharz3407@proton.me"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Elysia sandbox signed Stripe webhook",
+      "type": "self_hosted",
+      "domain": "elysia-ecobotics-online-sandbox.bradleytharz3407.workers.dev/api/billing/webhook",
+      "policies": [
+        {
+          "name": "Signed webhook transport only",
+          "decision": "bypass",
+          "include": [
+            {
+              "everyone": {}
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "No wildcard hosts or wildcard webhook paths.",
+    "The Worker independently requires a valid Access JWT on every path except exact POST /api/billing/webhook without query.",
+    "Keep the existing canonical Stripe sandbox webhook URL on the billing Worker; do not register duplicate delivery to both aliases.",
+    "No global Access policies, production resources, paid subscriptions, or provider acceptance are changed."
+  ]
+}

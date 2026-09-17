@@ -1,0 +1,16 @@
+
+ ⛅️ wrangler 4.125.0 (update available 4.133.0)
+───────────────────────────────────────────────
+✨ Read 235 files from the assets directory /home/ojiji-chhaya/MAIN_Projects/EcoSyneva_Commons_LLC/Elysia_Ecobotics/Elysia-Ecobotics-Online/dist-sandbox
+Total Upload: 13.17 KiB / gzip: 3.91 KiB
+Your Worker has access to the following bindings:
+Binding                                                                          Resource                  
+env.BILLING_SERVICE (elysia-first-party-billing-sandbox)                         Worker                    
+env.IDENTITY_SERVICE (elysia-shared-identity-sandbox)                            Worker                    
+env.ASSETS                                                                       Assets                    
+env.SANDBOX_UI_ORIGIN ("https://elysia-ecobotics-online-sandb...")               Environment Variable      
+env.SUPABASE_URL ("https://kdtqyxlrkpmlpupzgmwv.supabase...")                    Environment Variable      
+env.SANDBOX_ACCESS_TEAM_DOMAIN ("")                                              Environment Variable      
+env.SANDBOX_ACCESS_AUDIENCE ("")                                                 Environment Variable      
+
+--dry-run: exiting now.

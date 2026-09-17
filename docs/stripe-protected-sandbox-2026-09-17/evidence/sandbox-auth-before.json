@@ -1,0 +1,13 @@
+{
+  "projectRef": "kdtqyxlrkpmlpupzgmwv",
+  "credentialValuePrinted": false,
+  "readSucceeded": true,
+  "auth": {
+    "site_url": "http://localhost:3000",
+    "uri_allow_list": "",
+    "disable_signup": false,
+    "external_email_enabled": true,
+    "mailer_autoconfirm": false,
+    "security_captcha_enabled": false
+  }
+}
