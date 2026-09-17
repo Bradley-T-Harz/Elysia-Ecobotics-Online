@@ -25,7 +25,7 @@
   "vars": {
     "SANDBOX_UI_ORIGIN": "https://elysia-ecobotics-online-sandbox.bradleytharz3407.workers.dev",
     "SUPABASE_URL": "https://kdtqyxlrkpmlpupzgmwv.supabase.co",
-    "SANDBOX_ACCESS_TEAM_DOMAIN": "",
-    "SANDBOX_ACCESS_AUDIENCE": ""
+    "SANDBOX_ACCESS_TEAM_DOMAIN": "https://winter-silence-44c4.cloudflareaccess.com",
+    "SANDBOX_ACCESS_AUDIENCE": "3f7090021dbe34a95a7cba5a1ecd324d5705b34205c31b3d8b00d0b8b6ae0605"
   }
 }
