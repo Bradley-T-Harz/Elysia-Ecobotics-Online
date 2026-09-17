@@ -1,3 +1,4 @@
+import {paymentMethodsFixture} from './fixtures/paymentMethodConfiguration.mjs';
 import { BillingHttpError } from "../functions/api/billing/_shared/http.ts";
 import { deliverEconomicNotificationOutbox, processProviderEvent } from "../functions/api/billing/_shared/database.ts";
 import { createStripeTestProvider, STRIPE_ECONOMIC_MUTATION_EVENT_TYPES, StripeTestProvider } from "../functions/api/billing/_shared/stripe.ts";
@@ -11,6 +12,7 @@ const nowSeconds = 1_800_000_000;
 const webhookSecret = `whsec_${"w".repeat(40)}`;
 const secretKey = `sk_test_${"s".repeat(40)}`;
 const env = {
+  STRIPE_PAYMENT_METHOD_CONFIGURATION_ID: "pmc_synthetic",
   BILLING_ENABLED: "true",
   BILLING_MODE: "test",
   BILLING_PUBLIC_ORIGIN: "https://elysiaecobotics.com",
@@ -36,6 +38,7 @@ async function fakeFetch(input, init) {
   assert(headers.get("stripe-version") === env.STRIPE_API_VERSION, "Stripe API version was not pinned by configuration.");
   assert(!String(init?.body ?? "").includes(secretKey) && !String(init?.body ?? "").includes(webhookSecret), "A Stripe secret entered the request body.");
 
+  if (url.pathname === "/v1/payment_method_configurations/pmc_synthetic") return Response.json(paymentMethodsFixture());
   if (url.pathname === "/v1/checkout/sessions") {
     return new Response(JSON.stringify({ id: "cs_test_fixture", object: "checkout.session", customer: null, url: "https://checkout.stripe.com/c/pay/fixture" }), { status: 200 });
   }
@@ -107,7 +110,7 @@ assert(oneTime.providerSessionId === "cs_test_fixture" && oneTime.checkoutUrl.st
 assert(calls.at(-1)?.body.get("expires_at") === String(nowSeconds + 30 * 60), "Hosted Checkout did not receive the reviewed 30-minute abandoned-session bound.");
 let nondefaultPortRejected = false;
 try {
-  await new StripeTestProvider(env, async () => new Response(JSON.stringify({
+  await new StripeTestProvider(env, async (url) => new URL(url).pathname.startsWith("/v1/payment_method_configurations/") ? Response.json(paymentMethodsFixture()) : new Response(JSON.stringify({
     id: "cs_test_fixture",
     customer: null,
     url: "https://checkout.stripe.com:444/c/pay/fixture"
@@ -120,7 +123,7 @@ const oneTimeCall = calls.at(-1);
 assert(oneTimeCall.body.get("mode") === "payment", "One-time support did not use Stripe payment mode.");
 assert(oneTimeCall.body.get("line_items[0][price_data][unit_amount]") === "500", "Server-validated minor-unit amount was not forwarded.");
 assert(oneTimeCall.body.get("line_items[0][price_data][product]") === "prod_fixture", "Server catalog product was not used.");
-assert(oneTimeCall.body.get("payment_method_types[0]") === "card" && !oneTimeCall.body.has("payment_method_types[1]"), "One-time support did not explicitly restrict Checkout to card payments.");
+assert(oneTimeCall.body.get("payment_method_configuration") === "pmc_synthetic" && !oneTimeCall.body.has("payment_method_types[0]"), "One-time support did not select the reviewed dynamic payment method configuration.");
 assert(oneTimeCall.body.get("allow_promotion_codes") === "false" && oneTimeCall.body.get("automatic_tax[enabled]") === "false", "Initial support checkout enabled an unsupported commercial feature.");
 assert(!oneTimeCall.body.has("shipping_address_collection[allowed_countries][0]") && oneTimeCall.body.get("phone_number_collection[enabled]") === "false", "One-time support requested unnecessary shipping or phone data.");
 assert(oneTimeCall.headers.get("idempotency-key") === baseCheckout.idempotencyKey, "Checkout idempotency key was omitted.");
@@ -138,7 +141,7 @@ const recurringCall = calls.at(-1);
 assert(recurringCall.body.get("mode") === "subscription" && recurringCall.body.get("line_items[0][price]") === "price_fixture", "Recurring checkout did not use the fixed server catalog price.");
 assert(!recurringCall.body.has("line_items[0][price_data][unit_amount]"), "Client-like recurring amount reached Stripe.");
 assert(recurringCall.body.get("customer") === "cus_fixture", "Account-linked recurring support did not reuse its private billing customer.");
-assert(recurringCall.body.get("payment_method_types[0]") === "card" && !recurringCall.body.has("payment_method_types[1]"), "Recurring support did not explicitly restrict Checkout to card payments.");
+assert(recurringCall.body.get("payment_method_configuration") === "pmc_synthetic" && !recurringCall.body.has("payment_method_types[0]"), "Recurring support did not select the reviewed dynamic payment method configuration.");
 assert(recurringCall.body.get("allow_promotion_codes") === "false" && recurringCall.body.get("automatic_tax[enabled]") === "false" && recurringCall.body.get("phone_number_collection[enabled]") === "false", "Recurring support enabled promotion codes, automatic tax, or phone collection.");
 assert(!recurringCall.body.has("shipping_address_collection[allowed_countries][0]"), "Recurring support requested shipping data.");
 
@@ -156,7 +159,7 @@ for (const flow of ["job_post_fee", "organization_service", "sponsorship"]) {
   assert(fixedOneTimeCall.body.get("mode") === "payment", `${flow} did not use one-time Stripe payment mode.`);
   assert(fixedOneTimeCall.body.get("line_items[0][price]") === "price_fixedfixture", `${flow} did not use its server catalog price.`);
   assert(!fixedOneTimeCall.body.has("line_items[0][price_data][unit_amount]"), `${flow} forwarded a mutable amount instead of its fixed price.`);
-  assert(fixedOneTimeCall.body.get("payment_method_types[0]") === "card" && !fixedOneTimeCall.body.has("payment_method_types[1]"), `${flow} did not explicitly restrict Checkout to card payments.`);
+  assert(fixedOneTimeCall.body.get("payment_method_configuration") === "pmc_synthetic" && !fixedOneTimeCall.body.has("payment_method_types[0]"), `${flow} did not select the reviewed dynamic payment method configuration.`);
   assert(fixedOneTimeCall.body.get("allow_promotion_codes") === "false" && fixedOneTimeCall.body.get("automatic_tax[enabled]") === "false" && fixedOneTimeCall.body.get("phone_number_collection[enabled]") === "false", `${flow} enabled promotion codes, automatic tax, or phone collection.`);
   assert(!fixedOneTimeCall.body.has("shipping_address_collection[allowed_countries][0]"), `${flow} requested shipping data.`);
   assert(fixedOneTimeCall.body.get("payment_intent_data[metadata][economic_order_id]") === baseCheckout.orderId, `${flow} lost its durable order association.`);

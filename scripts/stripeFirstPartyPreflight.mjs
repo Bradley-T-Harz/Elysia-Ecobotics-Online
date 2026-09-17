@@ -4,9 +4,10 @@ import {readFile} from 'node:fs/promises';
 import {catalogPlan,assertPortalPolicy,validatedProvisionOrigin} from './stripeFirstPartyProvision.mjs';
 import {STRIPE_FIRST_PARTY_API_VERSION,STRIPE_FIRST_PARTY_WEBHOOK_URLS,STRIPE_ECONOMIC_MUTATION_EVENT_TYPES} from '../functions/api/billing/_shared/stripeContract.ts';
 import {readBoundedResponseJson} from '../functions/api/billing/_shared/http.ts';
+import {desiredPaymentMethods,assertPaymentMethodPolicy,STRIPE_EXCLUDED_METHODS} from '../functions/api/billing/_shared/stripePaymentMethods.ts';
 export async function preflight({mode,account,apiVersion,publicOrigin,secret,references,check=false,fetcher=fetch}) {
  if(!['test','live'].includes(mode)||!/^acct_[A-Za-z0-9]+$/.test(account??'')||apiVersion!==STRIPE_FIRST_PARTY_API_VERSION)throw new Error('preflight_contract_invalid');
- const plan={mode,account,apiVersion,webhookUrl:STRIPE_FIRST_PARTY_WEBHOOK_URLS[mode],events:[...STRIPE_ECONOMIC_MUTATION_EVENT_TYPES],methods:['card'],liveActivationAuthorized:false};
+ const plan={mode,account,apiVersion,webhookUrl:STRIPE_FIRST_PARTY_WEBHOOK_URLS[mode],events:[...STRIPE_ECONOMIC_MUTATION_EVENT_TYPES],paymentMethodStrategy:'dynamic_configuration',excludedMethods:[...STRIPE_EXCLUDED_METHODS],liveActivationAuthorized:false};
  if(!check)return {...plan,dryRun:true};
  publicOrigin=validatedProvisionOrigin(mode,publicOrigin);
  if(!new RegExp(`^rk_${mode}_`).test(secret??''))throw new Error('restricted_preflight_credential_required');
@@ -22,6 +23,13 @@ export async function preflight({mode,account,apiVersion,publicOrigin,secret,ref
  const identity=await get('/v1/account');
  if(identity.id!==account)throw new Error('provider_account_mismatch');
  if(mode==='live'&&(identity.charges_enabled!==true||identity.payouts_enabled!==true||identity.details_submitted!==true))throw new Error('live_account_not_ready');
+ if(!/^pmc_[A-Za-z0-9]+$/.test(references.paymentMethodConfigurationId??'')||!/^pmc_[A-Za-z0-9]+$/.test(references.paymentMethodDefaultConfigurationId??''))throw new Error('payment_method_reference_required');
+ const defaultMethods=await get(`/v1/payment_method_configurations/${references.paymentMethodDefaultConfigurationId}`);
+ if(defaultMethods.id!==references.paymentMethodDefaultConfigurationId)throw new Error('payment_method_default_mismatch');
+ const preferences=desiredPaymentMethods(defaultMethods,mode);
+ const methods=await get(`/v1/payment_method_configurations/${references.paymentMethodConfigurationId}`);
+ if(methods.id!==references.paymentMethodConfigurationId)throw new Error('payment_method_configuration_mismatch');
+ assertPaymentMethodPolicy(methods,mode,preferences);
  const endpoints=[];let cursor='';
  for(let page=0;page<10;page++){
   const result=await get(`/v1/webhook_endpoints?limit=100${cursor?'&starting_after='+encodeURIComponent(cursor):''}`);
@@ -54,7 +62,7 @@ export async function preflight({mode,account,apiVersion,publicOrigin,secret,ref
  }
  if(!/^bpc_[A-Za-z0-9]+$/.test(references.portalConfigurationId??''))throw new Error('portal_reference_invalid');
  assertPortalPolicy(await get(`/v1/billing_portal/configurations/${references.portalConfigurationId}`),mode,publicOrigin);
- return {...plan,dryRun:false,configurationChecksPassed:true,webhookEndpointId:endpoint.id,portalConfigurationId:references.portalConfigurationId,chargesEnabled:identity.charges_enabled===true,payoutsEnabled:identity.payouts_enabled===true,checkedProducts:checkedProducts.size,checkedPrices:5,paymentAcceptance:'NOT_RUN',enabledLanes:[],requiredNextEvidence:['restricted-runtime-key API operations','signed webhook delivery and retries','complete sandbox acceptance','lane tax/legal/rollout decisions','database and Worker gates']};
+ return {...plan,dryRun:false,configurationChecksPassed:true,paymentMethodConfigurationId:methods.id,paymentMethodPreferences:preferences,webhookEndpointId:endpoint.id,portalConfigurationId:references.portalConfigurationId,chargesEnabled:identity.charges_enabled===true,payoutsEnabled:identity.payouts_enabled===true,checkedProducts:checkedProducts.size,checkedPrices:5,paymentAcceptance:'NOT_RUN',enabledLanes:[],requiredNextEvidence:['restricted-runtime-key API operations','eligible dynamic methods, exclusions and delayed payment outcomes','signed webhook delivery and retries','complete sandbox acceptance','lane tax/legal/rollout decisions','database and Worker gates']};
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  try{

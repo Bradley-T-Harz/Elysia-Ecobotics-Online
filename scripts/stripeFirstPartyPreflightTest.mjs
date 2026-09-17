@@ -1,10 +1,15 @@
+import {paymentMethodsFixture} from './fixtures/paymentMethodConfiguration.mjs';
+import {desiredPaymentMethods} from '../functions/api/billing/_shared/stripePaymentMethods.ts';
 import assert from 'node:assert/strict';
 import {preflight} from './stripeFirstPartyPreflight.mjs';
 import {catalogPlan} from './stripeFirstPartyProvision.mjs';
 import {STRIPE_ECONOMIC_MUTATION_EVENT_TYPES as events,STRIPE_FIRST_PARTY_WEBHOOK_URLS as urls} from '../functions/api/billing/_shared/stripeContract.ts';
 const mode='test',account='acct_synthetic',publicOrigin='https://sandbox.example.com';
-const refs={mode,account,dryRun:false,portalConfigurationId:'bpc_synthetic',rows:catalogPlan.map((row,i)=>({productKey:row.productKey,priceCode:row.priceCode,mode,providerProductReference:`prod_elysiatest${row.productKey.replaceAll('_','')}20260915`,providerPriceReference:row.priceCode?`price_synthetic${i}`:null}))};
+const refs={mode,account,paymentMethodConfigurationId:'pmc_synthetic',paymentMethodDefaultConfigurationId:'pmc_defaultsynthetic',dryRun:false,portalConfigurationId:'bpc_synthetic',rows:catalogPlan.map((row,i)=>({productKey:row.productKey,priceCode:row.priceCode,mode,providerProductReference:`prod_elysiatest${row.productKey.replaceAll('_','')}20260915`,providerPriceReference:row.priceCode?`price_synthetic${i}`:null}))};
 const objects=new Map();
+const defaultMethods=paymentMethodsFixture(mode,true),managedMethods=paymentMethodsFixture(mode);
+for(const [method,value] of Object.entries(desiredPaymentMethods(defaultMethods,mode)))managedMethods[method].display_preference={preference:value,value};
+objects.set('/v1/payment_method_configurations/pmc_defaultsynthetic',defaultMethods);objects.set('/v1/payment_method_configurations/pmc_synthetic',managedMethods);
 objects.set('/v1/account',{id:account,charges_enabled:true,payouts_enabled:true,details_submitted:true});
 objects.set('/v1/webhook_endpoints',{has_more:false,data:[{id:'we_synthetic',url:urls.test,status:'enabled',livemode:false,api_version:'2025-02-24.acacia',enabled_events:[...events]}]});
 for(const [i,row] of catalogPlan.entries()){
@@ -18,6 +23,8 @@ const config={mode,account,apiVersion:'2025-02-24.acacia',publicOrigin,secret:'r
 assert.equal((await preflight(config)).dryRun,true);assert.equal(requests,0);
 const result=await preflight({...config,check:true});assert.equal(result.configurationChecksPassed,true);assert.equal(result.paymentAcceptance,'NOT_RUN');assert.deepEqual(result.enabledLanes,[]);assert(!JSON.stringify(result).includes(config.secret));
 for(const [path,change,error] of [
+ ['/v1/payment_method_configurations/pmc_synthetic',o=>{o.klarna.display_preference={preference:'on',value:'on'}},/policy_violation/],
+ ['/v1/payment_method_configurations/pmc_defaultsynthetic',o=>{o.ideal.display_preference.value='off'},/configuration_drift/],
  ['/v1/account',o=>{o.id='acct_other'},/account_mismatch/],
  ['/v1/webhook_endpoints',o=>{o.data[0].enabled_events=['*']},/webhook_contract/],
  ['/v1/webhook_endpoints',o=>{o.data[0].api_version='2026-01-01.invalid'},/webhook_contract/],

@@ -1,9 +1,18 @@
+import {paymentMethodsFixture} from './fixtures/paymentMethodConfiguration.mjs';
 import assert from 'node:assert/strict';
 import {provision} from './stripeFirstPartyProvision.mjs';
-const products=new Map(),prices=[],portals=[],paths=[];const mode='test';
+const products=new Map(),prices=[],portals=[],paths=[],methods=[paymentMethodsFixture('test',true)];const mode='test';
 const config={mode,account:'acct_synthetic',apiVersion:'2025-02-24.acacia',publicOrigin:'https://sandbox.example.com',secret:'rk_test_SYNTHETIC_ONLY_NEVER_REAL'};
 const fetcher=async(input,init)=>{
  const url=new URL(input),f=new URLSearchParams(init.body);paths.push(url.pathname);
+ if(url.pathname==='/v1/payment_method_configurations'&&init.method==='GET')return Response.json({data:methods,has_more:false});
+ if(url.pathname.startsWith('/v1/payment_method_configurations')&&init.method==='POST'){
+  assert(init.headers['idempotency-key']);
+  const pmc=methods.find(m=>url.pathname.endsWith('/'+m.id))??paymentMethodsFixture();
+  pmc.name=f.get('name');
+  for(const [key,value] of f){const match=key.match(/^([a-z0-9_]+)\[display_preference\]\[preference\]$/);if(match)pmc[match[1]].display_preference={preference:value,value};}
+  if(!methods.includes(pmc))methods.push(pmc);return Response.json(pmc);
+ }
  if(url.pathname==='/v1/account')return Response.json({id:config.account});
  if(url.pathname.startsWith('/v1/products/'))return products.has(url.pathname.split('/').at(-1))?Response.json(products.get(url.pathname.split('/').at(-1))):new Response('',{status:404});
  if(url.pathname==='/v1/products'){const p={id:f.get('id'),active:true,livemode:false,metadata:{economic_product_key:f.get('metadata[economic_product_key]'),economic_environment:mode}};products.set(p.id,p);return Response.json(p);}
@@ -15,7 +24,10 @@ const fetcher=async(input,init)=>{
 };
 assert.equal((await provision({...config,fetcher})).dryRun,true);assert.equal(paths.length,0);
 const first=await provision({...config,apply:true,fetcher});const second=await provision({...config,apply:true,fetcher});
-assert.deepEqual(first,second);assert.equal(products.size,3);assert.equal(prices.length,5);assert.equal(portals.length,1);
+assert.deepEqual(first,second);assert.equal(products.size,3);assert.equal(prices.length,5);assert.equal(portals.length,1);assert.equal(methods.length,2);
+assert.equal(first.paymentMethodConfigurationId,'pmc_synthetic');assert.equal(methods[1].ideal.display_preference.value,'on');assert.equal(methods[1].klarna.display_preference.value,'off');assert.equal(methods[1].oxxo.display_preference.value,'off');
+const beforeSync=structuredClone(methods[0]);methods[0].ideal.display_preference.value='off';
+await provision({...config,apply:true,fetcher});assert.equal(methods[1].ideal.display_preference.value,'off');assert.deepEqual(methods[0],{...beforeSync,ideal:{...beforeSync.ideal,display_preference:{...beforeSync.ideal.display_preference,value:'off'}}});
 assert(paths.every(p=>!/(accounts|transfers|payouts|payment_intents|checkout)/.test(p)));
 await assert.rejects(provision({...config,secret:'sk_live_SYNTHETIC_ONLY_NEVER_REAL',apply:true,fetcher}),/mismatched/);
 console.log('Catalog and cancellation provisioning: dry-run, idempotent retries, mode checks and no money/Connect operations passed.');

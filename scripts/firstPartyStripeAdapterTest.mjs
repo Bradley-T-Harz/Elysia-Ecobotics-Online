@@ -1,12 +1,14 @@
+import {paymentMethodsFixture} from './fixtures/paymentMethodConfiguration.mjs';
 // Synthetic in-process provider fixtures. This is not Stripe sandbox/live acceptance.
 import assert from 'node:assert/strict';
 import {StripeProvider} from '../functions/api/billing/_shared/stripe.ts';
 import {assertBillingMode,stripeConfig,assertBillingFeatureEnabled} from '../functions/api/billing/_shared/config.ts';
 import {handleStripeWebhook} from '../functions/api/billing/webhook.ts';
-const env={BILLING_MODE:'live',STRIPE_LIVE_ENABLED:'true',BILLING_FIRST_PARTY_PREFLIGHT_CONFIRMED:'true',BILLING_EDGE_RATE_LIMIT_CONFIRMED:'true',BILLING_PUBLIC_ORIGIN:'https://elysiaecobotics.com',STRIPE_ACCOUNT_ID:'acct_synthetic',STRIPE_SECRET_KEY_LIVE:'sk_live_SYNTHETIC_ONLY_NEVER_REAL',STRIPE_WEBHOOK_SECRET_LIVE:'whsec_SYNTHETIC_ONLY_NEVER_REAL',STRIPE_API_VERSION:'2025-02-24.acacia',STRIPE_WEBHOOK_API_VERSION:'2025-02-24.acacia',BILLING_WEBHOOK_FULFILLMENT_ENABLED:'true'};
+const env={STRIPE_PAYMENT_METHOD_CONFIGURATION_ID:'pmc_synthetic',BILLING_MODE:'live',STRIPE_LIVE_ENABLED:'true',BILLING_FIRST_PARTY_PREFLIGHT_CONFIRMED:'true',BILLING_EDGE_RATE_LIMIT_CONFIRMED:'true',BILLING_PUBLIC_ORIGIN:'https://elysiaecobotics.com',STRIPE_ACCOUNT_ID:'acct_synthetic',STRIPE_SECRET_KEY_LIVE:'sk_live_SYNTHETIC_ONLY_NEVER_REAL',STRIPE_WEBHOOK_SECRET_LIVE:'whsec_SYNTHETIC_ONLY_NEVER_REAL',STRIPE_API_VERSION:'2025-02-24.acacia',STRIPE_WEBHOOK_API_VERSION:'2025-02-24.acacia',BILLING_WEBHOOK_FULFILLMENT_ENABLED:'true'};
 const now=1800000000000,calls=[];let responseMode=true;
 const fetcher=async(input,init)=>{
  const url=new URL(input);const body=new URLSearchParams(init.body);calls.push({path:url.pathname,body:body.toString(),idempotency:new Headers(init.headers).get('idempotency-key')});
+ if(url.pathname==='/v1/payment_method_configurations/pmc_synthetic')return Response.json(paymentMethodsFixture(responseMode?'live':'test'));
  const data=url.pathname==='/v1/account'?{id:'acct_synthetic'}:url.pathname==='/v1/prices/price_synthetic'?{id:'price_synthetic',active:true,livemode:responseMode,unit_amount:500,currency:'usd',recurring:{interval:'month',interval_count:1}}:{id:'cs_live_synthetic',livemode:responseMode,url:'https://checkout.stripe.com/c/pay/synthetic',customer:null};
  return Response.json(data);
 };
@@ -15,6 +17,8 @@ const input={orderId:'22222222-2222-4222-8222-222222222222',publicReference:'opa
 for(const flow of ['support_one_time','job_post_fee','organization_service','sponsorship']) {
  await provider.createCheckout({...input,flow});const first=calls.at(-1);await provider.createCheckout({...input,flow});assert.deepEqual(calls.at(-1),first);
  assert.equal(new URLSearchParams(first.body).get('line_items[0][price_data][unit_amount]'),'500');
+ assert.equal(new URLSearchParams(first.body).get('payment_method_configuration'),'pmc_synthetic');
+ assert(!first.body.includes('payment_method_types'));
 }
 await provider.createCheckout({...input,flow:'support_recurring',providerPriceReference:'price_synthetic'});
 assert.equal(new URLSearchParams(calls.at(-1).body).get('line_items[0][price]'),'price_synthetic');

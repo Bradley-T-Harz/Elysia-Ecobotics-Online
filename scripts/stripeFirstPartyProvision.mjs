@@ -1,8 +1,10 @@
 // Dry-run by default. Secrets are read only from the secure execution environment.
 // No Connect, seller, hardware or paid-compute object can be provisioned here.
 import { pathToFileURL } from 'node:url';
+import {createHash} from 'node:crypto';
 import {readBoundedResponseJson} from '../functions/api/billing/_shared/http.ts';
 import {STRIPE_FIRST_PARTY_API_VERSION} from '../functions/api/billing/_shared/stripeContract.ts';
+import {paymentMethodConfigurationName,desiredPaymentMethods,assertPaymentMethodPolicy,STRIPE_EXCLUDED_METHODS} from '../functions/api/billing/_shared/stripePaymentMethods.ts';
 export const catalogPlan = Object.freeze([
  {productKey:'support_one_time',name:'Support Elysia Ecobotics',priceCode:null,amount:null},
  ...[[100,'seed'],[500,'commons'],[1200,'infrastructure'],[2500,'sandbox'],[5000,'50']].map(([amount,tier])=>({productKey:'support_recurring',name:'Monthly Support for Elysia Ecobotics',priceCode:`support_monthly_${tier}_usd`,amount})),
@@ -23,9 +25,37 @@ export function assertPortalPolicy(portal, mode, publicOrigin) {
   ||portal.business_profile?.privacy_policy_url!=='https://elysiaecobotics.com/legal/privacy-policy'
   ||portal.business_profile?.terms_of_service_url!=='https://elysiaecobotics.com/legal/support-and-billing-terms')throw new Error('Portal configuration does not match the approved cancellation policy.');
 }
+export async function provisionPaymentMethods(request, mode) {
+ const configurations=[];let cursor='';
+ for(let page=0;page<10;page++){
+  const listing=await request(`/v1/payment_method_configurations?limit=100${cursor?'&starting_after='+encodeURIComponent(cursor):''}`);
+  if(!Array.isArray(listing?.data))throw new Error('Payment method configuration list invalid.');
+  configurations.push(...listing.data);
+  if(!listing.has_more)break;
+  if(page===9||!listing.data.at(-1)?.id)throw new Error('Payment method configuration search exceeded safe page limit.');
+  cursor=listing.data.at(-1).id;
+ }
+ const defaults=configurations.filter(c=>c.is_default===true&&c.parent==null&&c.application==null);
+ if(defaults.length!==1)throw new Error('Exactly one own-account default payment method configuration required.');
+ const preferences=desiredPaymentMethods(defaults[0],mode),name=paymentMethodConfigurationName(mode);
+ const matches=configurations.filter(c=>c.name===name);
+ if(matches.length>1)throw new Error('Ambiguous managed payment method configuration.');
+ let configuration=matches[0];
+ if(configuration&&(configuration.parent!=null||configuration.application!=null||configuration.is_default!==false||configuration.livemode!==(mode==='live')||configuration.active!==true))throw new Error('Managed payment method scope conflicts with approved plan.');
+ let matchesPlan=false;
+ if(configuration){try{assertPaymentMethodPolicy(configuration,mode,preferences);matchesPlan=true;}catch{/* Reconcile this dedicated configuration only. */}}
+ if(!matchesPlan){
+  const fields={name};
+  for(const [method,preference] of Object.entries(preferences))fields[`${method}[display_preference][preference]`]=preference;
+  const hash=createHash('sha256').update(JSON.stringify(Object.entries(preferences).sort())).digest('hex').slice(0,24);
+  configuration=await request(`/v1/payment_method_configurations${configuration?'/'+configuration.id:''}`,'POST',fields,`elysia:${mode}:pmc:${configuration?.id??'create'}:20260917:${hash}`);
+ }
+ assertPaymentMethodPolicy(configuration,mode,preferences);
+ return {paymentMethodConfigurationId:configuration.id,paymentMethodDefaultConfigurationId:defaults[0].id,paymentMethodPreferences:preferences};
+}
 export async function provision({mode,account,apiVersion,secret,publicOrigin,apply=false,fetcher=fetch}) {
  if(!['test','live'].includes(mode)||!/^acct_[A-Za-z0-9]+$/.test(account??'')||apiVersion!==STRIPE_FIRST_PARTY_API_VERSION)throw new Error('Exact mode, account and pinned API version required.');
- if(!apply)return {dryRun:true,mode,account,catalog:catalogPlan,forbiddenObjects:[],createsWebhookSecret:false};
+ if(!apply)return {dryRun:true,mode,account,catalog:catalogPlan,paymentMethods:{strategy:'dynamic_configuration',name:paymentMethodConfigurationName(mode),source:'own-account default; available and enabled only',excluded:STRIPE_EXCLUDED_METHODS},forbiddenObjects:[],createsWebhookSecret:false};
  publicOrigin=validatedProvisionOrigin(mode,publicOrigin);
  if(!new RegExp(`^rk_${mode}_`).test(secret??''))throw new Error('Selected environment credential missing or mismatched.');
  async function request(path,method='GET',fields={},idempotency) {
@@ -37,6 +67,7 @@ export async function provision({mode,account,apiVersion,secret,publicOrigin,app
   const data=await readBoundedResponseJson(response);if(typeof data.livemode==='boolean'&&data.livemode!==(mode==='live'))throw new Error('Provider environment mismatch.');return data;
  }
  if((await request('/v1/account'))?.id!==account)throw new Error('Provider account mismatch.');
+ const paymentMethods=await provisionPaymentMethods(request,mode);
  const rows=[];
  for(const plan of catalogPlan){
   const productId=`prod_elysia${mode}${plan.productKey.replaceAll("_", "")}20260915`;
@@ -76,7 +107,7 @@ export async function provision({mode,account,apiVersion,secret,publicOrigin,app
   'metadata[elysia_configuration]':`first_party_${mode}_20260915`
  },`elysia:${mode}:portal:20260915`);
  assertPortalPolicy(portal,mode,publicOrigin);
- return {dryRun:false,mode,account,rows,portalConfigurationId:portal.id,enabledLanes:[],note:'References require recording in the matching economic database. No feature switch was changed.'};
+ return {dryRun:false,mode,account,rows,portalConfigurationId:portal.id,...paymentMethods,enabledLanes:[],note:'References require recording in the matching economic database and non-secret Worker bindings. No feature switch was changed.'};
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  const mode=process.env.BILLING_MODE;const apply=process.argv.includes('--apply');

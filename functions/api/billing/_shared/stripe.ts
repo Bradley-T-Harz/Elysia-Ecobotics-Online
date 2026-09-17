@@ -1,4 +1,5 @@
 import { STRIPE_ECONOMIC_MUTATION_EVENT_TYPES } from "./stripeContract.ts";
+import { assertPaymentMethodPolicy } from "./stripePaymentMethods.ts";
 import { stripeConfig, stripeTestConfig } from "./config.ts";
 import { BillingHttpError, fetchWithTimeout, readBoundedResponseJson } from "./http.ts";
 import { isUuid } from "./schema.ts";
@@ -388,6 +389,13 @@ export class StripeProvider implements BillingProvider {
     if (input.accountLinked && !input.providerCustomerReference) {
       throw new BillingHttpError(503, "billing_customer_required");
     }
+    const configurationId = this.#env.STRIPE_PAYMENT_METHOD_CONFIGURATION_ID;
+    if (!/^pmc_[A-Za-z0-9]+$/.test(configurationId ?? "")) throw new BillingHttpError(503, "payment_method_configuration_required");
+    const configuration = await this.#request(`/v1/payment_method_configurations/${configurationId}`, "GET");
+    try {
+      if (configuration.id !== configurationId) throw new Error("configuration_mismatch");
+      assertPaymentMethodPolicy(configuration, this.#env.BILLING_MODE ?? "");
+    } catch { throw new BillingHttpError(503, "payment_method_configuration_unsafe"); }
     if (this.#env.STRIPE_ACCOUNT_ID && (input.flow === "support_recurring" || !input.providerProductReference) && input.providerPriceReference) {
       const price = await this.#request(`/v1/prices/${encodeURIComponent(input.providerPriceReference)}`, "GET");
       const recurring = optionalRow(price.recurring);
@@ -407,7 +415,7 @@ export class StripeProvider implements BillingProvider {
       "metadata[economic_lane]": input.flow,
       "metadata[economic_environment]": this.#env.BILLING_MODE,
       "line_items[0][quantity]": "1",
-      "payment_method_types[0]": "card",
+      payment_method_configuration: configurationId,
       "billing_address_collection": "auto",
       "phone_number_collection[enabled]": "false",
       "allow_promotion_codes": "false",
