@@ -1,0 +1,10 @@
+{
+  "stage": "PREPARED_NOT_APPLIED",
+  "target": "kdtqyxlrkpmlpupzgmwv",
+  "workspace": "/tmp/elysia-stripe-sandbox-kdtqyxlrkpmlpupzgmwv",
+  "migrations": 74,
+  "seedEnabled": false,
+  "productionLinkUnchanged": true,
+  "networkRequests": 0,
+  "databaseWrites": 0
+}

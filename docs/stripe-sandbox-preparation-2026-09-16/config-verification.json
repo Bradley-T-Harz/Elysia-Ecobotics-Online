@@ -1,0 +1,11 @@
+{
+  "onlyChanges": [
+    "SUPABASE_URL",
+    "SUPABASE_PUBLISHABLE_KEY"
+  ],
+  "mode": "disabled",
+  "allBillingGatesOff": true,
+  "noProductionRoute": true,
+  "backendSecretNotInSource": true,
+  "productionConfigSha256": "40eaa856ca91d57bc2e3cf285e06a9abda3eed850ffda91e8bb08e3633705e47"
+}

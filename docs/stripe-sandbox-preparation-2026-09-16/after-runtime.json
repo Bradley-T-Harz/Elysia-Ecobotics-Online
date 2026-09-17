@@ -1,0 +1,359 @@
+{
+  "capturedAt": "2026-09-17T05:07:12.802417+00:00",
+  "elysia-first-party-billing-sandbox": {
+    "bindingNames": [
+      {
+        "name": "BILLING_ACCOUNTING_EXPORT_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_ACCOUNT_LIFECYCLE_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_ASSISTANCE_ADMIN_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_EDGE_RATE_LIMIT_CONFIRMED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_FIRST_PARTY_PREFLIGHT_CONFIRMED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_JOB_POST_FEES_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_MARKETPLACE_COMMERCE_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_MARKETPLACE_PAYOUT_PREPARATION_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_MODE",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_MUTATION_RATE_LIMITER",
+        "type": "ratelimit"
+      },
+      {
+        "name": "BILLING_NOTIFICATION_RETRY_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_ORGANIZATION_SERVICES_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_PORTAL_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_PUBLIC_ORIGIN",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_RECURRING_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_SANDBOX_PURCHASES_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_SELLER_ONBOARDING_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_SPONSORSHIP_ADMIN_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_SPONSORSHIP_CHECKOUT_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_SPONSORSHIP_RECOGNITION_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_STAGING_ACCESS_CONFIRMED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_SUPPORT_CHECKOUT_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_SUPPORT_RECOGNITION_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_TEST_REFUNDS_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_WEBHOOK_FULFILLMENT_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "STRIPE_API_VERSION",
+        "type": "plain_text"
+      },
+      {
+        "name": "STRIPE_CONNECT_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "STRIPE_LIVE_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "STRIPE_WEBHOOK_API_VERSION",
+        "type": "plain_text"
+      },
+      {
+        "name": "STRIPE_WEBHOOK_TOLERANCE_SECONDS",
+        "type": "plain_text"
+      },
+      {
+        "name": "SUPABASE_PUBLISHABLE_KEY",
+        "type": "plain_text"
+      },
+      {
+        "name": "SUPABASE_SERVICE_ROLE_KEY",
+        "type": "secret_text"
+      },
+      {
+        "name": "SUPABASE_URL",
+        "type": "plain_text"
+      }
+    ],
+    "mode": "disabled",
+    "flags": {
+      "BILLING_ACCOUNTING_EXPORT_ENABLED": "false",
+      "BILLING_ACCOUNT_LIFECYCLE_ENABLED": "false",
+      "BILLING_ASSISTANCE_ADMIN_ENABLED": "false",
+      "BILLING_EDGE_RATE_LIMIT_CONFIRMED": "false",
+      "BILLING_ENABLED": "false",
+      "BILLING_FIRST_PARTY_PREFLIGHT_CONFIRMED": "false",
+      "BILLING_JOB_POST_FEES_ENABLED": "false",
+      "BILLING_MARKETPLACE_COMMERCE_ENABLED": "false",
+      "BILLING_MARKETPLACE_PAYOUT_PREPARATION_ENABLED": "false",
+      "BILLING_NOTIFICATION_RETRY_ENABLED": "false",
+      "BILLING_ORGANIZATION_SERVICES_ENABLED": "false",
+      "BILLING_PORTAL_ENABLED": "false",
+      "BILLING_RECURRING_ENABLED": "false",
+      "BILLING_SANDBOX_PURCHASES_ENABLED": "false",
+      "BILLING_SELLER_ONBOARDING_ENABLED": "false",
+      "BILLING_SPONSORSHIP_ADMIN_ENABLED": "false",
+      "BILLING_SPONSORSHIP_CHECKOUT_ENABLED": "false",
+      "BILLING_SPONSORSHIP_RECOGNITION_ENABLED": "false",
+      "BILLING_STAGING_ACCESS_CONFIRMED": "false",
+      "BILLING_SUPPORT_CHECKOUT_ENABLED": "false",
+      "BILLING_SUPPORT_RECOGNITION_ENABLED": "false",
+      "BILLING_TEST_REFUNDS_ENABLED": "false",
+      "BILLING_WEBHOOK_FULFILLMENT_ENABLED": "false",
+      "STRIPE_CONNECT_ENABLED": "false",
+      "STRIPE_LIVE_ENABLED": "false"
+    },
+    "databaseUrl": "https://kdtqyxlrkpmlpupzgmwv.supabase.co",
+    "publishableKeyMatchesExpected": true,
+    "deployment": {
+      "id": "f3a856eb-2199-4c18-af22-e996a1af5deb",
+      "versions": [
+        {
+          "version_id": "31f96a20-91c6-458b-b707-34e9f1f618a0",
+          "percentage": 100
+        }
+      ],
+      "created_on": "2026-09-17T05:05:51.078219Z"
+    }
+  },
+  "elysia-first-party-billing": {
+    "bindingNames": [
+      {
+        "name": "BILLING_ACCOUNTING_EXPORT_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_ACCOUNT_LIFECYCLE_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_ASSISTANCE_ADMIN_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_EDGE_RATE_LIMIT_CONFIRMED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_FIRST_PARTY_PREFLIGHT_CONFIRMED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_JOB_POST_FEES_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_MARKETPLACE_COMMERCE_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_MARKETPLACE_PAYOUT_PREPARATION_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_MODE",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_MUTATION_RATE_LIMITER",
+        "type": "ratelimit"
+      },
+      {
+        "name": "BILLING_NOTIFICATION_RETRY_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_ORGANIZATION_SERVICES_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_PORTAL_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_PUBLIC_ORIGIN",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_RECURRING_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_SANDBOX_PURCHASES_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_SELLER_ONBOARDING_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_SPONSORSHIP_ADMIN_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_SPONSORSHIP_CHECKOUT_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_SPONSORSHIP_RECOGNITION_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_STAGING_ACCESS_CONFIRMED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_SUPPORT_CHECKOUT_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_SUPPORT_RECOGNITION_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_TEST_REFUNDS_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "BILLING_WEBHOOK_FULFILLMENT_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "STRIPE_API_VERSION",
+        "type": "plain_text"
+      },
+      {
+        "name": "STRIPE_CONNECT_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "STRIPE_LIVE_ENABLED",
+        "type": "plain_text"
+      },
+      {
+        "name": "STRIPE_WEBHOOK_API_VERSION",
+        "type": "plain_text"
+      },
+      {
+        "name": "STRIPE_WEBHOOK_TOLERANCE_SECONDS",
+        "type": "plain_text"
+      },
+      {
+        "name": "SUPABASE_PUBLISHABLE_KEY",
+        "type": "plain_text"
+      },
+      {
+        "name": "SUPABASE_URL",
+        "type": "plain_text"
+      }
+    ],
+    "mode": "disabled",
+    "flags": {
+      "BILLING_ACCOUNTING_EXPORT_ENABLED": "false",
+      "BILLING_ACCOUNT_LIFECYCLE_ENABLED": "false",
+      "BILLING_ASSISTANCE_ADMIN_ENABLED": "false",
+      "BILLING_EDGE_RATE_LIMIT_CONFIRMED": "false",
+      "BILLING_ENABLED": "false",
+      "BILLING_FIRST_PARTY_PREFLIGHT_CONFIRMED": "false",
+      "BILLING_JOB_POST_FEES_ENABLED": "false",
+      "BILLING_MARKETPLACE_COMMERCE_ENABLED": "false",
+      "BILLING_MARKETPLACE_PAYOUT_PREPARATION_ENABLED": "false",
+      "BILLING_NOTIFICATION_RETRY_ENABLED": "false",
+      "BILLING_ORGANIZATION_SERVICES_ENABLED": "false",
+      "BILLING_PORTAL_ENABLED": "false",
+      "BILLING_RECURRING_ENABLED": "false",
+      "BILLING_SANDBOX_PURCHASES_ENABLED": "false",
+      "BILLING_SELLER_ONBOARDING_ENABLED": "false",
+      "BILLING_SPONSORSHIP_ADMIN_ENABLED": "false",
+      "BILLING_SPONSORSHIP_CHECKOUT_ENABLED": "false",
+      "BILLING_SPONSORSHIP_RECOGNITION_ENABLED": "false",
+      "BILLING_STAGING_ACCESS_CONFIRMED": "false",
+      "BILLING_SUPPORT_CHECKOUT_ENABLED": "false",
+      "BILLING_SUPPORT_RECOGNITION_ENABLED": "false",
+      "BILLING_TEST_REFUNDS_ENABLED": "false",
+      "BILLING_WEBHOOK_FULFILLMENT_ENABLED": "false",
+      "STRIPE_CONNECT_ENABLED": "false",
+      "STRIPE_LIVE_ENABLED": "false"
+    },
+    "databaseUrl": "https://qwmcstyfegvpzjmjrylc.supabase.co",
+    "publishableKeyMatchesExpected": null,
+    "deployment": {
+      "id": "3940a21e-f650-4521-91b4-e3d5eeff3e86",
+      "versions": [
+        {
+          "version_id": "a043d182-a69e-451e-98a1-ae03b972ccd2",
+          "percentage": 100
+        }
+      ],
+      "created_on": "2026-09-17T00:23:07.234114Z"
+    }
+  }
+}

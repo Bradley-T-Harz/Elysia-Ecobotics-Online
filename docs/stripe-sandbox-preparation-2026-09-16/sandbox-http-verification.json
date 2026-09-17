@@ -1,0 +1,50 @@
+{
+  "provider-readiness": {
+    "status": 200,
+    "data": {
+      "ok": false,
+      "provider": null,
+      "runtime": {
+        "mode": "disabled",
+        "credentialPresent": false,
+        "webhookSecretPresent": false,
+        "testCredentialPresent": false,
+        "testWebhookSecretPresent": false,
+        "liveCredentialPresent": false,
+        "liveWebhookSecretPresent": false,
+        "rateLimiterBound": true,
+        "economicPublicConfigured": true,
+        "economicServerConfigured": true,
+        "providerConfigured": false,
+        "oneTimeSupport": false,
+        "recurringSupport": false,
+        "organizationServiceCheckout": false,
+        "sponsorshipCheckout": false,
+        "jobPostCheckout": false,
+        "thirdPartyMoney": false
+      }
+    }
+  },
+  "capabilities": {
+    "status": 200,
+    "data": {
+      "ok": true,
+      "mode": "disabled",
+      "livePayments": false,
+      "processor": "stripe",
+      "features": {
+        "jobPostCheckout": false,
+        "oneTimeSupport": false,
+        "recurringSupport": false,
+        "customerPortal": false,
+        "accountLifecycle": false,
+        "sellerOnboarding": false,
+        "organizationServiceCheckout": false,
+        "sponsorshipCheckout": false
+      },
+      "legalDocumentVersions": null,
+      "legalConsentBundles": null
+    }
+  },
+  "capturedAt": "2026-09-17T05:08:22.129428+00:00"
+}
