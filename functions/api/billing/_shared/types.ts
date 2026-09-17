@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface BillingEnv {
+  BILLING_MUTATION_RATE_LIMITER?: { limit(input: { key: string }): Promise<{ success: boolean }> };
   BILLING_ENABLED?: string;
   BILLING_MODE?: string;
   BILLING_PUBLIC_ORIGIN?: string;

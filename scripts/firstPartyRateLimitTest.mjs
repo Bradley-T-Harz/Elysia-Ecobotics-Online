@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {enforceBillingRateLimit} from '../functions/api/billing/_shared/rateLimit.ts';
+import {stripeConfig} from '../functions/api/billing/_shared/config.ts';
+const request=(path='/checkout',headers={'cf-connecting-ip':'192.0.2.8'})=>new Request(`https://example.invalid/api/billing${path}`,{method:'POST',headers});
+let keys=[];const env={BILLING_MODE:'live',BILLING_MUTATION_RATE_LIMITER:{limit:async({key})=>{keys.push(key);return {success:keys.length<3};}}};
+await enforceBillingRateLimit(request(),env);await enforceBillingRateLimit(request('/portal'),env);
+assert.equal(keys[0],keys[1]);assert.match(keys[0],/^[a-f0-9]{64}$/);assert(!keys[0].includes('192.0.2.8'));
+await assert.rejects(enforceBillingRateLimit(request('/operator/refund-execution'),env),e=>e.status===429&&e.retryAfter===60);
+await assert.rejects(enforceBillingRateLimit(request(),{BILLING_MODE:'test'}),/rate_limit_unavailable/);
+await assert.rejects(enforceBillingRateLimit(request('/checkout',{}),env),/rate_limit_unavailable/);
+await assert.rejects(enforceBillingRateLimit(request(),{...env,BILLING_MUTATION_RATE_LIMITER:{limit:async()=>{throw Error('failed')}}}),/rate_limit_unavailable/);
+for(const path of ['/webhook','/seller/free-agreement','/seller/publisher-link','/marketplace/free-license'])await enforceBillingRateLimit(request(path),env);
+assert.equal(keys.length,3);
+assert.throws(()=>stripeConfig({BILLING_MODE:'test',BILLING_STAGING_ACCESS_CONFIRMED:'true',BILLING_EDGE_RATE_LIMIT_CONFIRMED:'true',STRIPE_SECRET_KEY_TEST:'rk_test_SYNTHETIC_ONLY_NEVER_REAL',STRIPE_WEBHOOK_SECRET_TEST:'whsec_SYNTHETIC_ONLY_NEVER_REAL',STRIPE_API_VERSION:'2026-01-01.invalid',STRIPE_WEBHOOK_API_VERSION:'2026-01-01.invalid'}),/misconfigured/);
+console.log('Billing rate limiter: shared budget, hashed edge identity, fail closed, webhook/free-workflow exemptions and pinned API version passed.');

@@ -1,0 +1,8 @@
+
+> elysia-ecobotics-online@0.1.0 typecheck
+> tsc -b
+
+
+> elysia-ecobotics-online@0.1.0 typecheck:functions
+> tsc -p tsconfig.functions.json
+

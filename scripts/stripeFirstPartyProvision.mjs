@@ -1,6 +1,7 @@
 // Dry-run by default. Secrets are read only from the secure execution environment.
 // No Connect, seller, hardware or paid-compute object can be provisioned here.
 import { pathToFileURL } from 'node:url';
+import {readBoundedResponseJson} from '../functions/api/billing/_shared/http.ts';
 import {STRIPE_FIRST_PARTY_API_VERSION} from '../functions/api/billing/_shared/stripeContract.ts';
 export const catalogPlan = Object.freeze([
  {productKey:'support_one_time',name:'Support Elysia Ecobotics',priceCode:null,amount:null},
@@ -26,14 +27,14 @@ export async function provision({mode,account,apiVersion,secret,publicOrigin,app
  if(!['test','live'].includes(mode)||!/^acct_[A-Za-z0-9]+$/.test(account??'')||apiVersion!==STRIPE_FIRST_PARTY_API_VERSION)throw new Error('Exact mode, account and pinned API version required.');
  if(!apply)return {dryRun:true,mode,account,catalog:catalogPlan,forbiddenObjects:[],createsWebhookSecret:false};
  publicOrigin=validatedProvisionOrigin(mode,publicOrigin);
- if(!new RegExp(`^(sk|rk)_${mode}_`).test(secret??''))throw new Error('Selected environment credential missing or mismatched.');
+ if(!new RegExp(`^rk_${mode}_`).test(secret??''))throw new Error('Selected environment credential missing or mismatched.');
  async function request(path,method='GET',fields={},idempotency) {
   const headers={authorization:`Bearer ${secret}`,'stripe-version':apiVersion};
   if(method==='POST'){headers['content-type']='application/x-www-form-urlencoded';headers['idempotency-key']=idempotency;}
   const response=await fetcher(`https://api.stripe.com${path}`,{method,headers,body:method==='POST'?new URLSearchParams(fields):undefined,redirect:'error',signal:AbortSignal.timeout(15000)});
   if(response.status===404)return null;
   if(!response.ok)throw new Error(`Provider request failed (${response.status}); no response body retained.`);
-  const data=await response.json();if(typeof data.livemode==='boolean'&&data.livemode!==(mode==='live'))throw new Error('Provider environment mismatch.');return data;
+  const data=await readBoundedResponseJson(response);if(typeof data.livemode==='boolean'&&data.livemode!==(mode==='live'))throw new Error('Provider environment mismatch.');return data;
  }
  if((await request('/v1/account'))?.id!==account)throw new Error('Provider account mismatch.');
  const rows=[];
@@ -41,7 +42,7 @@ export async function provision({mode,account,apiVersion,secret,publicOrigin,app
   const productId=`prod_elysia${mode}${plan.productKey.replaceAll("_", "")}20260915`;
   let product=await request(`/v1/products/${productId}`);
   if(!product)product=await request('/v1/products','POST',{id:productId,name:plan.name,description,'metadata[economic_product_key]':plan.productKey,'metadata[economic_environment]':mode},`elysia:${mode}:product:${plan.productKey}:20260915`);
-  if(product?.id!==productId||product.active!==true||product.livemode!==(mode==='live')||product.metadata?.economic_product_key!==plan.productKey)throw new Error('Existing product conflicts with approved plan.');
+  if(product?.id!==productId||product.active!==true||product.livemode!==(mode==='live')||product.metadata?.economic_product_key!==plan.productKey||product.metadata?.economic_environment!==mode)throw new Error('Existing product conflicts with approved plan.');
   let priceId=null;
   if(plan.priceCode){
    const lookup=`elysia_${mode}_${plan.priceCode}_20260915`;

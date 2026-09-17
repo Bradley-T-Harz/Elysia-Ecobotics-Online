@@ -1,3 +1,5 @@
+import { enforceBillingRateLimit } from "../../functions/api/billing/_shared/rateLimit.ts";
+import { safeBillingErrorResponse } from "../../functions/api/billing/_shared/http.ts";
 import { onRequest as account } from "../../functions/api/billing/account.ts";
 import { onRequest as accountAction } from "../../functions/api/billing/account/action.ts";
 import { onRequest as accountClosureReadiness } from "../../functions/api/billing/account/closure-readiness.ts";
@@ -227,6 +229,8 @@ export default {
     if (["/api/billing/marketplace/checkout", "/api/billing/seller/onboarding", "/api/billing/seller/status-refresh", "/api/billing/operator/marketplace-payout-preparation", "/api/billing/sandbox-credits/checkout"].includes(url.pathname)) return notFound();
     const handler = BILLING_ROUTES[url.pathname];
     if (!handler) return notFound();
+    try { await enforceBillingRateLimit(request, env); }
+    catch (error) { return safeBillingErrorResponse(error); }
     return await handler({ request, env } as Parameters<BillingRoute>[0]);
   },
   scheduled(_controller: ScheduledController, env: BillingEnv, context: ExecutionContext): void {

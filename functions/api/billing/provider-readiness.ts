@@ -13,6 +13,7 @@ export function runtimeReadiness(env: BillingEnv) {
       testWebhookSecretPresent: Boolean(env.STRIPE_WEBHOOK_SECRET_TEST),
       liveCredentialPresent: Boolean(env.STRIPE_SECRET_KEY_LIVE),
       liveWebhookSecretPresent: Boolean(env.STRIPE_WEBHOOK_SECRET_LIVE),
+      rateLimiterBound: Boolean(env.BILLING_MUTATION_RATE_LIMITER),
       economicPublicConfigured: economicPublicClientConfigured(env),
       economicServerConfigured: economicServerClientConfigured(env),
       providerConfigured: runtime.providerConfigured,

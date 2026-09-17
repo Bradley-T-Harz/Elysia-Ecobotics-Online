@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict';
 import {provision} from './stripeFirstPartyProvision.mjs';
 const products=new Map(),prices=[],portals=[],paths=[];const mode='test';
-const config={mode,account:'acct_synthetic',apiVersion:'2025-02-24.acacia',publicOrigin:'https://sandbox.example.com',secret:'sk_test_SYNTHETIC_ONLY_NEVER_REAL'};
+const config={mode,account:'acct_synthetic',apiVersion:'2025-02-24.acacia',publicOrigin:'https://sandbox.example.com',secret:'rk_test_SYNTHETIC_ONLY_NEVER_REAL'};
 const fetcher=async(input,init)=>{
  const url=new URL(input),f=new URLSearchParams(init.body);paths.push(url.pathname);
  if(url.pathname==='/v1/account')return Response.json({id:config.account});
  if(url.pathname.startsWith('/v1/products/'))return products.has(url.pathname.split('/').at(-1))?Response.json(products.get(url.pathname.split('/').at(-1))):new Response('',{status:404});
- if(url.pathname==='/v1/products'){const p={id:f.get('id'),active:true,livemode:false,metadata:{economic_product_key:f.get('metadata[economic_product_key]')}};products.set(p.id,p);return Response.json(p);}
+ if(url.pathname==='/v1/products'){const p={id:f.get('id'),active:true,livemode:false,metadata:{economic_product_key:f.get('metadata[economic_product_key]'),economic_environment:mode}};products.set(p.id,p);return Response.json(p);}
  if(url.pathname==='/v1/prices'&&init.method==='GET')return Response.json({data:prices.filter(p=>p.lookup_key===url.searchParams.get('lookup_keys[]'))});
  if(url.pathname==='/v1/prices'){const p={id:`price_synthetic${prices.length}`,product:f.get('product'),lookup_key:f.get('lookup_key'),active:true,livemode:false,currency:f.get('currency'),unit_amount:Number(f.get('unit_amount')),recurring:{interval:'month',interval_count:1}};prices.push(p);return Response.json(p);}
  if(url.pathname==='/v1/billing_portal/configurations'&&init.method==='GET')return Response.json({data:portals,has_more:false});

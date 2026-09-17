@@ -27,6 +27,7 @@
       "enabled": false
     }
   },
+  "ratelimits": [{ "name": "BILLING_MUTATION_RATE_LIMITER", "namespace_id": "2026091601", "simple": { "limit": 60, "period": 60 } }],
   "vars": {
     "BILLING_ENABLED": "false",
     "BILLING_SUPPORT_CHECKOUT_ENABLED": "false",

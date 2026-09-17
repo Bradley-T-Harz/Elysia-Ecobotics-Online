@@ -1,0 +1,5 @@
+# NAMES ONLY. Never fill this tracked template. Enter secrets into the named Worker.
+# Worker: elysia-first-party-billing-sandbox
+STRIPE_SECRET_KEY_TEST=
+STRIPE_WEBHOOK_SECRET_TEST=
+SUPABASE_SERVICE_ROLE_KEY=

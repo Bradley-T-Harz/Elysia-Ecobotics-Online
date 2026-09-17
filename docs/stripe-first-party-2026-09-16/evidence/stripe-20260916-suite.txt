@@ -1,0 +1,56 @@
+
+> elysia-ecobotics-online@0.1.0 test:stripe-first-party
+> node scripts/moneyCanonicalizationTest.mts && node scripts/firstPartyStripeAdapterTest.mjs && node scripts/firstPartyRecurringEvidenceTest.mjs && node scripts/firstPartyRateLimitTest.mjs && node scripts/stripeFirstPartyProvisionTest.mjs && node scripts/stripeFirstPartyPreflightTest.mjs && node scripts/firstPartyLegalIntegrityTest.mjs && node scripts/billingProxySmokeTest.mjs && node scripts/billingStripeSmokeTest.mjs && node scripts/billingWorkerIsolationSmokeTest.mjs && node scripts/billingOperatorSmokeTest.mjs && node scripts/billingJobPostSmokeTest.mjs && node scripts/billingOrganizationAssistanceSmokeTest.mjs && node scripts/billingLifecycleSmokeTest.mjs && node scripts/billingObservabilitySmokeTest.mjs && node scripts/economicFrontendSmokeTest.mjs && node scripts/economicLegalContentIntegritySmokeTest.mjs && node scripts/publicNavigationModelTest.mjs
+
+(node:21) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Canonical minor-unit money: boundaries, odd denominators, previews and cumulative historical/new reversals passed.
+(node:32) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+First-party adapter: stable outbound retries, authoritative amounts, all five lanes, environment isolation, immutable hard-off, durable-before-enrichment passed.
+(node:43) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Recurring metadata, settlement evidence, conflicting ownership rejection and presence-only readiness passed.
+(node:54) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Billing rate limiter: shared budget, hashed edge identity, fail closed, webhook/free-workflow exemptions and pinned API version passed.
+(node:65) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Catalog and cancellation provisioning: dry-run, idempotent retries, mode checks and no money/Connect operations passed.
+(node:76) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Read-only Stripe preflight: exact account/mode/events/version, catalog arithmetic, Portal policy, dry run and no gate changes passed.
+(node:87) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Prospective legal content, five active first-party bundles, and preserved historical routes verified.
+(node:115) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Billing proxy smoke test ok.
+(node:126) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Billing Stripe adapter and webhook smoke test ok.
+(node:137) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Billing Worker binding-isolation and route-manifest smoke test ok.
+(node:148) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Billing economic operator route smoke test ok.
+(node:159) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Billing Job Post economic boundary smoke test ok.
+(node:170) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Billing organization, sponsorship, and assistance smoke tests passed.
+(node:181) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Billing lifecycle and public recognition smoke test ok.
+(node:192) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Billing structured observability smoke test ok.
+(node:203) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Economic frontend presentation-contract smoke test ok (no backend behavior claimed). 
+(node:214) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+Economic legal content integrity smoke test ok (9 canonical pages).
+Public navigation model ok (5 territories, 3 utilities, 15 territory destinations, 16 preserved former top-level routes).

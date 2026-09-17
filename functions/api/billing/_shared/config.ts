@@ -1,3 +1,4 @@
+import { STRIPE_FIRST_PARTY_API_VERSION } from "./stripeContract.ts";
 import { BillingHttpError, validatedPublicOrigin } from "./http.ts";
 import { economicPublicClientConfigured, economicServerClientConfigured } from "./auth.ts";
 import type { BillingEnv } from "./types.ts";
@@ -24,7 +25,7 @@ function nonPlaceholder(value: string | undefined, minimum: number, maximum: num
 
 function stripeApiVersion(value: string | undefined): string {
   const version = value?.trim() || "";
-  if (!/^\d{4}-\d{2}-\d{2}(?:\.[a-z][a-z0-9_]*)?$/.test(version)) {
+  if (version !== STRIPE_FIRST_PARTY_API_VERSION) {
     throw new BillingHttpError(503, "billing_misconfigured");
   }
   return version;
