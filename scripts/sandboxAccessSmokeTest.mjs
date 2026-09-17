@@ -2,7 +2,7 @@ import { generateKeyPairSync, sign } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { build } from "esbuild";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
-import { clearAccessJwksCacheForTests, verifyCloudflareAccessAssertion } from "../services/sandbox-runner/accessValidator.mjs";
+import { clearAccessJwksCacheForTests, verifyCloudflareAccessAssertion, cloudflareAccessVerificationReason } from "../services/sandbox-runner/accessValidator.mjs";
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
@@ -79,11 +79,28 @@ assert(!await verifyCloudflareAccessAssertion(assertion(), config, {
   now
 }), "Oversized Access JWKS responses must fail closed.");
 
+const reasonCases = [
+  [assertion(), { ...config, accessAudience: "" }, fetcher, "access_config_invalid"],
+  [null, config, fetcher, "access_assertion_missing"],
+  ["SENSITIVE_TOKEN_CANARY", config, fetcher, "access_assertion_malformed"],
+  [assertion({ aud: "wrong-audience", sub: "SENSITIVE_CLAIM_CANARY" }), config, fetcher, "access_claims_invalid"],
+  [assertion(), config, async () => { throw new Error("SENSITIVE_EXCEPTION_CANARY"); }, "access_jwks_unavailable"],
+  [assertion({}, { kid: "unknown-key" }), config, fetcher, "access_kid_not_found"],
+  [assertion(), config, async () => Response.json({ keys: [{ ...publicJwk, key_ops: ["sign"] }] }), "access_jwks_invalid"],
+  [invalidSignature, config, fetcher, "access_signature_invalid"],
+  [assertion(), config, fetcher, "access_verified"]
+];
+for (const [token, settings, provider, expected] of reasonCases) {
+  const result = await cloudflareAccessVerificationReason(token, settings, { fetcher: provider, now, cache: new Map() });
+  assert(result === expected, `Access diagnostic mismatch: expected ${expected}, received ${result}.`);
+  assert(await verifyCloudflareAccessAssertion(token, settings, { fetcher: provider, now, cache: new Map() }) === (expected === "access_verified"), "The existing boolean contract must remain fail closed.");
+}
+
 // Exercise the actual Workers runtime without Node globals. Ordinary Node
 // tests cannot catch a validator that implicitly depends on global Buffer.
 const bundle = await build({ stdin: {
   resolveDir: fileURLToPath(new URL("../services/sandbox-runner/", import.meta.url)),
-  contents: `import { verifyCloudflareAccessAssertion } from "./accessValidator.mjs";
+  contents: `import { verifyCloudflareAccessAssertion, cloudflareAccessVerificationReason } from "./accessValidator.mjs";
     // Some local workerd versions expose Buffer even without nodejs_compat.
     // Remove it explicitly so local shims cannot hide a deployed dependency.
     Object.defineProperty(globalThis, "Buffer", { value: undefined, configurable: true });
@@ -105,13 +122,15 @@ const bundle = await build({ stdin: {
       const valid = await verifyCloudflareAccessAssertion(token, config, options);
       const cached = await verifyCloudflareAccessAssertion(token, config, options);
       const invalid = await verifyCloudflareAccessAssertion(invalidToken, config, options);
+      const reason = await cloudflareAccessVerificationReason(token, config, options);
+      const invalidReason = await cloudflareAccessVerificationReason(invalidToken, config, options);
       const oversized = await verifyCloudflareAccessAssertion(token, config, {
         now, cache: new Map(), fetcher: async () => new Response(new Uint8Array(65_537))
       });
       const badKey = await verifyCloudflareAccessAssertion(token, config, {
         now, cache: new Map(), fetcher: async () => Response.json({ keys: [{ ...jwk, n: "!" }] })
       });
-      return Response.json({ bufferAbsent: typeof Buffer === "undefined", valid, cached, invalid, oversized, badKey, fetches });
+      return Response.json({ bufferAbsent: typeof Buffer === "undefined", valid, cached, invalid, oversized, badKey, fetches, reason, invalidReason });
     } };`
 }, bundle: true, write: false, format: "esm", platform: "browser" });
 const runtime = new Miniflare(convertV4MiniflareOptions({ cf: false, workers: [{
@@ -128,6 +147,7 @@ try {
   assert(result.bufferAbsent, `Workers regression must run without global Buffer: ${JSON.stringify(result)}`);
   assert(result.valid && result.cached, "Valid Access assertions and chunked JWKS must verify in workerd without Node globals.");
   assert(result.fetches === 1, "Workers verification must preserve the JWKS cache.");
+  assert(result.reason === "access_verified" && result.invalidReason === "access_signature_invalid", "Workers diagnostics must expose only fixed verification reasons.");
   assert(!result.invalid && !result.oversized && !result.badKey, "Workers signature, streamed size and invalid JWK checks must fail closed.");
 } finally { await runtime.dispose(); }
 

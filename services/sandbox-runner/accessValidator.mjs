@@ -135,13 +135,21 @@ function claimsAreValid(payload, config, nowMilliseconds) {
     && (payload.iat === undefined || (Number.isInteger(payload.iat) && payload.iat <= now + 30));
 }
 
-export async function verifyCloudflareAccessAssertion(assertion, config, options = {}) {
+// Return only fixed stage codes. Never expose claims, key data or exceptions.
+// Callers opt into diagnostics; this shared validator does not log anything.
+export async function cloudflareAccessVerificationReason(assertion, config, options = {}) {
+  let reason = "access_config_invalid";
   try {
-    if (!config.accessRequired || !config.accessTeamDomain || !config.accessAudience) return false;
+    if (!config?.accessRequired || !config.accessTeamDomain || !config.accessAudience) return reason;
+    if (assertion === null || assertion === undefined || assertion === "") return "access_assertion_missing";
+    reason = "access_assertion_malformed";
     const parsed = parseAssertion(assertion);
-    if (!claimsAreValid(parsed.payload, config, options.now ?? Date.now())) return false;
+    reason = "access_claims_invalid";
+    if (!claimsAreValid(parsed.payload, config, options.now ?? Date.now())) return reason;
+    reason = "access_jwks_unavailable";
     const jwk = await keyFor(parsed.header.kid, config, options);
-    if (!jwk) return false;
+    if (!jwk) return "access_kid_not_found";
+    reason = "access_jwks_invalid";
     const publicKey = await crypto.subtle.importKey(
       "jwk",
       jwk,
@@ -150,15 +158,21 @@ export async function verifyCloudflareAccessAssertion(assertion, config, options
       ["verify"]
     );
 
-    return await crypto.subtle.verify(
+    reason = "access_signature_invalid";
+    const verified = await crypto.subtle.verify(
       "RSASSA-PKCS1-v1_5",
       publicKey,
       parsed.signature,
       utf8Encoder.encode(parsed.signingInput)
     );
+    return verified ? "access_verified" : reason;
   } catch {
-    return false;
+    return reason;
   }
+}
+
+export async function verifyCloudflareAccessAssertion(assertion, config, options = {}) {
+  return await cloudflareAccessVerificationReason(assertion, config, options) === "access_verified";
 }
 
 export function clearAccessJwksCacheForTests() {

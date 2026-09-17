@@ -10,6 +10,8 @@ const database='https://kdtqyxlrkpmlpupzgmwv.supabase.co',team='https://syntheti
 const {publicKey,privateKey}=generateKeyPairSync('rsa',{modulusLength:2048});
 const jwk={...publicKey.export({format:'jwk'}),kid:'synthetic-key',alg:'RS256',use:'sig'};
 const originalFetch=globalThis.fetch;let assetReads=0,billingCalls=0,identityCalls=0,lastWebhook;
+const originalLog=console.log,logs=[];
+console.log=(...args)=>logs.push(args);
 globalThis.fetch=async url=>{assert.equal(String(url),team+'/cdn-cgi/access/certs');return Response.json({keys:[jwk]});};
 const token=claims=>{
  const head=Buffer.from(JSON.stringify({alg:'RS256',kid:jwk.kid})).toString('base64url');
@@ -24,7 +26,7 @@ const env={SANDBOX_UI_ORIGIN:origin,SUPABASE_URL:database,SANDBOX_ACCESS_TEAM_DO
 try {
  for(const path of ['/','/assets/app.js','/index.html','/robots.txt','/commons-circle','/support/thank-you','/api/billing/provider-readiness','/api/billing/webhook/extra']){
   assert.equal((await handleSandboxUi(new Request(origin+path),env)).status,403);
-  assert.equal((await handleSandboxUi(new Request(origin+path,{headers:{'cf-access-jwt-assertion':'forged','cf-access-authenticated-user-email':'bradley@example.invalid'}}),env)).status,403);
+  assert.equal((await handleSandboxUi(new Request(origin+path,{headers:{'cf-access-jwt-assertion':'forged','cf-access-authenticated-user-email':'bradley@example.invalid',cookie:'SENSITIVE_COOKIE_CANARY',authorization:'SENSITIVE_AUTHORIZATION_CANARY'}}),env)).status,403);
  }
  assert.equal(assetReads,0);assert.equal(billingCalls,0);
  for(const claims of [{aud:['b'.repeat(64)]},{iss:'https://attacker.invalid'},{exp:0},{nbf:Math.floor(Date.now()/1000)+999}]){
@@ -48,5 +50,17 @@ try {
  assert.equal((await billingWorker.fetch(new Request('https://billing.invalid/api/billing/capabilities'),backend)).status,403);
  assert.equal((await billingWorker.fetch(new Request('https://billing.invalid/api/billing/capabilities',{headers}),backend)).status,200);
  assert.equal((await billingWorker.fetch(new Request('https://billing.invalid/api/billing/webhook',{method:'POST',body:'{}'}),backend)).status,503);
- console.log('Protected sandbox: signed Access JWT, issuer/audience/expiry, assets, API, direct backend, exact webhook exemption, isolation and closed billing gates passed.');
-} finally {globalThis.fetch=originalFetch;clearAccessJwksCacheForTests();}
+ clearAccessJwksCacheForTests();
+ globalThis.fetch=async()=>{throw new Error('SENSITIVE_EXCEPTION_CANARY');};
+ const unavailable=await handleSandboxUi(new Request(origin,{headers}),env);
+ assert.equal(unavailable.status,403);
+ assert.equal(await unavailable.text(),'Sandbox authentication is required. Access setup may still be pending.');
+ const reasons=new Set(['access_config_invalid','access_assertion_missing','access_assertion_malformed','access_claims_invalid','access_jwks_unavailable','access_jwks_invalid','access_kid_not_found','access_signature_invalid','access_verified']);
+ const diagnostics=logs.filter(args=>typeof args[0]==='string'&&args[0].startsWith('{"reason":'));
+ assert(diagnostics.length>0);
+ for(const args of diagnostics){assert.equal(args.length,1);const entry=JSON.parse(args[0]);assert.deepEqual(Object.keys(entry),['reason']);assert(reasons.has(entry.reason));}
+ assert.equal(JSON.parse(diagnostics.at(-1)[0]).reason,'access_jwks_unavailable');
+ const serialized=JSON.stringify(logs);
+ assert(!serialized.includes('SENSITIVE_'));assert(!serialized.includes('bradley@example.invalid'));assert(!serialized.includes(headers['cf-access-jwt-assertion']));assert(!serialized.includes(jwk.n));
+ originalLog('Protected sandbox: Access verification, generic denial, fixed safe structured reasons, no sensitive logs, webhook exemption and closed billing gates passed.');
+} finally {globalThis.fetch=originalFetch;console.log=originalLog;clearAccessJwksCacheForTests();}

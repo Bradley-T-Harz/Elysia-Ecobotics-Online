@@ -1,18 +1,27 @@
-import { verifyCloudflareAccessAssertion } from "../sandbox-runner/accessValidator.mjs";
+import { cloudflareAccessVerificationReason, type AccessVerificationReason } from "../sandbox-runner/accessValidator.mjs";
 
 export type SandboxAccessSettings = {
   SANDBOX_ACCESS_TEAM_DOMAIN?: string;
   SANDBOX_ACCESS_AUDIENCE?: string;
 };
 
+export function reportSandboxAccessReason(reason: AccessVerificationReason): void {
+  console.log(JSON.stringify({ reason }));
+}
+
 /** Always fail closed, including before Access has been provisioned. */
 export async function sandboxAccessAllowed(request: Request, env: SandboxAccessSettings): Promise<boolean> {
   const team = env.SANDBOX_ACCESS_TEAM_DOMAIN ?? "";
   const audience = env.SANDBOX_ACCESS_AUDIENCE ?? "";
-  if (!/^https:\/\/[a-z0-9-]+\.cloudflareaccess\.com$/.test(team) || !/^[a-f0-9]{64}$/.test(audience)) return false;
-  return verifyCloudflareAccessAssertion(request.headers.get("cf-access-jwt-assertion"), {
+  if (!/^https:\/\/[a-z0-9-]+\.cloudflareaccess\.com$/.test(team) || !/^[a-f0-9]{64}$/.test(audience)) {
+    reportSandboxAccessReason("access_config_invalid");
+    return false;
+  }
+  const reason = await cloudflareAccessVerificationReason(request.headers.get("cf-access-jwt-assertion"), {
     accessRequired: true, accessTeamDomain: team, accessAudience: audience
   });
+  reportSandboxAccessReason(reason);
+  return reason === "access_verified";
 }
 
 export function sandboxAccessDenied(): Response {
