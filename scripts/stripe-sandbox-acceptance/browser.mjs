@@ -1,7 +1,7 @@
 // Real Stripe TEST Checkout only. No tracing, screenshots, URLs or body logging.
 import {chromium} from 'playwright';
 const scenario=process.argv[2]??'success';
-if(!['success','decline','recurring','dispute','job'].includes(scenario))throw new Error('scenario_invalid');
+if(!['success','decline','recurring','dispute','job','methods'].includes(scenario))throw new Error('scenario_invalid');
 const response=await fetch('http://127.0.0.1:8799/'+(['recurring','job'].includes(scenario)?scenario:'checkout'),{method:'POST'});
 const session=await response.json();
 if(session.result!=='checkout_created') { console.log(JSON.stringify(session)); process.exitCode=1; }
@@ -16,6 +16,7 @@ else {
   page.on('requestfailed',r=>failures.push({status:0,host:new URL(r.url()).hostname}));
   await page.goto(session.checkoutUrl,{waitUntil:'domcontentloaded',timeout:60000});
   await page.waitForTimeout(6000);
+  if(scenario==='methods'){const methods=await page.locator('input[name="payment-method-accordion-item-title"]').evaluateAll(items=>items.map(i=>i.id.replace('payment-method-accordion-item-title-','')).filter(x=>/^[a-z_]+$/.test(x)));console.log(JSON.stringify({result:'eligible_methods',methods}));await browser.close();process.exit(0);}
   stage='email';
   if(await page.locator('#email').count())await page.locator('#email').fill('stripe-acceptance@example.invalid');
   stage='card_selection';

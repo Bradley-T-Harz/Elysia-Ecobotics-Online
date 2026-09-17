@@ -33,6 +33,44 @@ export function assertAcceptanceSandbox(env: BillingEnv): void {
 // No HTTP route exposes this entrypoint. Only an authenticated Cloudflare
 // service binding can call it. Never return provider bodies or exception text.
 export class SandboxAcceptance extends WorkerEntrypoint<BillingEnv> {
+  async expireCheckout(sessionId: string) {
+    try {
+      assertAcceptanceSandbox(this.env);
+      if (this.env.BILLING_MODE !== "test" || !/^cs_test_[A-Za-z0-9]{10,200}$/.test(sessionId)) return { result: "cleanup_scope_invalid" };
+      const headers = { authorization: `Bearer ${this.env.STRIPE_SECRET_KEY_TEST}`, "stripe-version": STRIPE_FIRST_PARTY_API_VERSION };
+      const url = `https://api.stripe.com/v1/checkout/sessions/${sessionId}`;
+      const response = await fetchWithTimeout(url, { headers, redirect: "error" }, 15000);
+      if (!response.ok) return { result: "cleanup_read_failed", status: response.status };
+      const session = await readBoundedResponseJson(response) as { livemode?: boolean; status?: string; payment_status?: string; metadata?: Record<string, string> };
+      if (session.livemode !== false || session.metadata?.economic_environment !== "test"
+        || session.metadata?.economic_lane !== "support_one_time") return { result: "cleanup_scope_invalid" };
+      if (session.status !== "open") return { result: "already_closed" };
+      if (session.payment_status !== "unpaid") return { result: "cleanup_payment_in_progress" };
+      const expired = await fetchWithTimeout(`${url}/expire`, { method: "POST", headers: { ...headers, "idempotency-key": `sandbox-expire:${sessionId}`, "content-type": "application/x-www-form-urlencoded" }, body: "", redirect: "error" }, 15000);
+      return { result: expired.ok ? "expired" : "cleanup_failed", status: expired.status };
+    } catch { return { result: "cleanup_failed" }; }
+  }
+
+  async negativeChecks() {
+    try {
+      assertAcceptanceSandbox(this.env);
+      if (this.env.BILLING_MODE !== "test" || this.env.BILLING_ENABLED !== "true") return { result: "acceptance_disabled" };
+      const body = { clientRequestId: crypto.randomUUID(), amountMinor: 500, currency: "usd", sourceRoute: "/support", consentVersion: "2026-09-15-first-party" };
+      const request = (patch: object = {}, requestOrigin = origin) => new Request(`${origin}/api/billing/checkout`, { method: "POST", headers: { origin: requestOrigin, "content-type": "application/json" }, body: JSON.stringify({ ...body, ...patch }) });
+      const statuses = {
+        injectedPrice: (await handleOneTimeCheckout(request({ price: 1 }), this.env)).status,
+        fractionalAmount: (await handleOneTimeCheckout(request({ amountMinor: 100.5 }), this.env)).status,
+        foreignCurrency: (await handleOneTimeCheckout(request({ currency: "eur" }), this.env)).status,
+        wrongOrigin: (await handleOneTimeCheckout(request({}, "https://example.invalid"), this.env)).status,
+        laneKill: (await handleOneTimeCheckout(request(), { ...this.env, BILLING_SUPPORT_CHECKOUT_ENABLED: "false" })).status,
+        globalKill: (await handleOneTimeCheckout(request(), { ...this.env, BILLING_ENABLED: "false" })).status
+      };
+      const key = `sandbox-acceptance-${crypto.randomUUID()}`;
+      const limits = await Promise.all(Array.from({ length: 61 }, () => this.env.BILLING_MUTATION_RATE_LIMITER!.limit({ key })));
+      return { result: "negative_checks", statuses, rateLimit: { accepted: limits.filter(result => result.success).length, rejected: limits.filter(result => !result.success).length } };
+    } catch { return { result: "negative_checks_failed" }; }
+  }
+
   async reconcile() {
     try {
       assertAcceptanceSandbox(this.env);
