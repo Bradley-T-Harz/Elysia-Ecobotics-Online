@@ -1,0 +1,78 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "elysia-shared-identity-sandbox",
+  "main": "services/identity-worker/worker.ts",
+  "account_id": "52813999b345cafda80d67f1d6345d5c",
+  "compatibility_date": "2026-09-17",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "workers_dev": false,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true,
+    "logs": {
+      "enabled": true,
+      "head_sampling_rate": 1,
+      "invocation_logs": false
+    },
+    "traces": {
+      "enabled": false,
+      "head_sampling_rate": 0
+    }
+  },
+  "ratelimits": [
+    {
+      "name": "IDENTITY_RATE_LIMITER",
+      "namespace_id": "2026091703",
+      "simple": {
+        "limit": 10,
+        "period": 60
+      }
+    }
+  ],
+  "vars": {
+    "STEWARDSHIP_PROOF_RETENTION_ENABLED": "false",
+    "IDENTITY_ENABLED": "true",
+    "IDENTITY_ALLOWED_ORIGINS": "https://elysia-ecobotics-online-sandbox.bradleytharz3407.workers.dev",
+    "IDENTITY_ADULT_BETA_ENABLED": "false",
+    "IDENTITY_TEEN_ENABLED": "false",
+    "IDENTITY_UNDER_13_ENABLED": "false",
+    "IDENTITY_UNDER13_SPONSORED_ACCOUNTS_ENABLED": "false",
+    "IDENTITY_UNDER13_CONTENT_APPROVAL_ENABLED": "false",
+    "IDENTITY_UNDER13_DEPENDENT_CONTROLS_ENABLED": "false",
+    "IDENTITY_LIFECYCLE_OPERATOR_ENABLED": "false",
+    "IDENTITY_LIFECYCLE_EXECUTION_ENABLED": "false",
+    "IDENTITY_LIFECYCLE_EXECUTION_PROVIDER": "disabled",
+    "IDENTITY_DELETION_FINALIZER_ENABLED": "false",
+    "IDENTITY_DELETION_FINALIZER_PROVIDER": "disabled",
+    "IDENTITY_DELETION_FINALIZER_BATCH_LIMIT": "2",
+    "IDENTITY_DELETION_FINALIZER_LEASE_SECONDS": "600",
+    "IDENTITY_DELETION_FINALIZER_RETRY_SECONDS": "300",
+    "IDENTITY_ACCOUNT_EXPORT_ENABLED": "false",
+    "IDENTITY_ACCOUNT_EXPORT_PROVIDER": "disabled",
+    "IDENTITY_ACCOUNT_EXPORT_TTL_DAYS": "7",
+    "IDENTITY_STORAGE_CLEANUP_ENABLED": "false",
+    "IDENTITY_STORAGE_CLEANUP_PROVIDER": "disabled",
+    "IDENTITY_AUTH_DELETION_ENABLED": "false",
+    "IDENTITY_AUTH_DELETION_PROVIDER": "disabled",
+    "IDENTITY_NOTIFICATION_DELIVERY_ENABLED": "false",
+    "IDENTITY_NOTIFICATION_DELIVERY_PROVIDER": "disabled",
+    "IDENTITY_NOTIFICATION_SENDER_EMAIL": "notifications@elysiaecobotics.com",
+    "IDENTITY_NOTIFICATION_SENDER_NAME": "Elysia Artisan Collective",
+    "IDENTITY_NOTIFICATION_PUBLIC_ORIGIN": "https://elysia-ecobotics-online-sandbox.bradleytharz3407.workers.dev",
+    "IDENTITY_ACCOUNT_NOTIFICATION_DELIVERY_ENABLED": "false",
+    "IDENTITY_ACCOUNT_NOTIFICATION_DELIVERY_PROVIDER": "disabled",
+    "IDENTITY_ACCOUNT_NOTIFICATION_SENDER_NAME": "Elysia Ecobotics",
+    "IDENTITY_ACCOUNT_NOTIFICATION_PUBLIC_ORIGIN": "https://elysia-ecobotics-online-sandbox.bradleytharz3407.workers.dev",
+    "IDENTITY_EXPORT_RETENTION_ENABLED": "false",
+    "IDENTITY_EXPORT_RETENTION_PROVIDER": "disabled",
+    "IDENTITY_EDGE_RATE_LIMIT_CONFIRMED": "true",
+    "TURNSTILE_REQUIRED": "false",
+    "TURNSTILE_EXPECTED_HOSTNAMES": "elysia-ecobotics-online-sandbox.bradleytharz3407.workers.dev",
+    "AGE_ASSURANCE_PROVIDER": "disabled",
+    "GUARDIAN_CONSENT_PROVIDER": "disabled",
+    "SUPABASE_URL": "https://kdtqyxlrkpmlpupzgmwv.supabase.co",
+    "SUPABASE_PUBLISHABLE_KEY": "sb_publishable_N9YjXz0WKeCVYZRtBzgmrA_OX5RPcsm"
+  }
+}

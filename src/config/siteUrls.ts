@@ -1,6 +1,7 @@
+import { sandboxOrigin } from "./sandboxEnvironment";
 const configuredArtisanCollectiveUrl = import.meta.env.VITE_ARTISAN_COLLECTIVE_URL?.trim();
 
-export const ELYSIA_ECOBOTICS_ONLINE_URL = "https://elysiaecobotics.com";
+export const ELYSIA_ECOBOTICS_ONLINE_URL = sandboxOrigin ?? "https://elysiaecobotics.com";
 export const ELYSIA_ECOBOTICS_SOCIAL_PREVIEW_IMAGE_URL = `${ELYSIA_ECOBOTICS_ONLINE_URL}/images/social/Elysia_Ecobotics_Link_Image.png`;
 export const ECOSYNEVA_COMMONS_LLC_URL = "https://ecosyneva-commons-llc.pages.dev/";
 export const COMMONS_CIRCLE_URL = `${ELYSIA_ECOBOTICS_ONLINE_URL}/commons-circle`;

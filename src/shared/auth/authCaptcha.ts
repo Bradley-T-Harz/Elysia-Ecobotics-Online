@@ -1,3 +1,4 @@
+import { sandboxOrigin } from "../../config/sandboxEnvironment";
 export type AuthCaptchaMode = "off" | "preflight" | "required";
 
 const ONLINE_AUTH_ORIGIN = "https://elysiaecobotics.com";
@@ -32,9 +33,9 @@ export const authCaptchaConfig = Object.freeze({
 
 export function onlineAuthHostPolicy(location: Pick<Location, "hostname" | "pathname"> = window.location) {
   const hostname = location.hostname.toLowerCase();
-  const allowed = ONLINE_AUTH_HOSTS.has(hostname) || isLoopbackHostname(hostname);
+  const allowed = (sandboxOrigin ? hostname === new URL(sandboxOrigin).hostname : ONLINE_AUTH_HOSTS.has(hostname)) || isLoopbackHostname(hostname);
   return {
     allowed,
-    canonicalUrl: `${ONLINE_AUTH_ORIGIN}${safeRelativeAuthPath(location.pathname)}`,
+    canonicalUrl: `${sandboxOrigin ?? ONLINE_AUTH_ORIGIN}${safeRelativeAuthPath(location.pathname)}`,
   };
 }

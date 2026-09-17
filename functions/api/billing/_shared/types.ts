@@ -1,6 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface BillingEnv {
+  BILLING_SANDBOX_ACCESS_REQUIRED?: string;
+  SANDBOX_ACCESS_TEAM_DOMAIN?: string;
+  SANDBOX_ACCESS_AUDIENCE?: string;
   BILLING_MUTATION_RATE_LIMITER?: { limit(input: { key: string }): Promise<{ success: boolean }> };
   BILLING_ENABLED?: string;
   BILLING_MODE?: string;

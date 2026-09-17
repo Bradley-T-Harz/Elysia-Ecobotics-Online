@@ -7894,3 +7894,5 @@ textarea:focus-visible {
   outline: 3px solid #d79d36;
   outline-offset: 3px;
 }
+/* Separate, protected staging build only. */
+.sandbox-environment-banner { padding: .65rem 1rem; background: #f5df9b; color: #27210e; text-align: center; font-weight: 600; }

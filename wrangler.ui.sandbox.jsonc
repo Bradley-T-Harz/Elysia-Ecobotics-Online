@@ -1,0 +1,31 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "elysia-ecobotics-online-sandbox",
+  "main": "services/sandbox-ui-worker/worker.ts",
+  "account_id": "52813999b345cafda80d67f1d6345d5c",
+  "compatibility_date": "2026-09-17",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist-sandbox",
+    "binding": "ASSETS",
+    "run_worker_first": true,
+    "not_found_handling": "single-page-application"
+  },
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "head_sampling_rate": 1, "invocation_logs": false },
+    "traces": { "enabled": false }
+  },
+  "services": [
+    { "binding": "BILLING_SERVICE", "service": "elysia-first-party-billing-sandbox" },
+    { "binding": "IDENTITY_SERVICE", "service": "elysia-shared-identity-sandbox" }
+  ],
+  "vars": {
+    "SANDBOX_UI_ORIGIN": "https://elysia-ecobotics-online-sandbox.bradleytharz3407.workers.dev",
+    "SUPABASE_URL": "https://kdtqyxlrkpmlpupzgmwv.supabase.co",
+    "SANDBOX_ACCESS_TEAM_DOMAIN": "",
+    "SANDBOX_ACCESS_AUDIENCE": ""
+  }
+}

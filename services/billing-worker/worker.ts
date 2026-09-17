@@ -226,6 +226,10 @@ export async function handleBillingScheduled(
 export default {
   async fetch(request: Request, env: BillingEnv): Promise<Response> {
     const url = new URL(request.url);
+    if (env.BILLING_SANDBOX_ACCESS_REQUIRED === "true") {
+      if (env.SUPABASE_URL !== "https://kdtqyxlrkpmlpupzgmwv.supabase.co" || !["disabled", "test"].includes(env.BILLING_MODE ?? "")) return sandboxAccessDenied();
+      if (!isSandboxWebhook(request) && !(await sandboxAccessAllowed(request, env))) return sandboxAccessDenied();
+    }
     if (["/api/billing/marketplace/checkout", "/api/billing/seller/onboarding", "/api/billing/seller/status-refresh", "/api/billing/operator/marketplace-payout-preparation", "/api/billing/sandbox-credits/checkout"].includes(url.pathname)) return notFound();
     const handler = BILLING_ROUTES[url.pathname];
     if (!handler) return notFound();
@@ -237,3 +241,4 @@ export default {
     context.waitUntil(handleBillingScheduled(env).then(() => undefined));
   }
 } satisfies ExportedHandler<BillingEnv>;
+import { sandboxAccessAllowed, sandboxAccessDenied, isSandboxWebhook } from "../sandbox-ui-worker/access.ts";
