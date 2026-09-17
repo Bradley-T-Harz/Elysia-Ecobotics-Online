@@ -65,8 +65,9 @@ export class SandboxAcceptance extends WorkerEntrypoint<BillingEnv> {
         laneKill: (await handleOneTimeCheckout(request(), { ...this.env, BILLING_SUPPORT_CHECKOUT_ENABLED: "false" })).status,
         globalKill: (await handleOneTimeCheckout(request(), { ...this.env, BILLING_ENABLED: "false" })).status
       };
-      const key = `sandbox-acceptance-${crypto.randomUUID()}`;
-      const limits = await Promise.all(Array.from({ length: 61 }, () => this.env.BILLING_MUTATION_RATE_LIMITER!.limit({ key })));
+      const key = "sandbox-acceptance-20260917-rate-probe";
+      const limits = [];
+      for (let attempt = 0; attempt < 120; attempt++) limits.push(await this.env.BILLING_MUTATION_RATE_LIMITER!.limit({ key }));
       return { result: "negative_checks", statuses, rateLimit: { accepted: limits.filter(result => result.success).length, rejected: limits.filter(result => !result.success).length } };
     } catch { return { result: "negative_checks_failed" }; }
   }

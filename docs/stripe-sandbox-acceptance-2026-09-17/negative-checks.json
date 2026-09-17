@@ -1,0 +1,1 @@
+{"result":"negative_checks","statuses":{"injectedPrice":400,"fractionalAmount":400,"foreignCurrency":400,"wrongOrigin":403,"laneKill":503,"globalKill":503},"rateLimit":{"accepted":61,"rejected":59}}
