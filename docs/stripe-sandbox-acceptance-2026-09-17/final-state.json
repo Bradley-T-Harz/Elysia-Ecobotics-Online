@@ -1,0 +1,365 @@
+{
+  "activeSyntheticOperators": 0,
+  "financial": {
+    "events": [
+      {
+        "count": 32,
+        "event_type": "checkout.session.expired",
+        "processing_status": "processed"
+      },
+      {
+        "count": 20,
+        "event_type": "payment_intent.canceled",
+        "processing_status": "processed"
+      },
+      {
+        "count": 1,
+        "event_type": "charge.dispute.created",
+        "processing_status": "processed"
+      },
+      {
+        "count": 1,
+        "event_type": "checkout.session.async_payment_failed",
+        "processing_status": "processed"
+      },
+      {
+        "count": 1,
+        "event_type": "charge.dispute.funds_withdrawn",
+        "processing_status": "processed"
+      },
+      {
+        "count": 2,
+        "event_type": "payment_intent.payment_failed",
+        "processing_status": "processed"
+      },
+      {
+        "count": 1,
+        "event_type": "invoice.paid",
+        "processing_status": "processed"
+      },
+      {
+        "count": 2,
+        "event_type": "customer.subscription.updated",
+        "processing_status": "processed"
+      },
+      {
+        "count": 1,
+        "event_type": "refund.updated",
+        "processing_status": "processed"
+      },
+      {
+        "count": 1,
+        "event_type": "refund.created",
+        "processing_status": "processed"
+      },
+      {
+        "count": 6,
+        "event_type": "checkout.session.completed",
+        "processing_status": "processed"
+      },
+      {
+        "count": 1,
+        "event_type": "checkout.session.async_payment_succeeded",
+        "processing_status": "processed"
+      },
+      {
+        "count": 5,
+        "event_type": "payment_intent.succeeded",
+        "processing_status": "processed"
+      },
+      {
+        "count": 1,
+        "event_type": "customer.subscription.created",
+        "processing_status": "processed"
+      }
+    ],
+    "orders": [
+      {
+        "count": 1,
+        "flow": "support_one_time",
+        "status": "refunded"
+      },
+      {
+        "count": 32,
+        "flow": "support_one_time",
+        "status": "canceled"
+      },
+      {
+        "count": 1,
+        "flow": "support_recurring",
+        "status": "paid"
+      },
+      {
+        "count": 1,
+        "flow": "support_one_time",
+        "status": "paid"
+      },
+      {
+        "count": 1,
+        "flow": "job_post_fee",
+        "status": "paid"
+      },
+      {
+        "count": 1,
+        "flow": "support_one_time",
+        "status": "failed"
+      },
+      {
+        "count": 1,
+        "flow": "support_one_time",
+        "status": "disputed"
+      }
+    ],
+    "payments": [
+      {
+        "count": 2,
+        "status": "failed",
+        "transaction_type": "failure"
+      },
+      {
+        "count": 5,
+        "status": "succeeded",
+        "transaction_type": "payment"
+      }
+    ],
+    "settlements": {
+      "rows": 16,
+      "withFee": 10,
+      "withReceipt": 16
+    },
+    "synthetic_account_present": true
+  },
+  "outcomes": {
+    "disputes": [
+      {
+        "environment": "test",
+        "status": "needs_response"
+      }
+    ],
+    "events": [
+      {
+        "count": 32,
+        "event_type": "checkout.session.expired",
+        "processing_status": "processed"
+      },
+      {
+        "count": 20,
+        "event_type": "payment_intent.canceled",
+        "processing_status": "processed"
+      },
+      {
+        "count": 1,
+        "event_type": "charge.dispute.created",
+        "processing_status": "processed"
+      },
+      {
+        "count": 1,
+        "event_type": "checkout.session.async_payment_failed",
+        "processing_status": "processed"
+      },
+      {
+        "count": 1,
+        "event_type": "charge.dispute.funds_withdrawn",
+        "processing_status": "processed"
+      },
+      {
+        "count": 2,
+        "event_type": "payment_intent.payment_failed",
+        "processing_status": "processed"
+      },
+      {
+        "count": 1,
+        "event_type": "invoice.paid",
+        "processing_status": "processed"
+      },
+      {
+        "count": 2,
+        "event_type": "customer.subscription.updated",
+        "processing_status": "processed"
+      },
+      {
+        "count": 1,
+        "event_type": "refund.updated",
+        "processing_status": "processed"
+      },
+      {
+        "count": 1,
+        "event_type": "refund.created",
+        "processing_status": "processed"
+      },
+      {
+        "count": 6,
+        "event_type": "checkout.session.completed",
+        "processing_status": "processed"
+      },
+      {
+        "count": 1,
+        "event_type": "checkout.session.async_payment_succeeded",
+        "processing_status": "processed"
+      },
+      {
+        "count": 5,
+        "event_type": "payment_intent.succeeded",
+        "processing_status": "processed"
+      },
+      {
+        "count": 1,
+        "event_type": "customer.subscription.created",
+        "processing_status": "processed"
+      }
+    ],
+    "job": {
+      "condition": "satisfied",
+      "review": "reviewed_clear",
+      "status": "draft",
+      "visibility": "private_draft"
+    },
+    "refunds": [
+      {
+        "amount": 500,
+        "environment": "test",
+        "status": "succeeded"
+      }
+    ],
+    "subscriptions": [
+      {
+        "cancelAtPeriodEnd": true,
+        "environment": "test",
+        "status": "canceling"
+      }
+    ]
+  },
+  "state": {
+    "catalog": 7,
+    "events": 75,
+    "flags": [
+      {
+        "enabled": false,
+        "key": "customer_portal",
+        "testOnly": true
+      },
+      {
+        "enabled": false,
+        "key": "economic_assistance_workflow",
+        "testOnly": true
+      },
+      {
+        "enabled": false,
+        "key": "economic_webhooks",
+        "testOnly": true
+      },
+      {
+        "enabled": false,
+        "key": "job_post_fee_enforcement",
+        "testOnly": true
+      },
+      {
+        "enabled": false,
+        "key": "live_stripe",
+        "testOnly": false
+      },
+      {
+        "enabled": false,
+        "key": "marketplace_paid_offers",
+        "testOnly": true
+      },
+      {
+        "enabled": false,
+        "key": "marketplace_payout_preparation",
+        "testOnly": true
+      },
+      {
+        "enabled": false,
+        "key": "marketplace_payouts",
+        "testOnly": true
+      },
+      {
+        "enabled": false,
+        "key": "marketplace_seller_onboarding",
+        "testOnly": true
+      },
+      {
+        "enabled": false,
+        "key": "organization_billing",
+        "testOnly": true
+      },
+      {
+        "enabled": false,
+        "key": "organization_contract_workflow",
+        "testOnly": true
+      },
+      {
+        "enabled": false,
+        "key": "public_support_recognition",
+        "testOnly": true
+      },
+      {
+        "enabled": false,
+        "key": "recurring_support",
+        "testOnly": true
+      },
+      {
+        "enabled": true,
+        "key": "sandbox_credit_display",
+        "testOnly": false
+      },
+      {
+        "enabled": true,
+        "key": "sandbox_credit_enforcement",
+        "testOnly": false
+      },
+      {
+        "enabled": false,
+        "key": "sandbox_credit_purchase",
+        "testOnly": true
+      },
+      {
+        "enabled": false,
+        "key": "sponsorship_checkout",
+        "testOnly": true
+      },
+      {
+        "enabled": false,
+        "key": "sponsorship_display",
+        "testOnly": true
+      },
+      {
+        "enabled": false,
+        "key": "sponsorship_review_workflow",
+        "testOnly": true
+      },
+      {
+        "enabled": false,
+        "key": "support_checkout",
+        "testOnly": true
+      },
+      {
+        "enabled": false,
+        "key": "test_refund_execution",
+        "testOnly": true
+      }
+    ],
+    "migration_count": 76,
+    "migration_head": "20260917020000",
+    "orders": 38,
+    "payments": 7,
+    "provider": [
+      {
+        "account_reference": "acct_1UGdHORrIWWoUVPh",
+        "provider": "stripe",
+        "runtime_mode": "test",
+        "third_party_status": "hard_off"
+      }
+    ]
+  },
+  "verification": {
+    "all_payments_test": true,
+    "anonymous_cannot_attach": true,
+    "events_not_processed": 0,
+    "financial_rls": true,
+    "head": "20260917020000",
+    "migrations": 76,
+    "new_function_definer": true,
+    "provider_account": "acct_1UGdHORrIWWoUVPh"
+  }
+}

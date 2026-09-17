@@ -1,0 +1,72 @@
+{
+  "checkout": {
+    "result": "acceptance_disabled"
+  },
+  "recurring": {
+    "result": "acceptance_disabled"
+  },
+  "negative-checks": {
+    "result": "acceptance_disabled"
+  },
+  "readiness": {
+    "result": "readiness_loaded",
+    "readiness": {
+      "mode": "test",
+      "lanes": [
+        {
+          "key": "job_post_fee_enforcement",
+          "enabled": false,
+          "taxBehavior": "disabled",
+          "legalQualified": false,
+          "sandboxQualified": false,
+          "rolloutAuthorized": false,
+          "taxDecisionRecorded": false
+        },
+        {
+          "key": "organization_billing",
+          "enabled": false,
+          "taxBehavior": "disabled",
+          "legalQualified": false,
+          "sandboxQualified": false,
+          "rolloutAuthorized": false,
+          "taxDecisionRecorded": false
+        },
+        {
+          "key": "recurring_support",
+          "enabled": false,
+          "taxBehavior": "disabled",
+          "legalQualified": false,
+          "sandboxQualified": false,
+          "rolloutAuthorized": false,
+          "taxDecisionRecorded": false
+        },
+        {
+          "key": "sponsorship_checkout",
+          "enabled": false,
+          "taxBehavior": "disabled",
+          "legalQualified": false,
+          "sandboxQualified": false,
+          "rolloutAuthorized": false,
+          "taxDecisionRecorded": false
+        },
+        {
+          "key": "support_checkout",
+          "enabled": false,
+          "taxBehavior": "disabled",
+          "legalQualified": false,
+          "sandboxQualified": false,
+          "rolloutAuthorized": false,
+          "taxDecisionRecorded": false
+        }
+      ],
+      "scope": "first_party_account",
+      "provider": "stripe",
+      "reviewedAt": "2026-09-15",
+      "reviewStatus": "passed",
+      "lastPreflightAt": null,
+      "webhookVerified": true,
+      "thirdPartyStatus": "hard_off",
+      "eventCoverageVerified": false
+    }
+  }
+}

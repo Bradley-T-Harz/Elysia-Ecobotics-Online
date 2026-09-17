@@ -70,4 +70,24 @@ This does not enable any gate or make a provider mutation. Do not create or requ
 
 ## Final deployment and safe state
 
-Pending final cleanup and deployment recording.
+Qualified code candidate: `ef6baa9`. Final billing deployment `0e7e6a3a-8dd6-40e6-9a1a-3a82060a1e43`, version `f6be7bc5-aa9b-4127-8d8f-c86a3c4de956`, 100% at 2026-09-17T14:13:11Z. The UI was not redeployed (existing version `0b24bdf4-240d-4adc-8575-f413cb051927`, deployment `88489f9f-e90a-47b4-8f2e-57974bc77d32`).
+
+Remote version metadata verifies `BILLING_MODE=disabled`, `BILLING_ENABLED=false`, every billing lane/processing switch and live/Connect switch false. Access protection remains required. Private remote one-time/recurring calls return `acceptance_disabled`. Database first-party acquisition and webhook/refund processing flags are OFF. Existing free `sandbox_credit_display` / `sandbox_credit_enforcement` flags are unchanged; they do not enable paid compute.
+
+Final aggregate state: five successful test payments, two failed-payment records, one succeeded full refund, one test dispute, one period-end-canceling subscription, no unprocessed inbox events and no open canonical Checkout orders. All financial rows remain test-only. Thirty-two abandoned/declined test orders ended canceled; 21 open sessions were explicitly expired during cleanup and the others expired naturally. Synthetic operator assignments are revoked and the Job Post is private draft. Provider/audit facts are retained; no production data was copied.
+
+Provider review approval remains September 15. `webhookVerified=true` now records actual signed delivery. `eventCoverageVerified`, lane `sandboxQualified`, and preflight confirmation remain false until the missing owner-run configuration check and final qualification review are complete. Late sandbox provider events may retry while processing is OFF; resume only controlled sandbox processing and reconcile when continuing. No live activation is implied.
+
+[Deployment](deployment.json), [deployed gates](deployed-gates.json), [remote disabled checks](disabled-remote-checks.json), [final database state](final-state.json).
+
+Private checkpoints (all pushed):
+
+
+- `b00b2aba2886e16b9255efca84eaab0f74fc7ffb` Add private sandbox provider inspection and catalog references
+- `8ef0f43ce0ab31611ec955d62cdbe4b184ff0eea` Preserve canonical Checkout currency and exercise sandbox boundaries
+- `12fc158f2cbb7083bc14931b1f1ae494a55a8fe3` Fix refund replay after signed webhook projection updates
+- `5b98ba354a7c2d7bf3d25bdfc0e3de9c244749a5` Keep Checkout expiry stable across provider attachment and retry
+- `5318d31f8d8e021fd55901755930a725093ddeaf` Verify sandbox rate limits and governed fee waivers
+- `ef6baa94530690943081ca6c838da438cb0104a2` Record real Stripe sandbox payment and async acceptance evidence
+
+Approved private refs: `online/main`, `online/stripe-first-party-2026-09-15` (Elysia-Ecobotics-Online), and `legacy/stripe-first-party-2026-09-15` (elysia-marketplace). The final evidence-only commit follows the qualified code candidate. Legacy main, tags, releases and visibility were preserved.
