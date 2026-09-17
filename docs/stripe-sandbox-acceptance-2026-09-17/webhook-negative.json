@@ -1,0 +1,10 @@
+{
+  "missing": {
+    "status": 400,
+    "invalidSignature": true
+  },
+  "invalid": {
+    "status": 400,
+    "invalidSignature": true
+  }
+}

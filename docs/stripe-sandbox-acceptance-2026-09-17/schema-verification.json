@@ -1,0 +1,9 @@
+{
+  "migrationCount": 76,
+  "migrationHead": "20260917020000",
+  "allPaymentsTest": true,
+  "financialRls": true,
+  "anonymousCannotAttach": true,
+  "patchedFunctionsSecurityDefiner": true,
+  "eventsNotProcessedAtCheck": 0
+}

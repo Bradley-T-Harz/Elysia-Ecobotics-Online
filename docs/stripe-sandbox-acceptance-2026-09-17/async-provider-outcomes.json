@@ -1,0 +1,18 @@
+[
+  {
+    "completed_was_unpaid": true,
+    "event_type": "checkout.session.async_payment_succeeded",
+    "failed_payments": 0,
+    "order_status": "paid",
+    "processing_status": "processed",
+    "successful_payments": 1
+  },
+  {
+    "completed_was_unpaid": true,
+    "event_type": "checkout.session.async_payment_failed",
+    "failed_payments": 1,
+    "order_status": "failed",
+    "processing_status": "processed",
+    "successful_payments": 0
+  }
+]
