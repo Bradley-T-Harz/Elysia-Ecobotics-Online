@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {provision} from './stripeFirstPartyProvision.mjs';
 const products=new Map(),prices=[],portals=[],paths=[];const mode='test';
-const config={mode,account:'acct_synthetic',apiVersion:'2025-02-24.acacia',secret:'sk_test_SYNTHETIC_ONLY_NEVER_REAL'};
+const config={mode,account:'acct_synthetic',apiVersion:'2025-02-24.acacia',publicOrigin:'https://sandbox.example.com',secret:'sk_test_SYNTHETIC_ONLY_NEVER_REAL'};
 const fetcher=async(input,init)=>{
  const url=new URL(input),f=new URLSearchParams(init.body);paths.push(url.pathname);
  if(url.pathname==='/v1/account')return Response.json({id:config.account});
@@ -10,7 +10,7 @@ const fetcher=async(input,init)=>{
  if(url.pathname==='/v1/prices'&&init.method==='GET')return Response.json({data:prices.filter(p=>p.lookup_key===url.searchParams.get('lookup_keys[]'))});
  if(url.pathname==='/v1/prices'){const p={id:`price_synthetic${prices.length}`,product:f.get('product'),lookup_key:f.get('lookup_key'),active:true,livemode:false,currency:f.get('currency'),unit_amount:Number(f.get('unit_amount')),recurring:{interval:'month',interval_count:1}};prices.push(p);return Response.json(p);}
  if(url.pathname==='/v1/billing_portal/configurations'&&init.method==='GET')return Response.json({data:portals,has_more:false});
- if(url.pathname==='/v1/billing_portal/configurations'){const p={id:'bpc_synthetic',active:true,livemode:false,metadata:{elysia_configuration:f.get('metadata[elysia_configuration]')},features:{subscription_cancel:{enabled:true,mode:'at_period_end'},subscription_update:{enabled:false}}};portals.push(p);return Response.json(p);}
+ if(url.pathname==='/v1/billing_portal/configurations'){const p={id:'bpc_synthetic',active:true,livemode:false,metadata:{elysia_configuration:f.get('metadata[elysia_configuration]')},default_return_url:f.get('default_return_url'),business_profile:{privacy_policy_url:f.get('business_profile[privacy_policy_url]'),terms_of_service_url:f.get('business_profile[terms_of_service_url]')},features:{invoice_history:{enabled:true},payment_method_update:{enabled:true},subscription_cancel:{enabled:true,mode:'at_period_end',proration_behavior:'none'},subscription_update:{enabled:false}}};portals.push(p);return Response.json(p);}
  throw new Error('Unexpected provider operation');
 };
 assert.equal((await provision({...config,fetcher})).dryRun,true);assert.equal(paths.length,0);
@@ -19,3 +19,7 @@ assert.deepEqual(first,second);assert.equal(products.size,3);assert.equal(prices
 assert(paths.every(p=>!/(accounts|transfers|payouts|payment_intents|checkout)/.test(p)));
 await assert.rejects(provision({...config,secret:'sk_live_SYNTHETIC_ONLY_NEVER_REAL',apply:true,fetcher}),/mismatched/);
 console.log('Catalog and cancellation provisioning: dry-run, idempotent retries, mode checks and no money/Connect operations passed.');
+
+await assert.rejects(provision({...config,publicOrigin:'https://elysiaecobotics.com',apply:true,fetcher}),/origin/);
+portals[0].features.invoice_history.enabled=false;
+await assert.rejects(provision({...config,apply:true,fetcher}),/cancellation policy/);

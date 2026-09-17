@@ -1,3 +1,4 @@
+import { STRIPE_ECONOMIC_MUTATION_EVENT_TYPES } from "./stripeContract.ts";
 import { stripeConfig, stripeTestConfig } from "./config.ts";
 import { BillingHttpError, fetchWithTimeout, readBoundedResponseJson } from "./http.ts";
 import { isUuid } from "./schema.ts";
@@ -52,28 +53,7 @@ const STRIPE_DISPUTE_STATUSES = new Set([
   "needs_response", "under_review", "won", "lost", "prevented"
 ]);
 
-export const STRIPE_ECONOMIC_MUTATION_EVENT_TYPES = Object.freeze([
-  "checkout.session.completed",
-  "checkout.session.async_payment_succeeded",
-  "checkout.session.async_payment_failed",
-  "checkout.session.expired",
-  "payment_intent.succeeded",
-  "payment_intent.payment_failed",
-  "payment_intent.canceled",
-  "invoice.paid",
-  "invoice.payment_failed",
-  "customer.subscription.created",
-  "customer.subscription.updated",
-  "customer.subscription.deleted",
-  "refund.created",
-  "refund.updated",
-  "refund.failed",
-  "charge.dispute.created",
-  "charge.dispute.updated",
-  "charge.dispute.closed",
-  "charge.dispute.funds_withdrawn",
-  "charge.dispute.funds_reinstated"
-] as const);
+export { STRIPE_ECONOMIC_MUTATION_EVENT_TYPES } from "./stripeContract.ts";
 
 const STRIPE_ECONOMIC_MUTATION_EVENT_TYPE_SET = new Set<string>(STRIPE_ECONOMIC_MUTATION_EVENT_TYPES);
 
@@ -306,7 +286,10 @@ function assertSupportedEconomicEventShape(event: NormalizedProviderEvent): void
     return;
   }
   if (event.eventType.startsWith("payment_intent.")) {
-    if (event.objectType !== "payment_intent" || !event.providerPaymentId || !hasMoney || !event.orderId) invalid();
+    // Subscription-created PaymentIntents do not inherit subscription metadata.
+    // Persist verified events so the economic processor can resolve the exact
+    // payment reference after invoice delivery; never infer ownership by customer.
+    if (event.objectType !== "payment_intent" || !event.providerPaymentId || !hasMoney) invalid();
     return;
   }
   if (event.eventType.startsWith("invoice.")) {
@@ -533,9 +516,13 @@ export class StripeProvider implements BillingProvider {
       && ["payment_intent.succeeded", "invoice.paid", "checkout.session.async_payment_succeeded", "checkout.session.completed"].includes(event.eventType)
       && (event.objectType !== "checkout.session" || event.paymentStatus === "paid")) {
       const payment = await this.#request(`/v1/payment_intents/${encodeURIComponent(event.providerPaymentId)}?expand[]=latest_charge.balance_transaction`, "GET");
+      const paymentOrder = optionalRow(payment.metadata)?.economic_order_id;
+      const subscriptionPayment = Boolean(event.providerSubscriptionId)
+        && ["invoice", "checkout.session"].includes(event.objectType ?? "");
       if (payment.livemode !== event.livemode || payment.status !== "succeeded"
         || payment.currency !== event.currency || payment.amount_received !== event.amountMinor
-        || (event.objectType !== "invoice" && event.orderId && optionalRow(payment.metadata)?.economic_order_id !== event.orderId)) {
+        || (event.orderId && paymentOrder != null && paymentOrder !== event.orderId)
+        || (event.orderId && paymentOrder == null && !subscriptionPayment)) {
         throw new BillingHttpError(400, "provider_payment_evidence_mismatch");
       }
       const charge = optionalRow(payment.latest_charge);

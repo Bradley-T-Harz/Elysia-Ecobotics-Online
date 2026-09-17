@@ -1,15 +1,31 @@
 // Dry-run by default. Secrets are read only from the secure execution environment.
 // No Connect, seller, hardware or paid-compute object can be provisioned here.
 import { pathToFileURL } from 'node:url';
+import {STRIPE_FIRST_PARTY_API_VERSION} from '../functions/api/billing/_shared/stripeContract.ts';
 export const catalogPlan = Object.freeze([
  {productKey:'support_one_time',name:'Support Elysia Ecobotics',priceCode:null,amount:null},
  ...[[100,'seed'],[500,'commons'],[1200,'infrastructure'],[2500,'sandbox'],[5000,'50']].map(([amount,tier])=>({productKey:'support_recurring',name:'Monthly Support for Elysia Ecobotics',priceCode:`support_monthly_${tier}_usd`,amount})),
  {productKey:'job_post_fee',name:'EcoSyneva commercial Job Post fee',priceCode:null,amount:null}
 ]);
 const description='EcoSyneva first-party payment. No governance, status, priority, personal compute entitlement, endorsement or publication is purchased.';
-export async function provision({mode,account,apiVersion,secret,apply=false,fetcher=fetch}) {
- if(!['test','live'].includes(mode)||!/^acct_[A-Za-z0-9]+$/.test(account??'')||!/^\d{4}-\d{2}-\d{2}[.]\w+$/.test(apiVersion??''))throw new Error('Exact mode, account and pinned API version required.');
+export function validatedProvisionOrigin(mode, origin) {
+ let url;try{url=new URL(origin);}catch{throw new Error('Exact public return origin required.');}
+ if(url.protocol!=='https:'||url.username||url.password||url.port||url.pathname!=='/'||url.search||url.hash||url.hostname.endsWith('.invalid')
+   || (mode==='live' ? url.origin!=='https://elysiaecobotics.com' : ['elysiaecobotics.com','www.elysiaecobotics.com'].includes(url.hostname)))throw new Error('Return origin does not match selected environment.');
+ return url.origin;
+}
+export function assertPortalPolicy(portal, mode, publicOrigin) {
+ if(!portal?.active||portal.livemode!==(mode==='live')||portal.features?.subscription_cancel?.enabled!==true
+  ||portal.features.subscription_cancel.mode!=='at_period_end'||portal.features.subscription_cancel.proration_behavior!=='none'
+  ||portal.features.subscription_update?.enabled!==false||portal.features.invoice_history?.enabled!==true
+  ||portal.features.payment_method_update?.enabled!==true||portal.default_return_url!==`${publicOrigin}/commons-circle/support-billing`
+  ||portal.business_profile?.privacy_policy_url!=='https://elysiaecobotics.com/legal/privacy-policy'
+  ||portal.business_profile?.terms_of_service_url!=='https://elysiaecobotics.com/legal/support-and-billing-terms')throw new Error('Portal configuration does not match the approved cancellation policy.');
+}
+export async function provision({mode,account,apiVersion,secret,publicOrigin,apply=false,fetcher=fetch}) {
+ if(!['test','live'].includes(mode)||!/^acct_[A-Za-z0-9]+$/.test(account??'')||apiVersion!==STRIPE_FIRST_PARTY_API_VERSION)throw new Error('Exact mode, account and pinned API version required.');
  if(!apply)return {dryRun:true,mode,account,catalog:catalogPlan,forbiddenObjects:[],createsWebhookSecret:false};
+ publicOrigin=validatedProvisionOrigin(mode,publicOrigin);
  if(!new RegExp(`^(sk|rk)_${mode}_`).test(secret??''))throw new Error('Selected environment credential missing or mismatched.');
  async function request(path,method='GET',fields={},idempotency) {
   const headers={authorization:`Bearer ${secret}`,'stripe-version':apiVersion};
@@ -55,14 +71,14 @@ export async function provision({mode,account,apiVersion,secret,apply=false,fetc
   'features[invoice_history][enabled]':'true','features[payment_method_update][enabled]':'true',
   'features[subscription_cancel][enabled]':'true','features[subscription_cancel][mode]':'at_period_end',
   'features[subscription_cancel][proration_behavior]':'none','features[subscription_update][enabled]':'false',
-  'default_return_url':'https://elysiaecobotics.com/commons-circle/support-billing',
+  'default_return_url':`${publicOrigin}/commons-circle/support-billing`,
   'metadata[elysia_configuration]':`first_party_${mode}_20260915`
  },`elysia:${mode}:portal:20260915`);
- if(!portal.active||portal.livemode!==(mode==='live')||!portal.features?.subscription_cancel?.enabled||portal.features.subscription_cancel.mode!=='at_period_end'||portal.features.subscription_update?.enabled)throw new Error('Portal configuration does not match the approved cancellation policy.');
+ assertPortalPolicy(portal,mode,publicOrigin);
  return {dryRun:false,mode,account,rows,portalConfigurationId:portal.id,enabledLanes:[],note:'References require recording in the matching economic database. No feature switch was changed.'};
 }
 if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){
  const mode=process.env.BILLING_MODE;const apply=process.argv.includes('--apply');
- const secret=mode==='live'?process.env.STRIPE_SECRET_KEY_LIVE:process.env.STRIPE_SECRET_KEY_TEST;
- try{console.log(JSON.stringify(await provision({mode,account:process.env.STRIPE_ACCOUNT_ID,apiVersion:process.env.STRIPE_API_VERSION,secret,apply}),null,2));}catch(e){console.error(e.message);process.exitCode=1;}
+ const secret=mode==='live'?process.env.STRIPE_PROVISIONING_KEY_LIVE:process.env.STRIPE_PROVISIONING_KEY_TEST;
+ try{console.log(JSON.stringify(await provision({mode,account:process.env.STRIPE_ACCOUNT_ID,apiVersion:process.env.STRIPE_API_VERSION,secret,publicOrigin:process.env.BILLING_PUBLIC_ORIGIN,apply}),null,2));}catch{console.error('Provisioning failed; check mode, account, permissions, return origin and existing catalog/Portal policy. No provider response or credential retained.');process.exitCode=1;}
 }
