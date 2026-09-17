@@ -1,0 +1,11 @@
+begin;
+set local request.jwt.claim.role='service_role';
+select set_config('request.headers','{"x-elysia-billing-mode":"test","x-elysia-stripe-account":"acct_1UGdHORrIWWoUVPh"}',true);
+select public.record_economic_test_catalog_reference('support_one_time',null,'stripe','prod_elysiatestsupportonetime20260915',null);
+select public.record_economic_test_catalog_reference('support_recurring','support_monthly_seed_usd','stripe','prod_elysiatestsupportrecurring20260915','price_1UGeUhRrIWWoUVPhQ8quiYnJ');
+select public.record_economic_test_catalog_reference('support_recurring','support_monthly_commons_usd','stripe','prod_elysiatestsupportrecurring20260915','price_1UGeUiRrIWWoUVPh42S0ht7Q');
+select public.record_economic_test_catalog_reference('support_recurring','support_monthly_infrastructure_usd','stripe','prod_elysiatestsupportrecurring20260915','price_1UGeUiRrIWWoUVPh9IliW2hE');
+select public.record_economic_test_catalog_reference('support_recurring','support_monthly_sandbox_usd','stripe','prod_elysiatestsupportrecurring20260915','price_1UGeUjRrIWWoUVPhbkUnVAWh');
+select public.record_economic_test_catalog_reference('support_recurring','support_monthly_50_usd','stripe','prod_elysiatestsupportrecurring20260915','price_1UGeUjRrIWWoUVPhPYVbz4QD');
+select public.record_economic_test_catalog_reference('job_post_fee',null,'stripe','prod_elysiatestjobpostfee20260915',null);
+commit;

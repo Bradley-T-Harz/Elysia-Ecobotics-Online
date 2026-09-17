@@ -18,10 +18,12 @@ for(const flow of ['support_one_time','job_post_fee','organization_service','spo
  await provider.createCheckout({...input,flow});const first=calls.at(-1);await provider.createCheckout({...input,flow});assert.deepEqual(calls.at(-1),first);
  assert.equal(new URLSearchParams(first.body).get('line_items[0][price_data][unit_amount]'),'500');
  assert.equal(new URLSearchParams(first.body).get('payment_method_configuration'),'pmc_synthetic');
+ assert.equal(new URLSearchParams(first.body).get('adaptive_pricing[enabled]'),'false');
  assert(!first.body.includes('payment_method_types'));
 }
 await provider.createCheckout({...input,flow:'support_recurring',providerPriceReference:'price_synthetic'});
 assert.equal(new URLSearchParams(calls.at(-1).body).get('line_items[0][price]'),'price_synthetic');
+assert.equal(new URLSearchParams(calls.at(-1).body).get('adaptive_pricing[enabled]'),'false');
 responseMode=false;await assert.rejects(provider.createCheckout(input),/provider_environment_mismatch/);
 assert.throws(()=>stripeConfig({...env,STRIPE_SECRET_KEY_LIVE:undefined,STRIPE_SECRET_KEY_TEST:'sk_test_SYNTHETIC_ONLY_NEVER_REAL'}));
 assert.throws(()=>assertBillingMode({...env,STRIPE_CONNECT_ENABLED:'true'}));

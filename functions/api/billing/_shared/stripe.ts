@@ -420,6 +420,10 @@ export class StripeProvider implements BillingProvider {
       "phone_number_collection[enabled]": "false",
       "allow_promotion_codes": "false",
       "automatic_tax[enabled]": "false",
+      // Acacia reports Adaptive Pricing Checkout amounts in the buyer's
+      // currency. The economic contract is USD integer minor units; do not
+      // silently inherit account-level currency conversion preferences.
+      "adaptive_pricing[enabled]": "false",
       // Bound abandoned-session recovery. The database keeps a five-minute
       // clock-skew margin and verified provider events remain payment truth.
       expires_at: String(input.checkoutExpiresAt ? Math.floor(Date.parse(input.checkoutExpiresAt) / 1_000) - 5 * 60 : Math.floor(this.#now() / 1_000) + 30 * 60),

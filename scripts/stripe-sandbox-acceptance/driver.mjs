@@ -2,7 +2,7 @@
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const methods = { '/inspect': 'inspect', '/record-catalog': 'recordCatalog', '/readiness': 'readiness' };
+    const methods = { '/inspect': 'inspect', '/record-catalog': 'recordCatalog', '/readiness': 'readiness', '/checkout': 'startGuestCheckout' };
     if (url.hostname !== '127.0.0.1' || request.method !== 'POST' || request.headers.has('origin') || !Object.hasOwn(methods, url.pathname) || url.search) {
       return new Response(null, { status: 404 });
     }

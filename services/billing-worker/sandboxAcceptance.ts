@@ -5,6 +5,7 @@ import { STRIPE_FIRST_PARTY_API_VERSION, STRIPE_FIRST_PARTY_WEBHOOK_URLS, STRIPE
 import { desiredPaymentMethods, assertPaymentMethodPolicy } from "../../functions/api/billing/_shared/stripePaymentMethods.ts";
 import refs from "../../docs/stripe-sandbox-acceptance-2026-09-17/provider-references.json";
 import { createEconomicServerClient, createEconomicPublicClient } from "../../functions/api/billing/_shared/auth.ts";
+import { handleOneTimeCheckout } from "../../functions/api/billing/checkout.ts";
 
 const origin = "https://elysia-ecobotics-online-sandbox.bradleytharz3407.workers.dev";
 
@@ -25,6 +26,21 @@ export function assertAcceptanceSandbox(env: BillingEnv): void {
 // No HTTP route exposes this entrypoint. Only an authenticated Cloudflare
 // service binding can call it. Never return provider bodies or exception text.
 export class SandboxAcceptance extends WorkerEntrypoint<BillingEnv> {
+  async startGuestCheckout() {
+    try {
+      assertAcceptanceSandbox(this.env);
+      if (this.env.BILLING_MODE !== "test" || this.env.BILLING_ENABLED !== "true") return { result: "acceptance_disabled" };
+      const response = await handleOneTimeCheckout(new Request(`${origin}/api/billing/checkout`, {
+        method: "POST", headers: { origin, "content-type": "application/json" },
+        body: JSON.stringify({ clientRequestId: crypto.randomUUID(), amountMinor: 500, currency: "usd", sourceRoute: "/support", consentVersion: "2026-09-15-first-party" })
+      }), this.env);
+      const data = await response.json() as { ok?: boolean; checkoutUrl?: string; orderReference?: string; error?: unknown };
+      // Capability URL is consumed in-memory by the local browser driver only.
+      // Never log, persist, or place it in acceptance evidence.
+      return response.ok && data.ok ? { result: "checkout_created", checkoutUrl: data.checkoutUrl } : { result: "checkout_failed", status: response.status, code: typeof data.error === "string" && /^[a-z_]{1,80}$/.test(data.error) ? data.error : "checkout_rejected" };
+    } catch { return { result: "checkout_failed" }; }
+  }
+
   async recordCatalog() {
     try {
       assertAcceptanceSandbox(this.env);
@@ -35,7 +51,7 @@ export class SandboxAcceptance extends WorkerEntrypoint<BillingEnv> {
       for (const row of refs.rows) {
         const { error } = await client.rpc("record_economic_test_catalog_reference", {
           p_product_key: row.productKey, p_price_code: row.priceCode, p_provider: "stripe",
-          p_provider_product_reference: row.providerProductReference, p_provider_price_reference: row.providerPriceReference
+          p_provider_product_id: row.providerProductReference, p_provider_price_id: row.providerPriceReference
         });
         if (error) return { result: "catalog_record_failed", recorded };
         recorded++;
