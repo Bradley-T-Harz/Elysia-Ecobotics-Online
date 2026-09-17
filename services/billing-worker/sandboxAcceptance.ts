@@ -4,8 +4,15 @@ import { readBoundedResponseJson, fetchWithTimeout } from "../../functions/api/b
 import { STRIPE_FIRST_PARTY_API_VERSION, STRIPE_FIRST_PARTY_WEBHOOK_URLS, STRIPE_ECONOMIC_MUTATION_EVENT_TYPES } from "../../functions/api/billing/_shared/stripeContract.ts";
 import { desiredPaymentMethods, assertPaymentMethodPolicy } from "../../functions/api/billing/_shared/stripePaymentMethods.ts";
 import refs from "../../docs/stripe-sandbox-acceptance-2026-09-17/provider-references.json";
-import { createEconomicServerClient, createEconomicPublicClient } from "../../functions/api/billing/_shared/auth.ts";
+import { createEconomicServerClient, createEconomicPublicClient, authenticateRequired } from "../../functions/api/billing/_shared/auth.ts";
+import { prepareJobPostCheckout, attachCheckoutBillingCustomer, attachCheckoutSession, failCheckout } from "../../functions/api/billing/_shared/database.ts";
+import { StripeProvider } from "../../functions/api/billing/_shared/stripe.ts";
 import { handleOneTimeCheckout } from "../../functions/api/billing/checkout.ts";
+import { handleRecurringCheckout } from "../../functions/api/billing/recurring-checkout.ts";
+import { handleCustomerPortal } from "../../functions/api/billing/portal.ts";
+import { handleBillingScheduled } from "./worker.ts";
+import { handleOperatorTestRefundExecution } from "../../functions/api/billing/operator/refund-execution.ts";
+import { handleJobPostCheckout } from "../../functions/api/billing/job-post/checkout.ts";
 
 const origin = "https://elysia-ecobotics-online-sandbox.bradleytharz3407.workers.dev";
 
@@ -26,6 +33,69 @@ export function assertAcceptanceSandbox(env: BillingEnv): void {
 // No HTTP route exposes this entrypoint. Only an authenticated Cloudflare
 // service binding can call it. Never return provider bodies or exception text.
 export class SandboxAcceptance extends WorkerEntrypoint<BillingEnv> {
+  async reconcile() {
+    try {
+      assertAcceptanceSandbox(this.env);
+      return await handleBillingScheduled(this.env);
+    } catch { return { result: "sandbox_reconciliation_failed" }; }
+  }
+
+  async accountFlow(flow: "recurring" | "portal" | "refund" | "job", refundId?: string) {
+    try {
+      assertAcceptanceSandbox(this.env);
+      if (this.env.BILLING_MODE !== "test" || this.env.BILLING_ENABLED !== "true"
+        || !["recurring", "portal", "refund", "job"].includes(flow)) return { result: "acceptance_disabled" };
+      if (flow === "refund" && !/^[a-f0-9]{8}(-[a-f0-9]{4}){3}-[a-f0-9]{12}$/.test(refundId ?? "")) return { result: "refund_fixture_invalid" };
+      const admin = createEconomicServerClient(this.env);
+      const id = "f6170000-0000-4000-8000-000000000010";
+      const email = "stripe-recurring-acceptance@example.invalid";
+      const password = `Aa1!${crypto.randomUUID()}`;
+      const existing = await admin.auth.admin.getUserById(id);
+      if (existing.data.user && (existing.data.user.email !== email || existing.data.user.app_metadata?.sandbox_acceptance !== "20260917")) return { result: "fixture_scope_invalid" };
+      const setup = existing.data.user
+        ? await admin.auth.admin.updateUserById(id, { password })
+        : await admin.auth.admin.createUser({ id, email, password, email_confirm: true, app_metadata: { sandbox_acceptance: "20260917" } });
+      if (setup.error) return { result: "fixture_setup_failed", status: setup.error.status, code: ["email_address_invalid", "unexpected_failure", "email_exists", "user_already_exists", "bad_jwt", "not_admin", "validation_failed", "weak_password", "email_address_not_authorized", "bad_json"].includes(setup.error.code ?? "") ? setup.error.code : "auth_rejected" };
+      const signedIn = await createEconomicPublicClient(this.env).auth.signInWithPassword({ email, password });
+      if (signedIn.error || !signedIn.data.session) return { result: "fixture_login_failed" };
+      if (flow === "job") {
+        let providerFailure: { status: number; type: string; parameter: string } | undefined;
+        const providerFetch: typeof fetch = async (input, init) => {
+          const response = await fetch(input, init);
+          if (!response.ok) {
+            const body = await readBoundedResponseJson(response.clone()).catch(() => null) as { error?: { type?: string; param?: string } } | null;
+            const type = body?.error?.type ?? "";
+            const parameter = body?.error?.param ?? "";
+            providerFailure = { status: response.status, type: ["idempotency_error", "invalid_request_error", "authentication_error", "permission_error"].includes(type) ? type : "provider_rejected", parameter: ["expires_at", "customer", "adaptive_pricing[enabled]", "line_items"].includes(parameter) ? parameter : "unspecified" };
+          }
+          return response;
+        };
+        const response = await handleJobPostCheckout(new Request(`${origin}/api/billing/job-post/checkout`, {
+          method: "POST", headers: { origin, "content-type": "application/json", authorization: `Bearer ${signedIn.data.session.access_token}` },
+          body: JSON.stringify({ jobPostId: "f6170000-0000-4000-8000-000000000031", clientRequestId: "f6170000-0000-4000-8000-000000000032", sourceRoute: "/commune/rooms/job-post", consentVersion: "2026-09-15-first-party" })
+        }), this.env, {
+          authenticate: authenticateRequired, provider: env => new StripeProvider(env, providerFetch),
+          prepare: (env, actor, input) => prepareJobPostCheckout(createEconomicServerClient(env), actor, input),
+          attachCustomer: (env, order, customer) => attachCheckoutBillingCustomer(createEconomicServerClient(env), order, customer),
+          attach: (env, order, session, customer) => attachCheckoutSession(createEconomicServerClient(env), order, session, customer),
+          fail: (env, order, code) => failCheckout(createEconomicServerClient(env), order, code)
+        });
+        const data = await response.json() as { ok?: boolean; checkoutUrl?: string; error?: unknown };
+        return response.ok && data.ok ? { result: "checkout_created", checkoutUrl: data.checkoutUrl }
+          : { result: "job_checkout_failed", status: response.status, code: typeof data.error === "string" && /^[a-z_]{1,80}$/.test(data.error) ? data.error : "job_checkout_rejected", providerFailure };
+      }
+      const request = new Request(`${origin}/api/billing/${flow === "recurring" ? "recurring-checkout" : "portal"}`, {
+        method: "POST", headers: { origin, "content-type": "application/json", authorization: `Bearer ${signedIn.data.session.access_token}` },
+        body: JSON.stringify(flow === "recurring" ? { clientRequestId: crypto.randomUUID(), priceCode: "support_monthly_commons_usd", sourceRoute: "/support", consentVersion: "2026-09-15-first-party" } : flow === "refund" ? { refundRequestId: refundId, approvalClientRequestId: "f6170000-0000-4000-8000-000000000011", providerAttachClientRequestId: "f6170000-0000-4000-8000-000000000012", confirmation: "AUTHORIZE TEST REFUND", reason: "Synthetic 20260917 sandbox acceptance refund" } : { clientRequestId: crypto.randomUUID() })
+      });
+      const response = await (flow === "recurring" ? handleRecurringCheckout : flow === "refund" ? handleOperatorTestRefundExecution : handleCustomerPortal)(request, this.env);
+      const data = await response.json() as { ok?: boolean; checkoutUrl?: string; portalUrl?: string; error?: unknown; refund?: { providerStatus?: string; status?: string; idempotentReplay?: boolean } };
+      if (flow === "refund" && response.ok && data.ok) return { result: "refund_executed", providerStatus: data.refund?.providerStatus, status: data.refund?.status, idempotentReplay: data.refund?.idempotentReplay };
+      return response.ok && data.ok ? { result: flow === "recurring" ? "checkout_created" : "portal_created", checkoutUrl: data.checkoutUrl, portalUrl: data.portalUrl }
+        : { result: "account_flow_failed", status: response.status, code: typeof data.error === "string" && /^[a-z_]{1,80}$/.test(data.error) ? data.error : "account_flow_rejected" };
+    } catch { return { result: "account_flow_failed" }; }
+  }
+
   async startGuestCheckout() {
     try {
       assertAcceptanceSandbox(this.env);
@@ -98,7 +168,9 @@ export class SandboxAcceptance extends WorkerEntrypoint<BillingEnv> {
     await check("payment_method_configuration", async () => {
       const baseline = await get(`/v1/payment_method_configurations/${refs.paymentMethodDefaultConfigurationId}`);
       const managed = await get(`/v1/payment_method_configurations/${refs.paymentMethodConfigurationId}`);
-      assertPaymentMethodPolicy(managed, "test", desiredPaymentMethods(baseline, "test"));
+      const preferences = desiredPaymentMethods(baseline, "test");
+      assertPaymentMethodPolicy(managed, "test", preferences);
+      results.enabled_payment_methods = Object.entries(preferences).filter(([, enabled]) => enabled === "on").map(([method]) => method).sort().join(",");
       return managed.id === refs.paymentMethodConfigurationId && baseline.id === refs.paymentMethodDefaultConfigurationId;
     });
     for (const row of refs.rows.filter((row, index, rows) => rows.findIndex(other => other.productKey === row.productKey) === index)) {
