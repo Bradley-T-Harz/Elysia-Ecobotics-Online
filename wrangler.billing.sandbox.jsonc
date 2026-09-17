@@ -2,7 +2,7 @@
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "elysia-first-party-billing-sandbox",
-  "main": "services/billing-worker/worker.ts",
+  "main": "services/billing-worker/sandbox.worker.ts",
   "account_id": "52813999b345cafda80d67f1d6345d5c",
   "compatibility_date": "2026-09-15",
   "compatibility_flags": [
@@ -53,6 +53,9 @@
     "BILLING_SANDBOX_ACCESS_REQUIRED": "true",
     "SANDBOX_ACCESS_TEAM_DOMAIN": "https://winter-silence-44c4.cloudflareaccess.com",
     "SANDBOX_ACCESS_AUDIENCE": "3f7090021dbe34a95a7cba5a1ecd324d5705b34205c31b3d8b00d0b8b6ae0605",
+    "STRIPE_ACCOUNT_ID": "acct_1UGdHORrIWWoUVPh",
+    "STRIPE_PORTAL_CONFIGURATION_ID": "bpc_1UGeUkRrIWWoUVPhcEC9nuKi",
+    "STRIPE_PAYMENT_METHOD_CONFIGURATION_ID": "pmc_1UGeUgRrIWWoUVPhR8ic8H5T",
     "STRIPE_API_VERSION": "2025-02-24.acacia",
     "STRIPE_WEBHOOK_API_VERSION": "2025-02-24.acacia",
     "STRIPE_WEBHOOK_TOLERANCE_SECONDS": "300",

@@ -1,0 +1,60 @@
+{
+  "mode": "test",
+  "account": "acct_1UGdHORrIWWoUVPh",
+  "dryRun": false,
+  "rows": [
+    {
+      "mode": "test",
+      "productKey": "support_one_time",
+      "priceCode": null,
+      "providerProductReference": "prod_elysiatestsupportonetime20260915",
+      "providerPriceReference": null
+    },
+    {
+      "mode": "test",
+      "productKey": "support_recurring",
+      "priceCode": "support_monthly_seed_usd",
+      "providerProductReference": "prod_elysiatestsupportrecurring20260915",
+      "providerPriceReference": "price_1UGeUhRrIWWoUVPhQ8quiYnJ"
+    },
+    {
+      "mode": "test",
+      "productKey": "support_recurring",
+      "priceCode": "support_monthly_commons_usd",
+      "providerProductReference": "prod_elysiatestsupportrecurring20260915",
+      "providerPriceReference": "price_1UGeUiRrIWWoUVPh42S0ht7Q"
+    },
+    {
+      "mode": "test",
+      "productKey": "support_recurring",
+      "priceCode": "support_monthly_infrastructure_usd",
+      "providerProductReference": "prod_elysiatestsupportrecurring20260915",
+      "providerPriceReference": "price_1UGeUiRrIWWoUVPh9IliW2hE"
+    },
+    {
+      "mode": "test",
+      "productKey": "support_recurring",
+      "priceCode": "support_monthly_sandbox_usd",
+      "providerProductReference": "prod_elysiatestsupportrecurring20260915",
+      "providerPriceReference": "price_1UGeUjRrIWWoUVPhbkUnVAWh"
+    },
+    {
+      "mode": "test",
+      "productKey": "support_recurring",
+      "priceCode": "support_monthly_50_usd",
+      "providerProductReference": "prod_elysiatestsupportrecurring20260915",
+      "providerPriceReference": "price_1UGeUjRrIWWoUVPhPYVbz4QD"
+    },
+    {
+      "mode": "test",
+      "productKey": "job_post_fee",
+      "priceCode": null,
+      "providerProductReference": "prod_elysiatestjobpostfee20260915",
+      "providerPriceReference": null
+    }
+  ],
+  "portalConfigurationId": "bpc_1UGeUkRrIWWoUVPhcEC9nuKi",
+  "paymentMethodConfigurationId": "pmc_1UGeUgRrIWWoUVPhR8ic8H5T",
+  "paymentMethodDefaultConfigurationId": "pmc_1UGdHbRrIWWoUVPhTCAevleW",
+  "enabledLanes": []
+}
