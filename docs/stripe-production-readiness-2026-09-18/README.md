@@ -1,6 +1,6 @@
 # Production readiness — 2026-09-18
 
-**BLOCKED — production billing Worker `elysia-first-party-billing` is missing `SUPABASE_SERVICE_ROLE_KEY`.** The two LIVE Stripe secret binding names are confirmed present. No credential values were retrieved, copied or exposed. Bind the production database credential directly in Cloudflare from its secure owner-held source; save any newly created permanent credential in Bitwarden first. Do not paste it into Codex, source, command arguments or logs.
+**READY_FOR_ONE_TIME_SUPPORT_ACTIVATION.** The owner securely added `SUPABASE_SERVICE_ROLE_KEY`. Its name is present in the active production version; the existing runtime reports `economicServerConfigured=true`, `economicPublicConfigured=true`, and successfully loads the LIVE database readiness record. No credential value was retrieved, copied or exposed. No new application deployment was necessary. All acquisition remains OFF pending explicit authorization. See [binding closeout](binding-closeout.json).
 
 ## Completed
 
@@ -17,7 +17,7 @@
 
 | Area | Result |
 |---|---|
-| One-time Support | Qualified implementation and sandbox success/decline/async/refund evidence; current production activation blocked only by missing backend binding. Presets/custom amounts are server-validated integer cents; 5% rounding and tampering tests pass |
+| One-time Support | Qualified implementation and sandbox success/decline/async/refund evidence; backend binding blocker resolved; ready for explicit activation authorization. Presets/custom amounts are server-validated integer cents; 5% rounding and tampering tests pass |
 | Recurring Support | Qualified Checkout/customer/invoice/Portal/period-end cancellation; no loss of free access. OFF until one-time proves live |
 | Job Posts | Qualified $10 fee, governed free/waived/reduced handling; independent content review, no applicant payment or purchased ranking/publication. OFF |
 | Professional/organization services | Existing authorized-engagement bridge only: owned customer/scope/amount/terms/order and provider settlement. No generic storefront or engagement qualification invented; OFF |
@@ -39,9 +39,9 @@ Passed: `npm run test:stripe-first-party` (19 focused programs), `npm run typech
 
 All first-party acquisition switches remain OFF in Worker and database; rollout authorization is absent. `BILLING_MODE=disabled`, `BILLING_ENABLED=false`, `STRIPE_LIVE_ENABLED=false`; all processing switches remain OFF. Native LIVE Stripe bindings are retained. Production public billing publication marker remains disabled; existing website assets are unchanged.
 
-The owner GET-only preflight is recorded (`lastPreflightAt`), but `BILLING_FIRST_PARTY_PREFLIGHT_CONFIRMED` remains false until the missing backend binding and final runtime confirmation pass. This is not a request to redo Dashboard setup or sandbox acceptance.
+The owner GET-only preflight is recorded (`lastPreflightAt`), and the backend-binding/runtime closeout now passes. `BILLING_FIRST_PARTY_PREFLIGHT_CONFIRMED` remains staged false with the disabled runtime; set it only in the coordinated authorized activation configuration. This is not a request to redo Dashboard setup or sandbox acceptance.
 
-After the missing binding is securely installed and verified, Bradley can review and explicitly authorize **one-time Support only**. That authorization permits the coordinated existing activation switches: record Support rollout authorization, enable provider LIVE mode and required management/webhook/retry controls, enable only one-time Support in both database/Worker, publish the billing API marker and deploy the verified website. Keep recurring, Job Posts, services and sponsorship OFF. These actions are not performed in this pass.
+The missing binding is now installed and verified. Bradley can review and explicitly authorize **one-time Support only**. That authorization permits the coordinated existing activation switches: record Support rollout authorization, enable provider LIVE mode and required management/webhook/retry controls, enable only one-time Support in both database/Worker, publish the billing API marker and deploy the verified website. Keep recurring, Job Posts, services and sponsorship OFF. These actions are not performed in this pass.
 
 The first genuine website transaction must establish: Checkout → signed LIVE event → provider-confirmed record → receipt/acknowledgment → Stripe balance/payout → Canvas deposit → reconciliation. Do not infer payment from redirect or payout from a successful charge. Recurring follows proven one-time Support; Job Posts follow recurring. No live credentials need to be recreated.
 
@@ -60,6 +60,15 @@ Final qualified code commit: `583ab5e`.
 
 Post-deploy native metadata confirms exact versions at 100%, LIVE account/Portal/PMC IDs, pinned API, production Supabase URL, rate-limit binding, all enabled/confirmation flags false, and only the two LIVE Stripe secret binding names present. Production readiness/capabilities return 200; one-time/recurring/Job Post creation each return 503 with acquisition OFF. Browser confirms Support and both general legal pages render; public billing remains disabled. Production final ledger has 76 migrations, both patched function bodies confirmed, seven live catalog rows, no active test catalog, zero payments and no rollout authorization.
 
-Rollback: preserve the qualified database patches and financial audit history. For code rollback, retain the disabled non-secret configuration and secure bindings; never enable a gate to test rollback. Prior production Worker version `be9243d8-a06d-4b4a-a408-021b78990404` is retained, but lacks the new environment guard/LIVE reference configuration. Prefer the current disabled candidate while resolving the missing backend binding.
+Rollback: preserve the qualified database patches and financial audit history. For code rollback, retain the disabled non-secret configuration and secure bindings; never enable a gate to test rollback. Prior production Worker version `be9243d8-a06d-4b4a-a408-021b78990404` is retained, but lacks the new environment guard/LIVE reference configuration. Prefer the current disabled candidate until explicit activation authorization.
 
 Private refs: `online/main`, `online/stripe-first-party-2026-09-15`, `legacy/stripe-first-party-2026-09-15`. No tags/releases/visibility changes. Final evidence-only checkpoint follows the qualified code commit.
+
+
+## Resolved backend-binding closeout
+
+Owner-created deployment `fe9a1f1d-7670-43db-a1ac-e3b0c142c3e7`, version `53f9b951-082e-425f-a1a0-c1ff0e771556`, is active at 100% and supersedes the production deployment above. Inspected non-secret runtime configuration matches the prior qualified version; all three required secret binding names are present. No Codex redeployment or application changes were needed.
+
+Minimal checks only: binding-name/active-version inspection; existing production readiness/capability endpoints; disabled one-time/recurring/Job Post endpoints (503); blocked Marketplace checkout/seller onboarding routes (404); existing production environment-boundary regression (passed). Runtime test Stripe bindings are absent, the Supabase URL is production, the database reports LIVE mode, and every acquisition feature is false. Backend configuration is validated by the existing runtime's safe boolean check; database readiness is loaded through the existing read-only public RPC. No privileged write, real Checkout, payment, refund or provider operation was attempted; those remain governed by explicit activation and the first genuine transaction.
+
+Support automatic tax stays OFF and the unchanged qualified dedicated PMC excludes BNPL/installments. Recurring, Job Posts, services, sponsorship and third-party money remain OFF/HARD OFF. No settled acceptance, migration, catalog provisioning or broad audit was repeated. Remaining technical blockers: none. Next human step: Bradley explicitly authorizes one-time Support; the first genuine transaction then verifies the full receipt/payout/Canvas reconciliation chain. Municipal follow-ups remain separate owner tasks.

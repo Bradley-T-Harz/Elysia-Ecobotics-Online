@@ -1,0 +1,90 @@
+{
+  "result": "READY_FOR_ONE_TIME_SUPPORT_ACTIVATION",
+  "date": "2026-09-18",
+  "deploymentId": "fe9a1f1d-7670-43db-a1ac-e3b0c142c3e7",
+  "versionId": "53f9b951-082e-425f-a1a0-c1ff0e771556",
+  "deploymentPercentage": 100,
+  "deploymentSource": "owner encrypted-secret update",
+  "codexRedeploymentRequired": false,
+  "secretBindingNames": [
+    "STRIPE_SECRET_KEY_LIVE",
+    "STRIPE_WEBHOOK_SECRET_LIVE",
+    "SUPABASE_SERVICE_ROLE_KEY"
+  ],
+  "secretValuesInspected": false,
+  "inspectedNonSecretConfigurationUnchanged": true,
+  "productionSupabaseUrl": "https://qwmcstyfegvpzjmjrylc.supabase.co",
+  "runtimeReadiness": {
+    "mode": "disabled",
+    "credentialPresent": false,
+    "webhookSecretPresent": false,
+    "testCredentialPresent": false,
+    "testWebhookSecretPresent": false,
+    "liveCredentialPresent": true,
+    "liveWebhookSecretPresent": true,
+    "rateLimiterBound": true,
+    "economicPublicConfigured": true,
+    "economicServerConfigured": true,
+    "providerConfigured": false,
+    "oneTimeSupport": false,
+    "recurringSupport": false,
+    "organizationServiceCheckout": false,
+    "sponsorshipCheckout": false,
+    "jobPostCheckout": false,
+    "thirdPartyMoney": false
+  },
+  "databaseMode": "live",
+  "lanes": [
+    {
+      "key": "job_post_fee_enforcement",
+      "enabled": false,
+      "sandboxQualified": true,
+      "rolloutAuthorized": false,
+      "taxBehavior": "disabled"
+    },
+    {
+      "key": "organization_billing",
+      "enabled": false,
+      "sandboxQualified": false,
+      "rolloutAuthorized": false,
+      "taxBehavior": "disabled"
+    },
+    {
+      "key": "recurring_support",
+      "enabled": false,
+      "sandboxQualified": true,
+      "rolloutAuthorized": false,
+      "taxBehavior": "disabled"
+    },
+    {
+      "key": "sponsorship_checkout",
+      "enabled": false,
+      "sandboxQualified": false,
+      "rolloutAuthorized": false,
+      "taxBehavior": "disabled"
+    },
+    {
+      "key": "support_checkout",
+      "enabled": false,
+      "sandboxQualified": true,
+      "rolloutAuthorized": false,
+      "taxBehavior": "disabled"
+    }
+  ],
+  "thirdPartyStatus": "hard_off",
+  "endpointStatus": {
+    "/api/billing/provider-readiness": 200,
+    "/api/billing/capabilities": 200,
+    "/api/billing/checkout": 503,
+    "/api/billing/recurring-checkout": 503,
+    "/api/billing/job-post/checkout": 503,
+    "/api/billing/marketplace/checkout": 404,
+    "/api/billing/seller/onboarding": 404
+  },
+  "isolationRegression": "productionBillingBoundaryTest.mjs PASSED",
+  "supportAutomaticTax": "OFF; qualified implementation unchanged",
+  "supportBnpl": "EXCLUDED; qualified dedicated PMC reference unchanged",
+  "remainingTechnicalBlockers": [],
+  "liveTransactionExecuted": false,
+  "privilegedDatabaseWriteExecuted": false
+}
