@@ -1,0 +1,217 @@
+{
+  "verdict": "ONE_TIME_SUPPORT_ACTIVE \u2014 READY_FOR_FIRST_GENUINE_WEBSITE_TRANSACTION",
+  "sourceCommit": "5dd83a48755f970d562d4820b0a9684f374aaf1c",
+  "workerDeployment": {
+    "id": "1c8a450f-b92c-43a6-8e04-83b724138cc7",
+    "created_on": "2026-09-18T09:05:28.580363Z",
+    "versions": [
+      {
+        "version_id": "4e5269c9-0631-4004-95bb-fcaa6542b90e",
+        "percentage": 100
+      }
+    ]
+  },
+  "pagesDeployment": {
+    "Id": "d1c6bb47-01ef-4c48-8837-41c1e58aa13c",
+    "Environment": "Production",
+    "Branch": "main",
+    "Source": "5dd83a4",
+    "Deployment": "https://d1c6bb47.elysia-ecobotics-online.pages.dev",
+    "Status": "1 minute ago"
+  },
+  "runtime": {
+    "mode": "live",
+    "credentialPresent": true,
+    "webhookSecretPresent": true,
+    "testCredentialPresent": false,
+    "testWebhookSecretPresent": false,
+    "liveCredentialPresent": true,
+    "liveWebhookSecretPresent": true,
+    "rateLimiterBound": true,
+    "economicPublicConfigured": true,
+    "economicServerConfigured": true,
+    "providerConfigured": true,
+    "oneTimeSupport": true,
+    "recurringSupport": false,
+    "organizationServiceCheckout": false,
+    "sponsorshipCheckout": false,
+    "jobPostCheckout": false,
+    "thirdPartyMoney": false
+  },
+  "providerReadiness": {
+    "mode": "live",
+    "lanes": [
+      {
+        "key": "job_post_fee_enforcement",
+        "enabled": false,
+        "taxBehavior": "disabled",
+        "legalQualified": true,
+        "sandboxQualified": true,
+        "rolloutAuthorized": false,
+        "taxDecisionRecorded": true
+      },
+      {
+        "key": "organization_billing",
+        "enabled": false,
+        "taxBehavior": "disabled",
+        "legalQualified": false,
+        "sandboxQualified": false,
+        "rolloutAuthorized": false,
+        "taxDecisionRecorded": false
+      },
+      {
+        "key": "recurring_support",
+        "enabled": false,
+        "taxBehavior": "disabled",
+        "legalQualified": true,
+        "sandboxQualified": true,
+        "rolloutAuthorized": false,
+        "taxDecisionRecorded": true
+      },
+      {
+        "key": "sponsorship_checkout",
+        "enabled": false,
+        "taxBehavior": "disabled",
+        "legalQualified": false,
+        "sandboxQualified": false,
+        "rolloutAuthorized": false,
+        "taxDecisionRecorded": false
+      },
+      {
+        "key": "support_checkout",
+        "enabled": true,
+        "taxBehavior": "disabled",
+        "legalQualified": true,
+        "sandboxQualified": true,
+        "rolloutAuthorized": true,
+        "taxDecisionRecorded": true
+      }
+    ],
+    "scope": "first_party_account",
+    "provider": "stripe",
+    "reviewedAt": "2026-09-15",
+    "reviewStatus": "passed",
+    "lastPreflightAt": "2026-09-18T08:31:37.185526+00:00",
+    "webhookVerified": true,
+    "thirdPartyStatus": "hard_off",
+    "eventCoverageVerified": true
+  },
+  "features": {
+    "jobPostCheckout": false,
+    "oneTimeSupport": true,
+    "recurringSupport": false,
+    "customerPortal": false,
+    "accountLifecycle": false,
+    "sellerOnboarding": false,
+    "organizationServiceCheckout": false,
+    "sponsorshipCheckout": false
+  },
+  "website": {
+    "websiteStatus": 200,
+    "publication": "live",
+    "headingVisible": true,
+    "recurringDisabled": true,
+    "checkoutButtonEnabled": true,
+    "checkoutResponseStatus": 201
+  },
+  "hostedCheckout": {
+    "reusedExistingSession": true,
+    "paymentSubmitted": false,
+    "liveSession": true,
+    "reuseStatus": 201,
+    "sameSession": true,
+    "httpStatus": 200,
+    "stripeHosted": true,
+    "hostedBusinessVisible": true,
+    "hostedAmountVisible": true,
+    "hostedBnplMention": false,
+    "hostedRecurringMention": false,
+    "hostedTestModeMention": false,
+    "hostedFormVisible": true,
+    "completed": true
+  },
+  "database": {
+    "enabledFlags": [
+      "economic_webhooks",
+      "live_stripe",
+      "sandbox_credit_display",
+      "sandbox_credit_enforcement",
+      "support_checkout",
+      "test_refund_execution"
+    ],
+    "orders": [
+      {
+        "currency": "usd",
+        "environment": "live",
+        "expiresAt": "2026-09-18T09:47:23.04077+00:00",
+        "failureCode": null,
+        "flow": "support_one_time",
+        "paidAt": null,
+        "provider": "stripe",
+        "status": "checkout_created",
+        "totalMinor": 500,
+        "liveSession": true
+      }
+    ],
+    "ownerAuthorizationRecorded": true,
+    "payments": 0
+  },
+  "negativeChecks": {
+    "job-post/checkout": {
+      "status": 503,
+      "error": "job_post_fees_disabled"
+    },
+    "marketplace/checkout": {
+      "status": 404,
+      "error": "billing_route_not_found"
+    },
+    "seller/onboarding": {
+      "status": 404,
+      "error": "billing_route_not_found"
+    },
+    "webhook": {
+      "status": 400,
+      "error": "webhook_signature_invalid"
+    },
+    "recurring-checkout": {
+      "status": 503,
+      "error": "recurring_support_disabled"
+    },
+    "organizations/checkout": {
+      "status": 503,
+      "error": "organization_services_disabled"
+    },
+    "sponsorships/checkout": {
+      "status": 503,
+      "error": "sponsorship_checkout_disabled"
+    }
+  },
+  "providerContract": {
+    "account": "acct_1TtlldRvM2Bq0oxr",
+    "paymentMethodConfiguration": "pmc_1UGvJxRvM2Bq0oxr8HfbeXeh",
+    "apiVersion": "2025-02-24.acacia",
+    "mode": "payment",
+    "automaticTaxEnabled": false,
+    "dynamicMethods": true,
+    "bnplExcluded": true,
+    "amountMinor": 500,
+    "currency": "usd",
+    "lane": "support_one_time",
+    "verificationBasis": "Successful LIVE adapter execution verified account and dedicated PMC policy before creating the session; qualified adapter sends mode=payment, automatic_tax[enabled]=false and database-authoritative price_data. Hosted page and canonical order matched. No privileged provider Session GET was performed."
+  },
+  "checks": [
+    "oneTimeSupportActivationTest: passed",
+    "productionBillingBoundaryTest: passed",
+    "typecheck:functions: passed",
+    "production Pages build and auth/public-config artifact verification: passed",
+    "production capabilities/readiness: passed",
+    "website creation: 201; same-session reuse: 201",
+    "hosted LIVE Checkout inspection: passed",
+    "canonical owner authorization and one unpaid order, zero payments: passed",
+    "closed lanes and unsigned webhook rejection: passed"
+  ],
+  "newMigrations": [],
+  "paymentSubmitted": false,
+  "firstLivePaymentWebhookVerified": false,
+  "payoutOrCanvasDepositVerified": false
+}

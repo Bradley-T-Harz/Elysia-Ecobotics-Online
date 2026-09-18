@@ -1,5 +1,7 @@
 # Production readiness — 2026-09-18
 
+> Historical pre-activation snapshot. Superseded for current gate/deployment state by [owner-authorized one-time Support activation](../stripe-one-time-support-activation-2026-09-18/README.md). One-time Support is now ON; all other acquisition remains OFF.
+
 **READY_FOR_ONE_TIME_SUPPORT_ACTIVATION.** The owner securely added `SUPABASE_SERVICE_ROLE_KEY`. Its name is present in the active production version; the existing runtime reports `economicServerConfigured=true`, `economicPublicConfigured=true`, and successfully loads the LIVE database readiness record. No credential value was retrieved, copied or exposed. No new application deployment was necessary. All acquisition remains OFF pending explicit authorization. See [binding closeout](binding-closeout.json).
 
 ## Completed
