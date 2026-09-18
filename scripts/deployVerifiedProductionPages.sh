@@ -36,6 +36,7 @@ lifecycle_turnstile_site_key="${VITE_TURNSTILE_SITE_KEY:-}"
 
 node scripts/authProductionRelease.mjs validate-environment
 node scripts/authProductionRelease.mjs verify
+node --input-type=module -e 'import fs from "node:fs"; if (!fs.readFileSync("dist/index.html", "utf8").includes(`name="elysia-billing-api-publication" content="live"`)) throw new Error("production_billing_publication_missing");'
 wrangler_bin="$repository_root/node_modules/.bin/wrangler"
 [[ -x "$wrangler_bin" ]] || {
   echo "Production Pages deploy failed: verified_wrangler_executable_missing" >&2

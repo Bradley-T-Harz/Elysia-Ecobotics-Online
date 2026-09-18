@@ -1,4 +1,4 @@
-// Disabled production candidate. Permanent secret values are never stored here.
+// Owner-authorized one-time Support only. Permanent secrets remain runtime bindings.
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "elysia-first-party-billing",
@@ -28,12 +28,13 @@
     }
   },
   "ratelimits": [{ "name": "BILLING_MUTATION_RATE_LIMITER", "namespace_id": "2026091601", "simple": { "limit": 60, "period": 60 } }],
+  "triggers": { "crons": ["*/5 * * * *"] },
   "vars": {
-    "BILLING_ENABLED": "false",
-    "BILLING_SUPPORT_CHECKOUT_ENABLED": "false",
+    "BILLING_ENABLED": "true",
+    "BILLING_SUPPORT_CHECKOUT_ENABLED": "true",
     "BILLING_RECURRING_ENABLED": "false",
-    "BILLING_WEBHOOK_FULFILLMENT_ENABLED": "false",
-    "BILLING_NOTIFICATION_RETRY_ENABLED": "false",
+    "BILLING_WEBHOOK_FULFILLMENT_ENABLED": "true",
+    "BILLING_NOTIFICATION_RETRY_ENABLED": "true",
     "BILLING_PORTAL_ENABLED": "false",
     "BILLING_SELLER_ONBOARDING_ENABLED": "false",
     "BILLING_JOB_POST_FEES_ENABLED": "false",
@@ -48,13 +49,13 @@
     "BILLING_SUPPORT_RECOGNITION_ENABLED": "false",
     "BILLING_ACCOUNT_LIFECYCLE_ENABLED": "false",
     "BILLING_ACCOUNTING_EXPORT_ENABLED": "false",
-    "BILLING_TEST_REFUNDS_ENABLED": "false",
+    "BILLING_TEST_REFUNDS_ENABLED": "true",
     "BILLING_STAGING_ACCESS_CONFIRMED": "false",
-    "BILLING_EDGE_RATE_LIMIT_CONFIRMED": "false",
-    "BILLING_FIRST_PARTY_PREFLIGHT_CONFIRMED": "false",
+    "BILLING_EDGE_RATE_LIMIT_CONFIRMED": "true",
+    "BILLING_FIRST_PARTY_PREFLIGHT_CONFIRMED": "true",
     "STRIPE_CONNECT_ENABLED": "false",
-    "STRIPE_LIVE_ENABLED": "false",
-    "BILLING_MODE": "disabled",
+    "STRIPE_LIVE_ENABLED": "true",
+    "BILLING_MODE": "live",
     "BILLING_PUBLIC_ORIGIN": "https://elysiaecobotics.com",
     "STRIPE_ACCOUNT_ID": "acct_1TtlldRvM2Bq0oxr",
     "STRIPE_PORTAL_CONFIGURATION_ID": "bpc_1UGvK1RvM2Bq0oxrTnpyvumA",

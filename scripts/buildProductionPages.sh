@@ -49,12 +49,14 @@ lifecycle_turnstile_site_key="${VITE_TURNSTILE_SITE_KEY:-}"
 
 node scripts/authProductionRelease.mjs validate-environment
 
+VITE_BILLING_API_PUBLICATION=live \
 VITE_AUTH_CAPTCHA_MODE=required \
 VITE_AUTH_TURNSTILE_SITE_KEY=0x4AAAAAAECNSZYyGXT8LPJC \
 VITE_TURNSTILE_SITE_KEY="$lifecycle_turnstile_site_key" \
   npm run build
 VITE_TURNSTILE_SITE_KEY="$lifecycle_turnstile_site_key" \
   node scripts/authProductionRelease.mjs verify
+node --input-type=module -e 'import fs from "node:fs"; if (!fs.readFileSync("dist/index.html", "utf8").includes(`name="elysia-billing-api-publication" content="live"`)) throw new Error("production_billing_publication_missing");'
 
 if [[ "$allow_dirty" == true ]]; then
   echo "Local dirty-tree verification only; this artifact is not authorized for production upload."

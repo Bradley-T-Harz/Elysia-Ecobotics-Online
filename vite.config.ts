@@ -6,10 +6,20 @@ import react from "@vitejs/plugin-react";
 // otherwise valid content-hashed JavaScript URLs with an immutable TTL.
 const browserAssetNamespace = "safe-assets-v1";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   // Isolated readiness builds must never read real .env files into a preview.
   envDir: (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.ELYSIA_ISOLATED_TEST === "1" ? false : undefined,
-  plugins: [react()],
+  plugins: [react(), {
+    name: "production-billing-publication",
+    transformIndexHtml(html) {
+      // Explicit production release setting only; sandbox/dev stay unpublished.
+      const env = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env;
+      if (mode !== "production" || env?.VITE_BILLING_API_PUBLICATION !== "live") return html;
+      if (env.VITE_SUPABASE_URL !== "https://qwmcstyfegvpzjmjrylc.supabase.co"
+        || env.VITE_ELYSIA_ENVIRONMENT === "sandbox") throw new Error("billing_publication_environment_mismatch");
+      return html.replace('name="elysia-billing-api-publication" content="disabled"', 'name="elysia-billing-api-publication" content="live"');
+    }
+  }],
   build: {
     // Vite exposes one warning threshold, while the local Monaco core has a
     // separately enforced raw/gzip budget and must remain demand-loaded.
@@ -40,4 +50,4 @@ export default defineConfig({
       }
     }
   }
-});
+}));
