@@ -1,0 +1,18 @@
+{
+  "source": "owner_attestation_2026-09-18",
+  "configurationChecksPassed": true,
+  "account": "acct_1TtlldRvM2Bq0oxr",
+  "mode": "live",
+  "apiVersion": "2025-02-24.acacia",
+  "exactWebhookEvents": 20,
+  "webhookUrl": "https://elysiaecobotics.com/api/billing/webhook",
+  "productsVerified": 3,
+  "pricesVerified": 5,
+  "portalVerified": true,
+  "paymentMethodConfigurationVerified": true,
+  "chargesEnabled": true,
+  "payoutsEnabled": true,
+  "enabledLanes": [],
+  "liveActivationAuthorized": false,
+  "sandboxQualification": "PASSED"
+}

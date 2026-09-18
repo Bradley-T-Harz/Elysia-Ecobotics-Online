@@ -1,0 +1,69 @@
+[
+  {
+    "production_readiness": {
+      "enabledFlags": [
+        "sandbox_credit_display",
+        "sandbox_credit_enforcement"
+      ],
+      "liveCatalogRows": 7,
+      "readiness": {
+        "eventCoverageVerified": true,
+        "lanes": [
+          {
+            "enabled": false,
+            "key": "job_post_fee_enforcement",
+            "legalQualified": true,
+            "rolloutAuthorized": false,
+            "sandboxQualified": true,
+            "taxBehavior": "disabled",
+            "taxDecisionRecorded": true
+          },
+          {
+            "enabled": false,
+            "key": "organization_billing",
+            "legalQualified": false,
+            "rolloutAuthorized": false,
+            "sandboxQualified": false,
+            "taxBehavior": "disabled",
+            "taxDecisionRecorded": false
+          },
+          {
+            "enabled": false,
+            "key": "recurring_support",
+            "legalQualified": true,
+            "rolloutAuthorized": false,
+            "sandboxQualified": true,
+            "taxBehavior": "disabled",
+            "taxDecisionRecorded": true
+          },
+          {
+            "enabled": false,
+            "key": "sponsorship_checkout",
+            "legalQualified": false,
+            "rolloutAuthorized": false,
+            "sandboxQualified": false,
+            "taxBehavior": "disabled",
+            "taxDecisionRecorded": false
+          },
+          {
+            "enabled": false,
+            "key": "support_checkout",
+            "legalQualified": true,
+            "rolloutAuthorized": false,
+            "sandboxQualified": true,
+            "taxBehavior": "disabled",
+            "taxDecisionRecorded": true
+          }
+        ],
+        "lastPreflightAt": "2026-09-18T08:31:37.185526+00:00",
+        "mode": "live",
+        "provider": "stripe",
+        "reviewStatus": "passed",
+        "reviewedAt": "2026-09-15",
+        "scope": "first_party_account",
+        "thirdPartyStatus": "hard_off",
+        "webhookVerified": true
+      }
+    }
+  }
+]

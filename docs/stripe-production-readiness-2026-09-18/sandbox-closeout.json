@@ -1,0 +1,62 @@
+[
+  {
+    "sandbox_readiness": {
+      "eventCoverageVerified": true,
+      "lanes": [
+        {
+          "enabled": false,
+          "key": "job_post_fee_enforcement",
+          "legalQualified": false,
+          "rolloutAuthorized": false,
+          "sandboxQualified": true,
+          "taxBehavior": "disabled",
+          "taxDecisionRecorded": false
+        },
+        {
+          "enabled": false,
+          "key": "organization_billing",
+          "legalQualified": false,
+          "rolloutAuthorized": false,
+          "sandboxQualified": false,
+          "taxBehavior": "disabled",
+          "taxDecisionRecorded": false
+        },
+        {
+          "enabled": false,
+          "key": "recurring_support",
+          "legalQualified": false,
+          "rolloutAuthorized": false,
+          "sandboxQualified": true,
+          "taxBehavior": "disabled",
+          "taxDecisionRecorded": false
+        },
+        {
+          "enabled": false,
+          "key": "sponsorship_checkout",
+          "legalQualified": false,
+          "rolloutAuthorized": false,
+          "sandboxQualified": false,
+          "taxBehavior": "disabled",
+          "taxDecisionRecorded": false
+        },
+        {
+          "enabled": false,
+          "key": "support_checkout",
+          "legalQualified": false,
+          "rolloutAuthorized": false,
+          "sandboxQualified": true,
+          "taxBehavior": "disabled",
+          "taxDecisionRecorded": false
+        }
+      ],
+      "lastPreflightAt": "2026-09-18T08:32:17.170948+00:00",
+      "mode": "test",
+      "provider": "stripe",
+      "reviewStatus": "passed",
+      "reviewedAt": "2026-09-15",
+      "scope": "first_party_account",
+      "thirdPartyStatus": "hard_off",
+      "webhookVerified": true
+    }
+  }
+]

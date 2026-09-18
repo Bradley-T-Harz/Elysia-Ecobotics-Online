@@ -2,7 +2,7 @@
 
 Scope: isolated Supabase `kdtqyxlrkpmlpupzgmwv`, Stripe sandbox `acct_1UGdHORrIWWoUVPh`, billing Worker `elysia-first-party-billing-sandbox`. Protected UI origin: https://elysia-ecobotics-online-sandbox.bradleytharz3407.workers.dev. Production, Access policies, free creator workflows, public releases and live credentials were not changed.
 
-**Status: BLOCKED — canonical webhook-configuration preflight requires the owner-held setup key; runtime correctly returns HTTP 403.** All executed payment acceptance cases below passed.
+**Status: STRIPE_SANDBOX_ACCEPTANCE_PASSED.** Owner GET-only preflight subsequently passed; see [September 18 closeout](../stripe-production-readiness-2026-09-18/sandbox-closeout.json). Prior acceptance results remain authoritative; no provider acceptance was repeated.
 
 ## Provider verification
 
@@ -10,7 +10,7 @@ Scope: isolated Supabase `kdtqyxlrkpmlpupzgmwv`, Stripe sandbox `acct_1UGdHORrIW
 
 The hosted USD Checkout offered card, Cash App, WeChat Pay and US bank account. Dynamic eligibility remains provider-controlled. The dedicated configuration excludes BNPL, crypto and OXXO. See [provider inspection](provider-inspection.json).
 
-**Preflight gap:** `GET /v1/webhook_endpoints` returns HTTP 403 with the intentionally restricted runtime key. Bradley attested the exact 20-event account endpoint and Acacia version; this execution independently proved signed deliveries and pinned-version parsing, but cannot certify endpoint configuration through the canonical GET-only preflight. Do not expand runtime permissions or disclose the setup key.
+**Resolved historical preflight gap:** `GET /v1/webhook_endpoints` returns HTTP 403 with the intentionally restricted runtime key. Bradley attested the exact 20-event account endpoint and Acacia version; this execution independently proved signed deliveries and pinned-version parsing, but cannot certify endpoint configuration through the canonical GET-only preflight. Do not expand runtime permissions or disclose the setup key.
 
 ## Acceptance evidence
 
@@ -53,9 +53,9 @@ Use the isolated Supabase CLI workdir `/tmp/elysia-stripe-sandbox-kdtqyxlrkpmlpu
 
 The safe-state procedure is [restore-safe-state.sql](restore-safe-state.sql), followed by deployment of the committed disabled sandbox Worker config. Never roll back to an acceptance version with flags enabled. Preserve financial/audit history; hide the synthetic Job Post, revoke fixture operator permissions and expire abandoned unpaid test Checkouts. The test subscription is scheduled to cancel; its initial period remains active. The test dispute remains evidence, not a live dispute.
 
-## Remaining human-only preflight
+## Completed owner-only preflight (historical command)
 
-Using the **existing** provisioning credential already saved in Bitwarden, inject `STRIPE_PROVISIONING_KEY_TEST` into a trusted local process using the same secure mechanism used for provisioning. Do not paste it into Codex, command arguments, files or logs. Run the existing GET-only command below and share only the non-secret result:
+This check is complete; do not rerun for sandbox closeout. The original procedure used the **existing** provisioning credential already saved in Bitwarden. Inject `STRIPE_PROVISIONING_KEY_TEST` into a trusted local process using the same secure mechanism used for provisioning. Do not paste it into Codex, command arguments, files or logs. Run the existing GET-only command below and share only the non-secret result:
 
 ```sh
 BILLING_MODE=test \
@@ -91,3 +91,5 @@ Private checkpoints (all pushed):
 - `ef6baa94530690943081ca6c838da438cb0104a2` Record real Stripe sandbox payment and async acceptance evidence
 
 Approved private refs: `online/main`, `online/stripe-first-party-2026-09-15` (Elysia-Ecobotics-Online), and `legacy/stripe-first-party-2026-09-15` (elysia-marketplace). The final evidence-only commit follows the qualified code candidate. Legacy main, tags, releases and visibility were preserved.
+
+September 18 closeout records webhook/event coverage and sandbox qualification for one-time Support, recurring Support and commercial Job Posts. Organization/service and sponsorship remain engagement-specific and unqualified for generic checkout. Every acquisition flag remains OFF. Temporary Access reason logging was removed; generic denial and cryptographic verification remain intact.

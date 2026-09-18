@@ -1,0 +1,5 @@
+[
+  {
+    "result": "PASSED: production context isolation, acquisition kills and patched RPC privileges"
+  }
+]

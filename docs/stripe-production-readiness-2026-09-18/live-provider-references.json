@@ -1,0 +1,60 @@
+{
+  "mode": "live",
+  "account": "acct_1TtlldRvM2Bq0oxr",
+  "dryRun": false,
+  "portalConfigurationId": "bpc_1UGvK1RvM2Bq0oxrTnpyvumA",
+  "paymentMethodConfigurationId": "pmc_1UGvJxRvM2Bq0oxr8HfbeXeh",
+  "paymentMethodDefaultConfigurationId": "pmc_1TtlmERvM2Bq0oxrKxAhR8M2",
+  "enabledLanes": [],
+  "rows": [
+    {
+      "mode": "live",
+      "productKey": "support_one_time",
+      "priceCode": null,
+      "providerProductReference": "prod_elysialivesupportonetime20260915",
+      "providerPriceReference": null
+    },
+    {
+      "mode": "live",
+      "productKey": "support_recurring",
+      "priceCode": "support_monthly_seed_usd",
+      "providerProductReference": "prod_elysialivesupportrecurring20260915",
+      "providerPriceReference": "price_1UGvJyRvM2Bq0oxrLKVXOTYI"
+    },
+    {
+      "mode": "live",
+      "productKey": "support_recurring",
+      "priceCode": "support_monthly_commons_usd",
+      "providerProductReference": "prod_elysialivesupportrecurring20260915",
+      "providerPriceReference": "price_1UGvJzRvM2Bq0oxrpvAFzD1a"
+    },
+    {
+      "mode": "live",
+      "productKey": "support_recurring",
+      "priceCode": "support_monthly_infrastructure_usd",
+      "providerProductReference": "prod_elysialivesupportrecurring20260915",
+      "providerPriceReference": "price_1UGvJzRvM2Bq0oxr0KzzABXI"
+    },
+    {
+      "mode": "live",
+      "productKey": "support_recurring",
+      "priceCode": "support_monthly_sandbox_usd",
+      "providerProductReference": "prod_elysialivesupportrecurring20260915",
+      "providerPriceReference": "price_1UGvK0RvM2Bq0oxrwEoDiySe"
+    },
+    {
+      "mode": "live",
+      "productKey": "support_recurring",
+      "priceCode": "support_monthly_50_usd",
+      "providerProductReference": "prod_elysialivesupportrecurring20260915",
+      "providerPriceReference": "price_1UGvK0RvM2Bq0oxryyZBQHsc"
+    },
+    {
+      "mode": "live",
+      "productKey": "job_post_fee",
+      "priceCode": null,
+      "providerProductReference": "prod_elysialivejobpostfee20260915",
+      "providerPriceReference": null
+    }
+  ]
+}

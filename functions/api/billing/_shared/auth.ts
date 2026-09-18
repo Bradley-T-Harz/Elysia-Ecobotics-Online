@@ -9,7 +9,7 @@ function requiredValue(value: string | undefined, minimum = 1): string {
   return value;
 }
 
-function requiredSupabaseUrl(value: string | undefined): string {
+function requiredSupabaseUrl(value: string | undefined, env: BillingEnv): string {
   const configured = requiredValue(value);
   let url: URL;
   try { url = new URL(configured); }
@@ -26,6 +26,11 @@ function requiredSupabaseUrl(value: string | undefined): string {
     || url.search
     || url.hash
   ) throw new BillingHttpError(503, "billing_misconfigured");
+  const production = "https://qwmcstyfegvpzjmjrylc.supabase.co";
+  if ((env.BILLING_MODE === "live" && url.origin !== production)
+    || (env.BILLING_MODE === "test" && url.origin === production)) {
+    throw new BillingHttpError(503, "billing_database_environment_mismatch");
+  }
   return url.origin;
 }
 
@@ -57,7 +62,7 @@ function requiredPublishableKey(env: BillingEnv): string {
 
 export function economicPublicClientConfigured(env: BillingEnv): boolean {
   try {
-    requiredSupabaseUrl(env.SUPABASE_URL);
+    requiredSupabaseUrl(env.SUPABASE_URL, env);
     requiredPublishableKey(env);
     return true;
   } catch {
@@ -80,7 +85,7 @@ function requiredServiceRoleKey(env: BillingEnv): string {
 
 export function economicServerClientConfigured(env: BillingEnv): boolean {
   try {
-    requiredSupabaseUrl(env.SUPABASE_URL);
+    requiredSupabaseUrl(env.SUPABASE_URL, env);
     requiredServiceRoleKey(env);
     return true;
   } catch {
@@ -106,7 +111,7 @@ export async function authenticateOptional(request: Request, env: BillingEnv): P
   }
   const accessToken = authorization.slice(7);
   if (!accessToken || /[\s,]/.test(accessToken)) throw new BillingHttpError(401, "authentication_invalid");
-  const supabaseUrl = requiredSupabaseUrl(env.SUPABASE_URL);
+  const supabaseUrl = requiredSupabaseUrl(env.SUPABASE_URL, env);
   const publishableKey = requiredPublishableKey(env);
   const supabase = client(supabaseUrl, publishableKey, `Bearer ${accessToken}`);
   const { data, error } = await supabase.auth.getUser(accessToken);
@@ -139,13 +144,13 @@ export async function authenticateRequired(request: Request, env: BillingEnv): P
 }
 
 export function createEconomicServerClient(env: BillingEnv): SupabaseClient {
-  const supabaseUrl = requiredSupabaseUrl(env.SUPABASE_URL);
+  const supabaseUrl = requiredSupabaseUrl(env.SUPABASE_URL, env);
   const serviceRoleKey = requiredServiceRoleKey(env);
   return client(supabaseUrl, serviceRoleKey, undefined, { "x-elysia-billing-mode": env.BILLING_MODE ?? "disabled", "x-elysia-stripe-account": env.STRIPE_ACCOUNT_ID ?? "" });
 }
 
 export function createEconomicPublicClient(env: BillingEnv): SupabaseClient {
-  const supabaseUrl = requiredSupabaseUrl(env.SUPABASE_URL);
+  const supabaseUrl = requiredSupabaseUrl(env.SUPABASE_URL, env);
   const publishableKey = requiredPublishableKey(env);
   return client(supabaseUrl, publishableKey);
 }

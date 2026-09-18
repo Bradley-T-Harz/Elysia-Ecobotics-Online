@@ -1,5 +1,5 @@
 import { handleIdentityProxy } from "../../functions/api/identity/[[path]].ts";
-import { sandboxAccessAllowed, sandboxAccessDenied, isSandboxWebhook, reportSandboxAccessReason } from "./access.ts";
+import { sandboxAccessAllowed, sandboxAccessDenied, isSandboxWebhook } from "./access.ts";
 
 export function sandboxResponse(response: Response): Response {
   const headers = new Headers(response.headers);
@@ -15,7 +15,6 @@ export function sandboxResponse(response: Response): Response {
 export async function handleSandboxUi(request: Request, env: SandboxUiBindings): Promise<Response> {
   const url = new URL(request.url);
   if (url.origin !== env.SANDBOX_UI_ORIGIN || env.SUPABASE_URL !== "https://kdtqyxlrkpmlpupzgmwv.supabase.co") {
-    reportSandboxAccessReason("access_config_invalid");
     return sandboxAccessDenied();
   }
   // Only exact POST webhook is exempt. The existing backend still verifies

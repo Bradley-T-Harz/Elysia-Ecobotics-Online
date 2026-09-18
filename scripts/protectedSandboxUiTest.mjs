@@ -55,12 +55,8 @@ try {
  const unavailable=await handleSandboxUi(new Request(origin,{headers}),env);
  assert.equal(unavailable.status,403);
  assert.equal(await unavailable.text(),'Sandbox authentication is required. Access setup may still be pending.');
- const reasons=new Set(['access_config_invalid','access_assertion_missing','access_assertion_malformed','access_claims_invalid','access_jwks_unavailable','access_jwks_invalid','access_kid_not_found','access_signature_invalid','access_verified']);
- const diagnostics=logs.filter(args=>typeof args[0]==='string'&&args[0].startsWith('{"reason":'));
- assert(diagnostics.length>0);
- for(const args of diagnostics){assert.equal(args.length,1);const entry=JSON.parse(args[0]);assert.deepEqual(Object.keys(entry),['reason']);assert(reasons.has(entry.reason));}
- assert.equal(JSON.parse(diagnostics.at(-1)[0]).reason,'access_jwks_unavailable');
+ assert.deepEqual(logs,[], 'Access success and failure paths must not emit temporary diagnostics');
  const serialized=JSON.stringify(logs);
  assert(!serialized.includes('SENSITIVE_'));assert(!serialized.includes('bradley@example.invalid'));assert(!serialized.includes(headers['cf-access-jwt-assertion']));assert(!serialized.includes(jwk.n));
- originalLog('Protected sandbox: Access verification, generic denial, fixed safe structured reasons, no sensitive logs, webhook exemption and closed billing gates passed.');
+ originalLog('Protected sandbox: Access verification, generic denial, no Access diagnostic logging, webhook exemption and closed billing gates passed.');
 } finally {globalThis.fetch=originalFetch;console.log=originalLog;clearAccessJwksCacheForTests();}
