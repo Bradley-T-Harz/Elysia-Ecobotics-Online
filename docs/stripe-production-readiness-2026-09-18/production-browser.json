@@ -1,0 +1,15 @@
+{
+  "/support": {
+    "status": 200,
+    "expectedHeading": true,
+    "billingPublication": "disabled"
+  },
+  "/legal/privacy-policy": {
+    "status": 200,
+    "expectedHeading": true
+  },
+  "/legal/terms-of-use": {
+    "status": 200,
+    "expectedHeading": true
+  }
+}

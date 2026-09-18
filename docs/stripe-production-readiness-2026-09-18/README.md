@@ -48,3 +48,18 @@ The first genuine website transaction must establish: Checkout → signed LIVE e
 ## Deployment
 
 Deployment IDs and final safe smoke results are recorded in the adjacent evidence files after deployment. Production frontend assets were not changed by this pass; only the affected billing backend is redeployed. Both sandbox UI and billing import the changed Access helper and are redeployed with acquisition OFF.
+
+
+Final qualified code commit: `583ab5e`.
+
+| Component | Deployment ID | Version ID |
+|---|---|---|
+| Production billing | `c4ed1b97-e8c9-4022-9069-df3000d7c193` | `47a08df4-8fbb-470d-b4b8-96cd1ff76009` |
+| Sandbox billing | `6198e39c-da66-4b69-b4e1-388ee8711254` | `654388d3-6221-4d89-8d64-8de13afba0f0` |
+| Protected sandbox UI | `afea48a3-f7b0-4aab-92bd-13c9794533ab` | `babb4913-6231-4fad-b29b-deb95d018bb3` |
+
+Post-deploy native metadata confirms exact versions at 100%, LIVE account/Portal/PMC IDs, pinned API, production Supabase URL, rate-limit binding, all enabled/confirmation flags false, and only the two LIVE Stripe secret binding names present. Production readiness/capabilities return 200; one-time/recurring/Job Post creation each return 503 with acquisition OFF. Browser confirms Support and both general legal pages render; public billing remains disabled. Production final ledger has 76 migrations, both patched function bodies confirmed, seven live catalog rows, no active test catalog, zero payments and no rollout authorization.
+
+Rollback: preserve the qualified database patches and financial audit history. For code rollback, retain the disabled non-secret configuration and secure bindings; never enable a gate to test rollback. Prior production Worker version `be9243d8-a06d-4b4a-a408-021b78990404` is retained, but lacks the new environment guard/LIVE reference configuration. Prefer the current disabled candidate while resolving the missing backend binding.
+
+Private refs: `online/main`, `online/stripe-first-party-2026-09-15`, `legacy/stripe-first-party-2026-09-15`. No tags/releases/visibility changes. Final evidence-only checkpoint follows the qualified code commit.

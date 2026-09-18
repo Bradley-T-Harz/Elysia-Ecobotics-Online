@@ -1,0 +1,127 @@
+{
+  "/api/billing/provider-readiness": {
+    "status": 200,
+    "body": {
+      "ok": true,
+      "provider": {
+        "mode": "live",
+        "lanes": [
+          {
+            "key": "job_post_fee_enforcement",
+            "enabled": false,
+            "taxBehavior": "disabled",
+            "legalQualified": true,
+            "sandboxQualified": true,
+            "rolloutAuthorized": false,
+            "taxDecisionRecorded": true
+          },
+          {
+            "key": "organization_billing",
+            "enabled": false,
+            "taxBehavior": "disabled",
+            "legalQualified": false,
+            "sandboxQualified": false,
+            "rolloutAuthorized": false,
+            "taxDecisionRecorded": false
+          },
+          {
+            "key": "recurring_support",
+            "enabled": false,
+            "taxBehavior": "disabled",
+            "legalQualified": true,
+            "sandboxQualified": true,
+            "rolloutAuthorized": false,
+            "taxDecisionRecorded": true
+          },
+          {
+            "key": "sponsorship_checkout",
+            "enabled": false,
+            "taxBehavior": "disabled",
+            "legalQualified": false,
+            "sandboxQualified": false,
+            "rolloutAuthorized": false,
+            "taxDecisionRecorded": false
+          },
+          {
+            "key": "support_checkout",
+            "enabled": false,
+            "taxBehavior": "disabled",
+            "legalQualified": true,
+            "sandboxQualified": true,
+            "rolloutAuthorized": false,
+            "taxDecisionRecorded": true
+          }
+        ],
+        "scope": "first_party_account",
+        "provider": "stripe",
+        "reviewedAt": "2026-09-15",
+        "reviewStatus": "passed",
+        "lastPreflightAt": "2026-09-18T08:31:37.185526+00:00",
+        "webhookVerified": true,
+        "thirdPartyStatus": "hard_off",
+        "eventCoverageVerified": true
+      },
+      "runtime": {
+        "mode": "disabled",
+        "credentialPresent": false,
+        "webhookSecretPresent": false,
+        "testCredentialPresent": false,
+        "testWebhookSecretPresent": false,
+        "liveCredentialPresent": true,
+        "liveWebhookSecretPresent": true,
+        "rateLimiterBound": true,
+        "economicPublicConfigured": true,
+        "economicServerConfigured": false,
+        "providerConfigured": false,
+        "oneTimeSupport": false,
+        "recurringSupport": false,
+        "organizationServiceCheckout": false,
+        "sponsorshipCheckout": false,
+        "jobPostCheckout": false,
+        "thirdPartyMoney": false
+      }
+    }
+  },
+  "/api/billing/capabilities": {
+    "status": 200,
+    "body": {
+      "ok": true,
+      "mode": "disabled",
+      "livePayments": false,
+      "processor": "stripe",
+      "features": {
+        "jobPostCheckout": false,
+        "oneTimeSupport": false,
+        "recurringSupport": false,
+        "customerPortal": false,
+        "accountLifecycle": false,
+        "sellerOnboarding": false,
+        "organizationServiceCheckout": false,
+        "sponsorshipCheckout": false
+      },
+      "legalDocumentVersions": null,
+      "legalConsentBundles": null
+    }
+  },
+  "/api/billing/checkout": {
+    "status": 503,
+    "body": {
+      "ok": false,
+      "error": "billing_live_preflight_required"
+    }
+  },
+  "/api/billing/recurring-checkout": {
+    "status": 503,
+    "body": {
+      "ok": false,
+      "error": "billing_live_preflight_required"
+    }
+  },
+  "/api/billing/job-post/checkout": {
+    "status": 503,
+    "body": {
+      "ok": false,
+      "error": "billing_live_preflight_required"
+    }
+  }
+}

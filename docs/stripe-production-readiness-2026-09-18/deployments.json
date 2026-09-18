@@ -1,0 +1,71 @@
+{
+  "wrangler.billing.production.jsonc": {
+    "id": "c4ed1b97-e8c9-4022-9069-df3000d7c193",
+    "created_on": "2026-09-18T08:39:00.595829Z",
+    "versions": [
+      {
+        "version_id": "47a08df4-8fbb-470d-b4b8-96cd1ff76009",
+        "percentage": 100
+      }
+    ],
+    "vars": {
+      "BILLING_ACCOUNTING_EXPORT_ENABLED": "false",
+      "BILLING_ACCOUNT_LIFECYCLE_ENABLED": "false",
+      "BILLING_ASSISTANCE_ADMIN_ENABLED": "false",
+      "BILLING_EDGE_RATE_LIMIT_CONFIRMED": "false",
+      "BILLING_ENABLED": "false",
+      "BILLING_FIRST_PARTY_PREFLIGHT_CONFIRMED": "false",
+      "BILLING_JOB_POST_FEES_ENABLED": "false",
+      "BILLING_MARKETPLACE_COMMERCE_ENABLED": "false",
+      "BILLING_MARKETPLACE_PAYOUT_PREPARATION_ENABLED": "false",
+      "BILLING_MODE": "disabled",
+      "BILLING_NOTIFICATION_RETRY_ENABLED": "false",
+      "BILLING_ORGANIZATION_SERVICES_ENABLED": "false",
+      "BILLING_PORTAL_ENABLED": "false",
+      "BILLING_RECURRING_ENABLED": "false",
+      "BILLING_SANDBOX_PURCHASES_ENABLED": "false",
+      "BILLING_SELLER_ONBOARDING_ENABLED": "false",
+      "BILLING_SPONSORSHIP_ADMIN_ENABLED": "false",
+      "BILLING_SPONSORSHIP_CHECKOUT_ENABLED": "false",
+      "BILLING_SPONSORSHIP_RECOGNITION_ENABLED": "false",
+      "BILLING_STAGING_ACCESS_CONFIRMED": "false",
+      "BILLING_SUPPORT_CHECKOUT_ENABLED": "false",
+      "BILLING_SUPPORT_RECOGNITION_ENABLED": "false",
+      "BILLING_TEST_REFUNDS_ENABLED": "false",
+      "BILLING_WEBHOOK_FULFILLMENT_ENABLED": "false",
+      "STRIPE_ACCOUNT_ID": "acct_1TtlldRvM2Bq0oxr",
+      "STRIPE_API_VERSION": "2025-02-24.acacia",
+      "STRIPE_CONNECT_ENABLED": "false",
+      "STRIPE_LIVE_ENABLED": "false",
+      "STRIPE_PAYMENT_METHOD_CONFIGURATION_ID": "pmc_1UGvJxRvM2Bq0oxr8HfbeXeh",
+      "STRIPE_PORTAL_CONFIGURATION_ID": "bpc_1UGvK1RvM2Bq0oxrTnpyvumA",
+      "STRIPE_WEBHOOK_API_VERSION": "2025-02-24.acacia",
+      "SUPABASE_URL": "https://qwmcstyfegvpzjmjrylc.supabase.co"
+    },
+    "secretBindingNames": [
+      "STRIPE_SECRET_KEY_LIVE",
+      "STRIPE_WEBHOOK_SECRET_LIVE"
+    ],
+    "rateLimitBindingPresent": true
+  },
+  "wrangler.billing.sandbox.jsonc": {
+    "id": "6198e39c-da66-4b69-b4e1-388ee8711254",
+    "created_on": "2026-09-18T08:39:20.191332Z",
+    "versions": [
+      {
+        "version_id": "654388d3-6221-4d89-8d64-8de13afba0f0",
+        "percentage": 100
+      }
+    ]
+  },
+  "wrangler.ui.sandbox.jsonc": {
+    "id": "afea48a3-f7b0-4aab-92bd-13c9794533ab",
+    "created_on": "2026-09-18T08:39:37.954097Z",
+    "versions": [
+      {
+        "version_id": "babb4913-6231-4fad-b29b-deb95d018bb3",
+        "percentage": 100
+      }
+    ]
+  }
+}
