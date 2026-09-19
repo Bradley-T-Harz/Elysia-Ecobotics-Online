@@ -27,6 +27,7 @@ function materializePath(value: string) {
     .replaceAll(":categorySlug", "earth-environment")
     .replaceAll(":sourceId", "nasa-earthdata")
     .replaceAll(":step", "profile")
+    .replaceAll(":slug", "building-elysia-in-public-without-building-a-surveillance-goblin")
     .replaceAll(":id", "synthetic-accessibility")
     .replace(/:[A-Za-z][A-Za-z0-9_]*/g, "synthetic-accessibility");
 }
@@ -35,12 +36,12 @@ const smokePaths = [...new Set<string>(contract.routes
   .flatMap((route: { smokePaths?: string[] }) => route.smokePaths ?? [])
   .map(materializePath))]
   .filter((pathname) => pathname.startsWith("/") && !pathname.includes("*"));
-assert.ok(smokePaths.length >= 165, "Accessibility must cover the current complete preservation smoke-path baseline.");
+assert.ok(smokePaths.length >= 167, "Accessibility must cover the current complete preservation smoke-path baseline.");
 
 const mobilePaths = [
   "/", "/archive", "/marketplace", "/developer-forge", "/living-library", "/commune",
   "/commons-circle", "/products", "/lab", "/work-with-elysia-ecobotics", "/support",
-  "/artisan-collective", "/story", "/about", "/mission", "/legal", "/admin",
+  "/artisan-collective", "/story", "/build-log", "/about", "/mission", "/legal", "/admin",
 ];
 
 const server = http.createServer(async (request, response) => {

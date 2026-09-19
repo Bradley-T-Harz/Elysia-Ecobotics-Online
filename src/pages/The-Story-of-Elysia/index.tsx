@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import PageHero from "../../shared/components/PageHero";
 import { nextItems, nowItems, storyActs, storyPullQuotes } from "./storyActs";
 
@@ -78,6 +79,17 @@ export default function StoryPage() {
       <section className="story-closing-banner">
         <p>Elysia began as a wish for a better kind of intelligence.</p>
         <h2>She is becoming a governed house for that wish to live in.</h2>
+      </section>
+
+      <section className="section-card story-build-log-bridge">
+        <div>
+          <p className="eyebrow">The story continues</p>
+          <h2>Follow the work as it changes.</h2>
+          <p>Elysia's history is no longer only something to look backward on. Follow the decisions, experiments, releases, failures, corrections, and milestones shaping what she becomes.</p>
+        </div>
+        <Link className="button-link button-link--primary" to="/build-log">
+          Read the Build Log
+        </Link>
       </section>
     </div>
   );

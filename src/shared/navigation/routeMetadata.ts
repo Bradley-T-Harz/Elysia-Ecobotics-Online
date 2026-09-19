@@ -1,3 +1,5 @@
+import { buildLogEntryForSlug } from "../../pages/The-Elysia-Build-Log/buildLogEntries.ts";
+
 const canonicalOrigin = "https://elysiaecobotics.com";
 const siteName = "Elysia Ecobotics Online";
 
@@ -103,6 +105,7 @@ const exactTitles: Record<string, string> = {
   "/commons-circle/settings/hosted-execution": "Hosted Execution Allowance",
   "/artisan-collective": "Elysia Artisan Collective",
   "/story": "The Story of Elysia",
+  "/build-log": "The Elysia Build Log",
   "/about": "About Elysia Ecobotics",
   "/mission": "The Elysia Mission",
   "/legal": "Legal & Trust",
@@ -140,6 +143,7 @@ const exactDescriptions: Record<string, string> = {
   "/commons-circle/settings/appearance": "Customize the current Commons Profile appearance.",
   "/commons-circle/settings/hosted-execution": "Private hosted-execution allowance, reservations, and recent usage for the signed-in Website Account.",
   "/artisan-collective": "Meet the Elysia Artisan Collective, a separate creative commons for credited human-made, AI-assisted, generative, hybrid, and difficult-to-classify art.",
+  "/build-log": "A public record of Elysia's development: what changed, what is real, what remains experimental, and what comes next.",
 };
 
 function titleCaseSlug(value: string) {
@@ -159,6 +163,10 @@ function normalizedPathname(value: string) {
 function titleForPath(pathname: string) {
   const exact = exactTitles[pathname];
   if (exact) return exact;
+  if (/^\/build-log\/[^/]+$/.test(pathname)) {
+    const slug = pathname.slice("/build-log/".length);
+    return buildLogEntryForSlug(slug)?.title ?? "Build Log Entry";
+  }
   if (/^\/admin\/economic-operations\/[^/]+$/.test(pathname)) return "Economic Operations";
   if (/^\/marketplace\/addons\/[^/]+$/.test(pathname) || /^\/addons\/[^/]+$/.test(pathname)) return "Marketplace Add-on";
   if (/^\/developer-forge\/drafts\/[^/]+\/manifest$/.test(pathname)) return "Developer Forge Draft Manifest";
@@ -188,6 +196,11 @@ function titleForPath(pathname: string) {
 function descriptionForPath(pathname: string) {
   const exact = exactDescriptions[pathname];
   if (exact) return exact;
+  if (/^\/build-log\/[^/]+$/.test(pathname)) {
+    const slug = pathname.slice("/build-log/".length);
+    return buildLogEntryForSlug(slug)?.summary
+      ?? "Read a published entry from The Elysia Build Log, the public development record for Elysia Ecobotics.";
+  }
   if (pathname.startsWith("/marketplace") || ["/browse", "/addons", "/action-preview", "/account", "/submit", "/trust", "/manifest-api"].some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`))) {
     return "Browse, review, submit, and manage governed Elysia Marketplace add-ons while preserving separate security, license, account, and installation boundaries.";
   }

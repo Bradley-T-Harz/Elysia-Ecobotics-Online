@@ -28,13 +28,14 @@ function materializePath(value: string) {
     .replaceAll(":categorySlug", "earth-environment")
     .replaceAll(":sourceId", "nasa-earthdata")
     .replaceAll(":step", "profile")
+    .replaceAll(":slug", "building-elysia-in-public-without-building-a-surveillance-goblin")
     .replaceAll(":id", "synthetic-route-metadata")
     .replace(/:[A-Za-z][A-Za-z0-9_]*/g, "synthetic-route-metadata");
 }
 
 const smokePaths = [...new Set<string>(contract.routes.flatMap((route: { smokePaths?: string[] }) => route.smokePaths ?? []).map(materializePath))]
   .filter((pathname) => pathname.startsWith("/") && !pathname.includes("*"));
-assert.equal(smokePaths.length, 165);
+assert.equal(smokePaths.length, 167);
 
 const server = http.createServer(async (request, response) => {
   try {
@@ -89,7 +90,13 @@ try {
     await page.waitForTimeout(25);
     const finalPath = new URL(page.url()).pathname;
     const expected = routeMetadataForPath(finalPath);
-    await page.waitForFunction((title) => document.title === title, expected.title, { timeout: 5_000 });
+    await page.waitForFunction((metadata) => {
+      const description = document.head.querySelector<HTMLMetaElement>('meta[name="description"]')?.content ?? "";
+      const canonicalUrl = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]')?.href ?? "";
+      return document.title === metadata.title
+        && description === metadata.description
+        && canonicalUrl === metadata.canonicalUrl;
+    }, expected, { timeout: 5_000 });
     const observed = await page.evaluate(() => ({
       title: document.title,
       description: document.head.querySelector<HTMLMetaElement>('meta[name="description"]')?.content ?? "",

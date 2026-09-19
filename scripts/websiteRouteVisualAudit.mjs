@@ -46,6 +46,7 @@ function materializePath(value) {
     .replaceAll(":categorySlug", "earth-environment")
     .replaceAll(":sourceId", "nasa-earthdata")
     .replaceAll(":step", "profile")
+    .replaceAll(":slug", "building-elysia-in-public-without-building-a-surveillance-goblin")
     .replaceAll(":id", "synthetic-route-audit")
     .replace(/:[A-Za-z][A-Za-z0-9_]*/g, "synthetic-route-audit");
 }

@@ -6,7 +6,7 @@
     "repository": "Elysia-Ecobotics-Online",
     "branchPoint": "97bfc8b95f295c9c6dae98c9feb914e88c91b036",
     "routerSource": "src/App.tsx",
-    "routerDeclarationCount": 143,
+    "routerDeclarationCount": 145,
     "deployedBehaviorClaimed": false
   },
   "invariants": [
@@ -167,6 +167,13 @@
         "src/pages/The-Living-Library/livingLibraryCatalog.ts"
       ],
       "rule": "Use only stable IDs resolved by resolveLivingLibrarySource; active, retired, folded, and successor-mapped records remain addressable."
+    },
+    "build-log-entry-slug": {
+      "kind": "closed-registry",
+      "sources": [
+        "src/pages/The-Elysia-Build-Log/buildLogEntries.ts"
+      ],
+      "rule": "Use only slugs returned by the version-controlled public Build Log registry. Unregistered or unpublished entries remain unavailable."
     }
   },
   "currentNavigationBaselines": {
@@ -201,7 +208,7 @@
     ]
   },
   "sitemapBaseline": [
-    "/", "/archive", "/marketplace", "/marketplace/browse", "/marketplace/trust", "/marketplace/manifest-api", "/products", "/lab", "/developer-forge", "/developer-forge/docs", "/living-library", "/commune", "/commune/rooms", "/work-with-elysia-ecobotics", "/support", "/commons-circle", "/artisan-collective", "/story", "/about", "/mission", "/legal", "/legal/privacy-policy", "/legal/terms-of-use", "/legal/community-guidelines", "/legal/marketplace-developer-agreement", "/legal/add-on-submission-policy", "/legal/security-review-policy", "/legal/vulnerability-disclosure-policy", "/legal/dmca-copyright-policy", "/legal/acceptable-use-policy", "/legal/code-of-conduct", "/legal/volunteer-contributor-disclaimer", "/legal/donation-recognition-terms", "/legal/trademark-notice", "/legal/third-party-media-credits", "/legal/support-and-billing-terms", "/legal/refund-and-cancellation-policy", "/legal/sandbox-credit-terms", "/legal/job-post-fee-terms", "/legal/marketplace-commerce-terms", "/legal/organization-services-terms", "/legal/sponsorship-independence-policy", "/legal/account-closure-financial-retention", "/legal/living-library-third-party-resources"
+    "/", "/archive", "/marketplace", "/marketplace/browse", "/marketplace/trust", "/marketplace/manifest-api", "/products", "/lab", "/developer-forge", "/developer-forge/docs", "/living-library", "/commune", "/commune/rooms", "/work-with-elysia-ecobotics", "/support", "/commons-circle", "/artisan-collective", "/story", "/build-log", "/about", "/mission", "/legal", "/legal/privacy-policy", "/legal/terms-of-use", "/legal/community-guidelines", "/legal/marketplace-developer-agreement", "/legal/add-on-submission-policy", "/legal/security-review-policy", "/legal/vulnerability-disclosure-policy", "/legal/dmca-copyright-policy", "/legal/acceptable-use-policy", "/legal/code-of-conduct", "/legal/volunteer-contributor-disclaimer", "/legal/donation-recognition-terms", "/legal/trademark-notice", "/legal/third-party-media-credits", "/legal/support-and-billing-terms", "/legal/refund-and-cancellation-policy", "/legal/sandbox-credit-terms", "/legal/job-post-fee-terms", "/legal/marketplace-commerce-terms", "/legal/organization-services-terms", "/legal/sponsorship-independence-policy", "/legal/account-closure-financial-retention", "/legal/living-library-third-party-resources"
   ],
   "routes": [
     { "id": "RT-0001", "declaredPath": null, "resolvedPattern": null, "kind": "layout", "parentId": null, "owner": "SiteLayout", "redirectTarget": null, "stateProfile": "not-applicable", "dynamicSource": null, "accessProfile": "infrastructure", "statusProfile": "registered-route", "zone": "infrastructure", "reachability": ["nonnavigational-infrastructure"], "smokePaths": [] },
@@ -346,7 +353,9 @@
     { "id": "RT-0140", "declaredPath": "account/reactivate", "resolvedPattern": "/account/reactivate", "kind": "static", "parentId": "RT-0001", "owner": "AccountReactivationPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "signed-in-or-component-gated", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["account-contextual", "restricted", "direct-load"], "smokePaths": ["/account/reactivate"] },
     { "id": "RT-0141", "declaredPath": "commons-circle/settings/hosted-execution", "resolvedPattern": "/commons-circle/settings/hosted-execution", "kind": "static", "parentId": "RT-0001", "owner": "HostedExecutionAllowancePage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "signed-in-or-component-gated", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["page-local", "restricted", "direct-load"], "smokePaths": ["/commons-circle/settings/hosted-execution"] },
     {"id": "RT-0142", "declaredPath": "admin/economic-operations/:section", "resolvedPattern": "/admin/economic-operations/:section", "kind": "dynamic", "parentId": "RT-0001", "owner": "EconomicOperationsSectionPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": "economic-preparation-section", "accessProfile": "role-restricted", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["restricted", "direct-load"], "smokePaths": ["/admin/economic-operations/:section"]},
-    {"id": "RT-0143", "declaredPath": "marketplace/creator-studio", "resolvedPattern": "/marketplace/creator-studio", "kind": "static", "parentId": "RT-0001", "owner": "CreatorStudioPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "signed-in-or-component-gated", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["page-local", "restricted", "direct-load"], "smokePaths": ["/marketplace/creator-studio"]}
+    {"id": "RT-0143", "declaredPath": "marketplace/creator-studio", "resolvedPattern": "/marketplace/creator-studio", "kind": "static", "parentId": "RT-0001", "owner": "CreatorStudioPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "signed-in-or-component-gated", "statusProfile": "registered-route", "zone": "orange-boundary", "reachability": ["page-local", "restricted", "direct-load"], "smokePaths": ["/marketplace/creator-studio"]},
+    { "id": "RT-0144", "declaredPath": "build-log", "resolvedPattern": "/build-log", "kind": "static", "parentId": "RT-0001", "owner": "BuildLogPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": null, "accessProfile": "public-entry", "statusProfile": "registered-route", "zone": "lower-risk-presentation", "reachability": ["story-bridge", "sitemap", "direct-load"], "smokePaths": ["/build-log"] },
+    { "id": "RT-0145", "declaredPath": "build-log/:slug", "resolvedPattern": "/build-log/:slug", "kind": "dynamic", "parentId": "RT-0001", "owner": "BuildLogEntryPage", "redirectTarget": null, "stateProfile": "component-pass-through", "dynamicSource": "build-log-entry-slug", "accessProfile": "public-record", "statusProfile": "registered-route", "zone": "lower-risk-presentation", "reachability": ["build-log-index", "contextual", "direct-load"], "smokePaths": ["/build-log/:slug"] }
   ],
   "externalDestinations": [
     { "id": "EXT-0001", "url": "https://elysiaartisancollective.pages.dev", "kind": "external", "owner": "ElysiaArtisanCollectivePage", "accessProfile": "external-approved-boundary", "statusProfile": "approved-external-boundary", "zone": "orange-boundary", "reachability": ["artisan-bridge-page-only"] },

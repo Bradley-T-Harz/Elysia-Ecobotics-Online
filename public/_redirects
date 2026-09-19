@@ -14,6 +14,8 @@
 /account / 200
 /commons-circle / 200
 /story / 200
+/build-log / 200
+/build-log/:slug / 200
 /about / 200
 /mission / 200
 /legal / 200

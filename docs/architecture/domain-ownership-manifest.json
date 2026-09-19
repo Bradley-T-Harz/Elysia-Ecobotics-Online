@@ -2,7 +2,7 @@
   "manifestId": "elysia-online-bounded-domain-ownership-v1",
   "schemaVersion": 1,
   "status": "current-state-documentation-and-test-contract",
-  "updatedAt": "2026-09-04",
+  "updatedAt": "2026-09-19",
   "purpose": "Record current primary ownership, dependencies, and prohibited authority couplings without becoming runtime authority or removing any route or capability.",
   "authoritativeSources": {
     "routes": "src/App.tsx",
@@ -36,8 +36,8 @@
     {
       "domainId": "public-shell",
       "name": "Public shell and institutional story",
-      "routeSelectors": { "exact": ["/", "/story", "/about", "/mission"], "wildcard": true },
-      "uiOwners": ["src/shared/components", "src/pages/Elysia-Ecobotics-Online-MainPage", "src/pages/Story", "src/pages/About", "src/pages/Mission"],
+      "routeSelectors": { "exact": ["/", "/story", "/about", "/mission", "/build-log", "/build-log/:slug"], "wildcard": true },
+      "uiOwners": ["src/shared/components", "src/pages/Elysia-Ecobotics-Online-MainPage", "src/pages/Story", "src/pages/About", "src/pages/Mission", "src/pages/The-Elysia-Build-Log"],
       "authoritativeStorage": ["versioned repository content and public release/deployment artifacts"],
       "dependsOn": ["navigation", "legal-trust", "observability"],
       "mustNotOwn": ["account authorization", "economic fulfillment", "community source records"]

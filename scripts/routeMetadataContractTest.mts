@@ -14,6 +14,7 @@ function materializePath(value: string) {
     .replaceAll(":categorySlug", "earth-environment")
     .replaceAll(":sourceId", "nasa-earthdata")
     .replaceAll(":step", "profile")
+    .replaceAll(":slug", "building-elysia-in-public-without-building-a-surveillance-goblin")
     .replaceAll(":section", "readiness")
     .replaceAll(":id", "synthetic-route-metadata")
     .replace(/:[A-Za-z][A-Za-z0-9_]*/g, "synthetic-route-metadata");
@@ -21,7 +22,7 @@ function materializePath(value: string) {
 
 const smokePaths = [...new Set<string>(contract.routes.flatMap((route: { smokePaths?: string[] }) => route.smokePaths ?? []).map(materializePath))]
   .filter((pathname) => pathname.startsWith("/") && !pathname.includes("*"));
-assert.equal(smokePaths.length, 165, "The metadata contract must cover the complete preserved smoke-path baseline.");
+assert.equal(smokePaths.length, 167, "The metadata contract must cover the complete preserved smoke-path baseline.");
 
 for (const pathname of smokePaths) {
   const metadata = routeMetadataForPath(pathname);
@@ -40,5 +41,9 @@ assert.equal(routeMetadataForPath("/artisan-collective").title, "Elysia Artisan 
 assert.equal(routeMetadataForPath("/marketplace/addons/private-looking-slug").title, "Marketplace Add-on | Elysia Ecobotics Online");
 assert.equal(routeMetadataForPath("/commons-circle/@private-looking-handle").title, "Public Commons Profile | Elysia Ecobotics Online");
 assert.equal(routeMetadataForPath("/commune/posts/a1100000-0000-4000-8000-000000000001").title, "Commune Post | Elysia Ecobotics Online");
+assert.equal(routeMetadataForPath("/build-log").title, "The Elysia Build Log | Elysia Ecobotics Online");
+assert.equal(routeMetadataForPath("/build-log/building-elysia-in-public-without-building-a-surveillance-goblin").title, "Building Elysia in Public, Without Building a Surveillance Goblin | Elysia Ecobotics Online");
+assert.equal(routeMetadataForPath("/build-log/not-a-published-entry").title, "Build Log Entry | Elysia Ecobotics Online");
+assert(!routeMetadataForPath("/build-log/not-a-published-entry").description.includes("not-a-published-entry"), "Unknown Build Log slugs must not leak into public metadata.");
 
 console.log(`Route metadata contract passed for ${smokePaths.length} preserved smoke paths without dynamic-identifier leakage.`);

@@ -10,7 +10,7 @@ const requiredRoutes = [
   "/commons-circle/settings", "/commons-circle/settings/privacy", "/commons-circle/settings/notifications", "/commons-circle/settings/appearance", "/commons-circle/settings/hosted-execution",
   "/account/change-password", "/account/deactivate", "/account/reactivate",
   "/commons-circle/onboarding", "/commons-circle/setup/profile", "/commons-circle/setup/stewardship",
-  "/commons-circle/setup/work-with", "/commons-circle/setup/confirm", "/commons-circle/:publicHandle", "/commons/:publicHandle", "/artisan-collective", "/story",
+  "/commons-circle/setup/work-with", "/commons-circle/setup/confirm", "/commons-circle/:publicHandle", "/commons/:publicHandle", "/artisan-collective", "/story", "/build-log", "/build-log/:slug",
   "/about", "/mission", "/legal", "/legal/privacy-policy", "/legal/terms-of-use",
   "/legal/community-guidelines", "/legal/marketplace-developer-agreement",
   "/legal/add-on-submission-policy", "/legal/security-review-policy",

@@ -7896,3 +7896,233 @@ textarea:focus-visible {
 }
 /* Separate, protected staging build only. */
 .sandbox-environment-banner { padding: .65rem 1rem; background: #f5df9b; color: #27210e; text-align: center; font-weight: 600; }
+
+/* The Elysia Build Log -------------------------------------------------- */
+
+.build-log-page,
+.build-log-entry-page {
+  min-width: 0;
+}
+
+.build-log-boundary-card {
+  border-color: rgba(216, 182, 111, 0.34);
+  background:
+    linear-gradient(120deg, rgba(216, 182, 111, 0.08), rgba(126, 215, 209, 0.05)),
+    rgba(8, 11, 16, 0.62);
+}
+
+.build-log-focus-card {
+  background:
+    linear-gradient(135deg, rgba(126, 215, 209, 0.08), rgba(184, 130, 255, 0.05)),
+    rgba(8, 11, 16, 0.62);
+}
+
+.build-log-archive {
+  display: grid;
+  gap: 1rem;
+}
+
+.build-log-section-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.build-log-section-heading h2,
+.build-log-section-heading p {
+  margin-bottom: 0;
+}
+
+.build-log-section-heading > p {
+  color: var(--muted);
+}
+
+.build-log-entry-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 23rem), 1fr));
+  gap: 1rem;
+}
+
+.build-log-entry-card {
+  min-width: 0;
+  display: grid;
+  align-content: start;
+  gap: 0.9rem;
+  padding: clamp(1rem, 2.5vw, 1.4rem);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background:
+    linear-gradient(145deg, rgba(126, 215, 209, 0.055), rgba(184, 130, 255, 0.035)),
+    rgba(8, 11, 16, 0.62);
+}
+
+.build-log-entry-card h2,
+.build-log-entry-card p {
+  margin: 0;
+}
+
+.build-log-entry-card h2 {
+  font-size: clamp(1.35rem, 2.8vw, 1.85rem);
+  line-height: 1.2;
+}
+
+.build-log-entry-card h2 a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.build-log-entry-card h2 a:hover {
+  color: var(--teal);
+}
+
+.build-log-entry-card > p {
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.build-log-entry-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.55rem 0.8rem;
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.build-log-entry-type {
+  padding: 0.22rem 0.52rem;
+  border: 1px solid rgba(126, 215, 209, 0.28);
+  border-radius: 999px;
+  color: var(--teal);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+.build-log-area-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.build-log-area-row span {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0.28rem 0.56rem;
+  border: 1px solid rgba(184, 130, 255, 0.22);
+  border-radius: 999px;
+  background: rgba(184, 130, 255, 0.055);
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.25;
+}
+
+.build-log-entry-page .page-hero-block h1 {
+  max-width: 18ch;
+  font-size: clamp(2.3rem, 6vw, 5.4rem);
+}
+
+.build-log-entry-page .hero-text {
+  max-width: 72rem;
+}
+
+.build-log-entry-shell {
+  width: min(100%, 68rem);
+  margin-inline: auto;
+  display: grid;
+  gap: 1rem;
+}
+
+.build-log-entry-section {
+  scroll-margin-top: 7rem;
+}
+
+.build-log-entry-section h2,
+.build-log-related-links h2,
+.build-log-connected-records h2 {
+  margin-top: 0;
+}
+
+.build-log-entry-section p,
+.build-log-entry-section li {
+  line-height: 1.72;
+}
+
+.build-log-entry-section p,
+.build-log-entry-section li,
+.build-log-related-links p,
+.build-log-connected-records p {
+  color: var(--muted);
+}
+
+.build-log-entry-section ul {
+  display: grid;
+  gap: 0.65rem;
+  padding-left: 1.25rem;
+}
+
+.build-log-correction-note {
+  border-color: rgba(216, 182, 111, 0.42);
+}
+
+.build-log-superseded-note {
+  border-color: rgba(184, 130, 255, 0.34);
+}
+
+.build-log-related-links .button-row,
+.build-log-connected-records .button-row {
+  margin-top: 0.85rem;
+}
+
+.build-log-not-found {
+  width: min(100%, 48rem);
+  margin-inline: auto;
+}
+
+.build-log-orientation-card {
+  border-color: rgba(126, 215, 209, 0.25);
+}
+
+.story-build-log-bridge {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1.25rem;
+  border-color: rgba(126, 215, 209, 0.3);
+  background:
+    linear-gradient(110deg, rgba(126, 215, 209, 0.075), rgba(184, 130, 255, 0.05)),
+    rgba(8, 11, 16, 0.62);
+}
+
+.story-build-log-bridge h2 {
+  margin: 0.12rem 0 0.5rem;
+}
+
+.story-build-log-bridge p:last-child {
+  margin-bottom: 0;
+  color: var(--muted);
+}
+
+.story-build-log-bridge .button-link {
+  justify-content: center;
+  text-align: center;
+}
+
+@media (max-width: 820px) {
+  .build-log-section-heading,
+  .story-build-log-bridge {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .build-log-section-heading {
+    display: grid;
+  }
+
+  .story-build-log-bridge .button-link {
+    width: 100%;
+  }
+}
