@@ -21,6 +21,7 @@ export default function OnlineMainPage() {
             <p>It is meant to feel useful before it feels huge. Browse, learn, save what matters, and follow the pieces that are ready without needing to understand every inner organ of local Elysia.</p>
             <p className="boundary-note">The website is public and cloud-facing. The private local Elysia core remains local unless a user explicitly chooses to export or connect something.</p>
           </div>
+          <div className="home-start-here" aria-label="New visitor orientation"><span>New to Elysia?</span><Link className="button-link button-link--primary" to="/start-here">Start Here →</Link></div>
           <div className="hero-actions"><Link className="button-link button-link--primary" to="/archive">Download Elysia</Link><Link className="button-link" to="/marketplace">Explore Marketplace</Link><Link className="button-link" to="/commons-circle">Join the Commons Circle</Link><Link className="button-link" to="/living-library">Visit the Living Library</Link><Link className="button-link" to="/developer-forge">Build Add-ons</Link><Link className="button-link" to="/mission">Read the Mission</Link></div>
         </div>
       </section>

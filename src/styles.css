@@ -8126,3 +8126,282 @@ textarea:focus-visible {
     width: 100%;
   }
 }
+
+/* Start Here orientation */
+
+.home-start-here {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  margin: 0.25rem 0 0.9rem;
+  border: 1px solid rgba(216, 182, 111, 0.22);
+  border-radius: 999px;
+  background:
+    linear-gradient(120deg, rgba(216, 182, 111, 0.07), rgba(126, 215, 209, 0.055)),
+    rgba(8, 11, 16, 0.52);
+  padding: 0.42rem 0.48rem 0.42rem 0.8rem;
+  box-shadow: inset 0 1px 0 rgba(239, 248, 250, 0.04);
+}
+
+.home-start-here > span {
+  color: var(--gold);
+  font-size: 0.84rem;
+  font-weight: 900;
+}
+
+.home-start-here .button-link {
+  min-height: 2.35rem;
+  border-radius: 999px;
+  padding: 0.45rem 0.72rem;
+}
+
+.start-here-page .page-hero-block {
+  min-height: min(58vh, 620px);
+}
+
+.start-here-section-heading {
+  max-width: 72rem;
+  margin-bottom: 1rem;
+}
+
+.start-here-section-heading h2 {
+  margin: 0.12rem 0 0.45rem;
+  font-size: clamp(1.65rem, 3vw, 2.5rem);
+}
+
+.start-here-section-heading > p:last-child {
+  max-width: 72ch;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.start-here-subheading {
+  margin: 1.35rem 0 0.75rem;
+  font-size: clamp(1.15rem, 2vw, 1.45rem);
+}
+
+.start-here-boundary-grid {
+  margin-top: 0.8rem;
+}
+
+.start-here-boundary-card h3 {
+  margin-top: 0.1rem;
+}
+
+.start-here-steps {
+  counter-reset: start-here-step;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin: 0 0 1.25rem;
+  padding: 0;
+  list-style: none;
+}
+
+.start-here-steps li {
+  counter-increment: start-here-step;
+  display: grid;
+  align-content: start;
+  gap: 0.42rem;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.028);
+  padding: 0.85rem;
+}
+
+.start-here-steps li::before {
+  content: counter(start-here-step);
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid var(--line-bright);
+  border-radius: 999px;
+  color: var(--teal);
+  font-weight: 900;
+}
+
+.start-here-steps li strong {
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.start-here-steps li span {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.start-here-room-groups {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.start-here-room-group > p {
+  color: var(--muted);
+}
+
+.start-here-room-list {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.start-here-room-list li {
+  display: grid;
+  gap: 0.18rem;
+  border-top: 1px solid rgba(199, 210, 218, 0.1);
+  padding-top: 0.55rem;
+}
+
+.start-here-room-list strong {
+  color: var(--teal);
+}
+
+.start-here-room-list span {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.start-here-trust-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.start-here-trust-item {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.028);
+  padding: 0.72rem;
+}
+
+.start-here-trust-item strong {
+  color: var(--gold);
+}
+
+.start-here-trust-item span {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.start-here-destination-card,
+.start-here-place-card,
+.start-here-ecology-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.start-here-destination-card h3 a,
+.start-here-secondary-card h3 a {
+  color: var(--text);
+}
+
+.start-here-destination-card > .button-link {
+  align-self: flex-start;
+  margin-top: auto;
+}
+
+.start-here-account-note {
+  margin-top: auto;
+  border-top: 1px solid rgba(199, 210, 218, 0.11);
+  color: var(--gold) !important;
+  font-size: 0.82rem;
+  font-weight: 800;
+  padding-top: 0.65rem;
+}
+
+.start-here-secondary-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.start-here-secondary-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.025);
+  padding: 0.78rem;
+}
+
+.start-here-secondary-card h3 {
+  margin: 0 0 0.38rem;
+  font-size: 1rem;
+}
+
+.start-here-secondary-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.start-here-place-card .button-row {
+  margin-top: auto;
+  padding-top: 0.5rem;
+}
+
+.start-here-ecology-card .eyebrow {
+  font-size: 0.66rem;
+}
+
+.start-here-closing {
+  margin-top: 1.2rem;
+  border-top: 1px solid rgba(126, 215, 209, 0.18);
+  padding-top: 1.2rem;
+}
+
+.start-here-closing h2 {
+  margin: 0.15rem 0 0.55rem;
+  font-size: clamp(1.5rem, 3vw, 2.3rem);
+}
+
+.start-here-closing > p:not(.eyebrow) {
+  max-width: 78ch;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+@media (max-width: 1120px) {
+  .start-here-steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .start-here-trust-grid,
+  .start-here-secondary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 820px) {
+  .home-start-here {
+    display: grid;
+    width: min(100%, 22rem);
+    border-radius: 16px;
+    padding: 0.65rem;
+  }
+
+  .home-start-here .button-link {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .start-here-page .page-hero-block {
+    min-height: auto;
+  }
+
+  .start-here-steps,
+  .start-here-room-groups,
+  .start-here-trust-grid,
+  .start-here-secondary-grid {
+    grid-template-columns: 1fr;
+  }
+}

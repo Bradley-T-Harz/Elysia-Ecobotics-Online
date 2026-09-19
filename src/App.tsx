@@ -57,6 +57,7 @@ const PublicCommonsProfilePage = lazy(() => import("./pages/Public-Commons-Profi
 const StoryPage = lazy(() => import("./pages/The-Story-of-Elysia"));
 const BuildLogPage = lazy(() => import("./pages/The-Elysia-Build-Log"));
 const BuildLogEntryPage = lazy(() => import("./pages/The-Elysia-Build-Log/BuildLogEntryPage"));
+const StartHerePage = lazy(() => import("./pages/Start-Here"));
 const AboutPage = lazy(() => import("./pages/About-Elysia-Ecobotics"));
 const MissionPage = lazy(() => import("./pages/The-Elysia-Mission"));
 const LegalPage = lazy(() => import("./pages/Legal"));
@@ -281,6 +282,7 @@ export default function App() {
             <Route path="marketplace/creator-studio" element={<CreatorStudioPage />} />
             <Route path="build-log" element={<BuildLogPage />} />
             <Route path="build-log/:slug" element={<BuildLogEntryPage />} />
+            <Route path="start-here" element={<StartHerePage />} />
             </Route>
             </Routes>
             </AccountActivationBoundary>

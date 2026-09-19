@@ -36,10 +36,10 @@ const smokePaths = [...new Set<string>(contract.routes
   .flatMap((route: { smokePaths?: string[] }) => route.smokePaths ?? [])
   .map(materializePath))]
   .filter((pathname) => pathname.startsWith("/") && !pathname.includes("*"));
-assert.ok(smokePaths.length >= 167, "Accessibility must cover the current complete preservation smoke-path baseline.");
+assert.ok(smokePaths.length >= 168, "Accessibility must cover the current complete preservation smoke-path baseline.");
 
 const mobilePaths = [
-  "/", "/archive", "/marketplace", "/developer-forge", "/living-library", "/commune",
+  "/", "/start-here", "/archive", "/marketplace", "/developer-forge", "/living-library", "/commune",
   "/commons-circle", "/products", "/lab", "/work-with-elysia-ecobotics", "/support",
   "/artisan-collective", "/story", "/build-log", "/about", "/mission", "/legal", "/admin",
 ];

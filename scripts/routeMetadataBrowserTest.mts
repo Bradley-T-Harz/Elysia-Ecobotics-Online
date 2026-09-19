@@ -35,7 +35,7 @@ function materializePath(value: string) {
 
 const smokePaths = [...new Set<string>(contract.routes.flatMap((route: { smokePaths?: string[] }) => route.smokePaths ?? []).map(materializePath))]
   .filter((pathname) => pathname.startsWith("/") && !pathname.includes("*"));
-assert.equal(smokePaths.length, 167);
+assert.equal(smokePaths.length, 168);
 
 const server = http.createServer(async (request, response) => {
   try {

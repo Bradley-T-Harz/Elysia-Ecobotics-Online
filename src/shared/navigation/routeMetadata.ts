@@ -11,6 +11,7 @@ export type RouteMetadataRecord = {
 
 const exactTitles: Record<string, string> = {
   "/": siteName,
+  "/start-here": "Start Here",
   "/archive": "Elysia Archive",
   "/marketplace": "Elysia Marketplace",
   "/marketplace/browse": "Browse the Elysia Marketplace",
@@ -132,6 +133,7 @@ const exactTitles: Record<string, string> = {
 const exactDescriptions: Record<string, string> = {
   "/marketplace/creator-studio": "Your creator identity, account-owned add-ons, review feedback and Marketplace preparation. Payment-provider onboarding and payouts remain disabled.",
   "/": "Elysia Ecobotics Online: governed Marketplace intake, Developer Forge, Living Library, Commons Circle, and public project documentation around local Elysia.",
+  "/start-here": "A plain-English guide to Elysia, the local app, the public commons, privacy boundaries, key modes and rooms, and where to go next.",
   "/account/export": "Request a portable export of shared Elysia public-community account data.",
   "/account/delete": "Request permanent deletion through the governed shared Elysia Website Account lifecycle.",
   "/account/change-password": "Change the signed-in user's shared Elysia Website Account password.",

@@ -36,8 +36,8 @@
     {
       "domainId": "public-shell",
       "name": "Public shell and institutional story",
-      "routeSelectors": { "exact": ["/", "/story", "/about", "/mission", "/build-log", "/build-log/:slug"], "wildcard": true },
-      "uiOwners": ["src/shared/components", "src/pages/Elysia-Ecobotics-Online-MainPage", "src/pages/Story", "src/pages/About", "src/pages/Mission", "src/pages/The-Elysia-Build-Log"],
+      "routeSelectors": { "exact": ["/", "/start-here", "/story", "/about", "/mission", "/build-log", "/build-log/:slug"], "wildcard": true },
+      "uiOwners": ["src/shared/components", "src/pages/Elysia-Ecobotics-Online-MainPage", "src/pages/Start-Here", "src/pages/Story", "src/pages/About", "src/pages/Mission", "src/pages/The-Elysia-Build-Log"],
       "authoritativeStorage": ["versioned repository content and public release/deployment artifacts"],
       "dependsOn": ["navigation", "legal-trust", "observability"],
       "mustNotOwn": ["account authorization", "economic fulfillment", "community source records"]
