@@ -167,6 +167,8 @@ for (const [label, source] of [
   assert(source.includes('brandMark="standard"'), `${label} should opt into the standard top-right Elysia Ecobotics page mark.`);
 }
 assert(homeMain.includes('variant="home-floating"'), "Homepage should use the floating hero brand mark placement.");
+assert(homeMain.includes('import releaseManifest from "../The-Elysia-Archive/releaseManifest.json";') && homeMain.includes('title={`Elysia v${releaseManifest.version}`}'), "Homepage release card must derive its version from the canonical Archive manifest.");
+assert(!homeMain.includes('title="Elysia v1.0"'), "Homepage must not hardcode the historical v1.0 release label.");
 assert(marketplaceHome.includes("marketplace-hero-side") && marketplaceHome.includes('variant="marketplace-column"'), "Marketplace should place the page mark with the right-side status column.");
 assert(missionPage.includes('brandMark="mission-centered"'), "Mission page should use the centered ceremonial brand mark placement.");
 assert(styles.includes('font-family: "Cormorant Garamond"') && styles.includes("font-family: Verdana") && styles.includes(".page-brand-mark--standard") && styles.includes(".page-brand-mark--home-floating") && styles.includes(".page-brand-mark--marketplace-column") && styles.includes(".page-brand-mark--mission-centered"), "Page brand mark typography and placement styles missing.");

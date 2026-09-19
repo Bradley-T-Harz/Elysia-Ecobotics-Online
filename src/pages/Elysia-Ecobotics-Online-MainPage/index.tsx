@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import FeatureCard from "../../shared/components/FeatureCard";
 import PageBrandMark from "../../shared/components/PageBrandMark";
 import StatusBadge from "../../shared/components/StatusBadge";
+import releaseManifest from "../The-Elysia-Archive/releaseManifest.json";
 
 export default function OnlineMainPage() {
   return (
@@ -35,7 +36,7 @@ export default function OnlineMainPage() {
         <h2>A polished public commons around a private local core.</h2>
         <p>Elysia Ecobotics Online connects the official Elysia Archive, governed Marketplace, public Commons, research library, and developer surfaces without merging Website identity or data into private Local Elysia.</p>
         <div className="feature-grid feature-grid--four home-polish-grid">
-          <FeatureCard title="Elysia v1.0"><p>The Archive provides the official Linux downloads, public source, exact SHA-256 checksums, signed release manifest, SBOMs, provenance, system requirements, and installation guidance.</p><StatusBadge label="Stable release" tone="safe" /><p><Link to="/archive">Open the Archive</Link></p></FeatureCard>
+          <FeatureCard title={`Elysia v${releaseManifest.version}`}><p>The Archive provides the official Linux downloads, public source, exact SHA-256 checksums, signed release manifest, SBOMs, provenance, system requirements, and installation guidance.</p><StatusBadge label="Stable release" tone="safe" /><p><Link to="/archive">Open the Archive</Link></p></FeatureCard>
           <FeatureCard title="Marketplace preview"><p>Add-ons show manifest, permission, dependency, and trust information before local Elysia ever performs an action.</p><p className="small-note">Elysia is free. The current catalog offers free releases. Creator sales are being prepared separately and remain unavailable until approved and ready.</p><Link to="/marketplace">Open Marketplace</Link></FeatureCard>
           <FeatureCard title="Developer Forge"><p>A calm builder doorway for add-on docs, manifest validation, packaging preparation, and Marketplace submission.</p><Link to="/developer-forge">Visit Forge</Link></FeatureCard>
           <FeatureCard title="Living Library"><p>A curated directory for data, research, tools, source ethics, and ecological intelligence foundations.</p><Link to="/living-library">Browse library</Link></FeatureCard>
