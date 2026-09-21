@@ -93,7 +93,7 @@ export default function ArchivePage() {
       <section className="section-card archive-support-boundary">
         <p className="eyebrow">Optional support</p>
         <h2>Downloads remain independent of payment</h2>
-        <p>Local Elysia is free and local-first. Its ordinary downloads require no Website Account, recurring plan, donation, or supporter badge.</p>
+        <p>Local Elysia is free and local-first. Its ordinary downloads require no Website Account, payment, recurring plan, or supporter badge.</p>
         <p>People who choose to help sustain release engineering, hosting, documentation, and security can use the separate Support page. Payment creates no earlier access, governance authority, trust, or preferred place in the Commons.</p>
         <div className="button-row"><a className="button-link button-link--primary" href="#release-downloads-title">Use the $0 release path</a><Link className="button-link" to="/support?source=products">Learn about separate optional support</Link></div>
       </section>

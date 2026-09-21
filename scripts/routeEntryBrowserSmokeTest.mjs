@@ -218,9 +218,9 @@ try {
     }
     await page.goto(`${origin}/commons-circle/setup/profile`, { waitUntil: "domcontentloaded" });
     await settle(page);
-    await page.getByRole("button", { name: "Continue: Stewardship & Donations", exact: true }).scrollIntoViewIfNeeded();
+    await page.getByRole("button", { name: "Continue: Stewardship & Independent Giving", exact: true }).scrollIntoViewIfNeeded();
     const profileValidationBefore = await page.evaluate(() => scrollY);
-    await page.getByRole("button", { name: "Continue: Stewardship & Donations", exact: true }).click();
+    await page.getByRole("button", { name: "Continue: Stewardship & Independent Giving", exact: true }).click();
     await page.getByRole("alert").waitFor({ state: "visible" });
     const profileValidationAfter = await page.evaluate(() => scrollY);
     assert(Math.abs(profileValidationAfter - profileValidationBefore) <= 2, `${viewportName} Profile validation should not shift the viewport.`);

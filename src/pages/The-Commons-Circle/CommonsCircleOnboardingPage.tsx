@@ -190,8 +190,8 @@ export default function CommonsCircleOnboardingPage() {
       {step === "stewardship" && <section className="section-card commons-onboarding-panel">
         <p className="eyebrow">Stewardship Recognition</p>
         <h2>Choose a stewardship organization to support</h2>
-        <p className="boundary-note">These are independent organizations we encourage members to consider. Listing does not imply partnership, sponsorship, endorsement, or donation processing by Elysia Ecobotics. Donations are made directly through the organization's own website.</p>
-        <p>Visit official organization sites directly. This page does not process donations, track outbound giving, or imply Elysia receives money.</p>
+        <p className="boundary-note">These are independent organizations we encourage members to consider. Listing does not imply partnership, sponsorship, endorsement, or payment processing by Elysia Ecobotics. If a member chooses to donate, the payment is made directly through the independent organization's own website or official channel.</p>
+        <p>Visit official organization sites directly. This page does not process or receive those funds, track outbound giving, or imply that EcoSyneva receives money.</p>
         {Object.entries(groupedOrganizations).map(([category, orgs]) => <section className="commons-org-category" key={category}>
           <div className="section-heading section-heading--inline"><h3>{category}</h3><span className="trust-badge">{orgs.length} organizations</span></div>
           <div className="commons-org-grid">
@@ -204,7 +204,7 @@ export default function CommonsCircleOnboardingPage() {
               <p>This listing is informational and does not imply affiliation, sponsorship, or partnership.</p>
               <div className="button-row">
                 <a className="button-link" href={org.officialUrl} target="_blank" rel="noreferrer">Visit organization site</a>
-                <button type="button" onClick={() => { setSelectedOrgId(org.id); setStep("recognition"); }}>I donated / prepare recognition request</button>
+                <button type="button" onClick={() => { setSelectedOrgId(org.id); setStep("recognition"); }}>I gave directly / prepare recognition request</button>
                 <button type="button" onClick={skipStewardship}>Skip for now</button>
               </div>
             </article>)}
@@ -218,7 +218,7 @@ export default function CommonsCircleOnboardingPage() {
         <WarningCallout title="Redact first"><p>Please redact personal and financial details before uploading proof. Do not upload card numbers, bank details, billing address, full transaction IDs, tax documents, or unredacted receipts. Raw proof files are not uploaded or stored here.</p></WarningCallout>
         <div className="commons-form-grid">
           <label><span>Organization</span><select value={selectedOrgId} onChange={(event) => setSelectedOrgId(event.target.value)}>{commonsStewardshipOrganizations.map((org) => <option value={org.id} key={org.id}>{org.name}</option>)}</select></label>
-          <label><span>Donation date</span><input type="date" value={verificationForm.donationDate} onChange={(event) => setVerificationForm({ ...verificationForm, donationDate: event.target.value })} /></label>
+          <label><span>Independent gift date</span><input type="date" value={verificationForm.donationDate} onChange={(event) => setVerificationForm({ ...verificationForm, donationDate: event.target.value })} /></label>
           <label><span>Amount range</span><select value={verificationForm.amountRange} onChange={(event) => setVerificationForm({ ...verificationForm, amountRange: event.target.value })}>{amountRanges.map((value) => <option key={value}>{value}</option>)}</select></label>
           <label><span>Receipt reference/hash, optional</span><input value={verificationForm.receiptReferenceOrHash} onChange={(event) => setVerificationForm({ ...verificationForm, receiptReferenceOrHash: event.target.value })} /></label>
           <label className="wide-field"><span>Optional member note</span><textarea value={verificationForm.memberNote} onChange={(event) => setVerificationForm({ ...verificationForm, memberNote: event.target.value })} rows={4} /></label>

@@ -20,7 +20,7 @@ import {
 import type { CommonsHomebaseData, ProfileCustomization, UserBadge } from "./commonsCircleApi";
 
 const membershipTiers = [
-  { name: "Free Member", purpose: "Default free recognition for participation in the public website commons. No donation is required.", awarded: "Granted for new members after Commons onboarding is completed; existing legitimate awards are preserved.", status: "Free recognition", note: "No payment, authority, or private Elysia access." },
+  { name: "Free Member", purpose: "Default free recognition for participation in the public website commons. No payment to EcoSyneva and no independent stewardship gift is required.", awarded: "Granted for new members after Commons onboarding is completed; existing legitimate awards are preserved.", status: "Free recognition", note: "No payment, authority, or private Elysia access." },
   { name: "Contributor Member", purpose: "Recognition for constructive publishing, helpful community work, source suggestions, troubleshooting support, documentation, add-ons, research notes, or other contributions.", awarded: "Awarded by administrator review.", status: "Admin-awarded later", note: "Does not grant hidden authority." },
   { name: "Steward Member", purpose: "Recognition for verified stewardship support, such as direct support for independent nonprofits or other meaningful public-benefit stewardship.", awarded: "Recognition is reviewed before being awarded.", status: "Stewardship verification", note: "Not payment to Elysia." },
   { name: "Guardian / Reviewer", purpose: "A trust role for moderation, review, safety, source review, marketplace review, or Commune review.", awarded: "Manually assigned by an administrator. Never self-assigned.", status: "Trust role", note: "No self-assignment." },
@@ -171,7 +171,7 @@ export default function CommonsCirclePage() {
 
       <section className="commons-doctrine-grid">
         <WarningCallout title="No private local sync"><p>This is an Elysia Ecobotics Online account hub, not a local Elysia account. Private local Elysia memory, vaults, files, logs, passwords, credentials, and machine data do not sync by default.</p></WarningCallout>
-        <WarningCallout title="Donation boundary"><p>A donation is never paid to Elysia Ecobotics through this page. Members may support independent stewardship organizations directly, then optionally request recognition with redacted proof.</p></WarningCallout>
+        <WarningCallout title="Independent giving boundary"><p>EcoSyneva does not process donations to outside organizations. If a member chooses to donate to an independent stewardship organization, payment occurs directly through that organization's official channel, not through Elysia Ecobotics or EcoSyneva. Optional recognition is separate and may use redacted proof.</p></WarningCallout>
         <WarningCallout title="Administrator authority"><p>Membership recognition does not buy authority over Elysia. Guardian, reviewer, moderator, administrator, and trust roles are assigned by authorized administrators.</p></WarningCallout>
       </section>
 
@@ -262,7 +262,7 @@ export default function CommonsCirclePage() {
         <h2>{freeMemberRecognized ? "Free Member recognition" : "Free Member pending"}</h2>
         <dl className="mini-facts"><MiniFact label="Current tier" value={membershipTierLabel} /><MiniFact label="Setup complete" value={profileSetupComplete ? "Yes" : "Not yet"} /><MiniFact label="Developer" value={profile?.is_developer ? "Requested / visible" : "Pending / No"} /><MiniFact label="Admin" value={profile?.is_admin ? "Yes" : "No"} /></dl>
         {!freeMemberRecognized && <p className="boundary-note">Complete Commons Profile setup before Free Member recognition is granted. A browser-local onboarding flag or a minimal Marketplace profile is not sufficient.</p>}
-        <p className="boundary-note">Free Member recognition follows canonical completed Commons onboarding, while existing legitimate awards remain preserved. Other membership tiers and badges are assigned through their own authorized rules. Donation proof may support Steward recognition, but it does not create administrator, moderator, reviewer, developer, paid role, or guardian authority.</p>
+        <p className="boundary-note">Free Member recognition follows canonical completed Commons onboarding, while existing legitimate awards remain preserved. Other membership tiers and badges are assigned through their own authorized rules. Proof of direct giving to an independent stewardship organization may support Steward recognition, but it does not create administrator, moderator, reviewer, developer, paid role, or guardian authority.</p>
       </section>
 
       <section className="section-card commons-medallion-wall">

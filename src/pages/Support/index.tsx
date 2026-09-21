@@ -242,8 +242,16 @@ export default function SupportPage() {
         <h2 id="support-recognition-title">Community members who chose acknowledgment</h2>
         <p>This unranked list contains only the member's chosen public display name after explicit opt-in. It never publishes an amount, cadence, plan, waiver, refund, dispute, balance, provider identifier, or financial history.</p>
         <ul className="support-recognition-list">{supportRecognition.supporters.map((supporter) => <li key={supporter.username}>{supporter.displayName}</li>)}</ul>
-        <p className="boundary-note">Acknowledgment is gratitude, not a badge, endorsement, trust signal, donor rank, governance role, moderation power, review authority, service priority, or evidence of greater dignity. A member may withdraw it through their private Support &amp; Billing room.</p>
+        <p className="boundary-note">Acknowledgment is gratitude, not a badge, endorsement, trust signal, supporter rank, governance role, moderation power, review authority, service priority, or evidence of greater dignity. A member may withdraw it through their private Support &amp; Billing room.</p>
       </section>}
+
+      <section className="section-card support-business-model-clarification">
+        <p className="eyebrow">How Support works</p>
+        <h2>Support pays EcoSyneva's own operating costs</h2>
+        <p>One-time Support is an optional first-party payment made directly to EcoSyneva Commons LLC. It helps pay the real costs of software development and updates, server hosting, databases, storage, security, moderation, documentation, backups, and continued operation of Elysia Ecobotics Online. Support is EcoSyneva business revenue used for EcoSyneva's own operations; it is not collected for another organization, campaign, creator, or individual.</p>
+        <p>Support has no payment-dependent goal or deadline. It does not purchase equity, investment returns, ownership, governance, moderation authority, status, ranking, paid priority, personal compute entitlement, or special access. Support is not represented as tax-deductible. People who do not pay retain ordinary access to free Elysia software and ordinary community participation.</p>
+        <p><strong>Independent nonprofit giving is a separate system.</strong> Elysia may link members to outside nonprofit and stewardship organizations they can choose to support directly on those organizations' own websites or official channels. Those outside payments do not use EcoSyneva's Stripe account. EcoSyneva does not receive, hold, process, route, refund, settle, or take a commission on those funds. Optional stewardship recognition happens only after the outside transaction and is separate from payment.</p>
+      </section>
 
       <section className="section-card support-legal-disclosure">
         <p className="eyebrow">Entity and help</p>

@@ -716,14 +716,14 @@ export default function CommonsCircleSetupPage() {
             <label className="checkbox-line"><input type="checkbox" checked={profileDraft.is_developer} onChange={(event) => updateProfileDraft({ ...profileDraft, is_developer: event.target.checked })} /><span>Request developer profile flag. This is not reviewer, moderator, admin, or authority access.</span></label>
           </div>
           {validationSlot}
-          <div className="button-row"><button type="button" className="button-primary" onClick={continueFromProfile}>Continue: Stewardship & Donations</button><a className="button-link" href="/commons-circle">Cancel setup</a></div>
+          <div className="button-row"><button type="button" className="button-primary" onClick={continueFromProfile}>Continue: Stewardship & Independent Giving</button><a className="button-link" href="/commons-circle">Cancel setup</a></div>
         </section>
       </section>}
 
       {step === "stewardship" && <section className="section-card commons-setup-panel">
-        <p className="eyebrow">Step 2: Stewardship & Donation Options</p>
+        <p className="eyebrow">Step 2: Stewardship & Independent Giving</p>
         <h2>Optional stewardship support</h2><div className="button-row"><FundingLink /></div>
-        <WarningCallout title="Optional and direct"><p>Donations are optional and made directly to independent organizations. Elysia Ecobotics does not process these donations. Stewardship recognition may be requested, but it requires authorized stewardship review and does not grant authority, paid status, moderator access, reviewer access, or administrator access.</p></WarningCallout>
+        <WarningCallout title="Optional and direct"><p>Independent giving is optional and occurs directly through the outside organization's own website or official channel. Elysia Ecobotics and EcoSyneva do not receive, process, route, refund, or take a commission on those funds. Stewardship recognition may be requested afterward, but it is separate from payment and does not grant authority, paid status, moderator access, reviewer access, or administrator access.</p></WarningCallout>
         <p className="boundary-note">Proof uploads are private to you and authorized stewardship reviewers, and are sent to private hosted storage only after final confirmation. Remove unnecessary addresses, QR codes, transaction-access links and sensitive identifiers. Do not upload identity documents, medical records, passwords, API keys, .env files, bank account numbers, full card numbers, or unredacted third-party personal data.</p>
         {Object.entries(groupedOrganizations).map(([category, orgs]) => <section className="commons-org-category" key={category}>
           <div className="section-heading section-heading--inline"><h3>{category}</h3><span className="trust-badge">{orgs.length} organizations</span></div>
@@ -741,7 +741,7 @@ export default function CommonsCircleSetupPage() {
         </section>)}
         <div className="commons-form-grid">
           <label><span>Amount range, optional</span><select value={stewardshipDraft.amountRange} onChange={(event) => updateStewardshipDraft({ ...stewardshipDraft, amountRange: event.target.value })}>{amountRanges.map((range) => <option key={range}>{range}</option>)}</select></label>
-          <label><span>Donation date, optional</span><input type="date" value={stewardshipDraft.donationDate} onChange={(event) => updateStewardshipDraft({ ...stewardshipDraft, donationDate: event.target.value })} /></label>
+          <label><span>Independent gift date, optional</span><input type="date" value={stewardshipDraft.donationDate} onChange={(event) => updateStewardshipDraft({ ...stewardshipDraft, donationDate: event.target.value })} /></label>
           <label className="wide-field"><span>Support note, optional</span><textarea rows={3} value={stewardshipDraft.supportNote} onChange={(event) => updateStewardshipDraft({ ...stewardshipDraft, supportNote: event.target.value })} /></label>
           <label className="wide-field"><span>Receipt/proof file, optional</span><input type="file" accept=".pdf,.png,.jpg,.jpeg,.txt,.md,application/pdf,image/png,image/jpeg,text/plain,text/markdown,text/x-markdown" onChange={(event) => {
             const nextFile = event.target.files?.[0] ?? null;

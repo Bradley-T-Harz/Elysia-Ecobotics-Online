@@ -2831,7 +2831,7 @@ export async function loadEconomicOperatorOverview(accessToken: string): Promise
     "organizationServiceQueue", "sponsorshipQueue", "accountRequestQueue", "assistanceProgramQueue",
     "assistanceQueue", "featureFlags", "providerIdentifiersExposed", "personalContactDataExposed", "testMode"
   ], "economic_operator_overview_invalid");
-  if (envelope.ok !== true || typeof operator.authorized !== "boolean" || typeof operator.testMode !== "boolean" || operator.providerIdentifiersExposed !== false || operator.personalContactDataExposed !== false || operator.queueLimit !== 10 || !Array.isArray(operator.capabilities)
+  if (envelope.ok !== true || typeof operator.authorized !== "boolean" || operator.testMode !== true || operator.providerIdentifiersExposed !== false || operator.personalContactDataExposed !== false || operator.queueLimit !== 10 || !Array.isArray(operator.capabilities)
     || operator.capabilities.length > economicOperatorCapabilities.size
     || operator.capabilities.some((capability) => typeof capability !== "string" || !economicOperatorCapabilities.has(capability as EconomicOperatorCapability))
     || new Set(operator.capabilities).size !== operator.capabilities.length) {
