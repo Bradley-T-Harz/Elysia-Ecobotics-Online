@@ -147,7 +147,7 @@ export default function SupportPage() {
 
   return (
     <div className="page-stack support-page">
-      <PageHero eyebrow="Voluntary support" title="Keep the commons alive" brandMark="standard" actions={<><a className="button-link button-link--primary" href="#support-checkout">Support Elysia</a><Link className="button-link" to="/archive">Continue without contributing</Link></>}>
+      <PageHero eyebrow="Voluntary support" title="Keep the commons alive" brandMark="standard" actions={<><a className="button-link button-link--primary" href="#support-checkout">Support Elysia</a><Link className="button-link" to="/archive">Continue without payment</Link></>}>
         <p>Local Elysia and ordinary community participation remain free. Development, hosting, security, moderation, documentation, and the optional online coding sandbox still have real costs.</p>
         <p>Supporting Elysia is optional and deeply useful. EcoSyneva Commons LLC is building for sustainable operation, not extraction, wealth ranking, or control of the Commons.</p>
       </PageHero>
@@ -172,13 +172,15 @@ export default function SupportPage() {
               : capabilities === null
                 ? "Availability unavailable"
                 : capabilities.supportCheckout || capabilities.recurringSupport
-                  ? "Stripe test checkout"
+                  ? capabilities.mode === "live"
+                    ? "Stripe checkout available"
+                    : "Stripe test checkout"
                   : "Support checkout disabled"}
             tone={capabilities?.supportCheckout || capabilities?.recurringSupport ? "safe" : "warning"}
           />
         </div>
         <p className="boundary-note">No recurring option is preselected. When checkout is available and you choose to continue, Stripe receives the payment, contact, device, and transaction information needed to process it. Stripe does not receive local Elysia memory, files, conversations, Commune content, profile interests, or sandbox source code through this form.</p>
-        {capabilities && <p className={capabilities.supportCheckout || capabilities.recurringSupport ? "inline-status" : "demo-banner"}>{capabilities.supportCheckout || capabilities.recurringSupport ? capabilities.mode === "live" ? "Stripe securely processes optional Support. Your payment buys no governance, status or personal compute." : "An explicitly enabled Stripe-hosted support checkout is available in test mode. No live charge can be created." : "Stripe completed its first-party account review on September 15, 2026. Support checkout remains unavailable while technical activation and payment qualification are completed. Existing payment questions, refunds and cancellation remain separate responsibilities; use Support & Billing or contact support for help."}</p>}
+        {capabilities && <p className={capabilities.supportCheckout || capabilities.recurringSupport ? "inline-status" : "demo-banner"}>{capabilities.supportCheckout || capabilities.recurringSupport ? capabilities.mode === "live" ? "Stripe securely processes optional Support. Your payment buys no governance, status or personal compute." : "An explicitly enabled Stripe-hosted support checkout is available in test mode. No live charge can be created." : "Support checkout is currently unavailable. No payment can be created through this path. Existing payment questions, refunds, and cancellation remain separate responsibilities; use Support & Billing or contact support for help."}</p>}
         {capabilitiesChecked && !capabilities && <p className="demo-banner" role="status">Checkout availability could not be verified. This page remains safely disabled; no payment was created and no legal version will be guessed.</p>}
         {!authLoading && <p className="support-account-context">{email ? <>Account-linked support will be associated with the signed-in Website Account for private history and cancellation. <strong>{email}</strong></> : <>One-time support can remain a guest checkout. Sign in through <Link to="/commons-circle">Commons Circle</Link> before choosing monthly support.</>}</p>}
 
@@ -189,7 +191,7 @@ export default function SupportPage() {
               <label className={cadence === "one_time" ? "support-choice support-choice--selected" : "support-choice"}><input type="radio" name="support-cadence" value="one_time" checked={cadence === "one_time"} onChange={() => chooseCadence("one_time")} /><span><strong>One-time support</strong><small>No renewal.</small></span></label>
               <label className={cadence === "monthly" ? "support-choice support-choice--selected" : "support-choice"}><input type="radio" name="support-cadence" value="monthly" checked={cadence === "monthly"} onChange={() => chooseCadence("monthly")} disabled={fromLocalRelease || !capabilities?.recurringSupport || !accessToken} /><span><strong>Monthly sustaining support</strong><small>{fromLocalRelease ? "Not part of the pay-what-you-can release choice; use the general Support page later if desired." : "Renews monthly until canceled through Support & Billing or Stripe's secure portal."}</small></span></label>
             </div>
-            {fromLocalRelease && <p className="small-note">The optional pay-what-you-can release context offers one-time support only, with no contribution amount preselected. The $0 release path remains outside this form.</p>}
+            {fromLocalRelease && <p className="small-note">The optional pay-what-you-can release context offers one-time support only, with no Support amount preselected. The $0 release path remains outside this form.</p>}
             {!capabilities?.recurringSupport && <p className="small-note">Monthly support is being prepared with explicit consent, account recovery and cancellation. It remains disabled until the required review and payment setup are complete.</p>}
           </fieldset>
 

@@ -65,7 +65,7 @@ for (const route of [
 }
 
 assert(
-  support.includes('to="/archive">Continue without contributing</Link>')
+  support.includes('to="/archive">Continue without payment</Link>')
     && support.includes("Local Elysia and ordinary community participation remain free")
     && support.includes("A website account is not required for ordinary local use"),
   "Support must retain an equally visible free path and explain account-free local use."
